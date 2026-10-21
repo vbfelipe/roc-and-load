@@ -1,0 +1,250 @@
+import * as TWEEN from '@tweenjs/tween.js';
+
+// Tactical Ammo HUD (.50 AE counter, bullet pips, reload warnings)
+export class HUD {
+  constructor() {
+    this.container = null;
+    this.ammoCountEl = null;
+    this.ammoPanelEl = null;
+    this.pipsContainerEl = null;
+    this.reloadPromptEl = null;
+    this.bulletPips = [];
+
+    this.currentAmmo = 7;
+    this.maxAmmo = 7;
+    this._lastReportedAmmo = null;
+    this._lastReportedMax = null;
+    this.isPulsing = false;
+    this.onReloadClick = null;
+
+    this._createDOM();
+  }
+
+  setReloadCallback(fn) {
+    this.onReloadClick = fn;
+  }
+
+  _createDOM() {
+    // Find ui-layer or fallback to body
+    const uiLayer = document.getElementById('ui-layer') || document.body;
+
+    // 1. Crosshair [R] RELOAD Prompt
+    this.reloadPromptEl = document.createElement('div');
+    this.reloadPromptEl.id = 'hud-reload-prompt';
+    this.reloadPromptEl.className = 'hud-reload-prompt hidden';
+    this.reloadPromptEl.innerHTML = `
+      <span class="key-badge-prompt">R</span>
+      <span class="prompt-text">RELOAD</span>
+    `;
+    this.reloadPromptEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (typeof this.onReloadClick === 'function') {
+        this.onReloadClick();
+      }
+    });
+    uiLayer.appendChild(this.reloadPromptEl);
+
+    // 2. Bottom-Right .50 AE AMMO Panel
+    this.ammoPanelEl = document.createElement('div');
+    this.ammoPanelEl.id = 'hud-ammo-panel';
+    this.ammoPanelEl.className = 'hud-ammo-panel';
+    this.ammoPanelEl.innerHTML = `
+      <div class="panel-header">
+        <div class="caliber-tag">
+          <span class="status-led"></span>
+          <span>.50 AE</span>
+        </div>
+        <div class="mode-tag">SEMI-AUTO</div>
+      </div>
+
+      <div class="panel-body">
+        <div class="numeric-readout">
+          <span id="hud-ammo-current" class="ammo-num">7</span>
+          <span class="ammo-divider">/</span>
+          <span class="ammo-reserve">∞</span>
+        </div>
+
+        <div id="hud-bullet-pips" class="bullet-pips-row"></div>
+      </div>
+    `;
+    uiLayer.appendChild(this.ammoPanelEl);
+
+    this.ammoCountEl = this.ammoPanelEl.querySelector('#hud-ammo-current');
+    this.pipsContainerEl = this.ammoPanelEl.querySelector('#hud-bullet-pips');
+
+    // Build the 7 visual bullet pips
+    this._buildBulletPips();
+  }
+
+  _buildBulletPips() {
+    this.bulletPips = [];
+    this.pipsContainerEl.innerHTML = '';
+
+    for (let i = 0; i < this.maxAmmo; i++) {
+      const pip = document.createElement('div');
+      pip.className = 'bullet-pip';
+      pip.dataset.index = i;
+      pip.innerHTML = `
+        <div class="pip-ogive"></div>
+        <div class="pip-casing"></div>
+        <div class="pip-rim"></div>
+      `;
+      this.pipsContainerEl.appendChild(pip);
+      this.bulletPips.push(pip);
+    }
+  }
+
+  // Update readout and bullet pips
+  updateAmmo(current, max = 7, force = false) {
+    if (!force && this._lastReportedAmmo === current && this._lastReportedMax === max) return;
+    this._lastReportedAmmo = current;
+    this._lastReportedMax = max;
+
+    this.currentAmmo = current;
+    this.maxAmmo = max;
+
+    if (this.ammoCountEl) {
+      this.ammoCountEl.textContent = current;
+
+      // Punchy scale animation on shot
+      new TWEEN.Tween({ scale: 1.25 }, true)
+        .to({ scale: 1.0 }, 140)
+        .easing(TWEEN.Easing.Back.Out)
+        .onUpdate((obj) => {
+          this.ammoCountEl.style.transform = `scale(${obj.scale})`;
+        })
+        .start();
+    }
+
+    // Update bullet pips state
+    for (let i = 0; i < this.bulletPips.length; i++) {
+      const pip = this.bulletPips[i];
+      if (i < current) {
+        pip.classList.remove('spent');
+      } else {
+        pip.classList.add('spent');
+        pip.style.opacity = '';
+        pip.style.transform = '';
+      }
+    }
+
+    // Update warnings
+    this._updateWarningStates();
+  }
+
+  _updateWarningStates() {
+    if (!this.ammoPanelEl) return;
+
+    // Reset warning classes
+    this.ammoPanelEl.classList.remove('warning-low', 'warning-empty');
+
+    if (this.currentAmmo === 0) {
+      this.ammoPanelEl.classList.add('warning-empty');
+      this.setEmptyState(true);
+    } else if (this.currentAmmo <= 2) {
+      this.ammoPanelEl.classList.add('warning-low');
+      this.setEmptyState(false);
+    } else {
+      this.setEmptyState(false);
+    }
+  }
+
+  // Toggle reload prompt visibility
+  setEmptyState(isEmpty) {
+    if (!this.reloadPromptEl) return;
+
+    if (isEmpty) {
+      this.reloadPromptEl.classList.remove('hidden');
+    } else {
+      this.reloadPromptEl.classList.add('hidden');
+    }
+  }
+
+  // Dry-fire warning animation on empty trigger click
+  triggerDryFireWarning() {
+    if (this.reloadPromptEl) {
+      // Shake [R] RELOAD prompt
+      const shakeObj = { x: 0, scale: 1.35 };
+      new TWEEN.Tween(shakeObj, true)
+        .to({ x: 8, scale: 1.0 }, 40)
+        .easing(TWEEN.Easing.Quadratic.Out)
+        .onUpdate(() => {
+          this.reloadPromptEl.style.transform = `translate(calc(-50% + ${shakeObj.x}px), 0) scale(${shakeObj.scale})`;
+        })
+        .onComplete(() => {
+          new TWEEN.Tween({ x: 8 }, true)
+            .to({ x: -6 }, 40)
+            .onUpdate((o) => {
+              this.reloadPromptEl.style.transform = `translate(calc(-50% + ${o.x}px), 0) scale(1.0)`;
+            })
+            .onComplete(() => {
+              new TWEEN.Tween({ x: -6 }, true)
+                .to({ x: 0 }, 40)
+                .onUpdate((o) => {
+                  this.reloadPromptEl.style.transform = `translate(calc(-50% + ${o.x}px), 0) scale(1.0)`;
+                })
+                .start();
+            })
+            .start();
+        })
+        .start();
+    }
+
+    if (this.ammoPanelEl) {
+      // Jolt ammo panel horizontally using CSS custom property to preserve responsive scale
+      new TWEEN.Tween({ x: 0 }, true)
+        .to({ x: -8 }, 45)
+        .easing(TWEEN.Easing.Quadratic.Out)
+        .onUpdate((o) => {
+          this.ammoPanelEl.style.setProperty('--hud-jolt-x', `${o.x}px`);
+        })
+        .onComplete(() => {
+          new TWEEN.Tween({ x: -8 }, true)
+            .to({ x: 0 }, 60)
+            .easing(TWEEN.Easing.Quadratic.In)
+            .onUpdate((o) => {
+              this.ammoPanelEl.style.setProperty('--hud-jolt-x', `${o.x}px`);
+            })
+            .start();
+        })
+        .start();
+    }
+  }
+
+  /**
+   * Called when reload starts: hides empty warning prompt.
+   */
+  onReloadStart() {
+    if (this.reloadPromptEl) {
+      this.reloadPromptEl.classList.add('hidden');
+    }
+  }
+
+  // Reload finish callback: sequential pip refill
+  onReloadComplete() {
+    this.updateAmmo(7, 7);
+
+    // Staggered cartridge refill pop animation via CSS
+    for (let i = 0; i < this.bulletPips.length; i++) {
+      const pip = this.bulletPips[i];
+      pip.classList.remove('spent');
+      pip.style.transform = '';
+      pip.style.opacity = '';
+
+      // Trigger crisp CSS animation
+      pip.classList.remove('refilling');
+      void pip.offsetWidth; // Force reflow
+      pip.style.animationDelay = `${i * 35}ms`;
+      pip.classList.add('refilling');
+
+      pip.addEventListener(
+        'animationend',
+        () => {
+          pip.classList.remove('refilling');
+          pip.style.animationDelay = '';
+        },
+        { once: true }
+      );
+    }
+  }
+}

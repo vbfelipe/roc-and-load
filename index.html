@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ROC AND LOAD!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@400;600;800&display=swap"
+    rel="stylesheet">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #08090c;
+      color: #e2e8f0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    #game-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: block;
+      z-index: 1;
+    }
+
+    /* UI Overlay Layer */
+    #ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    #ui-layer.menu-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Crosshair */
+    #crosshair-container {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+    }
+
+    .crosshair-dot {
+      width: 4px;
+      height: 4px;
+      background: #ffaa00;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #ff9900;
+      position: absolute;
+    }
+
+    .crosshair-line {
+      position: absolute;
+      background: rgba(255, 200, 50, 0.85);
+      border-radius: 1px;
+      box-shadow: 0 0 6px rgba(255, 170, 0, 0.6);
+      transition: transform 0.08s ease-out;
+    }
+
+    .crosshair-line.top {
+      width: 2px;
+      height: 7px;
+      top: 2px;
+    }
+
+    .crosshair-line.bottom {
+      width: 2px;
+      height: 7px;
+      bottom: 2px;
+    }
+
+    .crosshair-line.left {
+      width: 7px;
+      height: 2px;
+      left: 2px;
+    }
+
+    .crosshair-line.right {
+      width: 7px;
+      height: 2px;
+      right: 2px;
+    }
+
+    /* Start / Pause Menu */
+    #start-modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: flex-start;
+      pointer-events: auto;
+      z-index: 50;
+      overflow: hidden;
+      box-sizing: border-box;
+      transition: opacity 0.25s ease, visibility 0.25s ease;
+    }
+
+    #start-modal.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    /* Asymmetric left-to-right cinematic background vignette (fades to transparent before 55%) */
+    .menu-backdrop-vignette {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(90deg,
+          rgba(10, 13, 18, 0.94) 0%,
+          rgba(10, 13, 18, 0.86) 20%,
+          rgba(10, 13, 18, 0.52) 36%,
+          rgba(10, 13, 18, 0.12) 48%,
+          transparent 58%);
+      pointer-events: none;
+    }
+
+    /* Left Dock Frosted Blur: strictly locked to left 45vw, smoothly feathered on the right */
+    .menu-blur-dock {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: min(520px, 45vw);
+      max-width: 46vw;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      -webkit-mask-image: linear-gradient(90deg,
+          rgba(0, 0, 0, 1) 0%,
+          rgba(0, 0, 0, 1) 75%,
+          rgba(0, 0, 0, 0) 100%);
+      mask-image: linear-gradient(90deg,
+          rgba(0, 0, 0, 1) 0%,
+          rgba(0, 0, 0, 1) 75%,
+          rgba(0, 0, 0, 0) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* Left Dock Panel: strictly confined to left 45vw, never exceeding half the screen */
+    .menu-left-panel {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: flex-start;
+      height: 100%;
+      min-width: 0;
+      width: min(520px, 45vw);
+      max-width: 46vw;
+      padding-left: clamp(1.2rem, 3.5vw, 4.5rem);
+      padding-right: clamp(0.75rem, 1.5vw, 1.5rem);
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    /* Top Live Telemetry Badge */
+    .telemetry-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 14px;
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      border-radius: 9999px;
+      margin-bottom: clamp(14px, 2.5vh, 22px);
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.70rem, 0.95vw, 0.82rem);
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #fca5a5;
+      text-transform: uppercase;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.18);
+      white-space: nowrap;
+    }
+
+    .pulsing-led {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ef4444;
+      box-shadow: 0 0 8px #ef4444;
+      animation: pulse-telemetry-led 1.4s infinite alternate ease-in-out;
+      flex-shrink: 0;
+    }
+
+    @keyframes pulse-telemetry-led {
+      0% {
+        opacity: 0.45;
+        box-shadow: 0 0 4px #ef4444;
+      }
+
+      100% {
+        opacity: 1.0;
+        box-shadow: 0 0 12px #ef4444, 0 0 20px rgba(239, 68, 68, 0.7);
+      }
+    }
+
+    /* Main Title Cluster */
+    .title-cluster {
+      margin-bottom: clamp(24px, 4vh, 38px);
+      text-align: left;
+    }
+
+    .game-logo {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: clamp(6px, 1.0vw, 14px);
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(1.8rem, 3.8vw, 4.0rem);
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 1.5px;
+      line-height: 1.0;
+      margin: 0 0 12px 0;
+      text-transform: uppercase;
+      color: #f8fafc;
+      text-shadow:
+        0 2px 0 #94a3b8,
+        0 4px 12px rgba(0, 0, 0, 0.85),
+        0 0 35px rgba(248, 250, 252, 0.15);
+    }
+
+    .logo-main {
+      white-space: nowrap;
+      background: linear-gradient(180deg, #ffffff 40%, #e2e8f0 75%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6));
+    }
+
+    .tagline {
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.88rem, 1.15vw, 1.08rem);
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      color: #94a3b8;
+      text-transform: uppercase;
+      margin: 0;
+    }
+
+    /* Primary Action Container */
+    .action-container {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+    }
+
+    /* Tactile Tactical Button with chamfered cut corner */
+    .tactical-btn {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(0.85rem, 1.2vw, 1.20rem);
+      font-weight: 800;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: #090c12;
+      background: #f8fafc;
+      padding: clamp(10px, 1.8vh, 16px) clamp(20px, 2.8vw, 36px);
+      border: none;
+      border-left: 4px solid #f59e0b;
+      clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 0 100%);
+      cursor: pointer;
+      box-shadow:
+        0 4px 20px rgba(0, 0, 0, 0.6),
+        0 0 15px rgba(248, 250, 252, 0.15);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      overflow: hidden;
+    }
+
+    .tactical-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, #fde68a 0%, #fbbf24 60%, #f59e0b 100%);
+      opacity: 0;
+      transition: opacity 0.2s ease;
+      z-index: 1;
+    }
+
+    .tactical-btn:hover {
+      transform: translateX(4px);
+      color: #040608;
+      box-shadow:
+        0 8px 30px rgba(245, 158, 11, 0.45),
+        0 0 25px rgba(251, 191, 36, 0.35);
+      border-left-color: #ffffff;
+    }
+
+    .tactical-btn:hover::before {
+      opacity: 1;
+    }
+
+    .tactical-btn:active {
+      transform: translateX(2px) scale(0.99);
+    }
+
+    .btn-content {
+      position: relative;
+      z-index: 2;
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn-chevron {
+      font-size: 1.2em;
+      color: #d97706;
+      transition: transform 0.2s ease, color 0.2s ease;
+    }
+
+    .tactical-btn:hover .btn-chevron {
+      transform: translateX(4px);
+      color: #090c12;
+    }
+
+    /* Subtext under button */
+    .status-subtext {
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.76rem, 0.92vw, 0.88rem);
+      font-weight: 600;
+      letter-spacing: 0.10em;
+      color: #64748b;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .status-key {
+      color: #94a3b8;
+      font-weight: 700;
+    }
+
+    .status-val {
+      color: #10b981;
+      font-weight: 700;
+    }
+
+    .status-val.paused {
+      color: #f59e0b;
+    }
+
+    /* Clean Official Menu Footer Credit */
+    .menu-footer {
+      position: absolute;
+      bottom: clamp(1.25rem, 3vh, 2.25rem);
+      left: clamp(1.2rem, 3.5vw, 4.5rem);
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.62rem, 0.72vw, 0.72rem);
+      font-weight: 400;
+      letter-spacing: 0.05em;
+      color: rgba(226, 232, 240, 0.42);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+      user-select: none;
+      -webkit-user-select: none;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 10;
+    }
+
+    /* Small Window / Split-Screen Responsiveness (Never swallow the screen!) */
+    @media (max-width: 900px) {
+      .menu-blur-dock {
+        width: 45vw;
+        max-width: 46vw;
+      }
+
+      .menu-left-panel {
+        width: 45vw;
+        max-width: 46vw;
+        padding-left: clamp(0.8rem, 2.2vw, 1.8rem);
+        padding-right: 0.5rem;
+      }
+
+      .menu-footer {
+        left: clamp(0.8rem, 2.2vw, 1.8rem);
+        bottom: clamp(0.9rem, 2.2vh, 1.5rem);
+        font-size: clamp(0.52rem, 0.65vw, 0.62rem);
+        font-weight: 400;
+      }
+
+      .game-logo {
+        font-size: clamp(1.2rem, 3.4vw, 1.8rem);
+        gap: 5px;
+        margin-bottom: 8px;
+      }
+
+      .telemetry-badge {
+        font-size: 0.52rem;
+        padding: 3px 7px;
+        margin-bottom: 10px;
+        gap: 5px;
+      }
+
+      .tagline {
+        font-size: clamp(0.72rem, 1.0vw, 0.88rem);
+        letter-spacing: 0.10em;
+      }
+
+      .tactical-btn {
+        font-size: 0.75rem;
+        padding: 7px 14px;
+        letter-spacing: 0.8px;
+      }
+
+      .status-subtext {
+        font-size: clamp(0.64rem, 0.82vw, 0.74rem);
+        letter-spacing: 0.08em;
+      }
+    }
+
+    /* Diagnostics HUD */
+    #perf-stats {
+      position: absolute;
+      top: 10px;
+      left: 12px;
+      font-family: 'Chakra Petch', monospace;
+      font-size: 0.72rem;
+      color: rgba(255, 255, 255, 0.7);
+      background: rgba(10, 14, 20, 0.6);
+      padding: 4px 8px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      pointer-events: none;
+      display: flex;
+      gap: 10px;
+    }
+
+    #perf-stats .stat-val {
+      color: #fbbf24;
+      font-weight: 700;
+    }
+
+    /* Floating .50 AE Ammo HUD */
+    :root {
+      --hud-scale: 1;
+      --hud-jolt-x: 0px;
+    }
+
+    @media (max-width: 1200px),
+    (max-height: 800px) {
+      :root {
+        --hud-scale: 0.92;
+      }
+    }
+
+    @media (max-width: 1000px),
+    (max-height: 700px) {
+      :root {
+        --hud-scale: 0.84;
+      }
+    }
+
+    @media (max-width: 820px),
+    (max-height: 600px) {
+      :root {
+        --hud-scale: 0.74;
+      }
+    }
+
+    @media (max-width: 680px),
+    (max-height: 500px) {
+      :root {
+        --hud-scale: 0.64;
+      }
+    }
+
+    @media (max-width: 520px),
+    (max-height: 400px) {
+      :root {
+        --hud-scale: 0.54;
+      }
+    }
+
+    .hud-ammo-panel {
+      position: absolute;
+      bottom: max(10px, 2vh);
+      right: max(14px, 2vw);
+      width: fit-content;
+      background: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+      backdrop-filter: none !important;
+      padding: 0 !important;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      pointer-events: none;
+      transform-origin: bottom right;
+      transform: scale(var(--hud-scale, 1)) translateX(var(--hud-jolt-x, 0px));
+      transition: transform 0.1s ease-out;
+      clip-path: none !important;
+      z-index: 20;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-bottom: 2px;
+      white-space: nowrap;
+      border-bottom: none;
+    }
+
+    .caliber-tag {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      color: #cbd5e1;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9), 0 0 8px rgba(0, 0, 0, 0.7);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .status-led {
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      flex-shrink: 0;
+      transition: background 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .mode-tag {
+      font-family: 'Chakra Petch', monospace;
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: #fbbf24;
+      background: rgba(251, 191, 36, 0.15);
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      padding: 2px 6px;
+      border-radius: 3px;
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      line-height: 1.1;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+    }
+
+    .panel-body {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 14px;
+      padding: 0;
+    }
+
+    .numeric-readout {
+      display: flex;
+      align-items: baseline;
+      gap: 3px;
+      font-family: 'Chakra Petch', sans-serif;
+      line-height: 1;
+    }
+
+    .ammo-num {
+      font-size: 2.25rem;
+      font-weight: 900;
+      color: #fbbf24;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 12px rgba(245, 158, 11, 0.55));
+      display: inline-block;
+      min-width: 22px;
+      transition: color 0.2s ease, filter 0.2s ease;
+    }
+
+    .ammo-divider {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.35);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+    }
+
+    .ammo-reserve {
+      font-size: 1.45rem;
+      font-weight: 700;
+      color: rgba(255, 255, 255, 0.7);
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9);
+    }
+
+    /* 7 Bullet Visual Pips */
+    .bullet-pips-row {
+      display: flex;
+      gap: 3.5px;
+      align-items: flex-end;
+      height: 25px;
+      padding-bottom: 2px;
+    }
+
+    .bullet-pip {
+      width: 6.5px;
+      height: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.85));
+      transition: transform 0.16s ease-out, opacity 0.16s ease-out;
+    }
+
+    .pip-ogive {
+      width: 4.5px;
+      height: 7px;
+      background: linear-gradient(180deg, #fde68a 0%, #f59e0b 60%, #b45309 100%);
+      border-radius: 3px 3px 0 0;
+      box-shadow: 0 0 4px rgba(245, 158, 11, 0.5);
+      transition: all 0.16s ease-out;
+    }
+
+    .pip-casing {
+      width: 5.5px;
+      height: 14px;
+      background: linear-gradient(90deg, #b45309 0%, #fbbf24 45%, #f59e0b 80%, #78350f 100%);
+      border-radius: 1px;
+      transition: all 0.16s ease-out;
+    }
+
+    .pip-rim {
+      width: 6.5px;
+      height: 3px;
+      background: #92400e;
+      border-radius: 1px;
+      transition: all 0.16s ease-out;
+    }
+
+    /* Spent Cartridge State: bullet pip simply vanishes */
+    .bullet-pip.spent {
+      opacity: 0 !important;
+      visibility: hidden !important;
+      transform: scale(0.4);
+      pointer-events: none;
+      transition: transform 0.1s ease-out, opacity 0.1s ease-out;
+    }
+
+    /* Staggered Refill Pop Animation */
+    @keyframes pip-refill {
+      0% {
+        transform: scale(0.35);
+        opacity: 0.2;
+      }
+
+      65% {
+        transform: scale(1.18);
+        opacity: 1;
+      }
+
+      100% {
+        transform: scale(1.0);
+        opacity: 1;
+      }
+    }
+
+    .bullet-pip.refilling {
+      animation: pip-refill 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    }
+
+    /* Warning Low (1-2 rounds) */
+    .hud-ammo-panel.warning-low .ammo-num {
+      color: #f97316;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 14px rgba(249, 115, 22, 0.75));
+    }
+
+    .hud-ammo-panel.warning-low .status-led {
+      background: #f97316;
+      box-shadow: 0 0 8px #f97316;
+    }
+
+    .hud-ammo-panel.warning-low .mode-tag {
+      color: #f97316;
+      background: rgba(249, 115, 22, 0.15);
+      border-color: rgba(249, 115, 22, 0.45);
+    }
+
+    /* Warning Empty (0 rounds) */
+    .hud-ammo-panel.warning-empty .ammo-num {
+      color: #ef4444 !important;
+      filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 16px rgba(239, 68, 68, 0.9)) !important;
+    }
+
+    .hud-ammo-panel.warning-empty .status-led {
+      background: #ef4444 !important;
+      box-shadow: 0 0 10px #ef4444 !important;
+    }
+
+    .hud-ammo-panel.warning-empty .mode-tag {
+      color: #ef4444 !important;
+      background: rgba(239, 68, 68, 0.18) !important;
+      border-color: rgba(239, 68, 68, 0.55) !important;
+    }
+
+    /* Crosshair [R] RELOAD Prompt */
+    .hud-reload-prompt {
+      position: absolute;
+      top: calc(50% + 36px);
+      left: 50%;
+      transform: translate(-50%, 0);
+      pointer-events: auto;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 900;
+      letter-spacing: 1.5px;
+      color: #fee2e2;
+      background: rgba(18, 8, 8, 0.85);
+      border: 1px solid #ef4444;
+      padding: 3px 9px;
+      border-radius: 3px;
+      box-shadow: 0 0 16px rgba(239, 68, 68, 0.55), inset 0 0 6px rgba(239, 68, 68, 0.2);
+      backdrop-filter: blur(4px);
+      animation: pulse-reload 0.6s ease-in-out infinite alternate;
+      transition: opacity 0.15s ease, transform 0.08s ease-out;
+      z-index: 25;
+    }
+
+    .hud-reload-prompt.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .key-badge-prompt {
+      background: #ef4444;
+      color: #ffffff;
+      padding: 1px 5px;
+      border-radius: 2px;
+      font-size: 0.78rem;
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.7);
+    }
+
+    @keyframes pulse-reload {
+      0% {
+        opacity: 0.75;
+        box-shadow: 0 0 14px rgba(239, 68, 68, 0.4);
+      }
+
+      100% {
+        opacity: 1.0;
+        box-shadow: 0 0 28px rgba(239, 68, 68, 0.85);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="ui-layer" class="menu-hidden">
+    <!-- Crosshair -->
+    <div id="crosshair-container">
+      <div class="crosshair-dot"></div>
+      <div class="crosshair-line top"></div>
+      <div class="crosshair-line bottom"></div>
+      <div class="crosshair-line left"></div>
+      <div class="crosshair-line right"></div>
+    </div>
+
+    <!-- Live Performance Stats -->
+    <div id="perf-stats">
+      <span>FPS: <span id="stat-fps" class="stat-val">--</span></span>
+      <span>COLLISIONS: <span id="stat-bvh" class="stat-val">BVH READY</span></span>
+      <span>POS: <span id="stat-pos" class="stat-val">0, 0, 0</span></span>
+    </div>
+  </div>
+
+  <!-- Start / Pause Menu (Asymmetric Left-Aligned AAA Title Screen) -->
+  <div id="start-modal">
+    <div class="menu-backdrop-vignette"></div>
+    <div class="menu-blur-dock"></div>
+    <div class="menu-left-panel">
+      <!-- Live Telemetry Badge -->
+      <div class="telemetry-badge">
+        <span class="pulsing-led"></span>
+        <span class="telemetry-text">EM DESENVOLVIMENTO</span>
+      </div>
+
+      <!-- Main Title Cluster -->
+      <div class="title-cluster">
+        <h1 class="game-logo">
+          <span class="logo-main">ROC AND LOAD!</span>
+        </h1>
+        <div class="tagline">SHOOT 'EM UP</div>
+      </div>
+
+      <!-- Tactical Primary Action Button -->
+      <div class="action-container">
+        <button id="start-btn" class="tactical-btn">
+          <span class="btn-content">
+            <span id="start-btn-text">START</span>
+            <span class="btn-chevron">▸</span>
+          </span>
+        </button>
+        <div class="status-subtext">
+          <span class="status-key">STATUS:</span>
+          <span id="status-val" class="status-val">READY</span>
+        </div>
+      </div>
+
+      <!-- Clean Official Menu Footer Credit -->
+      <div class="menu-footer">© 2026 Felipe Vicentini</div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+
+</html>
