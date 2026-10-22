@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ROC AND LOAD!</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@400;600;800&display=swap"
+    rel="stylesheet">
+  <style>*{box-sizing:border-box;-webkit-user-select:none;user-select:none;margin:0;padding:0}html,body{color:#e2e8f0;background-color:#08090c;width:100%;height:100%;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden}#game-canvas{z-index:1;width:100vw;height:100vh;display:block;position:absolute;top:0;left:0}#ui-layer{pointer-events:none;z-index:10;flex-direction:column;justify-content:space-between;width:100vw;height:100vh;transition:opacity .25s,visibility .25s;display:flex;position:absolute;top:0;left:0}#ui-layer.menu-hidden{opacity:0;visibility:hidden;pointer-events:none}#crosshair-container{pointer-events:none;justify-content:center;align-items:center;width:32px;height:32px;display:flex;position:absolute;top:50%;left:50%;transform:translate(-50%,-50%)}.crosshair-dot{background:#fa0;border-radius:50%;width:4px;height:4px;position:absolute;box-shadow:0 0 8px #f90}.crosshair-line{background:#ffc832d9;border-radius:1px;transition:transform 80ms ease-out;position:absolute;box-shadow:0 0 6px #fa09}.crosshair-line.top{width:2px;height:7px;top:2px}.crosshair-line.bottom{width:2px;height:7px;bottom:2px}.crosshair-line.left{width:7px;height:2px;left:2px}.crosshair-line.right{width:7px;height:2px;right:2px}#start-modal{pointer-events:auto;z-index:50;box-sizing:border-box;flex-direction:row;justify-content:flex-start;align-items:center;width:100%;height:100%;transition:opacity .25s,visibility .25s;display:flex;position:absolute;top:0;left:0;overflow:hidden}#start-modal.hidden{opacity:0;visibility:hidden;pointer-events:none}.menu-backdrop-vignette{pointer-events:none;background:linear-gradient(90deg,#0a0d12f0 0%,#0a0d12db 20%,#0a0d1285 36%,#0a0d121f 48%,#0000 58%);position:absolute;inset:0}.menu-blur-dock{-webkit-backdrop-filter:blur(8px);pointer-events:none;z-index:1;width:min(520px,45vw);max-width:46vw;position:absolute;top:0;bottom:0;left:0;-webkit-mask-image:linear-gradient(90deg,#000 0% 75%,#0000 100%);mask-image:linear-gradient(90deg,#000 0% 75%,#0000 100%)}.menu-hero-art{opacity:.88;pointer-events:none;-webkit-user-select:none;user-select:none;z-index:1;background-image:url(./assets/roc_hero-EB3A_3cG.png);background-position:50% 12%;background-repeat:no-repeat;background-size:cover;width:clamp(340px,34vw,520px);height:clamp(360px,56vh,580px);position:absolute;top:0;left:0;-webkit-mask-image:radial-gradient(95% 90% at 32% 28%,#000 35%,#000000a6 62%,#0000 96%);mask-image:radial-gradient(95% 90% at 32% 28%,#000 35%,#000000a6 62%,#0000 96%)}.menu-left-panel{z-index:2;box-sizing:border-box;-webkit-user-select:none;user-select:none;flex-direction:column;justify-content:center;align-items:flex-start;width:min(520px,45vw);min-width:0;max-width:46vw;height:100%;padding-left:clamp(1.2rem,3.5vw,4.5rem);padding-right:clamp(.75rem,1.5vw,1.5rem);display:flex;position:relative}.telemetry-badge{-webkit-backdrop-filter:blur(6px);letter-spacing:1.5px;color:#fca5a5;text-transform:uppercase;white-space:nowrap;background:#0f1218b8;border:1px solid #ef444466;border-radius:9999px;align-items:center;gap:10px;margin-bottom:clamp(14px,2.5vh,22px);padding:6px 14px;font-family:JetBrains Mono,Chakra Petch,monospace;font-size:clamp(.7rem,.95vw,.82rem);font-weight:700;display:inline-flex;box-shadow:0 0 16px #ef44442e}.pulsing-led{background:#ef4444;border-radius:50%;flex-shrink:0;width:8px;height:8px;animation:1.4s ease-in-out infinite alternate pulse-telemetry-led;box-shadow:0 0 8px #ef4444}@keyframes pulse-telemetry-led{0%{opacity:.45;box-shadow:0 0 4px #ef4444}to{opacity:1;box-shadow:0 0 12px #ef4444,0 0 20px #ef4444b3}}.title-cluster{text-align:left;margin-bottom:clamp(24px,4vh,38px)}.game-logo{letter-spacing:1.5px;text-transform:uppercase;color:#f8fafc;text-shadow:0 4px 24px #000000f2,0 2px 6px #000000d9;flex-wrap:wrap;align-items:center;gap:clamp(6px,1vw,14px);margin:0 0 12px;font-family:Chakra Petch,sans-serif;font-size:clamp(1.8rem,3.8vw,4rem);font-style:italic;font-weight:900;line-height:1;display:flex}.logo-main{white-space:nowrap;background:linear-gradient(#fff 40%,#e2e8f0 75%,#94a3b8 100%);-webkit-text-fill-color:transparent;filter:drop-shadow(0 4px 24px #000000f2)drop-shadow(0 2px 6px #000000d9);-webkit-background-clip:text}.tagline{letter-spacing:.14em;color:#94a3b8;text-transform:uppercase;text-shadow:0 4px 24px #000000f2,0 2px 6px #000000d9;margin:0;font-family:JetBrains Mono,Chakra Petch,monospace;font-size:clamp(.88rem,1.15vw,1.08rem);font-weight:600}.action-container{flex-direction:column;align-items:flex-start;gap:12px;display:flex}.tactical-btn{letter-spacing:1.5px;text-transform:uppercase;color:#090c12;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,0 100%);cursor:pointer;background:#f8fafc;border:none;border-left:4px solid #f59e0b;align-items:center;padding:clamp(10px,1.8vh,16px) clamp(20px,2.8vw,36px);font-family:Chakra Petch,sans-serif;font-size:clamp(.85rem,1.2vw,1.2rem);font-weight:800;transition:all .2s cubic-bezier(.16,1,.3,1);display:inline-flex;position:relative;overflow:hidden;box-shadow:0 4px 20px #0009,0 0 15px #f8fafc26}.tactical-btn:before{content:"";opacity:0;z-index:1;background:linear-gradient(135deg,#fde68a 0%,#fbbf24 60%,#f59e0b 100%);width:100%;height:100%;transition:opacity .2s;position:absolute;top:0;left:0}.tactical-btn:hover{color:#040608;border-left-color:#fff;transform:translate(4px);box-shadow:0 8px 30px #f59e0b73,0 0 25px #fbbf2459}.tactical-btn:hover:before{opacity:1}.tactical-btn:active{transform:translate(2px)scale(.99)}.btn-content{z-index:2;align-items:center;gap:10px;display:inline-flex;position:relative}.btn-chevron{color:#d97706;font-size:1.2em;transition:transform .2s,color .2s}.tactical-btn:hover .btn-chevron{color:#090c12;transform:translate(4px)}.status-subtext{letter-spacing:.1em;color:#64748b;align-items:center;gap:6px;font-family:JetBrains Mono,Chakra Petch,monospace;font-size:clamp(.76rem,.92vw,.88rem);font-weight:600;display:flex}.status-key{color:#94a3b8;font-weight:700}.status-val{color:#10b981;font-weight:700}.status-val.paused{color:#f59e0b}.menu-footer{letter-spacing:.05em;color:#e2e8f06b;text-shadow:0 1px 4px #0009;-webkit-user-select:none;user-select:none;pointer-events:none;white-space:nowrap;z-index:10;font-family:JetBrains Mono,Chakra Petch,monospace;font-size:clamp(.62rem,.72vw,.72rem);font-weight:400;position:absolute;bottom:clamp(1.25rem,3vh,2.25rem);left:clamp(1.2rem,3.5vw,4.5rem)}@media (width<=900px){.menu-hero-art{width:min(520px,45vw);max-width:46vw;height:clamp(260px,50vh,440px)}.menu-blur-dock{width:45vw;max-width:46vw}.menu-left-panel{width:45vw;max-width:46vw;padding-left:clamp(.8rem,2.2vw,1.8rem);padding-right:.5rem}.menu-footer{font-size:clamp(.52rem,.65vw,.62rem);font-weight:400;bottom:clamp(.9rem,2.2vh,1.5rem);left:clamp(.8rem,2.2vw,1.8rem)}.game-logo{gap:5px;margin-bottom:8px;font-size:clamp(1.2rem,3.4vw,1.8rem)}.telemetry-badge{gap:5px;margin-bottom:10px;padding:3px 7px;font-size:.52rem}.tagline{letter-spacing:.1em;font-size:clamp(.72rem,1vw,.88rem)}.tactical-btn{letter-spacing:.8px;padding:7px 14px;font-size:.75rem}.status-subtext{letter-spacing:.08em;font-size:clamp(.64rem,.82vw,.74rem)}}#perf-stats{color:#ffffffb3;pointer-events:none;background:#0a0e1499;border:1px solid #ffffff14;border-radius:4px;gap:10px;padding:4px 8px;font-family:Chakra Petch,monospace;font-size:.72rem;display:flex;position:absolute;top:10px;left:12px}#perf-stats .stat-val{color:#fbbf24;font-weight:700}:root{--hud-scale:1;--hud-jolt-x:0px}@media (width<=1200px),(height<=800px){:root{--hud-scale:.92}}@media (width<=1000px),(height<=700px){:root{--hud-scale:.84}}@media (width<=820px),(height<=600px){:root{--hud-scale:.74}}@media (width<=680px),(height<=500px){:root{--hud-scale:.64}}@media (width<=520px),(height<=400px){:root{--hud-scale:.54}}.hud-ammo-panel{pointer-events:none;transform-origin:100% 100%;width:fit-content;transform:scale(var(--hud-scale,1)) translateX(var(--hud-jolt-x,0px));z-index:20;flex-direction:column;gap:6px;transition:transform .1s ease-out;display:flex;position:absolute;bottom:max(10px,2vh);right:max(14px,2vw);box-shadow:none!important;-webkit-backdrop-filter:none!important;backdrop-filter:none!important;clip-path:none!important;background:0 0!important;border:none!important;border-radius:0!important;padding:0!important}.panel-header{white-space:nowrap;border-bottom:none;justify-content:space-between;align-items:center;gap:12px;padding-bottom:2px;display:flex}.caliber-tag{letter-spacing:1.2px;color:#cbd5e1;text-shadow:0 2px 4px #000000e6,0 0 8px #000000b3;white-space:nowrap;flex-shrink:0;align-items:center;gap:6px;font-family:Chakra Petch,sans-serif;font-size:.72rem;font-weight:700;display:inline-flex}.status-led{background:#10b981;border-radius:50%;flex-shrink:0;width:5px;height:5px;transition:background .2s,box-shadow .2s;box-shadow:0 0 8px #10b981}.mode-tag{letter-spacing:.8px;color:#fbbf24;white-space:nowrap;text-shadow:0 1px 3px #000000e6;background:#fbbf2426;border:1px solid #fbbf2466;border-radius:3px;flex-shrink:0;justify-content:center;align-items:center;padding:2px 6px;font-family:Chakra Petch,monospace;font-size:.62rem;font-weight:700;line-height:1.1;display:inline-flex;box-shadow:0 2px 6px #00000080}.panel-body{justify-content:space-between;align-items:flex-end;gap:14px;padding:0;display:flex}.numeric-readout{align-items:baseline;gap:3px;font-family:Chakra Petch,sans-serif;line-height:1;display:flex}.ammo-num{color:#fbbf24;filter:drop-shadow(0 2px 6px #000000e6)drop-shadow(0 0 12px #f59e0b8c);min-width:22px;font-size:2.25rem;font-weight:900;transition:color .2s,filter .2s;display:inline-block}.ammo-divider{color:#ffffff59;text-shadow:0 2px 4px #000000e6;font-size:1.25rem;font-weight:700}.ammo-reserve{color:#ffffffb3;text-shadow:0 2px 4px #000000e6;font-size:1.45rem;font-weight:700}.bullet-pips-row{align-items:flex-end;gap:3.5px;height:25px;padding-bottom:2px;display:flex}.bullet-pip{filter:drop-shadow(0 2px 4px #000000d9);flex-direction:column;align-items:center;width:6.5px;height:24px;transition:transform .16s ease-out,opacity .16s ease-out;display:flex}.pip-ogive{background:linear-gradient(#fde68a 0%,#f59e0b 60%,#b45309 100%);border-radius:3px 3px 0 0;width:4.5px;height:7px;transition:all .16s ease-out;box-shadow:0 0 4px #f59e0b80}.pip-casing{background:linear-gradient(90deg,#b45309 0%,#fbbf24 45%,#f59e0b 80%,#78350f 100%);border-radius:1px;width:5.5px;height:14px;transition:all .16s ease-out}.pip-rim{background:#92400e;border-radius:1px;width:6.5px;height:3px;transition:all .16s ease-out}.bullet-pip.spent{pointer-events:none;transition:transform .1s ease-out,opacity .1s ease-out;transform:scale(.4);opacity:0!important;visibility:hidden!important}@keyframes pip-refill{0%{opacity:.2;transform:scale(.35)}65%{opacity:1;transform:scale(1.18)}to{opacity:1;transform:scale(1)}}.bullet-pip.refilling{animation:.22s cubic-bezier(.34,1.56,.64,1) both pip-refill}.hud-ammo-panel.warning-low .ammo-num{color:#f97316;filter:drop-shadow(0 2px 6px #000000e6)drop-shadow(0 0 14px #f97316bf)}.hud-ammo-panel.warning-low .status-led{background:#f97316;box-shadow:0 0 8px #f97316}.hud-ammo-panel.warning-low .mode-tag{color:#f97316;background:#f9731626;border-color:#f9731673}.hud-ammo-panel.warning-empty .ammo-num{color:#ef4444!important;filter:drop-shadow(0 2px 6px #000000e6)drop-shadow(0 0 16px #ef4444e6)!important}.hud-ammo-panel.warning-empty .status-led{background:#ef4444!important;box-shadow:0 0 10px #ef4444!important}.hud-ammo-panel.warning-empty .mode-tag{color:#ef4444!important;background:#ef44442e!important;border-color:#ef44448c!important}.hud-reload-prompt{pointer-events:auto;cursor:pointer;letter-spacing:1.5px;color:#fee2e2;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);z-index:25;background:#120808d9;border:1px solid #ef4444;border-radius:3px;align-items:center;gap:6px;padding:3px 9px;font-family:Chakra Petch,sans-serif;font-size:.85rem;font-weight:900;transition:opacity .15s,transform 80ms ease-out;animation:.6s ease-in-out infinite alternate pulse-reload;display:flex;position:absolute;top:calc(50% + 36px);left:50%;transform:translate(-50%);box-shadow:0 0 16px #ef44448c,inset 0 0 6px #ef444433}.hud-reload-prompt.hidden{opacity:0;visibility:hidden;pointer-events:none}.key-badge-prompt{color:#fff;background:#ef4444;border-radius:2px;padding:1px 5px;font-size:.78rem;box-shadow:0 0 6px #ef4444b3}@keyframes pulse-reload{0%{opacity:.75;box-shadow:0 0 14px #ef444466}to{opacity:1;box-shadow:0 0 28px #ef4444d9}}</style>
+  <script type="module" crossorigin src="./assets/index-DgyKbbZE.js"></script>
+</head>
+
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <div id="ui-layer" class="menu-hidden">
+    <!-- Crosshair -->
+    <div id="crosshair-container">
+      <div class="crosshair-dot"></div>
+      <div class="crosshair-line top"></div>
+      <div class="crosshair-line bottom"></div>
+      <div class="crosshair-line left"></div>
+      <div class="crosshair-line right"></div>
+    </div>
+
+    <!-- Live Performance Stats -->
+    <div id="perf-stats">
+      <span>FPS: <span id="stat-fps" class="stat-val">--</span></span>
+      <span>COLLISIONS: <span id="stat-bvh" class="stat-val">BVH READY</span></span>
+      <span>POS: <span id="stat-pos" class="stat-val">0, 0, 0</span></span>
+    </div>
+  </div>
+
+  <!-- Start / Pause Menu (Asymmetric Left-Aligned AAA Title Screen) -->
+  <div id="start-modal">
+    <div class="menu-backdrop-vignette"></div>
+    <div class="menu-blur-dock"></div>
+    <div class="menu-hero-art" aria-hidden="true"></div>
+    <div class="menu-left-panel">
+      <!-- Live Telemetry Badge -->
+      <div class="telemetry-badge">
+        <span class="pulsing-led"></span>
+        <span class="telemetry-text">EM DESENVOLVIMENTO</span>
+      </div>
+
+      <!-- Main Title Cluster -->
+      <div class="title-cluster">
+        <h1 class="game-logo">
+          <span class="logo-main">ROC AND LOAD!</span>
+        </h1>
+        <div class="tagline">SHOOT 'EM UP</div>
+      </div>
+
+      <!-- Tactical Primary Action Button -->
+      <div class="action-container">
+        <button id="start-btn" class="tactical-btn">
+          <span class="btn-content">
+            <span id="start-btn-text">START</span>
+            <span class="btn-chevron">▸</span>
+          </span>
+        </button>
+        <div class="status-subtext">
+          <span class="status-key">STATUS:</span>
+          <span id="status-val" class="status-val">READY</span>
+        </div>
+      </div>
+
+      <!-- Clean Official Menu Footer Credit -->
+      <div class="menu-footer">© 2026 Felipe Vicentini</div>
+    </div>
+  </div>
+
+</body>
+
+</html>
