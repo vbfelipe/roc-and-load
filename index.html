@@ -174,6 +174,26 @@
       z-index: 1;
     }
 
+    /* Hero Artwork Layer: Roc character portrait in upper-left */
+    .menu-hero-art {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: clamp(340px, 34vw, 520px);
+      height: clamp(360px, 56vh, 580px);
+      background-image: url('./roc_hero.png');
+      background-size: cover;
+      background-position: center 12%;
+      background-repeat: no-repeat;
+      opacity: 0.88;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 1;
+      -webkit-mask-image: radial-gradient(ellipse 95% 90% at 32% 28%, rgba(0, 0, 0, 1) 35%, rgba(0, 0, 0, 0.65) 62%, rgba(0, 0, 0, 0) 96%);
+      mask-image: radial-gradient(ellipse 95% 90% at 32% 28%, rgba(0, 0, 0, 1) 35%, rgba(0, 0, 0, 0.65) 62%, rgba(0, 0, 0, 0) 96%);
+    }
+
     /* Left Dock Panel: strictly confined to left 45vw, never exceeding half the screen */
     .menu-left-panel {
       position: relative;
@@ -198,7 +218,9 @@
       align-items: center;
       gap: 10px;
       padding: 6px 14px;
-      background: rgba(239, 68, 68, 0.12);
+      background: rgba(15, 18, 24, 0.72);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
       border: 1px solid rgba(239, 68, 68, 0.4);
       border-radius: 9999px;
       margin-bottom: clamp(14px, 2.5vh, 22px);
@@ -255,9 +277,8 @@
       text-transform: uppercase;
       color: #f8fafc;
       text-shadow:
-        0 2px 0 #94a3b8,
-        0 4px 12px rgba(0, 0, 0, 0.85),
-        0 0 35px rgba(248, 250, 252, 0.15);
+        0 4px 24px rgba(0, 0, 0, 0.95),
+        0 2px 6px rgba(0, 0, 0, 0.85);
     }
 
     .logo-main {
@@ -265,7 +286,7 @@
       background: linear-gradient(180deg, #ffffff 40%, #e2e8f0 75%, #94a3b8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.6));
+      filter: drop-shadow(0 4px 24px rgba(0, 0, 0, 0.95)) drop-shadow(0 2px 6px rgba(0, 0, 0, 0.85));
     }
 
     .tagline {
@@ -276,6 +297,7 @@
       color: #94a3b8;
       text-transform: uppercase;
       margin: 0;
+      text-shadow: 0 4px 24px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.85);
     }
 
     /* Primary Action Container */
@@ -405,6 +427,12 @@
 
     /* Small Window / Split-Screen Responsiveness (Never swallow the screen!) */
     @media (max-width: 900px) {
+      .menu-hero-art {
+        width: min(520px, 45vw);
+        max-width: 46vw;
+        height: clamp(260px, 50vh, 440px);
+      }
+
       .menu-blur-dock {
         width: 45vw;
         max-width: 46vw;
@@ -823,6 +851,7 @@
   <div id="start-modal">
     <div class="menu-backdrop-vignette"></div>
     <div class="menu-blur-dock"></div>
+    <div class="menu-hero-art" aria-hidden="true"></div>
     <div class="menu-left-panel">
       <!-- Live Telemetry Badge -->
       <div class="telemetry-badge">
