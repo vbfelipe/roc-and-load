@@ -13,6 +13,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const startModal = document.getElementById('start-modal');
   const startBtn = document.getElementById('start-btn');
   const startBtnText = document.getElementById('start-btn-text');
+  const exitBtn = document.getElementById('exit-btn');
   const statusVal = document.getElementById('status-val');
   const uiLayer = document.getElementById('ui-layer');
   const posEl = document.getElementById('stat-pos');
@@ -45,10 +46,7 @@ window.addEventListener('DOMContentLoaded', () => {
   weaponSystem.setPlayer(player);
   weaponSystem.setHUD(hud);
 
-  let gameState = 'MENU';
-  let hasStartedOnce = false;
-  const initialBtnText = startBtnText ? startBtnText.textContent.trim() : 'START';
-  const initialStatusText = statusVal ? statusVal.textContent.trim() : 'READY';
+  let gameState = 'MAIN_MENU';
 
   function setGameState(state) {
     gameState = state;
@@ -56,38 +54,50 @@ window.addEventListener('DOMContentLoaded', () => {
     weaponSystem.setGameState(state);
 
     if (state === 'PLAYING') {
-      hasStartedOnce = true;
       startModal.classList.add('hidden');
       if (uiLayer) uiLayer.classList.remove('menu-hidden');
       viewmodel.root.visible = true;
       player.updateBobAndCamera(0);
-    } else {
+    } else if (state === 'PAUSED') {
       startModal.classList.remove('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
       viewmodel.root.visible = false;
       input.clearInputs();
 
       if (startBtnText) {
-        startBtnText.textContent = hasStartedOnce
-          ? 'RESUME'
-          : initialBtnText;
+        startBtnText.textContent = 'RESUME';
+      }
+      if (exitBtn) {
+        exitBtn.style.display = 'inline-flex';
       }
       if (statusVal) {
-        if (hasStartedOnce) {
-          statusVal.textContent = 'PAUSED';
-          statusVal.classList.add('paused');
-          statusVal.style.color = '#f59e0b';
-        } else {
-          statusVal.textContent = initialStatusText;
-          statusVal.classList.remove('paused');
-          statusVal.style.color = '';
-        }
+        statusVal.textContent = 'PAUSED';
+        statusVal.classList.add('paused');
+        statusVal.style.color = '#f59e0b';
+      }
+    } else {
+      // MAIN_MENU
+      startModal.classList.remove('hidden');
+      if (uiLayer) uiLayer.classList.add('menu-hidden');
+      viewmodel.root.visible = false;
+      input.clearInputs();
+
+      if (startBtnText) {
+        startBtnText.textContent = 'START';
+      }
+      if (exitBtn) {
+        exitBtn.style.display = 'none';
+      }
+      if (statusVal) {
+        statusVal.textContent = 'READY';
+        statusVal.classList.remove('paused');
+        statusVal.style.color = '';
       }
     }
   }
 
   // Initial menu state: hide HUD and gun viewmodel
-  setGameState('MENU');
+  setGameState('MAIN_MENU');
 
   // Engine physics tick
   engine.addPhysicsUpdatable({
@@ -101,7 +111,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Visual frame tick
   engine.addVisualUpdatable({
     update: (delta) => {
-      if (gameState === 'MENU') {
+      if (gameState === 'MAIN_MENU') {
         // Slow cinematic idle camera drift overlooking the Data Center
         const time = performance.now() * 0.001;
         engine.camera.position.x = player.position.x + Math.sin(time * 0.35) * 0.22;
@@ -115,6 +125,14 @@ window.addEventListener('DOMContentLoaded', () => {
         viewmodel.root.visible = false;
 
         // Keep updating visual effects (in-flight tracers, sparks, decal cooling)
+        weaponSystem.update(delta);
+        TWEEN.update();
+        return;
+      }
+
+      if (gameState === 'PAUSED') {
+        viewmodel.root.visible = false;
+        // Keep camera stationary where the player paused
         weaponSystem.update(delta);
         TWEEN.update();
         return;
@@ -167,13 +185,39 @@ window.addEventListener('DOMContentLoaded', () => {
     input.requestLock();
   });
 
+  if (exitBtn) {
+    exitBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    exitBtn.addEventListener('mouseup', (e) => e.stopPropagation());
+    exitBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      player.reset(0, 0.1, -7.0, Math.PI, 0);
+      weaponSystem.reset();
+      setGameState('MAIN_MENU');
+    });
+  }
+
   input.onLock(() => {
     sound.resume();
     setGameState('PLAYING');
   });
 
   input.onUnlock(() => {
-    setGameState('MENU');
+    if (gameState === 'PLAYING') {
+      setGameState('PAUSED');
+    }
+  });
+
+  // Handle ESC or KeyP to guarantee pause triggering even in headless/synthetic event environments
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape' || e.key === 'Escape' || e.code === 'KeyP') {
+      if (gameState === 'PLAYING') {
+        if (document.pointerLockElement) {
+          document.exitPointerLock();
+        } else {
+          setGameState('PAUSED');
+        }
+      }
+    }
   });
 
   // Direct fail-safe KeyR reload binding (strictly blocked when not playing)
@@ -187,9 +231,11 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // Expose for testing & debug
+  window.player = player;
   window.weaponSystem = weaponSystem;
   window.viewmodel = viewmodel;
   window.hud = hud;
+  window.getGameState = () => gameState;
   window.setGameState = setGameState;
 
   engine.start();

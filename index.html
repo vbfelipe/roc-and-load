@@ -347,7 +347,7 @@
       display: flex;
       flex-direction: column;
       align-items: flex-start;
-      gap: 12px;
+      gap: 0;
     }
 
     /* Tactile Tactical Button with chamfered cut corner */
@@ -404,6 +404,32 @@
       transform: translateX(2px) scale(0.99);
     }
 
+    /* Tactical Crimson Red Variant for EXIT Button */
+    .exit-btn {
+      margin-top: 10px;
+      border-left: 4px solid #ef4444;
+    }
+
+    .exit-btn::before {
+      background: linear-gradient(135deg, #fca5a5 0%, #ef4444 60%, #dc2626 100%);
+    }
+
+    .exit-btn .btn-chevron {
+      color: #ef4444;
+    }
+
+    .exit-btn:hover {
+      border-left-color: #ffffff;
+      box-shadow:
+        0 8px 30px rgba(239, 68, 68, 0.45),
+        0 0 25px rgba(220, 38, 38, 0.35);
+    }
+
+    .exit-btn:hover .btn-chevron {
+      transform: translateX(4px);
+      color: #090c12;
+    }
+
     .btn-content {
       position: relative;
       z-index: 2;
@@ -433,6 +459,11 @@
       display: flex;
       align-items: center;
       gap: 6px;
+      margin-top: 12px;
+    }
+
+    .exit-btn:not([style*="display: none"]) ~ .status-subtext {
+      margin-top: 10px;
     }
 
     .status-key {
@@ -912,9 +943,15 @@
 
       <!-- Tactical Primary Action Button -->
       <div class="action-container">
-        <button id="start-btn" class="tactical-btn">
+        <button id="start-btn" type="button" class="tactical-btn">
           <span class="btn-content">
             <span id="start-btn-text">START</span>
+            <span class="btn-chevron">▸</span>
+          </span>
+        </button>
+        <button id="exit-btn" type="button" class="tactical-btn exit-btn" style="display: none;">
+          <span class="btn-content">
+            <span id="exit-btn-text">EXIT</span>
             <span class="btn-chevron">▸</span>
           </span>
         </button>

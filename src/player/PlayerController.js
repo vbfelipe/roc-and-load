@@ -68,6 +68,21 @@ export class PlayerController {
     this._updateCameraTransform();
   }
 
+  reset(x = 0, y = 0.1, z = -7.0, yaw = Math.PI, pitch = 0) {
+    this.position.set(x, y, z);
+    this.velocity.set(0, 0, 0);
+    this.pitch = pitch;
+    this.yaw = yaw;
+    this.recoilPitch = 0;
+    this.bobCycle = 0;
+    this.bobOffset.set(0, 0, 0);
+    this.landingSpring.reset(0, 0);
+    this.isGrounded = false;
+    this.wasGrounded = false;
+    this.jumpTimer = 0;
+    this._updateCameraTransform();
+  }
+
   /**
    * Updates camera orientation based on accumulated raw mouse deltas.
    */

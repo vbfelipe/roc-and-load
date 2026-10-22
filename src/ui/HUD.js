@@ -247,4 +247,34 @@ export class HUD {
       );
     }
   }
+
+  reset() {
+    this.currentAmmo = 7;
+    this.maxAmmo = 7;
+    this._lastReportedAmmo = null;
+    this._lastReportedMax = null;
+
+    if (this.reloadPromptEl) {
+      this.reloadPromptEl.classList.add('hidden');
+      this.reloadPromptEl.style.transform = '';
+    }
+
+    if (this.ammoPanelEl) {
+      this.ammoPanelEl.classList.remove('warning-low', 'warning-empty');
+      this.ammoPanelEl.style.setProperty('--hud-jolt-x', '0px');
+    }
+
+    if (this.ammoCountEl) {
+      this.ammoCountEl.textContent = '7';
+      this.ammoCountEl.style.transform = '';
+    }
+
+    for (let i = 0; i < this.bulletPips.length; i++) {
+      const pip = this.bulletPips[i];
+      pip.classList.remove('spent', 'refilling');
+      pip.style.transform = '';
+      pip.style.opacity = '';
+      pip.style.animationDelay = '';
+    }
+  }
 }

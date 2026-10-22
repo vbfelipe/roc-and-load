@@ -1567,4 +1567,56 @@ export class WeaponViewmodel {
     }, 1250);
     this.reloadTimers.push(safetyTimer);
   }
+
+  reset() {
+    // 1. Clear any active reload timers and tweens
+    this.reloadTimers.forEach(t => clearTimeout(t));
+    this.reloadTimers = [];
+    this.reloadTweens.forEach(t => t.stop());
+    this.reloadTweens = [];
+
+    // 2. Reset reload and slide states
+    this.isReloading = false;
+    this.isSlideLocked = false;
+    this.slideBlowback = 0;
+    if (this.slideGroup) {
+      this.slideGroup.position.set(0, 0, 0);
+    }
+    this.hammerRecoil = 0;
+    if (this.hammerGroup) {
+      this.hammerGroup.rotation.x = this.hammerRestAngle;
+    }
+
+    // 3. Reset procedural reload tilts and animations
+    this.reloadTilt = { roll: 0, pitch: 0, yaw: 0, y: 0 };
+    if (this.magGroup) {
+      this.magGroup.position.set(0, 0, 0);
+      this.magGroup.rotation.set(0, 0, 0);
+      this.magGroup.visible = true;
+    }
+    if (this.triggerMesh) {
+      this.triggerMesh.rotation.x = 0;
+    }
+    if (this.magRelease) {
+      this.magRelease.position.set(-0.0226, -0.015, 0.022);
+    }
+
+    // 4. Reset ADS and springs to hip-fire resting position
+    this.isADS = false;
+    this.adsAlpha = 0;
+    this.posSpring.reset(this.hipPosition.x, this.hipPosition.y, this.hipPosition.z);
+    this.rotSpring.reset(this.hipRotation.x, this.hipRotation.y, this.hipRotation.z);
+    this.bobSpring.reset(0, 0, 0);
+    this.bobCycle = 0;
+
+    // 5. Hide muzzle flash
+    this.flashTimer = 0;
+    if (this.muzzleFlashGroup) {
+      this.muzzleFlashGroup.visible = false;
+    }
+
+    // 6. Reset root transform to hip position & rotation
+    this.root.position.copy(this.hipPosition);
+    this.root.rotation.set(this.hipRotation.x, this.hipRotation.y, this.hipRotation.z);
+  }
 }

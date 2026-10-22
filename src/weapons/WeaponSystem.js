@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import * as TWEEN from '@tweenjs/tween.js';
 import { ObjectPool } from '../core/ObjectPool.js';
 
 // Pre-allocated scratch variables for zero-GC hitscan and transforms
@@ -742,5 +743,72 @@ export class WeaponSystem {
     // Vary scale slightly (0.85 to 1.15) so hits never look like identical stamps
     const s = 0.85 + Math.random() * 0.30;
     decal.scale.set(s, s, 1.0);
+  }
+
+  reset() {
+    TWEEN.removeAll();
+
+    this.currentAmmo = this.maxAmmo;
+    this.isReloading = false;
+    this.isSlideLocked = false;
+    this.fireTimer = 0;
+    this.wasMouseDown0 = true;
+    this.flashDuration = 0;
+
+    if (this.muzzleLight) {
+      this.muzzleLight.intensity = 0;
+      this.muzzleLight.visible = false;
+    }
+
+    if (this.camera && this.camera.fov !== 75) {
+      this.camera.fov = 75;
+      this.camera.updateProjectionMatrix();
+    }
+
+    if (this.crosshairEl) {
+      this._lastCrosshairHidden = false;
+      this.crosshairEl.style.opacity = '1';
+    }
+
+    // Clear and reset all active bullet impact decals
+    this.decalPool.forEachActive((decal) => {
+      decal.visible = false;
+      decal.userData.age = 0;
+      if (decal.userData.ember) {
+        decal.userData.ember.visible = false;
+        decal.userData.ember.material.opacity = 1.0;
+      }
+      decal.material.opacity = 1.0;
+    });
+    this.decalPool.releaseAll();
+
+    // Clear and reset all active bullet tracers
+    this.tracerPool.forEachActive((tracer) => {
+      tracer.visible = false;
+      tracer.scale.set(1.0, 1.0, 1.0);
+    });
+    this.tracerPool.releaseAll();
+
+    // Clear and reset all ejected brass shell casings
+    this.casingPool.forEachActive((casing) => {
+      casing.visible = false;
+    });
+    this.casingPool.releaseAll();
+
+    // Clear and reset all impact sparks
+    this.sparkPool.forEachActive((spark) => {
+      spark.visible = false;
+    });
+    this.sparkPool.releaseAll();
+
+    // Reset viewmodel
+    if (this.viewmodel && typeof this.viewmodel.reset === 'function') {
+      this.viewmodel.reset();
+    }
+
+    // Reset HUD
+    if (this.hud && typeof this.hud.reset === 'function') {
+      this.hud.reset();
+    }
   }
 }
