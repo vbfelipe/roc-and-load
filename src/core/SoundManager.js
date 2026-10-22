@@ -6,7 +6,88 @@ export class SoundManager {
     this.isMuted = false;
     this.masterGain = null;
 
+    this.menuMusic = null;
+    this.menuMusicTargetVolume = 0.40;
+    this._fadeRaf = null;
+
     this._initAudio();
+    this._initMenuMusic();
+  }
+
+  _initMenuMusic() {
+    try {
+      this.menuMusic = new Audio('./DavidKBD_The_Last_Pack_Orchestra_01.mp3');
+      this.menuMusic.loop = true;
+      this.menuMusic.preload = 'auto';
+      this.menuMusic.volume = this.menuMusicTargetVolume;
+    } catch (e) {
+      console.warn('Failed to initialize menu music audio element:', e);
+    }
+  }
+
+  _fadeVolume(targetVolume, durationMs, onComplete) {
+    if (!this.menuMusic) return;
+    if (this._fadeRaf) {
+      cancelAnimationFrame(this._fadeRaf);
+      this._fadeRaf = null;
+    }
+    if (durationMs <= 0) {
+      this.menuMusic.volume = Math.max(0, Math.min(1, targetVolume));
+      if (onComplete) onComplete();
+      return;
+    }
+    const startVol = this.menuMusic.volume;
+    const startTime = performance.now();
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / durationMs);
+      this.menuMusic.volume = Math.max(0, Math.min(1, startVol + (targetVolume - startVol) * progress));
+      if (progress < 1) {
+        this._fadeRaf = requestAnimationFrame(tick);
+      } else {
+        this._fadeRaf = null;
+        if (onComplete) onComplete();
+      }
+    };
+    this._fadeRaf = requestAnimationFrame(tick);
+  }
+
+  startMenuMusic() {
+    if (!this.menuMusic) return Promise.reject(new Error('No menu music'));
+    if (this._fadeRaf) {
+      cancelAnimationFrame(this._fadeRaf);
+      this._fadeRaf = null;
+    }
+    this.menuMusic.volume = this.menuMusicTargetVolume;
+    return this.menuMusic.play();
+  }
+
+  resumeMenuMusic(fadeDurationMs = 300) {
+    if (!this.menuMusic) return;
+    if (this._fadeRaf) {
+      cancelAnimationFrame(this._fadeRaf);
+      this._fadeRaf = null;
+    }
+    if (this.menuMusic.paused) {
+      this.menuMusic.volume = 0.0;
+      const p = this.menuMusic.play();
+      if (p !== undefined) {
+        p.catch(() => {});
+      }
+    }
+    this._fadeVolume(this.menuMusicTargetVolume, fadeDurationMs);
+  }
+
+  fadeMenuMusicOut(fadeDurationMs = 220) {
+    if (!this.menuMusic) return;
+    if (this._fadeRaf) {
+      cancelAnimationFrame(this._fadeRaf);
+      this._fadeRaf = null;
+    }
+    if (this.menuMusic.paused) return;
+    this._fadeVolume(0.0, fadeDurationMs, () => {
+      this.menuMusic.pause();
+    });
   }
 
   _initAudio() {
@@ -496,5 +577,192 @@ export class SoundManager {
 
     ringOsc.start(t);
     ringOsc.stop(t + 0.36);
+  }
+
+  /**
+   * Tactical Button Hover Sound.
+   * Ultra-fast, dry, precision metallic micro-tick (~18ms duration).
+   * - Sine/triangle chirp: 1800 Hz -> 750 Hz over 16ms, peak gain 0.08
+   * - Noise micro burst: 12ms, bandpass center 3400 Hz, Q 4.5, peak gain 0.06
+   */
+  playButtonHover() {
+    if (!this.ctx || this.isMuted) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // Layer 1: High-frequency sine/triangle chirp
+    const chirpOsc = this.ctx.createOscillator();
+    const chirpGain = this.ctx.createGain();
+    chirpOsc.type = 'triangle';
+    chirpOsc.frequency.setValueAtTime(1800, t);
+    chirpOsc.frequency.exponentialRampToValueAtTime(750, t + 0.016);
+
+    chirpGain.gain.setValueAtTime(0.08, t);
+    chirpGain.gain.exponentialRampToValueAtTime(0.001, t + 0.018);
+
+    chirpOsc.connect(chirpGain);
+    chirpGain.connect(this.masterGain);
+
+    chirpOsc.start(t);
+    chirpOsc.stop(t + 0.018);
+
+    // Layer 2: Micro burst of bandpass-filtered white noise
+    const noiseBuffer = this._createNoiseBuffer(0.02);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const bpFilter = this.ctx.createBiquadFilter();
+      bpFilter.type = 'bandpass';
+      bpFilter.frequency.setValueAtTime(3400, t);
+      bpFilter.Q.setValueAtTime(4.5, t);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.06, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.012);
+
+      noise.connect(bpFilter);
+      bpFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noise.start(t);
+      noise.stop(t + 0.013);
+    }
+  }
+
+  /**
+   * Primary Action Click Sound (#start-btn — START / RESUME).
+   * Crisp, authoritative firearm-inspired mechanical latch / chamber-lock engage (~90ms duration).
+   * - Layer 1: Metallic Sear Snap (2400 Hz -> 680 Hz over 22ms, gain 0.18) + HP noise (2500 Hz, 20ms, gain 0.15)
+   * - Layer 2: Heavy Tactical Lock Body (165 Hz -> 52 Hz over 85ms, gain 0.28)
+   */
+  playStartClick() {
+    if (!this.ctx || this.isMuted) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // Layer 1A: Metallic Sear Snap Oscillator
+    const searOsc = this.ctx.createOscillator();
+    const searGain = this.ctx.createGain();
+    searOsc.type = 'triangle';
+    searOsc.frequency.setValueAtTime(2400, t);
+    searOsc.frequency.exponentialRampToValueAtTime(680, t + 0.022);
+
+    searGain.gain.setValueAtTime(0.18, t);
+    searGain.gain.exponentialRampToValueAtTime(0.001, t + 0.024);
+
+    searOsc.connect(searGain);
+    searGain.connect(this.masterGain);
+
+    searOsc.start(t);
+    searOsc.stop(t + 0.025);
+
+    // Layer 1B: High-passed noise snap
+    const noiseBuffer = this._createNoiseBuffer(0.03);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const hpFilter = this.ctx.createBiquadFilter();
+      hpFilter.type = 'highpass';
+      hpFilter.frequency.setValueAtTime(2500, t);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.15, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.020);
+
+      noise.connect(hpFilter);
+      hpFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noise.start(t);
+      noise.stop(t + 0.022);
+    }
+
+    // Layer 2: Heavy Tactical Lock Body punch
+    const punchOsc = this.ctx.createOscillator();
+    const punchGain = this.ctx.createGain();
+    punchOsc.type = 'triangle';
+    punchOsc.frequency.setValueAtTime(165, t);
+    punchOsc.frequency.exponentialRampToValueAtTime(52, t + 0.085);
+
+    punchGain.gain.setValueAtTime(0.28, t);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.090);
+
+    punchOsc.connect(punchGain);
+    punchGain.connect(this.masterGain);
+
+    punchOsc.start(t);
+    punchOsc.stop(t + 0.092);
+  }
+
+  /**
+   * Secondary Exit Click Sound (#exit-btn — EXIT).
+   * Distinct two-stage tactical decock / disengage latch (~110ms duration).
+   * - Stage 1 (t = 0ms): Metallic unlatch tick (1400 Hz -> 520 Hz over 20ms, gain 0.16)
+   * - Stage 2 (t = 32ms): Lower mechanical release thud (130 Hz -> 45 Hz over 75ms, gain 0.24 + noise click at 1100 Hz)
+   */
+  playExitClick() {
+    if (!this.ctx || this.isMuted) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // Stage 1 (t = 0ms): Crisp metallic unlatch tick
+    const tickOsc = this.ctx.createOscillator();
+    const tickGain = this.ctx.createGain();
+    tickOsc.type = 'triangle';
+    tickOsc.frequency.setValueAtTime(1400, t);
+    tickOsc.frequency.exponentialRampToValueAtTime(520, t + 0.020);
+
+    tickGain.gain.setValueAtTime(0.16, t);
+    tickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.022);
+
+    tickOsc.connect(tickGain);
+    tickGain.connect(this.masterGain);
+
+    tickOsc.start(t);
+    tickOsc.stop(t + 0.024);
+
+    // Stage 2 (t = 32ms): Lower mechanical release thud
+    const t2 = t + 0.032;
+    const thudOsc = this.ctx.createOscillator();
+    const thudGain = this.ctx.createGain();
+    thudOsc.type = 'sine';
+    thudOsc.frequency.setValueAtTime(130, t2);
+    thudOsc.frequency.exponentialRampToValueAtTime(45, t2 + 0.075);
+
+    thudGain.gain.setValueAtTime(0.001, t);
+    thudGain.gain.setValueAtTime(0.24, t2);
+    thudGain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.078);
+
+    thudOsc.connect(thudGain);
+    thudGain.connect(this.masterGain);
+
+    thudOsc.start(t2);
+    thudOsc.stop(t2 + 0.080);
+
+    // Stage 2 Noise Click: subtle filtered noise click at 1100 Hz
+    const noiseBuffer = this._createNoiseBuffer(0.04);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const bpFilter = this.ctx.createBiquadFilter();
+      bpFilter.type = 'bandpass';
+      bpFilter.frequency.setValueAtTime(1100, t2);
+      bpFilter.Q.setValueAtTime(3.0, t2);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.001, t);
+      noiseGain.gain.setValueAtTime(0.08, t2);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.025);
+
+      noise.connect(bpFilter);
+      bpFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noise.start(t2);
+      noise.stop(t2 + 0.028);
+    }
   }
 }

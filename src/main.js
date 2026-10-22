@@ -58,6 +58,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (uiLayer) uiLayer.classList.remove('menu-hidden');
       viewmodel.root.visible = true;
       player.updateBobAndCamera(0);
+      sound.fadeMenuMusicOut(220);
     } else if (state === 'PAUSED') {
       startModal.classList.remove('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
@@ -75,6 +76,7 @@ window.addEventListener('DOMContentLoaded', () => {
         statusVal.classList.add('paused');
         statusVal.style.color = '#f59e0b';
       }
+      sound.resumeMenuMusic(300);
     } else {
       // MAIN_MENU
       startModal.classList.remove('hidden');
@@ -93,11 +95,33 @@ window.addEventListener('DOMContentLoaded', () => {
         statusVal.classList.remove('paused');
         statusVal.style.color = '';
       }
+      // If returning from PAUSED (via EXIT), keep playing seamlessly without restarting;
+      // if music was paused or not yet playing, resume it
+      if (sound.menuMusic && sound.menuMusic.paused) {
+        sound.resumeMenuMusic(0);
+      }
     }
   }
 
   // Initial menu state: hide HUD and gun viewmodel
   setGameState('MAIN_MENU');
+
+  // Attempt autoplay immediately on initial load (MAIN_MENU)
+  sound.startMenuMusic().catch(() => {
+    // Autoplay blocked by browser policy: attach one-time gesture listeners on window
+    const onFirstGesture = (e) => {
+      sound.resume();
+      // If the first user interaction was directly on the start button, skip starting menu music
+      const isStartBtn = e.target && (e.target.id === 'start-btn' || (e.target.closest && e.target.closest('#start-btn')));
+      if (!isStartBtn && (gameState === 'MAIN_MENU' || gameState === 'PAUSED')) {
+        sound.resumeMenuMusic(300);
+      }
+      window.removeEventListener('pointerdown', onFirstGesture);
+      window.removeEventListener('keydown', onFirstGesture);
+    };
+    window.addEventListener('pointerdown', onFirstGesture);
+    window.addEventListener('keydown', onFirstGesture);
+  });
 
   // Engine physics tick
   engine.addPhysicsUpdatable({
@@ -176,20 +200,34 @@ window.addEventListener('DOMContentLoaded', () => {
   startModal.addEventListener('mouseup', (e) => e.stopPropagation());
   startModal.addEventListener('click', (e) => e.stopPropagation());
 
+  startBtn.addEventListener('pointerenter', () => {
+    if (startBtn.offsetParent !== null) {
+      sound.playButtonHover();
+    }
+  });
+
   startBtn.addEventListener('mousedown', (e) => e.stopPropagation());
   startBtn.addEventListener('mouseup', (e) => e.stopPropagation());
   startBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     sound.resume();
+    sound.playStartClick();
     setGameState('PLAYING');
     input.requestLock();
   });
 
   if (exitBtn) {
+    exitBtn.addEventListener('pointerenter', () => {
+      if (exitBtn.offsetParent !== null && exitBtn.style.display !== 'none') {
+        sound.playButtonHover();
+      }
+    });
+
     exitBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     exitBtn.addEventListener('mouseup', (e) => e.stopPropagation());
     exitBtn.addEventListener('click', (e) => {
       e.stopPropagation();
+      sound.playExitClick();
       player.reset(0, 0.1, -7.0, Math.PI, 0);
       weaponSystem.reset();
       setGameState('MAIN_MENU');
@@ -231,6 +269,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   // Expose for testing & debug
+  window.sound = sound;
   window.player = player;
   window.weaponSystem = weaponSystem;
   window.viewmodel = viewmodel;
