@@ -1,19 +1,16 @@
 {
   "name": "rocandload",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build --base=./",
-    "preview": "vite preview",
-    "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
-  },
-  "keywords": [],
+  "private": true,
   "author": "Felipe Vicentini",
   "license": "MIT",
   "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && cd dist && git init && git checkout -B gh-pages && git add -A && git commit -m \"Deploy\" && git push -f https://github.com/vbfelipe/roc-and-load.git gh-pages && cd .."
+  },
   "dependencies": {
     "@tweenjs/tween.js": "^25.0.0",
     "postprocessing": "^6.39.5",
@@ -21,7 +18,6 @@
     "three-mesh-bvh": "^0.9.16"
   },
   "devDependencies": {
-    "gh-pages": "^6.3.0",
     "vite": "^8.3.4"
   }
 }
