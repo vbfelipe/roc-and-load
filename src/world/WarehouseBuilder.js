@@ -650,7 +650,7 @@ function createStanchionBeltTexture() {
  * Applies subtle parabolic downward sag between postA and postB:
  * yOffset = -maxSag * 4 * t * (1 - t)
  */
-function createCatenaryBeltGeometry(pA, pB, maxSag = 0.028) {
+function createCatenaryBeltGeometry(pA, pB, maxSag = 0.024, beltY = 1.062, trim = 0.053, hH = 0.036, hT = 0.0025) {
   const dx = pB.x - pA.x;
   const dz = pB.z - pA.z;
   const dist = Math.hypot(dx, dz);
@@ -661,8 +661,7 @@ function createCatenaryBeltGeometry(pA, pB, maxSag = 0.028) {
   const nx = -uz;
   const nz = ux;
 
-  // Trim 0.038m inward at both ends so belt starts/ends cleanly at cassette slots
-  const trim = 0.038;
+  // Trim inward at both ends so belt starts/ends cleanly at cassette slots
   const sx = pA.x + ux * trim;
   const sz = pA.z + uz * trim;
   const ex = pB.x - ux * trim;
@@ -671,8 +670,6 @@ function createCatenaryBeltGeometry(pA, pB, maxSag = 0.028) {
   const spanZ = ez - sz;
 
   const segments = 8;
-  const hH = 0.031; // height = 0.062m
-  const hT = 0.002; // thickness = 0.004m
 
   const positions = [];
   const normals = [];
@@ -687,12 +684,12 @@ function createCatenaryBeltGeometry(pA, pB, maxSag = 0.028) {
     const c0x = sx + spanX * t0;
     const c0z = sz + spanZ * t0;
     const ySag0 = -maxSag * 4 * t0 * (1 - t0);
-    const c0y = 0.91 + ySag0;
+    const c0y = beltY + ySag0;
 
     const c1x = sx + spanX * t1;
     const c1z = sz + spanZ * t1;
     const ySag1 = -maxSag * 4 * t1 * (1 - t1);
-    const c1y = 0.91 + ySag1;
+    const c1y = beltY + ySag1;
 
     // Corner vertices at t0
     const v0_tf = [c0x + nx * hT, c0y + hH, c0z + nz * hT];
@@ -2421,88 +2418,84 @@ export class WarehouseBuilder {
     }
     outletGeo.dispose();
 
-    // Zone A: Retractable Belt Stanchions
-    // Stanchion Post Reusable Templates
-    const postMetalBaseGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.025, 24);
-    const postMetalCollarGeo = new THREE.CylinderGeometry(0.036, 0.065, 0.035, 24);
-    const postMetalPoleGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.81, 16);
+    // Zone A: Ornamental Stanchion Cluster (FPS Hero Scale: Level with coffee countertop at Y ≈ 1.14m)
+    // Stanchion Post Hero Scale Templates (38% to 45% chunkier & taller)
+    const postMetalBaseGeo = new THREE.CylinderGeometry(0.25, 0.25, 0.032, 24);
+    const postMetalCollarGeo = new THREE.CylinderGeometry(0.050, 0.090, 0.045, 24);
+    const postMetalPoleGeo = new THREE.CylinderGeometry(0.048, 0.048, 0.91, 20);
 
-    const postHwRubberGeo = new THREE.CylinderGeometry(0.185, 0.185, 0.008, 24);
-    const postHwCassetteGeo = new THREE.CylinderGeometry(0.039, 0.039, 0.11, 24);
-    const postHwCapGeo = new THREE.CylinderGeometry(0.042, 0.039, 0.012, 24);
-    const postHwSlotGeo = new THREE.BoxGeometry(0.014, 0.09, 0.012);
-    const postColliderGeo = new THREE.CylinderGeometry(0.18, 0.18, 0.98, 12);
-    const endClipGeo = new THREE.BoxGeometry(0.018, 0.072, 0.016);
+    const postHwRubberGeo = new THREE.CylinderGeometry(0.255, 0.255, 0.010, 24);
+    const postHwCassetteGeo = new THREE.CylinderGeometry(0.054, 0.054, 0.13, 24);
+    const postHwCapGeo = new THREE.CylinderGeometry(0.058, 0.054, 0.016, 24);
+    const postHwSlotGeo = new THREE.BoxGeometry(0.018, 0.105, 0.016);
+    const postColliderGeo = new THREE.CylinderGeometry(0.25, 0.25, 1.143, 16);
+    const endClipGeo = new THREE.BoxGeometry(0.024, 0.090, 0.020);
 
-    // 10 Connected Stanchion Posts spanning X = -9.78m to +9.78m (sealed against walls without clipping!)
+    // 4 Stanchion Posts in Hero Scale parked along the right wall immediately to the right of the coffee cabinet
+    // Post 0 & 1: wall-adjacent pair (center distance 0.95m, clear of wall by 0.20m, linked with belt);
+    // Post 2 & 3: front-row staggered posts (generous clearances >= 0.60m from all other posts).
     const stanchionPosts = [
-      { x: -9.78, z: -2.05, yaw: 0.22 }, // Base edge at -9.965m (3.5cm from left wall at -10.0)
-      { x: -7.60, z: -1.88, yaw: -0.55 },
-      { x: -5.45, z: -2.15, yaw: 0.82 },
-      { x: -3.28, z: -1.82, yaw: -0.38 },
-      { x: -1.10, z: -2.12, yaw: 0.65 },
-      { x:  1.10, z: -1.85, yaw: -0.74 },
-      { x:  3.28, z: -2.14, yaw: 0.45 },
-      { x:  5.45, z: -1.82, yaw: -0.62 },
-      { x:  7.60, z: -2.10, yaw: 0.52 },
-      { x:  9.78, z: -2.05, yaw: -0.30 }, // Base edge at +9.965m (3.5cm from right wall at +10.0)
+      { x: 9.55, z: -4.95, yaw: 0.28 },  // Connected pair (near wall)
+      { x: 9.52, z: -4.00, yaw: -0.36 }, // Connected pair (near wall)
+      { x: 9.02, z: -4.55, yaw: 1.12 },  // Standalone post (staggered forward)
+      { x: 9.18, z: -3.50, yaw: -1.74 }  // Standalone post (staggered forward)
     ];
 
-    // Assemble 10 stanchion posts
+    // Assemble 4 Hero Scale stanchion posts
     for (const post of stanchionPosts) {
       const px = post.x;
       const pz = post.z;
       const yaw = post.yaw;
 
       // 1. Brushed Dark Steel / Metal Parts (visualBuckets.stanchionPosts)
-      addVisual(visualBuckets.stanchionPosts, postMetalBaseGeo, px, 0.0205, pz, 0, yaw, 0);
-      addVisual(visualBuckets.stanchionPosts, postMetalCollarGeo, px, 0.0505, pz, 0, yaw, 0);
-      addVisual(visualBuckets.stanchionPosts, postMetalPoleGeo, px, 0.455, pz, 0, yaw, 0);
+      // Base: bottom at y = 0.010m, top at y = 0.042m
+      addVisual(visualBuckets.stanchionPosts, postMetalBaseGeo, px, 0.026, pz, 0, yaw, 0);
+      // Flared Collar: bottom at y = 0.042m, top at y = 0.087m
+      addVisual(visualBuckets.stanchionPosts, postMetalCollarGeo, px, 0.0645, pz, 0, yaw, 0);
+      // Heavy Industrial Pole: bottom at y = 0.087m, top at y = 0.997m
+      addVisual(visualBuckets.stanchionPosts, postMetalPoleGeo, px, 0.542, pz, 0, yaw, 0);
 
       // 2. Black Polymer / Rubber Hardware (visualBuckets.stanchionHardware)
-      addVisual(visualBuckets.stanchionHardware, postHwRubberGeo, px, 0.004, pz, 0, yaw, 0);
-      addVisual(visualBuckets.stanchionHardware, postHwCassetteGeo, px, 0.915, pz, 0, yaw, 0);
-      addVisual(visualBuckets.stanchionHardware, postHwCapGeo, px, 0.976, pz, 0, yaw, 0);
+      // Rubber floor ring: resting flat on floor tiles (y = 0.000m to 0.010m)
+      addVisual(visualBuckets.stanchionHardware, postHwRubberGeo, px, 0.005, pz, 0, yaw, 0);
+      // Cassette head: bottom at y = 0.997m, top at y = 1.127m
+      addVisual(visualBuckets.stanchionHardware, postHwCassetteGeo, px, 1.062, pz, 0, yaw, 0);
+      // Top cap: top surface sits at y = 1.143m (level with adjacent coffee countertop at 1.145m!)
+      addVisual(visualBuckets.stanchionHardware, postHwCapGeo, px, 1.135, pz, 0, yaw, 0);
 
       // 4 Receiver slots around cassette head at 90-degree increments
       for (let s = 0; s < 4; s++) {
         const slotAngle = yaw + s * (Math.PI / 2);
-        const slotX = px + Math.sin(slotAngle) * 0.039;
-        const slotZ = pz + Math.cos(slotAngle) * 0.039;
-        addVisual(visualBuckets.stanchionHardware, postHwSlotGeo, slotX, 0.915, slotZ, 0, slotAngle, 0);
+        const slotX = px + Math.sin(slotAngle) * 0.054;
+        const slotZ = pz + Math.cos(slotAngle) * 0.054;
+        addVisual(visualBuckets.stanchionHardware, postHwSlotGeo, slotX, 1.062, slotZ, 0, slotAngle, 0);
       }
 
-      // 3. Post Physics & Hitscan Collider (Sparks and clanks when shot!)
-      registerCollider(postColliderGeo, px, 0.49, pz);
+      // 3. Post Physics & Hitscan Collider (scaled 1:1 with Hero Scale silhouette)
+      registerCollider(postColliderGeo, px, 0.5715, pz);
     }
 
-    // 9 Sagging Fabric Belt Spans connecting all 10 adjacent stanchion pairs
-    const sags = [0.026, 0.033, 0.027, 0.031, 0.025, 0.034, 0.028, 0.032, 0.026];
-    for (let i = 0; i < stanchionPosts.length - 1; i++) {
-      const postA = stanchionPosts[i];
-      const postB = stanchionPosts[i + 1];
-      const sag = sags[i];
+    // 1 Sagging Fabric Belt Span connecting the two wall-adjacent stanchions (Post 0 and Post 1)
+    const postA = stanchionPosts[0];
+    const postB = stanchionPosts[1];
+    const beltGeo = createCatenaryBeltGeometry(postA, postB, 0.024, 1.062, 0.053, 0.036, 0.0025);
+    addVisual(visualBuckets.stanchionBelts, beltGeo, 0, 0, 0);
+    beltGeo.dispose();
 
-      // Procedural catenary belt geometry
-      const beltGeo = createCatenaryBeltGeometry(postA, postB, sag);
-      addVisual(visualBuckets.stanchionBelts, beltGeo, 0, 0, 0);
-      beltGeo.dispose();
-
-      // Molded plastic belt end-clips at postA and postB attachment points
-      const dx = postB.x - postA.x;
-      const dz = postB.z - postA.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist > 0.1) {
-        const ux = dx / dist;
-        const uz = dz / dist;
-        const sx = postA.x + ux * 0.038;
-        const sz = postA.z + uz * 0.038;
-        const ex = postB.x - ux * 0.038;
-        const ez = postB.z - uz * 0.038;
-        const theta = Math.atan2(dx, dz);
-        addVisual(visualBuckets.stanchionHardware, endClipGeo, sx, 0.91, sz, 0, theta, 0);
-        addVisual(visualBuckets.stanchionHardware, endClipGeo, ex, 0.91, ez, 0, theta, 0);
-      }
+    // Molded plastic belt end-clips at postA and postB attachment points
+    const bDx = postB.x - postA.x;
+    const bDz = postB.z - postA.z;
+    const bDist = Math.hypot(bDx, bDz);
+    if (bDist > 0.1) {
+      const bUx = bDx / bDist;
+      const bUz = bDz / bDist;
+      const sx = postA.x + bUx * 0.053;
+      const sz = postA.z + bUz * 0.053;
+      const ex = postB.x - bUx * 0.053;
+      const ez = postB.z - bUz * 0.053;
+      const theta = Math.atan2(bDx, bDz);
+      addVisual(visualBuckets.stanchionHardware, endClipGeo, sx, 1.062, sz, 0, theta, 0);
+      addVisual(visualBuckets.stanchionHardware, endClipGeo, ex, 1.062, ez, 0, theta, 0);
     }
 
     postMetalBaseGeo.dispose();
@@ -2638,34 +2631,8 @@ export class WarehouseBuilder {
     this.scene.add(this.weaponColliderMesh);
     this.colliderMesh = this.weaponColliderMesh;
 
-    // 2. Player Movement Capsule Collider (Includes invisible boundary box across Z = -2.0)
-    const playerColliderGeos = [...colliderGeometries];
-    const boundaryGeo = new THREE.BoxGeometry(W, 2.5, 0.08);
-    _p.set(0, 1.25, -2.0);
-    _e.set(0, 0, 0);
-    _q.setFromEuler(_e);
-    _m.compose(_p, _q, _s);
-    const nonIndexedBoundary = boundaryGeo.toNonIndexed();
-    nonIndexedBoundary.applyMatrix4(_m);
-    const cleanBoundary = new THREE.BufferGeometry();
-    cleanBoundary.setAttribute('position', nonIndexedBoundary.getAttribute('position'));
-    playerColliderGeos.push(cleanBoundary);
-    boundaryGeo.dispose();
-    nonIndexedBoundary.dispose();
-
-    const playerColliderGeo = BufferGeometryUtils.mergeGeometries(playerColliderGeos, false);
-    playerColliderGeo.computeVertexNormals();
-    playerColliderGeo.computeBoundsTree({
-      maxLeafTris: 5,
-      strategy: 0
-    });
-
-    this.playerColliderMesh = new THREE.Mesh(
-      playerColliderGeo,
-      new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
-    );
-    this.playerColliderMesh.name = 'DataCenterPlayerCollider';
-    this.scene.add(this.playerColliderMesh);
+    // 2. Player Movement Capsule Collider (Uses unified room collision without artificial invisible walls)
+    this.playerColliderMesh = this.weaponColliderMesh;
 
     return this.weaponColliderMesh;
   }
