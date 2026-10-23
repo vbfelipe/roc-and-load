@@ -15,6 +15,10 @@ window.addEventListener('DOMContentLoaded', () => {
   const startBtnText = document.getElementById('start-btn-text');
   const exitBtn = document.getElementById('exit-btn');
   const statusVal = document.getElementById('status-val');
+  const bgmToggleBtn = document.getElementById('bgm-toggle-btn');
+  const bgmStateText = document.getElementById('bgm-state-text');
+  const sfxToggleBtn = document.getElementById('sfx-toggle-btn');
+  const sfxStateText = document.getElementById('sfx-state-text');
   const uiLayer = document.getElementById('ui-layer');
   const posEl = document.getElementById('stat-pos');
   let lastPosTime = 0;
@@ -234,6 +238,69 @@ window.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function updateBgmUi(enabled) {
+    if (bgmToggleBtn) {
+      bgmToggleBtn.classList.toggle('is-on', enabled);
+      bgmToggleBtn.classList.toggle('is-off', !enabled);
+    }
+    if (bgmStateText) {
+      bgmStateText.textContent = enabled ? 'ON' : 'OFF';
+    }
+  }
+
+  function updateSfxUi(enabled) {
+    if (sfxToggleBtn) {
+      sfxToggleBtn.classList.toggle('is-on', enabled);
+      sfxToggleBtn.classList.toggle('is-off', !enabled);
+    }
+    if (sfxStateText) {
+      sfxStateText.textContent = enabled ? 'ON' : 'OFF';
+    }
+  }
+
+  if (bgmToggleBtn) {
+    bgmToggleBtn.addEventListener('pointerenter', () => {
+      if (sound.isSfxEnabled) {
+        sound.playButtonHover();
+      }
+    });
+    bgmToggleBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    bgmToggleBtn.addEventListener('mouseup', (e) => e.stopPropagation());
+    bgmToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sound.resume();
+      const newState = !sound.isBgmEnabled;
+      sound.setBgmEnabled(newState);
+      updateBgmUi(newState);
+      if (sound.isSfxEnabled) {
+        sound.playToggleClick();
+      }
+    });
+  }
+
+  if (sfxToggleBtn) {
+    sfxToggleBtn.addEventListener('pointerenter', () => {
+      if (sound.isSfxEnabled) {
+        sound.playButtonHover();
+      }
+    });
+    sfxToggleBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    sfxToggleBtn.addEventListener('mouseup', (e) => e.stopPropagation());
+    sfxToggleBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sound.resume();
+      const newState = !sound.isSfxEnabled;
+      if (newState) {
+        sound.setSfxEnabled(true);
+        updateSfxUi(true);
+        sound.playToggleClick();
+      } else {
+        sound.setSfxEnabled(false);
+        updateSfxUi(false);
+      }
+    });
+  }
+
   input.onLock(() => {
     sound.resume();
     setGameState('PLAYING');
@@ -274,6 +341,10 @@ window.addEventListener('DOMContentLoaded', () => {
   window.weaponSystem = weaponSystem;
   window.viewmodel = viewmodel;
   window.hud = hud;
+  window.bgmToggleBtn = bgmToggleBtn;
+  window.sfxToggleBtn = sfxToggleBtn;
+  window.updateBgmUi = updateBgmUi;
+  window.updateSfxUi = updateSfxUi;
   window.getGameState = () => gameState;
   window.setGameState = setGameState;
 

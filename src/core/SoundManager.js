@@ -4,6 +4,8 @@ export class SoundManager {
   constructor() {
     this.ctx = null;
     this.isMuted = false;
+    this.isBgmEnabled = true;
+    this.isSfxEnabled = true;
     this.masterGain = null;
 
     this.menuMusic = null;
@@ -53,6 +55,7 @@ export class SoundManager {
   }
 
   startMenuMusic() {
+    if (!this.isBgmEnabled) return Promise.reject(new Error('BGM disabled'));
     if (!this.menuMusic) return Promise.reject(new Error('No menu music'));
     if (this._fadeRaf) {
       cancelAnimationFrame(this._fadeRaf);
@@ -63,6 +66,7 @@ export class SoundManager {
   }
 
   resumeMenuMusic(fadeDurationMs = 300) {
+    if (!this.isBgmEnabled) return;
     if (!this.menuMusic) return;
     if (this._fadeRaf) {
       cancelAnimationFrame(this._fadeRaf);
@@ -88,6 +92,23 @@ export class SoundManager {
     this._fadeVolume(0.0, fadeDurationMs, () => {
       this.menuMusic.pause();
     });
+  }
+
+  setBgmEnabled(enabled) {
+    this.isBgmEnabled = !!enabled;
+    if (!this.isBgmEnabled) {
+      this.fadeMenuMusicOut(180);
+    } else {
+      this.resumeMenuMusic(250);
+    }
+  }
+
+  setSfxEnabled(enabled) {
+    this.isSfxEnabled = !!enabled;
+    this.isMuted = !this.isSfxEnabled;
+    if (this.masterGain && this.ctx) {
+      this.masterGain.gain.setValueAtTime(this.isSfxEnabled ? 0.75 : 0.0, this.ctx.currentTime);
+    }
   }
 
   _initAudio() {
@@ -763,6 +784,55 @@ export class SoundManager {
 
       noise.start(t2);
       noise.stop(t2 + 0.028);
+    }
+  }
+
+  /**
+   * Tactical Mechanical Toggle Switch Click (#bgm-toggle-btn & #sfx-toggle-btn).
+   * Snappy mechanical switch engagement (~25ms duration).
+   */
+  playToggleClick() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // Layer 1: Crisp tactile rocker snap
+    const snapOsc = this.ctx.createOscillator();
+    const snapGain = this.ctx.createGain();
+    snapOsc.type = 'triangle';
+    snapOsc.frequency.setValueAtTime(1750, t);
+    snapOsc.frequency.exponentialRampToValueAtTime(720, t + 0.022);
+
+    snapGain.gain.setValueAtTime(0.18, t);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.024);
+
+    snapOsc.connect(snapGain);
+    snapGain.connect(this.masterGain);
+
+    snapOsc.start(t);
+    snapOsc.stop(t + 0.025);
+
+    // Layer 2: Filtered micro noise click
+    const noiseBuffer = this._createNoiseBuffer(0.025);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const bpFilter = this.ctx.createBiquadFilter();
+      bpFilter.type = 'bandpass';
+      bpFilter.frequency.setValueAtTime(2600, t);
+      bpFilter.Q.setValueAtTime(3.8, t);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.10, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.018);
+
+      noise.connect(bpFilter);
+      bpFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noise.start(t);
+      noise.stop(t + 0.020);
     }
   }
 }

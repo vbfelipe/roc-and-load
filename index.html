@@ -335,13 +335,6 @@
       paint-order: stroke fill;
     }
 
-    .tagline::before {
-      content: "// ";
-      color: #ff6b1a;
-      font-weight: 900;
-      text-shadow: 0 0 10px rgba(255, 107, 26, 0.6);
-    }
-
     /* Primary Action Container */
     .action-container {
       display: flex;
@@ -480,6 +473,139 @@
       color: #f59e0b;
     }
 
+    /* Tactical Audio Controls (BGM & SFX low-profile toggles) */
+    .menu-audio-controls {
+      position: absolute;
+      bottom: calc(clamp(1.25rem, 3vh, 2.25rem) + 26px);
+      left: clamp(1.2rem, 3.5vw, 4.5rem);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .audio-toggle-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      background: rgba(12, 15, 22, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-left: 2px solid #ffb870;
+      border-radius: 2px;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #cbd5e1;
+      opacity: 1;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      user-select: none;
+      -webkit-user-select: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+      outline: none;
+    }
+
+    .audio-toggle-btn .audio-icon {
+      flex-shrink: 0;
+      width: 13px;
+      height: 13px;
+      color: #cbd5e1;
+      opacity: 1;
+      transition: color 0.18s ease, opacity 0.18s ease;
+    }
+
+    .audio-toggle-btn .audio-label {
+      color: #94a3b8;
+      opacity: 1;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      transition: color 0.18s ease, opacity 0.18s ease;
+    }
+
+    .audio-toggle-btn .audio-state {
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      transition: color 0.18s ease, text-shadow 0.18s ease;
+    }
+
+    /* ON State (.is-on) */
+    .audio-toggle-btn.is-on {
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-left: 2px solid #ffb870;
+      opacity: 1;
+    }
+
+    .audio-toggle-btn.is-on .audio-label {
+      color: #94a3b8;
+      opacity: 1;
+    }
+
+    .audio-toggle-btn.is-on .audio-icon {
+      color: #cbd5e1;
+      opacity: 1;
+    }
+
+    .audio-toggle-btn.is-on .audio-state {
+      color: #34d399;
+      text-shadow: 0 0 8px rgba(52, 211, 153, 0.4);
+    }
+
+    /* OFF State (.is-off) */
+    .audio-toggle-btn.is-off {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: 2px solid #ef4444;
+      opacity: 1;
+    }
+
+    .audio-toggle-btn.is-off .audio-icon {
+      color: #64748b;
+      opacity: 0.75;
+    }
+
+    .audio-toggle-btn.is-off .audio-label {
+      color: #64748b;
+      opacity: 0.75;
+    }
+
+    .audio-toggle-btn.is-off .audio-state {
+      color: #ef4444;
+      text-shadow: 0 0 8px rgba(239, 68, 68, 0.35);
+    }
+
+    /* Hover State (:hover) */
+    .audio-toggle-btn:hover {
+      background: rgba(24, 30, 42, 0.85);
+      border-color: rgba(255, 255, 255, 0.28);
+      opacity: 1;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+    }
+
+    .audio-toggle-btn.is-on:hover {
+      border-left-color: #ffb870;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 8px rgba(255, 184, 112, 0.2);
+    }
+
+    .audio-toggle-btn.is-off:hover {
+      background: rgba(24, 30, 42, 0.85);
+      border-top-color: rgba(255, 255, 255, 0.25);
+      border-right-color: rgba(255, 255, 255, 0.25);
+      border-bottom-color: rgba(255, 255, 255, 0.25);
+      border-left: 2px solid #ef4444;
+      opacity: 1;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6), 0 0 8px rgba(239, 68, 68, 0.25);
+    }
+
+    .audio-toggle-btn:active {
+      transform: translateY(0);
+    }
+
     /* Clean Official Menu Footer Credit */
     .menu-footer {
       position: absolute;
@@ -524,6 +650,17 @@
         bottom: clamp(0.9rem, 2.2vh, 1.5rem);
         font-size: clamp(0.52rem, 0.65vw, 0.62rem);
         font-weight: 400;
+      }
+
+      .menu-audio-controls {
+        left: clamp(0.8rem, 2.2vw, 1.8rem);
+        bottom: calc(clamp(0.9rem, 2.2vh, 1.5rem) + 22px);
+        gap: 8px;
+      }
+
+      .audio-toggle-btn {
+        padding: 4px 8px;
+        font-size: 10px;
       }
 
       .game-logo {
@@ -959,6 +1096,28 @@
           <span class="status-key">STATUS:</span>
           <span id="status-val" class="status-val">READY</span>
         </div>
+      </div>
+
+      <!-- Tactical Audio Controls -->
+      <div class="menu-audio-controls">
+        <button id="bgm-toggle-btn" type="button" class="audio-toggle-btn is-on" title="Toggle Background Music">
+          <svg class="audio-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3" fill="currentColor"></circle>
+            <circle cx="18" cy="16" r="3" fill="currentColor"></circle>
+          </svg>
+          <span class="audio-label">BGM:</span>
+          <span class="audio-state" id="bgm-state-text">ON</span>
+        </button>
+        <button id="sfx-toggle-btn" type="button" class="audio-toggle-btn is-on" title="Toggle Sound Effects">
+          <svg class="audio-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon>
+            <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+          </svg>
+          <span class="audio-label">SFX:</span>
+          <span class="audio-state" id="sfx-state-text">ON</span>
+        </button>
       </div>
 
       <!-- Clean Official Menu Footer Credit -->
