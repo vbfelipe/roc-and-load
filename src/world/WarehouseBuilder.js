@@ -2022,6 +2022,1459 @@ function createArmPadGeometry() {
 }
 
 /**
+ * Procedural High-Detail Mechanical Keyboard Diffuse & Emissive Canvas Textures (1024x384).
+ * Creates a crisp 104-key gaming keyboard layout with:
+ * - Clean dark matte keycap tops (#252932) separated by dark recessed switch gaps (#0b0d12).
+ * - Signature Tactical Red ESC key (#dc2626) in top-left.
+ * - Warm amber accents on ENTER, SPACE, and WASD / Arrow keys (#f59e0b).
+ * - Crisp micro-legends on keycaps and 3 glowing terminal green status LEDs (NUM, CAPS, SCRL) (#22c55e).
+ */
+function createMechanicalKeyboardTextures() {
+  const dCanvas = document.createElement('canvas');
+  dCanvas.width = 1024;
+  dCanvas.height = 384;
+  const dCtx = dCanvas.getContext('2d');
+
+  const eCanvas = document.createElement('canvas');
+  eCanvas.width = 1024;
+  eCanvas.height = 384;
+  const eCtx = eCanvas.getContext('2d');
+
+  // Base background: dark recessed switch plate (#0b0d12)
+  dCtx.fillStyle = '#0b0d12';
+  dCtx.fillRect(0, 0, 1024, 384);
+
+  // Emissive is pure black (#000000)
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, 1024, 384);
+
+  // Helper for drawing an individual keycap
+  const drawKey = (x, y, w, h, label, bg = '#252932', textCol = '#cbd5e1', fontSize = 11, fontBold = false, accentBottom = null, emissiveColor = null) => {
+    // Keycap shadow base
+    dCtx.fillStyle = '#14171e';
+    dCtx.fillRect(x, y, w, h);
+
+    // Keycap top face
+    dCtx.fillStyle = bg;
+    dCtx.fillRect(x + 1, y + 1, w - 2, h - 2);
+
+    // Top bevel highlight
+    dCtx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    dCtx.fillRect(x + 1, y + 1, w - 2, 2);
+
+    // Bottom bevel shadow
+    dCtx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    dCtx.fillRect(x + 1, y + h - 3, w - 2, 2);
+
+    // Optional accent bottom bar (WASD, Enter, etc.)
+    if (accentBottom) {
+      dCtx.fillStyle = accentBottom;
+      dCtx.fillRect(x + 3, y + h - 4, w - 6, 2);
+    }
+
+    // Legend
+    if (label) {
+      dCtx.fillStyle = textCol;
+      dCtx.font = `${fontBold ? 'bold ' : ''}${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+      dCtx.textAlign = 'center';
+      dCtx.textBaseline = 'middle';
+      dCtx.fillText(label, x + w / 2, y + h / 2 - 1);
+    }
+
+    // Emissive mask
+    if (emissiveColor) {
+      eCtx.fillStyle = emissiveColor;
+      eCtx.fillRect(x + 1, y + 1, w - 2, h - 2);
+    } else if (accentBottom) {
+      eCtx.fillStyle = accentBottom;
+      eCtx.fillRect(x + 3, y + h - 4, w - 6, 2);
+    }
+  };
+
+  // 1. Function Row (y = 22, h = 42)
+  // Standard black ESC key, matching F1-F12
+  drawKey(24, 22, 40, 42, 'ESC', '#252932', '#cbd5e1', 11, false, null, null);
+
+  // F1-F4
+  const fKeys1 = ['F1', 'F2', 'F3', 'F4'];
+  for (let i = 0; i < fKeys1.length; i++) {
+    drawKey(84 + i * 40, 22, 36, 42, fKeys1[i]);
+  }
+  // F5-F8
+  const fKeys2 = ['F5', 'F6', 'F7', 'F8'];
+  for (let i = 0; i < fKeys2.length; i++) {
+    drawKey(264 + i * 40, 22, 36, 42, fKeys2[i]);
+  }
+  // F9-F12
+  const fKeys3 = ['F9', 'F10', 'F11', 'F12'];
+  for (let i = 0; i < fKeys3.length; i++) {
+    drawKey(444 + i * 40, 22, 36, 42, fKeys3[i]);
+  }
+
+  // Top Nav (Prt, Scr, Pau)
+  const navTop = ['PRT', 'SCR', 'PAU'];
+  for (let i = 0; i < navTop.length; i++) {
+    drawKey(648 + i * 40, 22, 36, 42, navTop[i], '#252932', '#94a3b8', 10);
+  }
+
+  // Status LEDs Area (x = 794 to 994, y = 22 to 64)
+  dCtx.fillStyle = '#12151c';
+  dCtx.fillRect(794, 22, 200, 42);
+  dCtx.strokeStyle = '#222733';
+  dCtx.lineWidth = 1.5;
+  dCtx.strokeRect(794.5, 22.5, 199, 41);
+
+  const ledLabels = ['NUM', 'CAPS', 'SCRL'];
+  const ledX = [834, 894, 954];
+  for (let i = 0; i < 3; i++) {
+    const lx = ledX[i];
+    // Label above LED
+    dCtx.fillStyle = '#94a3b8';
+    dCtx.font = 'bold 9px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+    dCtx.textAlign = 'center';
+    dCtx.textBaseline = 'middle';
+    dCtx.fillText(ledLabels[i], lx, 33);
+
+    // Glowing Green LED on Diffuse
+    const g = dCtx.createRadialGradient(lx, 49, 1, lx, 49, 7);
+    g.addColorStop(0, '#86efac');
+    g.addColorStop(0.4, '#22c55e');
+    g.addColorStop(1, 'rgba(34, 197, 94, 0)');
+    dCtx.fillStyle = g;
+    dCtx.beginPath();
+    dCtx.arc(lx, 49, 7, 0, Math.PI * 2);
+    dCtx.fill();
+
+    dCtx.fillStyle = '#dcfce7';
+    dCtx.beginPath();
+    dCtx.arc(lx, 49, 2.5, 0, Math.PI * 2);
+    dCtx.fill();
+
+    // Glowing Green LED on Emissive Map
+    const eg = eCtx.createRadialGradient(lx, 49, 1, lx, 49, 9);
+    eg.addColorStop(0, '#86efac');
+    eg.addColorStop(0.5, '#22c55e');
+    eg.addColorStop(1, '#000000');
+    eCtx.fillStyle = eg;
+    eCtx.beginPath();
+    eCtx.arc(lx, 49, 9, 0, Math.PI * 2);
+    eCtx.fill();
+  }
+
+  // 2. Main 60% Alphanumeric Block (x = 24 to 618, y = 74 to 362)
+  // Row 1: Number row (y = 74, h = 50)
+  const row1Keys = ['`', '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '='];
+  for (let i = 0; i < row1Keys.length; i++) {
+    drawKey(24 + i * 40, 74, 36, 50, row1Keys[i]);
+  }
+  drawKey(544, 74, 74, 50, 'BACKSPACE', '#20242c', '#94a3b8', 9);
+
+  // Row 2: QWERTY row (y = 130, h = 50)
+  drawKey(24, 130, 54, 50, 'TAB', '#20242c', '#94a3b8', 10);
+  const row2Keys = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '[', ']', '\\'];
+  for (let i = 0; i < row2Keys.length; i++) {
+    const kx = 82 + i * 40;
+    const k = row2Keys[i];
+    if (k === 'W') {
+      // Tactical W gamer key
+      drawKey(kx, 130, 36, 50, 'W', '#333a48', '#ffffff', 12, true, '#f59e0b');
+    } else {
+      drawKey(kx, 130, 36, 50, k);
+    }
+  }
+
+  // Row 3: ASDF row (y = 186, h = 50)
+  drawKey(24, 186, 64, 50, 'CAPS', '#20242c', '#94a3b8', 10);
+  const row3Keys = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', ';', "'"];
+  for (let i = 0; i < row3Keys.length; i++) {
+    const kx = 92 + i * 40;
+    const k = row3Keys[i];
+    if (k === 'A' || k === 'S' || k === 'D') {
+      // Tactical ASD gamer keys
+      drawKey(kx, 186, 36, 50, k, '#333a48', '#ffffff', 12, true, '#f59e0b');
+    } else {
+      drawKey(kx, 186, 36, 50, k);
+    }
+  }
+  // ENTER key with warm accent
+  drawKey(532, 186, 86, 50, 'ENTER ↵', '#2d3544', '#f59e0b', 11, true, null, '#b45309');
+
+  // Row 4: ZXCV row (y = 242, h = 50)
+  drawKey(24, 242, 84, 50, 'SHIFT', '#20242c', '#94a3b8', 10);
+  const row4Keys = ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ',', '.', '/'];
+  for (let i = 0; i < row4Keys.length; i++) {
+    drawKey(112 + i * 40, 242, 36, 50, row4Keys[i]);
+  }
+  drawKey(512, 242, 106, 50, 'SHIFT', '#20242c', '#94a3b8', 10);
+
+  // Row 5: Space row (y = 298, h = 64)
+  drawKey(24, 298, 46, 64, 'CTRL', '#20242c', '#94a3b8', 10);
+  drawKey(74, 298, 42, 64, 'WIN', '#20242c', '#94a3b8', 10);
+  drawKey(120, 298, 44, 64, 'ALT', '#20242c', '#94a3b8', 10);
+  // Distinct raised SPACEBAR top art
+  drawKey(168, 298, 276, 64, '—', '#282d38', '#f59e0b', 14, true, '#f59e0b');
+  drawKey(448, 298, 44, 64, 'ALT', '#20242c', '#94a3b8', 10);
+  drawKey(496, 298, 42, 64, 'WIN', '#20242c', '#94a3b8', 10);
+  drawKey(542, 298, 36, 64, 'FN', '#20242c', '#94a3b8', 9);
+  drawKey(582, 298, 36, 64, 'CTRL', '#20242c', '#94a3b8', 9);
+
+  // 3. Nav Cluster (x = 648 to 768)
+  const navR1 = ['INS', 'HOME', 'PGUP'];
+  for (let i = 0; i < 3; i++) drawKey(648 + i * 40, 74, 36, 50, navR1[i], '#252932', '#94a3b8', 9);
+  const navR2 = ['DEL', 'END', 'PGDN'];
+  for (let i = 0; i < 3; i++) drawKey(648 + i * 40, 130, 36, 50, navR2[i], '#252932', '#94a3b8', 9);
+
+  // Inverted-T Arrows
+  drawKey(688, 242, 36, 50, '▲', '#333a48', '#f59e0b', 12, true, '#f59e0b');
+  drawKey(648, 298, 36, 64, '◄', '#333a48', '#f59e0b', 12, true, '#f59e0b');
+  drawKey(688, 298, 36, 64, '▼', '#333a48', '#f59e0b', 12, true, '#f59e0b');
+  drawKey(728, 298, 36, 64, '►', '#333a48', '#f59e0b', 12, true, '#f59e0b');
+
+  // 4. Numpad Block (x = 794 to 994)
+  const numR1 = ['NUM', '/', '*', '-'];
+  for (let i = 0; i < 4; i++) drawKey(794 + i * 50, 74, 46, 50, numR1[i], '#22262e', '#94a3b8', 10);
+
+  const numR2 = ['7', '8', '9'];
+  for (let i = 0; i < 3; i++) drawKey(794 + i * 50, 130, 46, 50, numR2[i]);
+  drawKey(944, 130, 46, 106, '+', '#22262e', '#cbd5e1', 14); // Tall +
+
+  const numR3 = ['4', '5', '6'];
+  for (let i = 0; i < 3; i++) drawKey(794 + i * 50, 186, 46, 50, numR3[i]);
+
+  const numR4 = ['1', '2', '3'];
+  for (let i = 0; i < 3; i++) drawKey(794 + i * 50, 242, 46, 50, numR4[i]);
+  drawKey(944, 242, 46, 120, 'ENT', '#2d3544', '#f59e0b', 11, true, null, '#b45309'); // Tall Enter
+
+  drawKey(794, 298, 96, 64, '0'); // Double-width 0
+  drawKey(894, 298, 46, 64, '.');
+
+  // 5. PBT Keycap Micro-Grain Noise
+  const imgData = dCtx.getImageData(0, 0, 1024, 384);
+  const data = imgData.data;
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] > 18 || data[i + 1] > 18 || data[i + 2] > 18) {
+      const noise = (Math.random() - 0.5) * 8;
+      data[i] = Math.min(255, Math.max(0, data[i] + noise));
+      data[i + 1] = Math.min(255, Math.max(0, data[i] + noise));
+      data[i + 2] = Math.min(255, Math.max(0, data[i] + noise));
+    }
+  }
+  dCtx.putImageData(imgData, 0, 0);
+
+  const diffuseTexture = new THREE.CanvasTexture(dCanvas);
+  diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+  diffuseTexture.anisotropy = 4;
+  diffuseTexture.needsUpdate = true;
+
+  const emissiveTexture = new THREE.CanvasTexture(eCanvas);
+  emissiveTexture.colorSpace = THREE.SRGBColorSpace;
+  emissiveTexture.anisotropy = 4;
+  emissiveTexture.needsUpdate = true;
+
+  return { diffuseTexture, emissiveTexture };
+}
+
+/**
+ * Procedural Tactical Stitched Mousepad Texture (512x430).
+ * High-durability micro-weave cloth with dark stitched perimeter border
+ * and a subtle tactical orange/red brand tag in the top-right corner.
+ */
+function createTacticalMousepadTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 430;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Dark Matte Cloth Weave Base (#14171f)
+  ctx.fillStyle = '#14171f';
+  ctx.fillRect(0, 0, 512, 430);
+
+  // Micro-weave crosshatch pattern
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.025)';
+  for (let y = 0; y < 430; y += 4) {
+    for (let x = (y % 8 === 0 ? 0 : 2); x < 512; x += 4) {
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  // 2. Heavy Stitched Perimeter Border
+  // Outer rubber edge (#0c0e13)
+  ctx.strokeStyle = '#0c0e13';
+  ctx.lineWidth = 14;
+  ctx.strokeRect(7, 7, 498, 416);
+
+  // Dark stitched seam with dashed lines (#282e3d and #384155)
+  ctx.strokeStyle = '#282e3d';
+  ctx.lineWidth = 3.5;
+  ctx.setLineDash([7, 5]);
+  ctx.strokeRect(12, 12, 488, 406);
+
+  ctx.strokeStyle = '#384155';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([4, 8]);
+  ctx.strokeRect(12, 12, 488, 406);
+  ctx.setLineDash([]); // reset
+
+  // 3. Tactical Woven Brand Tag in top-right corner (x = 438..488, y = 6..28)
+  ctx.fillStyle = '#ea580c'; // Vibrant tactical orange/red
+  ctx.fillRect(438, 6, 50, 22);
+  ctx.fillStyle = '#c2410c';
+  ctx.fillRect(438, 26, 50, 2);
+
+  // Tag micro-brand text "ROC"
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('ROC', 463, 16);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Creates a raised 3D keycap island block inside the keyboard keywell.
+ * Assigns planar projection UVs across (X: -0.208..+0.208, Z: -0.064..+0.064)
+ * on top faces (+Y normal), and dark matte border UVs on side/bottom faces.
+ */
+function createKeycapBlockGeometry(w, h, d, localX, localZ) {
+  const box = new THREE.BoxGeometry(w, h, d);
+  box.translate(localX, h / 2, localZ);
+  const nonIndexed = box.toNonIndexed();
+  box.dispose();
+
+  const pos = nonIndexed.getAttribute('position');
+  const norm = nonIndexed.getAttribute('normal');
+  const count = pos.count;
+  const uvs = new Float32Array(count * 2);
+
+  // Keybed range in local space: X: -0.208 to +0.208 (width 0.416m), Z: -0.064 to +0.064 (depth 0.128m)
+  for (let i = 0; i < count; i++) {
+    const ny = norm.getY(i);
+    if (ny > 0.5) {
+      const vx = pos.getX(i);
+      const vz = pos.getZ(i);
+      const u = Math.min(1, Math.max(0, (0.208 - vx) / 0.416));
+      const v = Math.min(1, Math.max(0, (vz + 0.064) / 0.128));
+      uvs[i * 2] = u;
+      uvs[i * 2 + 1] = v;
+    } else {
+      uvs[i * 2] = 0.005;
+      uvs[i * 2 + 1] = 0.005;
+    }
+  }
+  nonIndexed.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  return nonIndexed;
+}
+
+/**
+ * Creates a stitched tactical mousepad geometry with top-face planar UVs.
+ */
+function createMousepadGeometry(w, h, d) {
+  const box = new THREE.BoxGeometry(w, h, d);
+  const nonIndexed = box.toNonIndexed();
+  box.dispose();
+
+  const pos = nonIndexed.getAttribute('position');
+  const norm = nonIndexed.getAttribute('normal');
+  const count = pos.count;
+  const uvs = new Float32Array(count * 2);
+
+  // Top face (+Y): U = 0..1 from left to right, V = 0..1 from front to rear
+  for (let i = 0; i < count; i++) {
+    const ny = norm.getY(i);
+    if (ny > 0.5) {
+      const vx = pos.getX(i);
+      const vz = pos.getZ(i);
+      uvs[i * 2] = Math.min(1, Math.max(0, (w / 2 - vx) / w));
+      uvs[i * 2 + 1] = Math.min(1, Math.max(0, (vz + d / 2) / d));
+    } else {
+      uvs[i * 2] = 0.01;
+      uvs[i * 2 + 1] = 0.01;
+    }
+  }
+  nonIndexed.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  return nonIndexed;
+}
+
+/**
+ * Creates the sleek, ergonomic contoured lower base chassis for the wireless mouse.
+ * Features an organic hourglass shape with thumb rest and pinky contours.
+ */
+function createSculptedMouseBaseGeometry() {
+  const shape = new THREE.Shape();
+  // 2D shape in X-Y where 3D Z = -Y
+  // Front nose (3D Z = +0.056) -> 2D Y = -0.056
+  shape.moveTo(0, -0.056);
+  // Front-left nose curve
+  shape.quadraticCurveTo(0.014, -0.056, 0.024, -0.048);
+  // Left button flare
+  shape.lineTo(0.028, -0.025);
+  // Left thumb ergonomic waist (contour flare for right hand)
+  shape.quadraticCurveTo(0.032, -0.010, 0.032, 0.012);
+  shape.quadraticCurveTo(0.032, 0.032, 0.028, 0.044);
+  // Rear-left palm curve to center tail (3D Z = -0.056) -> 2D Y = +0.056
+  shape.quadraticCurveTo(0.022, 0.056, 0, 0.056);
+  // Rear-right palm curve
+  shape.quadraticCurveTo(-0.022, 0.056, -0.028, 0.044);
+  // Right pinky waist curve
+  shape.quadraticCurveTo(-0.031, 0.025, -0.029, 0.000);
+  shape.quadraticCurveTo(-0.028, -0.025, -0.026, -0.042);
+  // Front-right nose curve back to center
+  shape.quadraticCurveTo(-0.018, -0.056, 0, -0.056);
+
+  const extrudeSettings = {
+    depth: 0.005,
+    bevelEnabled: true,
+    bevelThickness: 0.002,
+    bevelSize: 0.002,
+    bevelSegments: 3,
+    curveSegments: 16,
+  };
+
+  const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  geo.rotateX(-Math.PI / 2);
+  return geo;
+}
+
+/**
+ * Creates the organic, smooth 3D curved palm dome hump for the wireless mouse.
+ * 8-segment bevel creates a continuous organic injection-molded shell.
+ */
+function createSculptedMousePalmGeometry() {
+  const shape = new THREE.Shape();
+  // Covers palm region from 3D Z = +0.008 (front seam) to 3D Z = -0.052 (rear tail)
+  // In 2D: Y = -0.008 to Y = +0.052
+  shape.moveTo(-0.024, -0.008);
+  shape.lineTo(0.025, -0.008);
+  // Left palm curve
+  shape.quadraticCurveTo(0.029, 0.012, 0.028, 0.034);
+  // Rear palm dome curve
+  shape.quadraticCurveTo(0.022, 0.052, 0, 0.052);
+  // Right palm dome curve
+  shape.quadraticCurveTo(-0.022, 0.052, -0.026, 0.034);
+  shape.quadraticCurveTo(-0.027, 0.012, -0.024, -0.008);
+
+  const extrudeSettings = {
+    depth: 0.008,
+    bevelEnabled: true,
+    bevelThickness: 0.016, // 16mm smooth organic bevel dome
+    bevelSize: 0.004,
+    bevelSegments: 8,     // 8 smooth curved segments
+    curveSegments: 16,
+  };
+
+  const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(0, 0.007, 0); // Sits smoothly on top of base
+  return geo;
+}
+
+/**
+ * Creates sculpted, beveled left or right click button plates.
+ */
+function createSculptedMouseButtonGeometry(isLeft = true) {
+  const shape = new THREE.Shape();
+  // 3D Z: +0.008 to +0.054 -> 2D Y: -0.008 to -0.054
+  // For left button (user's left +X): x from +0.002 to +0.026
+  // For right button (user's right -X): x from -0.026 to -0.002
+  const innerX = isLeft ? 0.0025 : -0.0025;
+  const outerXFront = isLeft ? 0.018 : -0.018;
+  const outerXRear = isLeft ? 0.026 : -0.026;
+
+  shape.moveTo(innerX, -0.008);
+  shape.lineTo(outerXRear, -0.008);
+  shape.lineTo(outerXFront, -0.046);
+  // Curved front tip
+  shape.quadraticCurveTo(outerXFront * 0.7, -0.054, innerX, -0.054);
+  shape.lineTo(innerX, -0.008);
+
+  const extrudeSettings = {
+    depth: 0.004,
+    bevelEnabled: true,
+    bevelThickness: 0.002,
+    bevelSize: 0.0015,
+    bevelSegments: 3,
+    curveSegments: 10,
+  };
+
+  const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+  geo.rotateX(-Math.PI / 2);
+  // Slope downward from rear (Z = 0.008, Y ~ 0.020m) to front tip (Z = 0.054, Y ~ 0.011m)
+  geo.rotateX(0.14);
+  geo.translate(0, 0.019, 0);
+  return geo;
+}
+
+/**
+ * Creates an unmirrored rectangular faceplate pointing toward -Z (toward player at -Z).
+ * In camera space when looking along +Z:
+ * Local X = +hw (Screen Left) -> UV U = 0 (Canvas Left: Optical Drive Bay)
+ * Local X = -hw (Screen Right) -> UV U = 1 (Canvas Right: Brushed Grey I/O Strip + Asset Tag)
+ * Local Y = +hh (Screen Top) -> UV V = 1 (Canvas Top: Power button, ODD top)
+ * Local Y = -hh (Screen Bottom) -> UV V = 0 (Canvas Bottom: Asset Tag)
+ * Normal points strictly along (0, 0, -1).
+ */
+function createFrontBezelPlane(w, h) {
+  const geo = new THREE.BufferGeometry();
+  const hw = w / 2;
+  const hh = h / 2;
+
+  const positions = new Float32Array([
+     hw,  hh, 0, // 0: Screen Top-Left
+    -hw,  hh, 0, // 1: Screen Top-Right
+     hw, -hh, 0, // 2: Screen Bottom-Left
+    -hw, -hh, 0  // 3: Screen Bottom-Right
+  ]);
+
+  const normals = new Float32Array([
+    0, 0, -1,
+    0, 0, -1,
+    0, 0, -1,
+    0, 0, -1
+  ]);
+
+  const uvs = new Float32Array([
+    0, 1, // 0: Screen Top-Left -> Canvas (0, 1)
+    1, 1, // 1: Screen Top-Right -> Canvas (1, 1)
+    0, 0, // 2: Screen Bottom-Left -> Canvas (0, 0)
+    1, 0  // 3: Screen Bottom-Right -> Canvas (1, 0)
+  ]);
+
+  const indices = [0, 2, 1, 1, 2, 3];
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  return geo;
+}
+
+/**
+ * Creates a circular disc pointing toward -Z where:
+ * In camera space when looking along +Z:
+ * Local X = +radius (Screen Left) -> UV U = 0 (Upright "P")
+ * Local X = -radius (Screen Right) -> UV U = 1 (Tilted "C")
+ * Normal points strictly along (0, 0, -1).
+ */
+function createFrontBadgeCircle(radius, segments = 32) {
+  const geo = new THREE.BufferGeometry();
+  const positions = [];
+  const normals = [];
+  const uvs = [];
+  const indices = [];
+
+  // Center vertex
+  positions.push(0, 0, 0);
+  normals.push(0, 0, -1);
+  uvs.push(0.5, 0.5);
+
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * Math.PI * 2;
+    const x = radius * Math.cos(theta);
+    const y = radius * Math.sin(theta);
+    positions.push(x, y, 0);
+    normals.push(0, 0, -1);
+    uvs.push(-x / (2 * radius) + 0.5, y / (2 * radius) + 0.5);
+  }
+
+  for (let i = 1; i <= segments; i++) {
+    indices.push(0, i + 1, i);
+  }
+
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  return geo;
+}
+
+/**
+ * Helper to draw a rounded rectangle on a 2D canvas.
+ */
+function drawSFFRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/**
+ * Procedural Front Bezel Texture (512x1024) for Enterprise SFF Desktop PC.
+ * Inspired by Dell OptiPlex SFF industrial design:
+ * - Vertical louver grille with alternating dark ribs and deep shadow channels
+ * - Upper-left slim optical drive bay with eject button and activity LED
+ * - Upper-right brushed grey I/O plate with circular power button, ice-blue LED slit,
+ *   headphone jack with headset icon, 2x USB-A with trident icons, 1x USB-A + 1x USB-C with 5Gbps/10Gbps labels
+ * - Center circular Parody "PC" badge: brushed-silver outer ring, dark disc, upright "P" & 28° tilted "C"
+ * - Bottom-right service tag / asset plate with barcode
+ */
+function createSFFFrontTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Dark Matte ABS Outer Bezel Frame (#111318)
+  ctx.fillStyle = '#111318';
+  ctx.fillRect(0, 0, 512, 1024);
+
+  // Recessed Grille Bed (#07080b)
+  ctx.fillStyle = '#07080b';
+  ctx.fillRect(16, 16, 480, 992);
+
+  // 2. Vertical Louver Slats (Alternating #1c2026 ribs and #07080b air intake channels)
+  for (let sx = 20; sx < 490; sx += 12) {
+    // Slat Rib Body
+    ctx.fillStyle = '#1c2026';
+    ctx.fillRect(sx, 18, 7.5, 988);
+
+    // Left Highlight Bevel (#2d333e)
+    ctx.fillStyle = '#2d333e';
+    ctx.fillRect(sx, 18, 1.2, 988);
+
+    // Right Deep Shadow Bevel (#0b0d10)
+    ctx.fillStyle = '#0b0d10';
+    ctx.fillRect(sx + 6.3, 18, 1.2, 988);
+  }
+
+  // 3. Upper-Left Slim Optical Drive Bay (Vertical laptop-style 9.5mm tray)
+  // X = 34..76 (width 42px), Y = 30..460 (height 430px)
+  ctx.fillStyle = '#07080a';
+  ctx.fillRect(32, 28, 46, 434);
+
+  ctx.fillStyle = '#171a21';
+  ctx.fillRect(34, 30, 42, 430);
+
+  // Optical drive tray seam line along right edge
+  ctx.fillStyle = '#08090c';
+  ctx.fillRect(74, 30, 2, 430);
+  ctx.fillStyle = '#282e38';
+  ctx.fillRect(76, 30, 1, 430);
+
+  // Slim optical drive tray subtle vertical ribbing
+  for (let ox = 38; ox < 72; ox += 8) {
+    ctx.fillStyle = '#1e222a';
+    ctx.fillRect(ox, 34, 4, 340);
+  }
+
+  // ODD Activity LED (tiny green slit)
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(53, 392, 4, 3);
+
+  // Emergency eject pinhole
+  ctx.fillStyle = '#090a0d';
+  ctx.beginPath();
+  ctx.arc(55, 410, 1.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Rectangular Eject Button with Eject Symbol
+  ctx.fillStyle = '#282d38';
+  drawSFFRoundRect(ctx, 42, 422, 26, 18, 2);
+  ctx.fill();
+  ctx.strokeStyle = '#121419';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Silver Eject Icon (small triangle + horizontal bar)
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath();
+  ctx.moveTo(55, 426);
+  ctx.lineTo(50, 432);
+  ctx.lineTo(60, 432);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(50, 434, 10, 2);
+
+  // 4. Upper-Right Brushed Grey I/O Module Plate (#525862)
+  // X = 356..488 (width 132px), Y = 28..468 (height 440px), radius 14px
+  ctx.fillStyle = '#07080a';
+  drawSFFRoundRect(ctx, 354, 26, 136, 444, 16);
+  ctx.fill();
+
+  const ioGrad = ctx.createLinearGradient(356, 28, 488, 468);
+  ioGrad.addColorStop(0, '#5a626e');
+  ioGrad.addColorStop(0.5, '#525862');
+  ioGrad.addColorStop(1, '#464c55');
+  ctx.fillStyle = ioGrad;
+  drawSFFRoundRect(ctx, 356, 28, 132, 440, 14);
+  ctx.fill();
+
+  // Brushed metallic streaks across the I/O plate
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+  for (let i = 0; i < 40; i++) {
+    const sy = 32 + Math.floor(Math.random() * 430);
+    ctx.fillRect(360, sy, 124, 1);
+  }
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
+  for (let i = 0; i < 40; i++) {
+    const sy = 32 + Math.floor(Math.random() * 430);
+    ctx.fillRect(360, sy, 124, 1);
+  }
+
+  // Plate border & inner highlight
+  ctx.strokeStyle = '#343840';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(358, 446);
+  ctx.lineTo(358, 42);
+  ctx.quadraticCurveTo(358, 30, 370, 30);
+  ctx.lineTo(474, 30);
+  ctx.stroke();
+
+  // --- Circular Power Button at Top (X = 422, Y = 85) ---
+  ctx.fillStyle = '#1c1f26';
+  ctx.beginPath();
+  ctx.arc(422, 85, 26, 0, Math.PI * 2);
+  ctx.fill();
+
+  const btnGrad = ctx.createRadialGradient(420, 83, 2, 422, 85, 22);
+  btnGrad.addColorStop(0, '#58606f');
+  btnGrad.addColorStop(0.75, '#3b414c');
+  btnGrad.addColorStop(1, '#2c313a');
+  ctx.fillStyle = btnGrad;
+  ctx.beginPath();
+  ctx.arc(422, 85, 22, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#8a94a2';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Tiny Glowing White/Ice-Blue LED Slit
+  ctx.save();
+  ctx.shadowColor = '#38bdf8';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#f0f9ff';
+  drawSFFRoundRect(ctx, 420.5, 73, 3, 24, 1.5);
+  ctx.fill();
+  ctx.restore();
+
+  // --- 3.5mm Headset Jack (X = 422, Y = 162) ---
+  // Micro headphone icon above jack
+  ctx.strokeStyle = '#9ca6b4';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(422, 137, 6, Math.PI, 0);
+  ctx.stroke();
+  ctx.fillStyle = '#9ca6b4';
+  ctx.fillRect(415, 137, 2, 4);
+  ctx.fillRect(427, 137, 2, 4);
+
+  // Silver/nickel jack outer ring
+  const jackGrad = ctx.createLinearGradient(410, 150, 434, 174);
+  jackGrad.addColorStop(0, '#98a4b4');
+  jackGrad.addColorStop(1, '#565d6a');
+  ctx.fillStyle = jackGrad;
+  ctx.beginPath();
+  ctx.arc(422, 162, 14, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dark socket cavity
+  ctx.fillStyle = '#090a0d';
+  ctx.beginPath();
+  ctx.arc(422, 162, 10, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#030405';
+  ctx.beginPath();
+  ctx.arc(422, 162, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Gold contact leaf
+  ctx.fillStyle = '#eab308';
+  ctx.fillRect(421, 167, 2, 3);
+
+  // --- Middle USB Row: Two Vertical USB-A Ports (X = 392, X = 452, Y = 245) ---
+  // Micro USB Trident symbols above
+  ctx.fillStyle = '#8a94a2';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText('⑂', 392, 218);
+  ctx.fillText('⑂', 452, 218);
+
+  const drawUSBA = (px, py) => {
+    // Outer dark bezel recess
+    ctx.fillStyle = '#1c1f26';
+    drawSFFRoundRect(ctx, px - 11, py - 21, 22, 42, 3);
+    ctx.fill();
+    // Metal shield collar
+    ctx.fillStyle = '#5c6572';
+    drawSFFRoundRect(ctx, px - 9, py - 19, 18, 38, 2);
+    ctx.fill();
+    // Dark socket cavity
+    ctx.fillStyle = '#060709';
+    drawSFFRoundRect(ctx, px - 7, py - 17, 14, 34, 1.5);
+    ctx.fill();
+    // Blue/black internal plastic wafer tongue (top half)
+    ctx.fillStyle = '#1a2230';
+    ctx.fillRect(px - 6, py - 16, 12, 15);
+    // 4 vertical gold contact pins
+    ctx.fillStyle = '#eab308';
+    for (let p = 0; p < 4; p++) {
+      ctx.fillRect(px - 5 + p * 3, py - 7, 1.5, 5.5);
+    }
+  };
+
+  drawUSBA(392, 245);
+  drawUSBA(452, 245);
+
+  // --- Bottom USB Row: One USB-A (Left) & One USB-C (Right) (Y = 350) ---
+  // Micro speed labels above
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('5Gbps', 392, 318);
+  ctx.fillText('10Gbps', 452, 318);
+
+  // Left: USB-A (392, 348)
+  drawUSBA(392, 348);
+
+  // Right: Pill-shaped USB-C (452, 348)
+  ctx.fillStyle = '#1c1f26';
+  drawSFFRoundRect(ctx, 440, 330, 24, 38, 12);
+  ctx.fill();
+  ctx.fillStyle = '#7a8594';
+  drawSFFRoundRect(ctx, 442, 332, 20, 34, 10);
+  ctx.fill();
+  ctx.fillStyle = '#060709';
+  drawSFFRoundRect(ctx, 444, 334, 16, 30, 8);
+  ctx.fill();
+  // Centered internal wafer tongue
+  ctx.fillStyle = '#181b22';
+  drawSFFRoundRect(ctx, 450, 339, 4, 20, 2);
+  ctx.fill();
+  // Gold contacts along tongue edges
+  ctx.fillStyle = '#d97706';
+  ctx.fillRect(449.5, 344, 1, 10);
+  ctx.fillRect(453.5, 344, 1, 10);
+
+  // Bottom I/O plate rivet dot
+  ctx.fillStyle = '#363b46';
+  ctx.beginPath();
+  ctx.arc(422, 435, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 5. Bottom-Right Recessed Sticker Mounting Socket (directly aligned under top-right I/O strip)
+  // X = 370..474 (width 104px centered at 422), Y = 852..958 (height 106px centered at 905)
+  ctx.fillStyle = '#080a0d';
+  drawSFFRoundRect(ctx, 370, 852, 104, 106, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#181b22';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Subtle inner beveled shadow
+  ctx.strokeStyle = '#030406';
+  ctx.lineWidth = 1;
+  drawSFFRoundRect(ctx, 372, 854, 100, 102, 3);
+  ctx.stroke();
+
+  // 6. Center Circular Recessed Mounting Pad for Dedicated High-Res 3D "PC" Badge
+  // Clean recessed dark circular bed so no vertical louvers intersect or z-fight with the badge!
+  ctx.fillStyle = '#0a0c10';
+  ctx.beginPath();
+  ctx.arc(256, 563, 68, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#181b22';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.strokeStyle = '#282d38';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(256, 563, 65, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Rear I/O Panel Texture (512x1024) for Enterprise SFF Desktop PC.
+ * Inspired by Dell OptiPlex SFF rear panel:
+ * - Stamped galvanized steel backplate (#adb5bd / #8f97a0) with rivet dots and seam lines
+ * - Dark case edge with side-panel release latches
+ * - Motherboard I/O section: DisplayPort, HDMI, 2 stamped '+' knockouts, 4x USB-A (2x2 grid),
+ *   RJ-45 Ethernet with green link & amber activity LEDs
+ * - Rear exhaust: 6x14 grid of black square honeycomb perforations
+ * - Middle: 2 horizontal stamped-steel PCIe slot covers with square vents and '+' stamps
+ * - Bottom PSU: Square honeycomb exhaust grid, recessed black hexagonal 3-prong IEC C14 power socket,
+ *   two Phillips mounting screws, and signature green PSU diagnostic LED
+ */
+function createSFFRearTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Dark Charcoal Case Outer Edge Frame (#1c2026)
+  ctx.fillStyle = '#1c2026';
+  ctx.fillRect(0, 0, 512, 1024);
+
+  // Side-panel release latches along the right edge
+  ctx.fillStyle = '#101216';
+  drawSFFRoundRect(ctx, 492, 260, 18, 55, 3);
+  ctx.fill();
+  drawSFFRoundRect(ctx, 492, 750, 18, 55, 3);
+  ctx.fill();
+  ctx.fillStyle = '#64748b';
+  ctx.fillRect(495, 282, 12, 10);
+  ctx.fillRect(495, 772, 12, 10);
+
+  // 2. Main Inner Backplate: Industrial Brushed Galvanized Steel (#adb5bd / #8f97a0)
+  ctx.fillStyle = '#a4acb5';
+  ctx.fillRect(16, 16, 474, 992);
+
+  // Brushed steel horizontal streaks
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+  for (let i = 0; i < 90; i++) {
+    const sy = 18 + Math.floor(Math.random() * 988);
+    ctx.fillRect(18, sy, 470, 1);
+  }
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+  for (let i = 0; i < 90; i++) {
+    const sy = 18 + Math.floor(Math.random() * 988);
+    ctx.fillRect(18, sy, 470, 1);
+  }
+
+  // Stamped perimeter bevel line
+  ctx.strokeStyle = '#6d7580';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(20, 20, 466, 984);
+  ctx.strokeStyle = '#d0d7df';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(21, 21, 464, 982);
+
+  // Perimeter rivet dots
+  const drawRivet = (rx, ry) => {
+    ctx.fillStyle = '#5c646f';
+    ctx.beginPath();
+    ctx.arc(rx, ry + 0.8, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#c5cbd4';
+    ctx.beginPath();
+    ctx.arc(rx, ry, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(rx - 0.7, ry - 0.7, 1, 0, Math.PI * 2);
+    ctx.fill();
+  };
+
+  for (let ry = 40; ry < 990; ry += 70) {
+    drawRivet(24, ry);
+    drawRivet(482, ry);
+  }
+  for (let rx = 60; rx < 460; rx += 70) {
+    drawRivet(rx, 24);
+    drawRivet(rx, 996);
+  }
+
+  // 3. Upper Section (Motherboard I/O Shield & Exhaust Grille)
+  // --- Left Half: Stamped Silver Motherboard I/O Shield ---
+  // X = 28..244 (width 216px), Y = 38..494 (height 456px)
+  ctx.fillStyle = '#bcc4cd';
+  ctx.fillRect(28, 38, 216, 456);
+  ctx.strokeStyle = '#5a626d';
+  ctx.lineWidth = 2.5;
+  ctx.strokeRect(28, 38, 216, 456);
+
+  // DisplayPort (DP) Cutout (top-left: 48, 56)
+  ctx.fillStyle = '#0a0b0e';
+  ctx.beginPath();
+  ctx.moveTo(48, 56);
+  ctx.lineTo(68, 56);
+  ctx.lineTo(76, 64);
+  ctx.lineTo(76, 108);
+  ctx.lineTo(48, 108);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#5a626d';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#505762';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('DP', 56, 50);
+
+  // HDMI Port Cutout (below DP: 48, 130)
+  ctx.fillStyle = '#0a0b0e';
+  ctx.beginPath();
+  ctx.moveTo(50, 130);
+  ctx.lineTo(74, 130);
+  ctx.lineTo(76, 136);
+  ctx.lineTo(74, 176);
+  ctx.lineTo(50, 176);
+  ctx.lineTo(48, 136);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#5a626d';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.fillStyle = '#505762';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('HDMI', 52, 124);
+
+  // Knockout 1 with stamped '+' cross (130, 70, 80x85)
+  ctx.strokeStyle = '#7c8692';
+  ctx.lineWidth = 2;
+  drawSFFRoundRect(ctx, 130, 70, 80, 85, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#1a1d22';
+  ctx.fillRect(166, 96, 8, 32);
+  ctx.fillRect(154, 108, 32, 8);
+  drawRivet(138, 78);
+  drawRivet(202, 147);
+
+  // Knockout 2 with stamped '+' cross (95, 210, 80x85)
+  ctx.strokeStyle = '#7c8692';
+  ctx.lineWidth = 2;
+  drawSFFRoundRect(ctx, 95, 210, 80, 85, 8);
+  ctx.stroke();
+  ctx.fillStyle = '#1a1d22';
+  ctx.fillRect(131, 236, 8, 32);
+  ctx.fillRect(119, 248, 32, 8);
+  drawRivet(103, 218);
+  drawRivet(167, 287);
+
+  // 4 Black USB-A Ports in 2x2 Grid (Bottom-Left of I/O Shield)
+  const drawRearUSBA = (ux, uy) => {
+    ctx.fillStyle = '#14161a';
+    drawSFFRoundRect(ctx, ux - 10, uy - 18, 20, 36, 2);
+    ctx.fill();
+    ctx.fillStyle = '#646d79';
+    drawSFFRoundRect(ctx, ux - 8, uy - 16, 16, 32, 1.5);
+    ctx.fill();
+    ctx.fillStyle = '#08090b';
+    drawSFFRoundRect(ctx, ux - 6, uy - 14, 12, 28, 1);
+    ctx.fill();
+    ctx.fillStyle = '#181b22';
+    ctx.fillRect(ux - 5, uy - 13, 10, 13);
+    ctx.fillStyle = '#d97706';
+    for (let p = 0; p < 4; p++) {
+      ctx.fillRect(ux - 4 + p * 2.5, uy - 5, 1.2, 4);
+    }
+  };
+
+  drawRearUSBA(52, 350);
+  drawRearUSBA(86, 350);
+  drawRearUSBA(52, 430);
+  drawRearUSBA(86, 430);
+
+  // RJ-45 Ethernet Port (X = 135..195, Y = 405..475)
+  ctx.fillStyle = '#08090b';
+  drawSFFRoundRect(ctx, 135, 405, 60, 68, 3);
+  ctx.fill();
+  ctx.strokeStyle = '#646d79';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Internal RJ-45 connector notch & pins
+  ctx.fillStyle = '#12151b';
+  ctx.fillRect(140, 410, 50, 46);
+  ctx.fillStyle = '#08090b';
+  ctx.fillRect(152, 456, 26, 16);
+
+  ctx.fillStyle = '#eab308';
+  for (let pin = 0; pin < 8; pin++) {
+    ctx.fillRect(143 + pin * 5.8, 412, 2, 9);
+  }
+
+  // RJ-45 LEDs (Green Link & Amber Activity)
+  ctx.save();
+  ctx.shadowColor = '#22c55e';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.arc(150, 396, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.shadowColor = '#f59e0b';
+  ctx.shadowBlur = 6;
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath();
+  ctx.arc(180, 396, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // --- Right Half: Rear Exhaust Grille (6x14 Grid of Square Honeycomb Vents) ---
+  // X = 260..475, Y = 42..490
+  for (let row = 0; row < 14; row++) {
+    for (let col = 0; col < 6; col++) {
+      const hx = 262 + col * 35;
+      const hy = 46 + row * 31.5;
+      ctx.fillStyle = '#090a0d';
+      drawSFFRoundRect(ctx, hx, hy, 23, 21, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5a626d';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // 4. Middle Section: Two Horizontal PCIe Expansion Brackets
+  // Bracket 1: Y = 520, H = 65. Bracket 2: Y = 600, H = 65.
+  const drawPCIeBracket = (by) => {
+    ctx.fillStyle = '#a6aeb7';
+    ctx.fillRect(30, by, 445, 65);
+    ctx.strokeStyle = '#626a74';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(30, by, 445, 65);
+
+    // 12 columns x 2 rows of square vents
+    for (let c = 0; c < 12; c++) {
+      if (c >= 5 && c <= 6) continue; // Skip center for '+' knockout stamp
+      for (let r = 0; r < 2; r++) {
+        const vx = 42 + c * 34;
+        const vy = by + 12 + r * 22;
+        ctx.fillStyle = '#090a0d';
+        drawSFFRoundRect(ctx, vx, vy, 14, 14, 1.5);
+        ctx.fill();
+      }
+    }
+
+    // Centered Stamped '+' Knockout Stamp
+    ctx.fillStyle = '#1c2025';
+    ctx.fillRect(246, by + 16, 6, 32);
+    ctx.fillRect(233, by + 29, 32, 6);
+
+    // Bracket retention screw on right
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.arc(460, by + 32, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  };
+
+  drawPCIeBracket(520);
+  drawPCIeBracket(600);
+
+  // 5. Bottom Section: Power Supply Unit (PSU) & IEC Socket
+  // Y = 690..995
+  ctx.fillStyle = '#9aa2ab';
+  ctx.fillRect(28, 690, 450, 305);
+  ctx.strokeStyle = '#5a626d';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(28, 690, 450, 305);
+
+  // PSU Square Honeycomb Exhaust Grid (10 cols x 9 rows)
+  for (let r = 0; r < 9; r++) {
+    for (let c = 0; c < 10; c++) {
+      const px = 42 + c * 42;
+      const py = 704 + r * 31;
+
+      // Skip area occupied by the IEC socket (X ~ 180..320, Y ~ 740..850)
+      if (px >= 170 && px <= 325 && py >= 735 && py <= 855) continue;
+      // Skip area for screws & diagnostic LED
+      if (px <= 110 && py <= 750) continue; // top-left screw
+      if (px >= 380 && py >= 920) continue; // bottom-right screw
+      if (px >= 120 && px <= 210 && py >= 900) continue; // diagnostic LED + BIST
+
+      ctx.fillStyle = '#090a0d';
+      drawSFFRoundRect(ctx, px, py, 19, 18, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#5a626d';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+  }
+
+  // Recessed Black Hexagonal IEC C14 3-Prong Power Socket (Centered at X = 250, Y = 790)
+  ctx.fillStyle = '#131518';
+  ctx.beginPath();
+  ctx.moveTo(195, 745);
+  ctx.lineTo(305, 745);
+  ctx.lineTo(320, 775);
+  ctx.lineTo(305, 835);
+  ctx.lineTo(195, 835);
+  ctx.lineTo(180, 775);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#353a42';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Socket inner recess cup
+  ctx.fillStyle = '#07080a';
+  ctx.beginPath();
+  ctx.moveTo(202, 752);
+  ctx.lineTo(298, 752);
+  ctx.lineTo(312, 778);
+  ctx.lineTo(298, 828);
+  ctx.lineTo(202, 828);
+  ctx.lineTo(188, 778);
+  ctx.closePath();
+  ctx.fill();
+
+  // 3 Metallic Silver Pins (C14 prongs)
+  const pinGrad = ctx.createLinearGradient(0, 750, 0, 820);
+  pinGrad.addColorStop(0, '#ffffff');
+  pinGrad.addColorStop(0.5, '#e2e8f0');
+  pinGrad.addColorStop(1, '#94a3b8');
+  ctx.fillStyle = pinGrad;
+
+  // Top Ground Pin (centered)
+  drawSFFRoundRect(ctx, 247, 762, 6, 20, 1);
+  ctx.fill();
+  // Bottom-Left Neutral Pin
+  drawSFFRoundRect(ctx, 218, 796, 6, 20, 1);
+  ctx.fill();
+  // Bottom-Right Line Pin
+  drawSFFRoundRect(ctx, 276, 796, 6, 20, 1);
+  ctx.fill();
+
+  // Two Silver Phillips-Head PSU Mounting Screws
+  const drawPSUScrew = (sx, sy) => {
+    // Outer silver washer
+    ctx.fillStyle = '#cbd5e1';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#64748b';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // Screw head
+    ctx.fillStyle = '#94a3b8';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Phillips '+' slot
+    ctx.fillStyle = '#1e2228';
+    ctx.fillRect(sx - 1.5, sy - 6, 3, 12);
+    ctx.fillRect(sx - 6, sy - 1.5, 12, 3);
+  };
+
+  drawPSUScrew(95, 730);
+  drawPSUScrew(415, 945);
+
+  // Signature Circular Green PSU Diagnostic LED (Bottom-Left)
+  ctx.fillStyle = '#14171c';
+  ctx.beginPath();
+  ctx.arc(145, 925, 14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  // Glowing Green LED Lens
+  ctx.save();
+  ctx.shadowColor = '#22c55e';
+  ctx.shadowBlur = 10;
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath();
+  ctx.arc(145, 925, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Center specular highlight
+  ctx.fillStyle = '#bbf7d0';
+  ctx.beginPath();
+  ctx.arc(143, 923, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#505762';
+  ctx.font = 'bold 8px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('DIAG', 145, 948);
+
+  // BIST (Built-In Self-Test) micro push-button next to LED
+  ctx.fillStyle = '#181b20';
+  ctx.beginPath();
+  ctx.arc(180, 925, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#2d333e';
+  ctx.beginPath();
+  ctx.arc(180, 925, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Dedicated Circular "PC" Parody Badge Texture (256x256).
+ * Sharp vector-like rendering with minFilter LinearFilter (no mipmap blur!).
+ * - Deep matte black background (#0d1015)
+ * - Metallic silver-white outer ring (#f1f5f9, 14px stroke)
+ * - Large geometric sans-serif: upright "P" (left, 88, 128) and counter-clockwise -25° tilted "C" (right, 166, 128)
+ */
+function createSFFBadgeTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Deep matte black circle background (#0d1015)
+  ctx.fillStyle = '#0d1015';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Bold metallic silver-white outer ring (radius 112px, lineWidth 14px)
+  ctx.strokeStyle = '#f1f5f9';
+  ctx.lineWidth = 14;
+  ctx.beginPath();
+  ctx.arc(128, 128, 112, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Subtle inner metallic bevel line
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(128, 128, 103, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Large, ultra-clean, heavy geometric sans-serif letters "P" and "C" in bright pure white/chrome
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 108px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Upright "P" on the left half of the circle
+  ctx.fillText('P', 88, 128);
+
+  // Tilted "C" on the right half, rotated counter-clockwise by -25 degrees (Dell "E" parody)
+  ctx.save();
+  ctx.translate(166, 128);
+  ctx.rotate(-25 * Math.PI / 180);
+  ctx.fillText('C', 0, 0);
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 16;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Dedicated Metallic-Blue Processor Sticker Badge (128x128)
+ * Inspired by iconic Intel Core / Inside holographic case stickers:
+ * - Rich diagonal metallic blue foil gradient (#0071c5 -> #00a8e8 -> #003c71)
+ * - Holographic sheen band and silver-white outer border (#e2e8f0, lineWidth 6)
+ * - Classic curved swirl / circuit accent in upper-left
+ * - Micro-typography: "inside" (top), bold pure white "CORE" (center), and bright cyan pill with "i9" (bottom-right)
+ */
+function createSFFStickerTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Rich diagonal metallic blue gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, 128, 128);
+  bgGrad.addColorStop(0, '#0071c5');
+  bgGrad.addColorStop(0.35, '#00a8e8');
+  bgGrad.addColorStop(0.68, '#00529b');
+  bgGrad.addColorStop(1, '#002855');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, 128, 128);
+
+  // 2. Holographic foil diagonal sheen streak
+  const sheen = ctx.createLinearGradient(16, 0, 112, 128);
+  sheen.addColorStop(0, 'rgba(255, 255, 255, 0)');
+  sheen.addColorStop(0.42, 'rgba(255, 255, 255, 0.12)');
+  sheen.addColorStop(0.50, 'rgba(224, 242, 254, 0.40)');
+  sheen.addColorStop(0.58, 'rgba(255, 255, 255, 0.12)');
+  sheen.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(0, 0, 128, 128);
+
+  // 3. Subtle micro-circuit / Intel swirl arc in upper corner
+  ctx.strokeStyle = 'rgba(241, 245, 249, 0.50)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.ellipse(38, 28, 22, 14, Math.PI / 5, 0, Math.PI * 1.5);
+  ctx.stroke();
+
+  // Micro circuit node dots
+  ctx.fillStyle = '#7dd3fc';
+  ctx.beginPath();
+  ctx.arc(58, 20, 2, 0, Math.PI * 2);
+  ctx.arc(22, 38, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 4. Outer metallic silver foil rim (lineWidth = 6) & inner fine bevel
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, 122, 122);
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(7, 7, 114, 114);
+
+  // 5. Micro header text: "inside"
+  ctx.fillStyle = '#bae6fd';
+  ctx.font = 'bold 11px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('inside', 14, 14);
+
+  // 6. Bold white sans-serif center brand: "CORE"
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 27px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('CORE', 64, 56);
+
+  // 7. Bottom-Right bright cyan pill highlight with "i9"
+  drawSFFRoundRect(ctx, 64, 80, 50, 34, 5);
+  ctx.fillStyle = '#011c38';
+  ctx.fill();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 22px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('i9', 89, 97);
+
+  // Bottom-Left "vPRO" feature badge
+  ctx.fillStyle = '#7dd3fc';
+  ctx.font = 'bold 12px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('vPRO', 15, 98);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 16;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
  * Builds the compact, intimate Enterprise Data Center Shooting Range.
  * Rendered in batched draw calls with zero PointLights.
  */
@@ -2046,6 +3499,18 @@ export class WarehouseBuilder {
     this.coffeeSideTexture = createCoffeeSideTexture();
     this.coffeeHopperTexture = createCoffeeHopperTexture();
     this.palmFrondTexture = createPalmFrondTexture();
+
+    // High-Detail Workstation Peripheral Textures
+    const kbTextures = createMechanicalKeyboardTextures();
+    this.keyboardDiffuseTexture = kbTextures.diffuseTexture;
+    this.keyboardEmissiveTexture = kbTextures.emissiveTexture;
+    this.mousepadTexture = createTacticalMousepadTexture();
+
+    // Enterprise SFF Desktop PC Textures (Dell OptiPlex Parody)
+    this.sffFrontTexture = createSFFFrontTexture();
+    this.sffRearTexture = createSFFRearTexture();
+    this.sffBadgeTexture = createSFFBadgeTexture();
+    this.sffStickerTexture = createSFFStickerTexture();
 
     // 2. High-Readability Industrial Palette (NO pure pitch-black silhouettes!)
     this.floorMaterial = new THREE.MeshStandardMaterial({
@@ -2245,6 +3710,101 @@ export class WarehouseBuilder {
       roughness: 0.45,
       metalness: 0.05,
     });
+
+    // High-Detail Procedural Mechanical Keyboards & Ergonomic Mice Materials
+    this.keyboardChassisMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1a1d24,
+      roughness: 0.50,
+      metalness: 0.35,
+    });
+
+    this.keyboardPlateMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f1117,
+      roughness: 0.60,
+      metalness: 0.20,
+    });
+
+    this.keyboardKeyMaterial = new THREE.MeshStandardMaterial({
+      map: this.keyboardDiffuseTexture,
+      emissive: new THREE.Color(0xffffff),
+      emissiveMap: this.keyboardEmissiveTexture,
+      emissiveIntensity: 0.85,
+      roughness: 0.40,
+      metalness: 0.15,
+    });
+
+    this.mousepadMaterial = new THREE.MeshStandardMaterial({
+      map: this.mousepadTexture,
+      roughness: 0.90,
+      metalness: 0.05,
+    });
+
+    this.mouseBodyMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e222b,
+      roughness: 0.55,
+      metalness: 0.15,
+    });
+
+    this.mouseButtonMaterial = new THREE.MeshStandardMaterial({
+      color: 0x282d38,
+      roughness: 0.45,
+      metalness: 0.20,
+    });
+
+    this.mouseWheelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0d0f14,
+      roughness: 0.85,
+      metalness: 0.40,
+    });
+
+    // Enterprise SFF Desktop PC Materials (Dell OptiPlex Parody)
+    this.sffChassisMaterial = new THREE.MeshStandardMaterial({
+      color: 0x22262e,
+      roughness: 0.55,
+      metalness: 0.45,
+    });
+
+    this.sffFrontMaterial = new THREE.MeshStandardMaterial({
+      map: this.sffFrontTexture,
+      roughness: 0.50,
+      metalness: 0.20,
+    });
+
+    this.sffRearMaterial = new THREE.MeshStandardMaterial({
+      map: this.sffRearTexture,
+      roughness: 0.40,
+      metalness: 0.65,
+    });
+
+    this.sffIOPlateMaterial = new THREE.MeshStandardMaterial({
+      color: 0x525862,
+      roughness: 0.40,
+      metalness: 0.50,
+    });
+
+    this.sffRubberFeetMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f1115,
+      roughness: 0.85,
+      metalness: 0.05,
+    });
+
+    this.sffGreenLedMaterial = new THREE.MeshBasicMaterial({
+      color: 0x22c55e,
+    });
+
+    this.sffIceBlueLedMaterial = new THREE.MeshBasicMaterial({
+      color: 0xbae6fd,
+    });
+
+    this.sffBadgeMaterial = new THREE.MeshBasicMaterial({
+      map: this.sffBadgeTexture,
+    });
+
+    this.sffStickerMaterial = new THREE.MeshStandardMaterial({
+      map: this.sffStickerTexture,
+      roughness: 0.25,
+      metalness: 0.40,
+    });
   }
 
   build() {
@@ -2292,6 +3852,22 @@ export class WarehouseBuilder {
       palmSoil: [],
       palmStems: [],
       palmFronds: [],
+      keyboardChassis: [],
+      keyboardPlate: [],
+      keyboardKeys: [],
+      mousepad: [],
+      mouseBody: [],
+      mouseButtons: [],
+      mouseWheel: [],
+      sffChassis: [],
+      sffFront: [],
+      sffRear: [],
+      sffIOPlate: [],
+      sffRubberFeet: [],
+      sffGreenLed: [],
+      sffIceBlueLed: [],
+      sffBadge: [],
+      sffSticker: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -2571,6 +4147,22 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.palmSoil, material: this.palmSoilMaterial, name: 'DC_PalmSoil' },
       { bucket: visualBuckets.palmStems, material: this.palmStemMaterial, name: 'DC_PalmStems' },
       { bucket: visualBuckets.palmFronds, material: this.palmFrondMaterial, name: 'DC_PalmFronds' },
+      { bucket: visualBuckets.keyboardChassis, material: this.keyboardChassisMaterial, name: 'DC_KeyboardChassis' },
+      { bucket: visualBuckets.keyboardPlate, material: this.keyboardPlateMaterial, name: 'DC_KeyboardPlate' },
+      { bucket: visualBuckets.keyboardKeys, material: this.keyboardKeyMaterial, name: 'DC_KeyboardKeys' },
+      { bucket: visualBuckets.mousepad, material: this.mousepadMaterial, name: 'DC_Mousepads' },
+      { bucket: visualBuckets.mouseBody, material: this.mouseBodyMaterial, name: 'DC_MouseBodies' },
+      { bucket: visualBuckets.mouseButtons, material: this.mouseButtonMaterial, name: 'DC_MouseButtons' },
+      { bucket: visualBuckets.mouseWheel, material: this.mouseWheelMaterial, name: 'DC_MouseWheels' },
+      { bucket: visualBuckets.sffChassis, material: this.sffChassisMaterial, name: 'DC_SFFChassis' },
+      { bucket: visualBuckets.sffFront, material: this.sffFrontMaterial, name: 'DC_SFFFront' },
+      { bucket: visualBuckets.sffRear, material: this.sffRearMaterial, name: 'DC_SFFRear' },
+      { bucket: visualBuckets.sffIOPlate, material: this.sffIOPlateMaterial, name: 'DC_SFFIOPlate' },
+      { bucket: visualBuckets.sffRubberFeet, material: this.sffRubberFeetMaterial, name: 'DC_SFFRubberFeet' },
+      { bucket: visualBuckets.sffGreenLed, material: this.sffGreenLedMaterial, name: 'DC_SFFGreenLed' },
+      { bucket: visualBuckets.sffIceBlueLed, material: this.sffIceBlueLedMaterial, name: 'DC_SFFIceBlueLed' },
+      { bucket: visualBuckets.sffBadge, material: this.sffBadgeMaterial, name: 'DC_SFFBadge' },
+      { bucket: visualBuckets.sffSticker, material: this.sffStickerMaterial, name: 'DC_SFFSticker' },
     ];
 
     for (const def of bucketDefs) {
@@ -2724,20 +4316,35 @@ export class WarehouseBuilder {
       tier: tierName
     });
 
-    // Place PC Towers (0.30m x 0.65m x 0.54m) on the far outer edges of desks
-    const pcW = 0.30;
-    const leftPcX = leftDeskX - deskW / 2 + pcW / 2 + 0.08;
-    const rightPcX = rightDeskX + deskW / 2 - pcW / 2 - 0.08;
-    this._buildPCTower(addPart, addVisual, visualBuckets, leftPcX, surfaceY, z - 0.05);
-    this._buildPCTower(addPart, addVisual, visualBuckets, rightPcX, surfaceY, z - 0.05);
+    // Place Hero-Scaled SFF PC Towers (0.15m x 0.43m x 0.39m) with natural 0.14m gap to monitors
+    const pcW = 0.15;
+    let leftPcX, rightPcX;
 
-    // Keyboard & mousepad mesh generator
-    const kbGeo = new THREE.BoxGeometry(0.52, 0.02, 0.18);
-    const padGeo = new THREE.BoxGeometry(0.28, 0.005, 0.24);
-    const placeKeyboard = (kx) => {
-      addVisual(visualBuckets.serverChassis, kbGeo, kx - 0.06, surfaceY + 0.01, z - 0.35);
-      addVisual(visualBuckets.serverChassis, padGeo, kx + 0.28, surfaceY + 0.005, z - 0.35);
-    };
+    if (tierName === 'close') {
+      // Row 1: Dual monitors on Left (outer edge at -3.46), Ultrawide on Right (outer edge at 3.18)
+      leftPcX = (leftDeskX - 0.50 - 0.46) - 0.14 - pcW / 2;
+      rightPcX = (rightDeskX + 0.68) + 0.14 + pcW / 2;
+    } else if (tierName === 'mid') {
+      // Row 2: Ultrawide on Left (outer edge at -3.58), Dual monitors on Right (outer edge at 3.86)
+      leftPcX = (leftDeskX - 0.68) - 0.14 - pcW / 2;
+      rightPcX = (rightDeskX + 0.50 + 0.46) + 0.14 + pcW / 2;
+    } else {
+      // Row 3: Dual monitors on both desks (outer edges at ±3.46)
+      leftPcX = (leftDeskX - 0.50 - 0.46) - 0.14 - pcW / 2;
+      rightPcX = (rightDeskX + 0.50 + 0.46) + 0.14 + pcW / 2;
+    }
+
+    // Angle towers ~9.5° inward toward user's chair (left tower +0.165 rad, right tower -0.165 rad)
+    this._buildPCTower(addPart, addVisual, visualBuckets, leftPcX, surfaceY, z - 0.05, 0.165);
+    this._buildPCTower(addPart, addVisual, visualBuckets, rightPcX, surfaceY, z - 0.05, -0.165);
+
+    // Strictly ONE high-detail mechanical keyboard + contoured mouse and mousepad per desk!
+    // Centered ergonomically with desk chair (centered in front of single monitor, or between dual monitors)
+    // Subtle natural lived-in rotation (±1.5° to 3° yaw)
+    const yawLeft = tierName === 'close' ? -0.035 : (tierName === 'mid' ? -0.045 : 0.038);
+    const yawRight = tierName === 'close' ? 0.040 : (tierName === 'mid' ? 0.030 : -0.032);
+    this._buildWorkstationPeripherals(addVisual, visualBuckets, leftDeskX, surfaceY, z, yawLeft);
+    this._buildWorkstationPeripherals(addVisual, visualBuckets, rightDeskX, surfaceY, z, yawRight);
 
     // Place Hero Scale Monitors (Collision-Free: 8.5cm dual-screen gap, 26cm PC clearance, ergonomic inward curve)
     if (tierName === 'close') {
@@ -2745,10 +4352,6 @@ export class WarehouseBuilder {
       this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX - 0.50, surfaceY, z, -0.10, false, 0); // Dashboard (angled inward)
       this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX + 0.50, surfaceY, z, 0.10, false, 1);  // Alert (angled inward)
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX, surfaceY, z, 0, true, 2);             // BSOD Ultrawide centered
-
-      placeKeyboard(leftDeskX - 0.50);
-      placeKeyboard(leftDeskX + 0.50);
-      placeKeyboard(rightDeskX);
 
       // Left desk chair (slightly shifted toward primary dashboard monitor, swiveled inward)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX - 0.18, baseY, z - 0.92, 0.38, addPartMatrix);
@@ -2759,10 +4362,6 @@ export class WarehouseBuilder {
       this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX, surfaceY, z, 0, true, 1);              // Alert Ultrawide centered
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 3); // Matrix (angled inward)
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 0);  // Dashboard (angled inward)
-
-      placeKeyboard(leftDeskX);
-      placeKeyboard(rightDeskX - 0.50);
-      placeKeyboard(rightDeskX + 0.50);
 
       // Left desk chair (pushed back with hurried exit angle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX + 0.20, baseY, z - 1.04, 0.75, addPartMatrix);
@@ -2775,19 +4374,225 @@ export class WarehouseBuilder {
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 0); // Dashboard (angled inward)
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 3);  // Matrix (angled inward)
 
-      placeKeyboard(leftDeskX - 0.50);
-      placeKeyboard(leftDeskX + 0.50);
-      placeKeyboard(rightDeskX - 0.50);
-      placeKeyboard(rightDeskX + 0.50);
-
       // Left desk chair (on raised platform baseY = platH, swiveled toward left aisle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX - 0.10, baseY, z - 0.90, -0.62, addPartMatrix);
       // Right desk chair (on raised platform baseY = platH, pushed back with rapid swivel)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, rightDeskX + 0.25, baseY, z - 1.05, 0.98, addPartMatrix);
     }
+  }
 
-    kbGeo.dispose();
-    padGeo.dispose();
+  /**
+   * Builds strictly ONE ergonomic Workstation Peripheral Kit (Mechanical Keyboard, Mousepad, and Optical Mouse).
+   * Aligns keyboard slightly left-of-center (~0.14m back from front edge) and mousepad cleanly to the right
+   * with a 0.09m clear gap so zero geometry clips or overlaps.
+   */
+  _buildWorkstationPeripherals(addVisual, visualBuckets, cx, surfaceY, deskZ, yawOffset = 0) {
+    const scale = new THREE.Vector3(1, 1, 1);
+
+    // -------------------------------------------------------------
+    // 1. PROCEDURAL 3D MECHANICAL KEYBOARD
+    // -------------------------------------------------------------
+    // Keyboard center: slightly to user's left in front of chair (~0.10m left in +X), ~0.14m from front edge
+    const kbX = cx + 0.10;
+    const kbZ = deskZ - 0.335;
+    const kbPitch = -0.087; // ~5° pitch tilt toward user (rear higher than front)
+
+    // Base transform for keyboard (centered on kbX, surfaceY, kbZ with yawOffset)
+    const kbPos = new THREE.Vector3(kbX, surfaceY, kbZ);
+    const kbQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yawOffset, 0, 'YXZ'));
+    const kbBaseMatrix = new THREE.Matrix4().compose(kbPos, kbQuat, scale);
+
+    // Tilted keyboard transform: tilted by ~5° around local X, center raised so front rests flush on desk
+    const kbTiltedLocal = new THREE.Matrix4().compose(
+      new THREE.Vector3(0, 0.0145, 0),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(kbPitch, 0, 0, 'XYZ')),
+      scale
+    );
+    const kbWorldMatrix = kbBaseMatrix.clone().multiply(kbTiltedLocal);
+
+    // Helper to push transformed geometry into a visual bucket
+    const pushPart = (bucket, geo, localX = 0, localY = 0, localZ = 0, rotX = 0, rotY = 0, rotZ = 0) => {
+      const partLocal = new THREE.Matrix4().compose(
+        new THREE.Vector3(localX, localY, localZ),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rotX, rotY, rotZ)),
+        scale
+      );
+      const finalMat = kbWorldMatrix.clone().multiply(partLocal);
+      const nonIndexed = geo.index ? geo.toNonIndexed() : geo;
+      nonIndexed.applyMatrix4(finalMat);
+      bucket.push(nonIndexed);
+      if (geo !== nonIndexed) {
+        geo.dispose();
+      }
+    };
+
+    // A. Lower Wedge Chassis (0.44m wide x 0.15m deep x 0.016m tall, #1a1d24)
+    const chassisGeo = new THREE.BoxGeometry(0.44, 0.016, 0.15);
+    pushPart(visualBuckets.keyboardChassis, chassisGeo, 0, 0, 0);
+
+    // B. Bezel Frame Outer Strips
+    // Top bezel (+Z)
+    const topBezel = new THREE.BoxGeometry(0.44, 0.005, 0.011);
+    pushPart(visualBuckets.keyboardChassis, topBezel, 0, 0.009, 0.0695);
+    // Bottom bezel (-Z)
+    const btmBezel = new THREE.BoxGeometry(0.44, 0.005, 0.011);
+    pushPart(visualBuckets.keyboardChassis, btmBezel, 0, 0.009, -0.0695);
+    // Left bezel (-X)
+    const leftBezel = new THREE.BoxGeometry(0.012, 0.005, 0.128);
+    pushPart(visualBuckets.keyboardChassis, leftBezel, -0.214, 0.009, 0);
+    // Right bezel (+X)
+    const rightBezel = new THREE.BoxGeometry(0.012, 0.005, 0.128);
+    pushPart(visualBuckets.keyboardChassis, rightBezel, 0.214, 0.009, 0);
+
+    // C. Recessed Keywell Plate (#0f1117)
+    const plateGeo = new THREE.BoxGeometry(0.416, 0.002, 0.128);
+    pushPart(visualBuckets.keyboardPlate, plateGeo, 0, 0.007, 0);
+
+    // D. Rear Flip-Out Riser Feet (Rest on desk surface under rear chassis)
+    const footGeoL = new THREE.BoxGeometry(0.024, 0.010, 0.018);
+    pushPart(visualBuckets.keyboardChassis, footGeoL, -0.19, -0.009, 0.055);
+    const footGeoR = new THREE.BoxGeometry(0.024, 0.010, 0.018);
+    pushPart(visualBuckets.keyboardChassis, footGeoR, 0.19, -0.009, 0.055);
+
+    // E. 3D Raised Keycap Island Meshes (With planar-projected keyboard texture)
+    // 1. Function Row Block (ESC + F1..F12 on left)
+    const fRowGeo = createKeycapBlockGeometry(0.244, 0.008, 0.016, 0.080, 0.046);
+    pushPart(visualBuckets.keyboardKeys, fRowGeo, 0, 0.008, 0);
+
+    // 2. Main 60% Alphanumeric Block (on left)
+    const alphaGeo = createKeycapBlockGeometry(0.244, 0.008, 0.056, 0.080, 0.002);
+    pushPart(visualBuckets.keyboardKeys, alphaGeo, 0, 0.008, 0);
+
+    // 3. Distinct Raised Spacebar Block (taller: 0.010m)
+    const spaceGeo = createKeycapBlockGeometry(0.118, 0.010, 0.016, 0.076, -0.046);
+    pushPart(visualBuckets.keyboardKeys, spaceGeo, 0, 0.008, 0);
+
+    // 4. Bottom Modifiers Left & Right
+    const modLGeo = createKeycapBlockGeometry(0.062, 0.008, 0.016, 0.171, -0.046);
+    pushPart(visualBuckets.keyboardKeys, modLGeo, 0, 0.008, 0);
+    const modRGeo = createKeycapBlockGeometry(0.054, 0.008, 0.016, -0.015, -0.046);
+    pushPart(visualBuckets.keyboardKeys, modRGeo, 0, 0.008, 0);
+
+    // 5. Nav Cluster Function Keys (Prt/Scr/Pause)
+    const navTopGeo = createKeycapBlockGeometry(0.048, 0.008, 0.016, -0.075, 0.046);
+    pushPart(visualBuckets.keyboardKeys, navTopGeo, 0, 0.008, 0);
+
+    // 6. Nav Cluster Mid Keys (Ins/Del/Home/End/PgUp/PgDn)
+    const navMidGeo = createKeycapBlockGeometry(0.048, 0.008, 0.034, -0.075, 0.013);
+    pushPart(visualBuckets.keyboardKeys, navMidGeo, 0, 0.008, 0);
+
+    // 7. Inverted-T Up Arrow
+    const arrowUpGeo = createKeycapBlockGeometry(0.016, 0.008, 0.016, -0.075, -0.024);
+    pushPart(visualBuckets.keyboardKeys, arrowUpGeo, 0, 0.008, 0);
+
+    // 8. Inverted-T Left/Down/Right Arrows
+    const arrowBtmGeo = createKeycapBlockGeometry(0.048, 0.008, 0.016, -0.075, -0.046);
+    pushPart(visualBuckets.keyboardKeys, arrowBtmGeo, 0, 0.008, 0);
+
+    // 9. Numpad Status LEDs & Top Row (on right)
+    const numTopGeo = createKeycapBlockGeometry(0.086, 0.008, 0.016, -0.158, 0.046);
+    pushPart(visualBuckets.keyboardKeys, numTopGeo, 0, 0.008, 0);
+
+    // 10. Numpad Main Number Block (on right)
+    const numMainGeo = createKeycapBlockGeometry(0.086, 0.008, 0.076, -0.158, -0.016);
+    pushPart(visualBuckets.keyboardKeys, numMainGeo, 0, 0.008, 0);
+
+    // (Wireless Mechanical Keyboard: zero cables)
+
+    // -------------------------------------------------------------
+    // 2. PROCEDURAL 3D TACTICAL MOUSEPAD & CONTOURED OPTICAL MOUSE
+    // -------------------------------------------------------------
+    // Mousepad center: clean 0.09m clear gap from keyboard right edge (zero overlap/clipping!)
+    // Keyboard right edge is kbX - 0.22 = cx - 0.12.
+    // Mousepad left edge is (cx - 0.12) - 0.09 = cx - 0.21. Width is 0.25 -> padX = cx - 0.335.
+    const padX = cx - 0.335;
+    const padZ = deskZ - 0.325;
+    const padW = 0.25;
+    const padD = 0.21;
+    const padH = 0.004;
+
+    // Mousepad Transform (flush on desk surface at surfaceY)
+    const padPos = new THREE.Vector3(padX, surfaceY + padH / 2, padZ);
+    const padQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yawOffset, 0));
+    const padMatrix = new THREE.Matrix4().compose(padPos, padQuat, scale);
+
+    const mousepadGeo = createMousepadGeometry(padW, padH, padD);
+    mousepadGeo.applyMatrix4(padMatrix);
+    visualBuckets.mousepad.push(mousepadGeo);
+
+    // Sculpted 3D Optical Mouse: sitting on top of mousepad (base at surfaceY + padH)
+    // Hand angle: ~6° inward yaw
+    const mousePos = new THREE.Vector3(padX, surfaceY + padH, padZ);
+    const mouseYaw = yawOffset + 0.10; // ~6° natural right-hand inward yaw
+    const mouseQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, mouseYaw, 0));
+    const mouseBaseMatrix = new THREE.Matrix4().compose(mousePos, mouseQuat, scale);
+
+    const pushMousePart = (bucket, geo, localX = 0, localY = 0, localZ = 0, rotX = 0, rotY = 0, rotZ = 0) => {
+      const partLocal = new THREE.Matrix4().compose(
+        new THREE.Vector3(localX, localY, localZ),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rotX, rotY, rotZ)),
+        scale
+      );
+      const finalMat = mouseBaseMatrix.clone().multiply(partLocal);
+      const nonIndexed = geo.index ? geo.toNonIndexed() : geo;
+      nonIndexed.applyMatrix4(finalMat);
+      bucket.push(nonIndexed);
+      if (geo !== nonIndexed) {
+        geo.dispose();
+      }
+    };
+
+    // A. Sculpted Organic Mouse Body:
+    // 1. Contoured lower base chassis with ergonomic waist and thumb rest
+    const mouseBaseGeo = createSculptedMouseBaseGeometry();
+    pushMousePart(visualBuckets.mouseBody, mouseBaseGeo, 0, 0, 0);
+
+    // 2. Smooth 8-segment curved palm dome hump
+    const palmDomeGeo = createSculptedMousePalmGeometry();
+    pushMousePart(visualBuckets.mouseBody, palmDomeGeo, 0, 0, 0);
+
+    // B. Sculpted Beveled Split Left & Right Click Button Plates:
+    const leftClickGeo = createSculptedMouseButtonGeometry(true);
+    pushMousePart(visualBuckets.mouseButtons, leftClickGeo, 0, 0, 0);
+
+    const rightClickGeo = createSculptedMouseButtonGeometry(false);
+    pushMousePart(visualBuckets.mouseButtons, rightClickGeo, 0, 0, 0);
+
+    // C. Center Recessed Wheel Well & 3D Scroll Wheel
+    const wheelWellGeo = new THREE.BoxGeometry(0.005, 0.008, 0.026);
+    pushMousePart(visualBuckets.keyboardPlate, wheelWellGeo, 0, 0.015, 0.026);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.0058, 0.0058, 0.0040, 24);
+    wheelGeo.rotateZ(Math.PI / 2);
+    pushMousePart(visualBuckets.mouseWheel, wheelGeo, 0, 0.019, 0.026);
+
+    const wheelAxleGeo = new THREE.CylinderGeometry(0.0040, 0.0040, 0.0048, 16);
+    wheelAxleGeo.rotateZ(Math.PI / 2);
+    pushMousePart(visualBuckets.silverTrim, wheelAxleGeo, 0, 0.019, 0.026);
+
+    // D. Ergonomic Thumb Side Buttons (Back / Forward on left +X flank)
+    const thumbBackGeo = new THREE.BoxGeometry(0.0025, 0.0035, 0.011);
+    pushMousePart(visualBuckets.mouseButtons, thumbBackGeo, 0.030, 0.015, -0.004);
+
+    const thumbFwdGeo = new THREE.BoxGeometry(0.0025, 0.0035, 0.011);
+    pushMousePart(visualBuckets.mouseButtons, thumbFwdGeo, 0.029, 0.015, 0.010);
+
+    // E. Sleek Recessed DPI LED Accent Strip & Optical Sensor Glow
+    const dpiLedGeo = new THREE.BoxGeometry(0.002, 0.0015, 0.007);
+    pushMousePart(visualBuckets.glowingCyan, dpiLedGeo, 0, 0.022, 0.006);
+
+    // PTFE Skates (Glides) on bottom
+    const skateFGeo = new THREE.BoxGeometry(0.034, 0.0006, 0.008);
+    pushMousePart(visualBuckets.mouseButtons, skateFGeo, 0, 0.0003, 0.044);
+
+    const skateRGeo = new THREE.BoxGeometry(0.042, 0.0006, 0.010);
+    pushMousePart(visualBuckets.mouseButtons, skateRGeo, 0, 0.0003, -0.044);
+
+    // Red optical sensor glow underneath base
+    const sensorGeo = new THREE.BoxGeometry(0.006, 0.0005, 0.008);
+    pushMousePart(visualBuckets.coffeeRedSlash, sensorGeo, 0, 0.0003, -0.004);
+
+    // (Wireless Optical Mouse: zero cables)
   }
 
   /**
@@ -2825,34 +4630,147 @@ export class WarehouseBuilder {
   }
 
   /**
-   * Builds a chunky PC Mid/Full Tower (0.30m x 0.65m x 0.54m)
-   * Front mesh and glowing power button face -Z directly toward player.
+   * Builds an FPS Hero Scale Enterprise Small Form Factor (SFF) desktop workstation tower
+   * (~0.15m wide x ~0.43m tall x ~0.39m deep, ~80% of adjacent monitor height).
+   * - Sits completely flush on desk surface (y = deskTopY).
+   * - Angled inward toward user's chair via rotY (~9.5°).
+   * - Front bezel: vertical louvers, top-left optical drive, top-right brushed grey I/O strip,
+   *   bottom-right asset tag, and centered dedicated razor-sharp 3D circular parody "PC" badge.
+   * - Rear panel: stamped galvanized steel backplate, motherboard I/O, 6x14 exhaust vents,
+   *   PCIe brackets, C14 power socket, and green diagnostic LED.
+   * - Physics: main chassis box registered into three-mesh-bvh collision tree with rotY angle.
    */
-  _buildPCTower(addPart, addVisual, visualBuckets, x, y, z) {
-    const w = 0.30;
-    const h = 0.65;
-    const d = 0.54;
+  _buildPCTower(addPart, addVisual, visualBuckets, x, y, z, rotY = 0) {
+    const w = 0.15;
+    const h = 0.43;
+    const d = 0.39;
+    const chassisY = y + h / 2; // Bottom flush on desk surface (y = deskTopY)
 
-    // Main Tower Chassis (Industrial Gunmetal Slate 0x363d47)
+    // Helper to position and orient sub-parts relative to the tower center with yaw rotation rotY
+    const cosY = Math.cos(rotY);
+    const sinY = Math.sin(rotY);
+    const addLocal = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0, collidable = false) => {
+      const px = x + (lx * cosY + lz * sinY);
+      const py = chassisY + ly;
+      const pz = z + (-lx * sinY + lz * cosY);
+      const totalRotY = rotY + ry;
+      if (collidable) {
+        addPart(bucket, geo, px, py, pz, rx, totalRotY, rz, true);
+      } else {
+        addVisual(bucket, geo, px, py, pz, rx, totalRotY, rz);
+      }
+    };
+
+    // 1. Four Dark Rubber Bottom Feet (flush with desk surface at y)
+    const footW = 0.022;
+    const footH = 0.003;
+    const footD = 0.030;
+    const footGeo = new THREE.BoxGeometry(footW, footH, footD);
+    const fxOffsets = [-1, 1];
+    const fzOffsets = [-1, 1];
+    for (const sx of fxOffsets) {
+      for (const sz of fzOffsets) {
+        const lx = sx * (w / 2 - footW / 2 - 0.008);
+        const lz = sz * (d / 2 - footD / 2 - 0.016);
+        addLocal(visualBuckets.sffRubberFeet, footGeo, lx, -h / 2 + footH / 2, lz);
+      }
+    }
+    footGeo.dispose();
+
+    // 2. Main Tower Chassis (Matte dark charcoal gunmetal #22262e)
+    // Registered in BVH collider so bullets leave sparks/decals and player collides accurately!
     const chassisGeo = new THREE.BoxGeometry(w, h, d);
-    addPart(visualBuckets.serverChassis, chassisGeo, x, y + h / 2, z, 0, 0, 0, true);
+    addLocal(visualBuckets.sffChassis, chassisGeo, 0, 0, 0, 0, 0, 0, true);
     chassisGeo.dispose();
 
-    // Front Mesh Intake Panel (faces -Z player)
-    const meshGeo = new THREE.BoxGeometry(w * 0.85, h * 0.60, 0.02);
-    addVisual(visualBuckets.serverChassis, meshGeo, x, y + h * 0.35, z - d / 2 - 0.01);
-    meshGeo.dispose();
+    // 3. Subtle Recessed Side-Panel Seam Lines
+    const seamGeo = new THREE.BoxGeometry(0.001, h - 0.03, d * 0.75);
+    addLocal(visualBuckets.sffRubberFeet, seamGeo, -w / 2 - 0.0005, 0, 0);
+    addLocal(visualBuckets.sffRubberFeet, seamGeo, w / 2 + 0.0005, 0, 0);
+    seamGeo.dispose();
 
-    // Glowing Cyan Power Ring / Accent LED Strip
-    const powerRing = new THREE.BoxGeometry(w * 0.65, 0.035, 0.015);
-    addVisual(visualBuckets.glowingCyan, powerRing, x, y + h * 0.82, z - d / 2 - 0.012);
-    powerRing.dispose();
+    // 4. Front Bezel 3D ABS Outer Lip (#111318)
+    const lipThick = 0.006;
+    const lipDepth = 0.008;
+    const frontLz = -d / 2;
 
-    // Brushed Silver Side Bevel Trim
-    const sideBevel = new THREE.BoxGeometry(0.02, h, 0.02);
-    addVisual(visualBuckets.silverTrim, sideBevel, x - w / 2 - 0.01, y + h / 2, z - d / 2);
-    addVisual(visualBuckets.silverTrim, sideBevel, x + w / 2 + 0.01, y + h / 2, z - d / 2);
-    sideBevel.dispose();
+    const topLipGeo = new THREE.BoxGeometry(w + 0.002, lipThick, lipDepth);
+    addLocal(visualBuckets.sffChassis, topLipGeo, 0, h / 2 - lipThick / 2, frontLz - lipDepth / 2);
+    topLipGeo.dispose();
+
+    const botLipGeo = new THREE.BoxGeometry(w + 0.002, lipThick, lipDepth);
+    addLocal(visualBuckets.sffChassis, botLipGeo, 0, -h / 2 + lipThick / 2, frontLz - lipDepth / 2);
+    botLipGeo.dispose();
+
+    const sideLipGeo = new THREE.BoxGeometry(lipThick, h - 2 * lipThick, lipDepth);
+    addLocal(visualBuckets.sffChassis, sideLipGeo, -w / 2 + lipThick / 2, 0, frontLz - lipDepth / 2);
+    addLocal(visualBuckets.sffChassis, sideLipGeo, w / 2 - lipThick / 2, 0, frontLz - lipDepth / 2);
+    sideLipGeo.dispose();
+
+    // 5. Front Faceplate with High-Res Procedural Bezel Texture (unmirrored, facing -Z)
+    // Top-Left: Optical Drive, Top-Right: Brushed Grey I/O Strip, Bottom-Right: Service Tag Plate
+    const frontPlaneGeo = createFrontBezelPlane(w - 2 * lipThick, h - 2 * lipThick);
+    addLocal(visualBuckets.sffFront, frontPlaneGeo, 0, 0, frontLz - 0.001);
+    frontPlaneGeo.dispose();
+
+    // 6. Dedicated High-Res Razor-Sharp Parody "PC" Badge Mesh (radius 0.026m)
+    // Positioned at center mounting pad, offset 0.004m forward in front of slats for ZERO z-fighting!
+    const badgeRadius = 0.026;
+    const badgeLy = -0.05 * h;
+    const badgeGeo = createFrontBadgeCircle(badgeRadius, 32);
+    addLocal(visualBuckets.sffBadge, badgeGeo, 0, badgeLy, frontLz - 0.004);
+    badgeGeo.dispose();
+
+    // 3D Brushed Silver Bezel Torus Rim framing the badge
+    const badgeRimGeo = new THREE.TorusGeometry(badgeRadius, 0.002, 8, 32);
+    addLocal(visualBuckets.silverTrim, badgeRimGeo, 0, badgeLy, frontLz - 0.0045);
+    badgeRimGeo.dispose();
+
+    // 7. Upper-Right I/O Module 3D Power LED Slit (White/Ice-Blue Glow)
+    // Canvas X=422 -> U=0.824 (Canvas Right, Screen Right -> Local X < 0), Y=85 -> V=0.917 (Top)
+    const pLx = -(0.824 - 0.5) * (w - 2 * lipThick);
+    const pLy = (0.917 - 0.5) * (h - 2 * lipThick);
+    const ledSlitGeo = new THREE.BoxGeometry(0.0016, 0.008, 0.002);
+    addLocal(visualBuckets.sffIceBlueLed, ledSlitGeo, pLx, pLy, frontLz - 0.003);
+    ledSlitGeo.dispose();
+
+    // 8. Dedicated Metallic-Blue Processor Sticker Badge (Intel Core i9 Parody)
+    // Mounted in bottom-right corner recess, directly aligned below top-right I/O strip
+    // Canvas X=422 -> U=0.824 (Canvas Right, Screen Right -> Local X < 0), Y=905 -> V=0.1162
+    const stickerW = 0.022;
+    const stickerH = 0.024;
+    const stickerLx = -(0.824 - 0.5) * (w - 2 * lipThick);
+    const stickerLy = ((1024 - 905) / 1024 - 0.5) * (h - 2 * lipThick);
+    const stickerGeo = createFrontBezelPlane(stickerW, stickerH);
+    addLocal(visualBuckets.sffSticker, stickerGeo, stickerLx, stickerLy, frontLz - 0.004);
+    stickerGeo.dispose();
+
+    // 9. Rear Faceplate with Stamped Steel I/O Shield Texture (faces +Z)
+    // Left: Motherboard I/O ports. Right: Honeycomb exhaust perforations.
+    const rearPlaneGeo = new THREE.PlaneGeometry(w, h);
+    addLocal(visualBuckets.sffRear, rearPlaneGeo, 0, 0, d / 2 + 0.001);
+    rearPlaneGeo.dispose();
+
+    // 10. Rear 3D Relief Details:
+    // IEC C14 Power Socket Housing (Bottom PSU, centered)
+    const socketGeo = new THREE.BoxGeometry(0.042, 0.028, 0.004);
+    const sockLx = (250 / 512 - 0.5) * w;
+    const sockLy = ((1024 - 790) / 1024 - 0.5) * h;
+    addLocal(visualBuckets.sffChassis, socketGeo, sockLx, sockLy, d / 2 + 0.002);
+    socketGeo.dispose();
+
+    // PSU Diagnostic LED (Tiny 3D glowing green cylinder at bottom-left)
+    const psuLedLx = (145 / 512 - 0.5) * w;
+    const psuLedLy = ((1024 - 925) / 1024 - 0.5) * h;
+    const psuLedGeo = new THREE.CylinderGeometry(0.003, 0.003, 0.0025, 12);
+    addLocal(visualBuckets.sffGreenLed, psuLedGeo, psuLedLx, psuLedLy, d / 2 + 0.003, Math.PI / 2, 0, 0);
+    psuLedGeo.dispose();
+
+    // Two Rear Side-Panel Thumbscrews on Case Right Edge (+X)
+    const screwGeo = new THREE.CylinderGeometry(0.004, 0.004, 0.005, 12);
+    addLocal(visualBuckets.silverTrim, screwGeo, w / 2 - 0.008, h * 0.25, d / 2 + 0.003, Math.PI / 2, 0, 0);
+    addLocal(visualBuckets.silverTrim, screwGeo, w / 2 - 0.008, -h * 0.25, d / 2 + 0.003, Math.PI / 2, 0, 0);
+    screwGeo.dispose();
   }
 
   /**
