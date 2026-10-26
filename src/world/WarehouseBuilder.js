@@ -1583,130 +1583,765 @@ function createWallBoxGeometry(w, h, d, isZAxis = false, reverseU = false) {
   return geo;
 }
 
-
 /**
- * Procedural 42U Server Rack Face Texture (256x512).
- * High-contrast server blades, glowing LEDs, LCDs, and patch cables.
+ * Procedural Enterprise 42U Server Cabinet Textures (1024x2048).
+ * Generates high-resolution Diffuse Map and Emissive Map inspired by Dell PowerEdge and Cisco Nexus racks.
+ * Precision enterprise-scale SMD LED light guides with clean, harmonized illumination.
  */
-function createServerBladeTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
+function createServerCabinetTextures() {
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = 1024;
+  diffCanvas.height = 2048;
+  const dCtx = diffCanvas.getContext('2d');
 
-  // Gunmetal rack chassis backing (NOT pitch black!)
-  ctx.fillStyle = '#1c232e';
-  ctx.fillRect(0, 0, 256, 512);
+  const emisCanvas = document.createElement('canvas');
+  emisCanvas.width = 1024;
+  emisCanvas.height = 2048;
+  const eCtx = emisCanvas.getContext('2d');
 
-  // Upright rack rails with square mounting holes
-  ctx.fillStyle = '#374151';
-  ctx.fillRect(0, 0, 16, 512);
-  ctx.fillRect(240, 0, 16, 512);
-  ctx.fillStyle = '#111827';
-  for (let y = 8; y < 512; y += 12) {
-    ctx.fillRect(5, y, 6, 6);
-    ctx.fillRect(245, y, 6, 6);
+  // 1. Base dark anodized gunmetal cabinet bezel (#14171e)
+  dCtx.fillStyle = '#14171e';
+  dCtx.fillRect(0, 0, 1024, 2048);
+
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, 1024, 2048);
+
+  // Helper: Draw Precision Clean Enterprise SMD LED Light Guide
+  const drawSMDLed = (x, y, w = 7, h = 3.5, type = 'green') => {
+    const cx = x + w / 2;
+    const cy = y + h / 2;
+
+    let bodyCol = '#10b981'; // Enterprise Emerald
+    let coreCol = '#a7f3d0'; // Crisp mint highlight
+    let haloCol = 'rgba(0, 240, 64, 0.25)';
+    let emisCol = '#00f040'; // Pure zero-blue emerald
+
+    if (type === 'amber') {
+      bodyCol = '#f59e0b';
+      coreCol = '#fde68a';
+      haloCol = 'rgba(245, 158, 11, 0.25)';
+      emisCol = '#ffaa00'; // Pure zero-blue amber
+    } else if (type === 'red') {
+      bodyCol = '#ef4444';
+      coreCol = '#fca5a5';
+      haloCol = 'rgba(239, 68, 68, 0.28)';
+      emisCol = '#ff2222'; // Pure zero-blue red
+    }
+
+    // --- 1. Diffuse Map (map) ---
+    // Recessed dark bezel housing (1px frame)
+    dCtx.fillStyle = '#0a0e14';
+    dCtx.fillRect(x - 1, y - 1, w + 2, h + 2);
+
+    // Outer precision LED body
+    dCtx.fillStyle = bodyCol;
+    dCtx.fillRect(x, y, w, h);
+
+    // Inner bright core highlight (adds physical depth and realism)
+    if (w >= 4 && h >= 2.5) {
+      dCtx.fillStyle = coreCol;
+      dCtx.fillRect(x + 1, y + 0.5, w - 2, h - 1);
+    }
+
+    // --- 2. Emissive Map (emissiveMap) ---
+    // Tight 1.5px soft edge for distance mipmap retention without bleeding or blur
+    const haloPad = 1.5;
+    const grad = eCtx.createRadialGradient(cx, cy, Math.min(w, h) * 0.35, cx, cy, Math.max(w, h) * 0.5 + haloPad);
+    grad.addColorStop(0, haloCol);
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    eCtx.fillStyle = grad;
+    eCtx.fillRect(x - haloPad, y - haloPad, w + haloPad * 2, h + haloPad * 2);
+
+    // Solid crisp LED core on emissiveMap
+    eCtx.fillStyle = emisCol;
+    eCtx.fillRect(x, y, w, h);
+  };
+
+  // Helper: Draw OLED iDRAC telemetry display strip (High-Definition Cybernetic Readout)
+  const drawOLEDTelemetry = (x, y, w, h, line1, line2, barVal = 0.7) => {
+    // Bezel & deep obsidian OLED panel
+    dCtx.fillStyle = '#1e293b';
+    dCtx.fillRect(x, y, w, h);
+    dCtx.fillStyle = '#030712';
+    dCtx.fillRect(x + 1.5, y + 1.5, w - 3, h - 3);
+
+    // Subtle glossy reflection streak
+    const grad = dCtx.createLinearGradient(x, y, x + w, y + h);
+    grad.addColorStop(0, 'rgba(255, 255, 255, 0.07)');
+    grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.01)');
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0.30)');
+    dCtx.fillStyle = grad;
+    dCtx.fillRect(x + 1.5, y + 1.5, w - 3, h - 3);
+
+    // High-definition Consolas typography: razor-sharp, zero-glitch text
+    const fontMetrics = 'bold 12px "Consolas", "Courier New", monospace';
+    const fontSub = 'bold 10px "Consolas", "Courier New", monospace';
+
+    // Cyan micro-telemetry text
+    dCtx.font = fontMetrics;
+    dCtx.fillStyle = '#00e5ff';
+    dCtx.fillText(line1, x + 12, y + 22);
+
+    dCtx.font = fontSub;
+    dCtx.fillStyle = '#38bdf8';
+    dCtx.fillText(line2, x + 12, y + 38);
+
+    // Segmented resource bar: clean, bold tactical segments
+    const segCount = 10;
+    const segW = 18;
+    const segH = 10;
+    const segY = y + 48;
+    for (let i = 0; i < segCount; i++) {
+      const segX = x + 12 + i * (segW + 3);
+      const active = (i / segCount) < barVal;
+      dCtx.fillStyle = active ? '#00e5ff' : '#0a1d2e';
+      dCtx.fillRect(segX, segY, segW, segH);
+      if (active) {
+        dCtx.fillStyle = '#a5f3fc';
+        dCtx.fillRect(segX + 2, segY + 2, segW - 4, 2);
+      }
+    }
+
+    // Emissive Map: Only paint glowing Cyan elements -> steady, razor-sharp OLED readout!
+    eCtx.font = fontMetrics;
+    eCtx.fillStyle = '#00e5ff';
+    eCtx.fillText(line1, x + 12, y + 22);
+
+    eCtx.font = fontSub;
+    eCtx.fillStyle = '#00e5ff';
+    eCtx.fillText(line2, x + 12, y + 38);
+
+    for (let i = 0; i < segCount; i++) {
+      if ((i / segCount) < barVal) {
+        const segX = x + 12 + i * (segW + 3);
+        eCtx.fillStyle = '#00e5ff';
+        eCtx.fillRect(segX, segY, segW, segH);
+      }
+    }
+  };
+
+  // Helper: Honeycomb air-intake mesh
+  const drawHoneycombMesh = (x, y, w, h) => {
+    dCtx.fillStyle = '#090d14';
+    dCtx.fillRect(x, y, w, h);
+
+    dCtx.fillStyle = '#1e293b';
+    const rad = 2.4;
+    const stepX = 7.5;
+    const stepY = 6.5;
+    for (let py = y + 3; py < y + h - 3; py += stepY) {
+      const rowOffset = ((Math.floor((py - y) / stepY) % 2) === 1) ? stepX / 2 : 0;
+      for (let px = x + 3 + rowOffset; px < x + w - 3; px += stepX) {
+        dCtx.beginPath();
+        dCtx.arc(px, py, rad, 0, Math.PI * 2);
+        dCtx.fill();
+      }
+    }
+  };
+
+  // Helper: Vertical bundled patch cable routing into side cable ducts
+  const drawPatchCable = (startX, startY, toRight = true, col = '#0284c7') => {
+    const endX = toRight ? (910 + (startX % 17)) : (90 + (startX % 17));
+    const endY = startY + 50 + (startX % 25);
+    const ctrl1X = startX + (toRight ? 30 : -30);
+    const ctrl1Y = startY + 40;
+    const ctrl2X = endX + (toRight ? -15 : 15);
+    const ctrl2Y = endY - 20;
+
+    // Drop shadow
+    dCtx.strokeStyle = 'rgba(0, 0, 0, 0.45)';
+    dCtx.lineWidth = 4;
+    dCtx.beginPath();
+    dCtx.moveTo(startX + 1, startY + 2);
+    dCtx.bezierCurveTo(ctrl1X + 1, ctrl1Y + 2, ctrl2X + 1, ctrl2Y + 2, endX + 1, endY + 2);
+    dCtx.stroke();
+
+    // Cable body
+    dCtx.strokeStyle = col;
+    dCtx.lineWidth = 3;
+    dCtx.beginPath();
+    dCtx.moveTo(startX, startY);
+    dCtx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY);
+    dCtx.stroke();
+
+    // Cable highlight
+    dCtx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    dCtx.lineWidth = 1;
+    dCtx.beginPath();
+    dCtx.moveTo(startX, startY);
+    dCtx.bezierCurveTo(ctrl1X, ctrl1Y, ctrl2X, ctrl2Y, endX, endY);
+    dCtx.stroke();
+  };
+
+  // 2. Top Exhaust Header (Y: 0 to 48)
+  dCtx.fillStyle = '#11151d';
+  dCtx.fillRect(0, 0, 1024, 48);
+  dCtx.fillStyle = '#080a0f';
+  for (let y = 10; y < 42; y += 9) {
+    for (let x = 84; x < 940; x += 14) {
+      dCtx.beginPath();
+      dCtx.arc(x, y, 2.2, 0, Math.PI * 2);
+      dCtx.fill();
+    }
+  }
+  dCtx.fillStyle = '#64748b';
+  dCtx.font = 'bold 10px "Consolas", "Courier New", monospace';
+  dCtx.fillText('ENTERPRISE 42U HIGH-DENSITY CABINET // ZONE-DC // DELL POWEREDGE', 84, 44);
+  dCtx.strokeStyle = '#273142';
+  dCtx.lineWidth = 1.5;
+  dCtx.beginPath();
+  dCtx.moveTo(0, 48);
+  dCtx.lineTo(1024, 48);
+  dCtx.stroke();
+
+  // 3. EIA-310 Mounting Rails (Left: X = 16..76, Right: X = 948..1008, Y: 48 to 1988)
+  dCtx.fillStyle = '#222733';
+  dCtx.fillRect(16, 48, 60, 1940);
+  dCtx.fillRect(948, 48, 60, 1940);
+
+  // Rail inner edges
+  dCtx.strokeStyle = '#333c4d';
+  dCtx.lineWidth = 1.5;
+  dCtx.beginPath();
+  dCtx.moveTo(76, 48); dCtx.lineTo(76, 1988);
+  dCtx.moveTo(948, 48); dCtx.lineTo(948, 1988);
+  dCtx.stroke();
+
+  const totalUnits = 42;
+  const uHeight = 1940 / totalUnits; // 46.19px per 1U
+  for (let u = totalUnits; u >= 1; u--) {
+    const uIdx = totalUnits - u;
+    const uY = 48 + uIdx * uHeight;
+
+    // 3 Square cage nut holes per 1U
+    const holeFracs = [0.22, 0.50, 0.78];
+    for (const hf of holeFracs) {
+      const hy = uY + uHeight * hf;
+      // Left rail hole
+      dCtx.fillStyle = '#090d14';
+      dCtx.fillRect(36, hy - 3.5, 7, 7);
+      dCtx.strokeStyle = '#181f2b';
+      dCtx.lineWidth = 1;
+      dCtx.strokeRect(36, hy - 3.5, 7, 7);
+
+      // Right rail hole
+      dCtx.fillStyle = '#090d14';
+      dCtx.fillRect(980, hy - 3.5, 7, 7);
+      dCtx.strokeRect(980, hy - 3.5, 7, 7);
+    }
+
+    // Silver mounting screws on mounted hardware ears
+    const hasScrew = (u % 2 === 0);
+    if (hasScrew) {
+      const sy = uY + uHeight * 0.50;
+      for (const sx of [39.5, 983.5]) {
+        dCtx.fillStyle = '#94a3b8';
+        dCtx.beginPath();
+        dCtx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+        dCtx.fill();
+        dCtx.strokeStyle = '#1e293b';
+        dCtx.lineWidth = 1;
+        dCtx.beginPath();
+        dCtx.moveTo(sx - 3, sy); dCtx.lineTo(sx + 3, sy);
+        dCtx.moveTo(sx, sy - 3); dCtx.lineTo(sx, sy + 3);
+        dCtx.stroke();
+      }
+    }
+
+    // Unit numbers (42, 40, 38, ... 02) printed along rail edge
+    if (u % 2 === 0) {
+      const uStr = (u < 10 ? '0' : '') + u;
+      dCtx.font = 'bold 9px monospace';
+      dCtx.fillStyle = '#94a3b8';
+      dCtx.fillText(uStr, 54, uY + uHeight * 0.55);
+      dCtx.fillText(uStr, 960, uY + uHeight * 0.55);
+    }
   }
 
-  // Draw 20 stacked 1U and 2U server blade bays
-  let currentY = 8;
-  let bladeIndex = 0;
-  while (currentY < 500) {
-    const is2U = (bladeIndex % 5 === 2) || (bladeIndex % 7 === 4);
-    const bladeH = is2U ? 36 : 20;
-    bladeIndex++;
+  // 4. TOP TIER (42U–39U, Y: 48 to 234) — 48-Port Switches & Fiber Uplinks
+  // Switch 1: 42U-41U (2U, Y: 48 to 140, Height = 92px)
+  dCtx.fillStyle = '#181d26';
+  dCtx.fillRect(76, 48, 872, 92);
+  dCtx.strokeStyle = '#2d3748';
+  dCtx.lineWidth = 1;
+  dCtx.strokeRect(76.5, 48.5, 871, 91);
 
-    if (currentY + bladeH > 506) break;
+  dCtx.font = 'bold 11px "Consolas", "Courier New", monospace';
+  dCtx.fillStyle = '#94a3b8';
+  dCtx.fillText('CISCO NEXUS 9300-GX // 48x1G + 4x10G SFP+', 86, 68);
 
-    // Blade chassis faceplate
-    ctx.fillStyle = '#283140';
-    ctx.fillRect(18, currentY, 220, bladeH - 2);
+  // Status LEDs on left: Clean rectangular light guides (7px x 3.5px)
+  drawSMDLed(86, 76, 7, 3.5, 'green');
+  drawSMDLed(98, 76, 7, 3.5, 'green');
+  drawSMDLed(110, 76, 7, 3.5, 'amber');
 
-    // Silver bevel highlight
-    ctx.strokeStyle = '#4b5563';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(18.5, currentY + 0.5, 219, bladeH - 3);
+  // Port metal frame & dark cavity background
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 24; col++) {
+      const px = 130 + col * 25;
+      const py = 76 + row * 24;
 
-    // Silver pull handles
-    ctx.fillStyle = '#cbd5e1';
-    ctx.fillRect(20, currentY + 3, 4, bladeH - 8);
-    ctx.fillRect(232, currentY + 3, 4, bladeH - 8);
+      dCtx.fillStyle = '#080a0f';
+      dCtx.fillRect(px, py, 21, 15);
+      dCtx.strokeStyle = '#475569';
+      dCtx.lineWidth = 1;
+      dCtx.strokeRect(px, py, 21, 15);
 
-    // Dark air intake louvers
-    ctx.fillStyle = '#0f172a';
-    const ventW = 90;
-    ctx.fillRect(28, currentY + 3, ventW, bladeH - 8);
-    ctx.strokeStyle = '#1e293b';
-    for (let vx = 32; vx < 28 + ventW; vx += 5) {
-      ctx.beginPath();
-      ctx.moveTo(vx, currentY + 4);
-      ctx.lineTo(vx, currentY + bladeH - 6);
-      ctx.stroke();
+      dCtx.fillStyle = '#d97706';
+      dCtx.fillRect(px + 4, py + 2, 13, 2);
+    }
+  }
+
+  // Harmonized port-group status indicators (6px x 3px) across switch rows
+  for (let g = 0; g < 16; g++) {
+    const lx = 138 + g * 36;
+    const isAmberRow0 = (g % 5 === 2);
+    drawSMDLed(lx, 68, 6, 3, isAmberRow0 ? 'amber' : 'green');
+    const isAmberRow1 = (g % 6 === 1);
+    drawSMDLed(lx, 92, 6, 3, isAmberRow1 ? 'amber' : 'green');
+  }
+
+  // 4 SFP+ Fiber Transceiver Cages (X = 760 to 860)
+  for (let s = 0; s < 4; s++) {
+    const sx = 760 + s * 26;
+    dCtx.fillStyle = '#475569';
+    dCtx.fillRect(sx, 76, 22, 28);
+    dCtx.fillStyle = '#06b6d4'; // Cyan transceiver latch
+    dCtx.fillRect(sx + 4, 88, 14, 12);
+    dCtx.fillStyle = '#080a0f';
+    dCtx.fillRect(sx + 6, 78, 10, 8);
+    // Clean fiber link LED
+    drawSMDLed(sx + 7, 68, 7, 3.5, 'green');
+  }
+
+  // Bundled patch cables routing into side channels
+  const cableCols1 = ['#0284c7', '#10b981', '#f59e0b', '#dc2626'];
+  for (let c = 0; c < 24; c += 2) {
+    const startX = 130 + c * 25 + 10;
+    const startY = 96;
+    drawPatchCable(startX, startY, c >= 12, cableCols1[c % cableCols1.length]);
+  }
+
+  // Switch 2: 40U-39U (2U, Y: 140 to 234, Height = 94px)
+  dCtx.fillStyle = '#151b24';
+  dCtx.fillRect(76, 140, 872, 94);
+  dCtx.strokeStyle = '#273142';
+  dCtx.lineWidth = 1;
+  dCtx.strokeRect(76.5, 140.5, 871, 93);
+
+  dCtx.font = 'bold 11px "Consolas", "Courier New", monospace';
+  dCtx.fillStyle = '#94a3b8';
+  dCtx.fillText('CORE-AGGREGATION-02 // GIGABIT FABRIC SWITCH', 86, 160);
+
+  // Status LEDs (7px x 3.5px)
+  drawSMDLed(86, 168, 7, 3.5, 'green');
+  drawSMDLed(98, 168, 7, 3.5, 'green');
+  drawSMDLed(110, 168, 7, 3.5, 'amber');
+
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 24; col++) {
+      const px = 130 + col * 25;
+      const py = 168 + row * 24;
+
+      dCtx.fillStyle = '#080a0f';
+      dCtx.fillRect(px, py, 21, 15);
+      dCtx.strokeStyle = '#475569';
+      dCtx.lineWidth = 1;
+      dCtx.strokeRect(px, py, 21, 15);
+
+      dCtx.fillStyle = '#d97706';
+      dCtx.fillRect(px + 4, py + 2, 13, 2);
+    }
+  }
+
+  // Harmonized port-group status indicators (6px x 3px)
+  for (let g = 0; g < 16; g++) {
+    const lx = 138 + g * 36;
+    const isAmberRow0 = (g % 4 === 1);
+    drawSMDLed(lx, 160, 6, 3, isAmberRow0 ? 'amber' : 'green');
+    const isAmberRow1 = (g % 5 === 3);
+    drawSMDLed(lx, 184, 6, 3, isAmberRow1 ? 'amber' : 'green');
+  }
+
+  // SFP+ Cages on Switch 2
+  for (let s = 0; s < 4; s++) {
+    const sx = 760 + s * 26;
+    dCtx.fillStyle = '#475569';
+    dCtx.fillRect(sx, 168, 22, 28);
+    dCtx.fillStyle = '#06b6d4';
+    dCtx.fillRect(sx + 4, 180, 14, 12);
+    dCtx.fillStyle = '#080a0f';
+    dCtx.fillRect(sx + 6, 170, 10, 8);
+    drawSMDLed(sx + 7, 160, 7, 3.5, 'green');
+  }
+
+  // Patch cables for Switch 2
+  const cableCols2 = ['#2563eb', '#eab308', '#10b981', '#06b6d4'];
+  for (let c = 1; c < 24; c += 2) {
+    const startX = 130 + c * 25 + 10;
+    const startY = 188;
+    drawPatchCable(startX, startY, c < 12, cableCols2[c % cableCols2.length]);
+  }
+
+  // Cable management channel tie-wraps on sides
+  dCtx.fillStyle = '#0a0d14';
+  dCtx.fillRect(76, 48, 16, 186);
+  dCtx.fillRect(932, 48, 16, 186);
+  for (let vy = 70; vy < 230; vy += 36) {
+    dCtx.fillStyle = '#1e293b';
+    dCtx.fillRect(76, vy, 16, 8);
+    dCtx.fillRect(932, vy, 16, 8);
+  }
+
+  // 5. UPPER COMPUTE TIER (38U–23U, Y: 234 to 974, Height = 740px)
+  // 8x 2U PowerEdge-style servers, each ~92.5px
+  const telemetryData = [
+    { line1: '21.4°C | 480W | HEALTHY', line2: 'iDRAC9 ENTERPRISE // NVMe RAID-10', bar: 0.85 },
+    { line1: '19.8°C | 420W | OPTIMAL', line2: 'STORAGE-ARRAY-01 // ZFS POOL OK', bar: 0.65 },
+    { line1: '23.1°C | 620W | ACTIVE',  line2: 'HYPERVISOR CLUSTER // NODE-03',  bar: 0.90 },
+    { line1: '20.2°C | 510W | HEALTHY', line2: 'DATABASE MASTER // POSTGRES-01', bar: 0.70 },
+    { line1: '18.5°C | 390W | OPTIMAL', line2: 'KUBERNETES WORKER // POD-POOL-07', bar: 0.55 },
+    { line1: '22.0°C | 580W | ACTIVE',  line2: 'BACKUP VAULT // CEPH REPLICA',   bar: 0.80 },
+    { line1: '20.9°C | 520W | HEALTHY', line2: 'GPU INFERENCE NODE // 4x A100',  bar: 0.75 },
+    { line1: '19.4°C | 440W | OPTIMAL', line2: 'ANALYTICS PIPELINE // SPARK-02', bar: 0.60 }
+  ];
+
+  const serverCount = 8;
+  const s2UH = 740 / serverCount; // 92.5px
+  for (let s = 0; s < serverCount; s++) {
+    const sY = 234 + s * s2UH;
+
+    // Server chassis faceplate
+    dCtx.fillStyle = '#1a202c';
+    dCtx.fillRect(76, sY, 872, s2UH);
+    dCtx.strokeStyle = '#334155';
+    dCtx.lineWidth = 1;
+    dCtx.strokeRect(76.5, sY + 0.5, 871, s2UH - 1);
+
+    // Left rack ear: silver pull handle + power button
+    dCtx.fillStyle = '#94a3b8';
+    dCtx.fillRect(80, sY + 12, 6, s2UH - 24);
+    dCtx.strokeStyle = '#475569';
+    dCtx.strokeRect(80, sY + 12, 6, s2UH - 24);
+
+    // Power & ID button: Clean rectangular light pipe (8px x 4.5px)
+    drawSMDLed(86, sY + 20, 8, 4.5, 'green');
+    dCtx.fillStyle = '#38bdf8';
+    dCtx.beginPath();
+    dCtx.arc(90, sY + 36, 2.8, 0, Math.PI * 2);
+    dCtx.fill();
+
+    // 10 Hot-Swap 2.5" NVMe Drive Caddies across X = 104 to 684
+    const caddyCount = 10;
+    const caddyW = 54;
+    const caddyGap = 4;
+    const caddyH = 74;
+    for (let c = 0; c < caddyCount; c++) {
+      const cx = 104 + c * (caddyW + caddyGap);
+      const cy = sY + 9;
+
+      // Caddy frame
+      dCtx.fillStyle = '#1e2634';
+      dCtx.fillRect(cx, cy, caddyW, caddyH);
+      dCtx.strokeStyle = '#374151';
+      dCtx.lineWidth = 1;
+      dCtx.strokeRect(cx + 0.5, cy + 0.5, caddyW - 1, caddyH - 1);
+
+      // Brushed dark aluminum handle
+      dCtx.fillStyle = '#283243';
+      dCtx.fillRect(cx + 4, cy + 6, caddyW - 18, 16);
+      dCtx.strokeStyle = '#4b5563';
+      dCtx.strokeRect(cx + 4.5, cy + 6.5, caddyW - 19, 15);
+
+      // Micro-ventilation slots
+      dCtx.fillStyle = '#0b0f16';
+      for (let vy = cy + 26; vy < cy + 54; vy += 3.5) {
+        dCtx.fillRect(cx + 6, vy, caddyW - 22, 1.8);
+      }
+
+      // Capacity label badge (clean, high-contrast, razor-sharp Consolas)
+      dCtx.fillStyle = '#080d17';
+      dCtx.fillRect(cx + 4, cy + 49, 38, 14);
+      dCtx.strokeStyle = '#273444';
+      dCtx.lineWidth = 1;
+      dCtx.strokeRect(cx + 4.5, cy + 49.5, 37, 13);
+
+      dCtx.fillStyle = '#38bdf8';
+      dCtx.font = 'bold 8.5px "Consolas", "Courier New", monospace';
+      const capLabels = ['3.8TB', '7.6TB', '15TB', 'NVMe'];
+      dCtx.fillText(capLabels[(s + c) % capLabels.length], cx + 7, cy + 59.5);
+
+      // Colored release latch tab (crimson or cobalt)
+      const isCrimson = ((s + c) % 2 === 0);
+      dCtx.fillStyle = isCrimson ? '#dc2626' : '#2563eb';
+      dCtx.fillRect(cx + 6, cy + caddyH - 8, 18, 5);
+      dCtx.fillStyle = '#374151';
+      dCtx.fillRect(cx + 28, cy + caddyH - 8, caddyW - 36, 5);
+
+      // Two precision rectangular LED light-pipes (7px wide x 3.5px tall) on right edge
+      const ledX = cx + caddyW - 10;
+      // Power LED (Green)
+      drawSMDLed(ledX, cy + 12, 7, 3.5, 'green');
+      // Activity LED (Amber, Green, or Red)
+      const isCrimsonAct = ((s + c) % 6 === 5);
+      const isActAmber = ((s * 3 + c) % 3 === 1);
+      const actType = isCrimsonAct ? 'red' : (isActAmber ? 'amber' : 'green');
+      drawSMDLed(ledX, cy + 24, 7, 3.5, actType);
     }
 
-    // Patch ports
-    const portStartX = 124;
-    ctx.fillStyle = '#111827';
-    ctx.fillRect(portStartX, currentY + 4, 46, bladeH - 9);
+    // Right Ear: Dark-Glass OLED iDRAC Telemetry Strip (X = 696 to 936, W = 240, H = 72)
+    const tData = telemetryData[s % telemetryData.length];
+    drawOLEDTelemetry(696, sY + 10, 240, 72, tData.line1, tData.line2, tData.bar);
+  }
 
-    // Patch cables
-    if (bladeIndex % 3 === 0) {
-      const cableColors = ['#0284c7', '#f59e0b', '#ef4444', '#10b981'];
-      const cCol = cableColors[bladeIndex % cableColors.length];
-      ctx.strokeStyle = cCol;
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.moveTo(portStartX + 8, currentY + 7);
-      ctx.bezierCurveTo(portStartX + 12, currentY + bladeH + 6, portStartX + 26, currentY + bladeH + 6, portStartX + 30, currentY + 7);
-      ctx.stroke();
+  // 6. MID TIER (22U–9U, Y: 974 to 1618, Height = 644px)
+  // 14x 1U High-Density Compute Blades, each 46px
+  const blade1UCount = 14;
+  const b1UH = 644 / blade1UCount; // 46px
+  for (let b = 0; b < blade1UCount; b++) {
+    const bY = 974 + b * b1UH;
+
+    // Faceplate
+    dCtx.fillStyle = '#171e28';
+    dCtx.fillRect(76, bY, 872, b1UH);
+    dCtx.strokeStyle = '#2d3848';
+    dCtx.lineWidth = 1;
+    dCtx.strokeRect(76.5, bY + 0.5, 871, b1UH - 1);
+
+    // Left and right silver pull handles
+    dCtx.fillStyle = '#64748b';
+    dCtx.fillRect(80, bY + 8, 5, b1UH - 16);
+    dCtx.fillRect(939, bY + 8, 5, b1UH - 16);
+
+    // Hexagonal honeycomb intake mesh (X = 96 to 576)
+    drawHoneycombMesh(96, bY + 6, 480, b1UH - 12);
+
+    // White barcode asset sticker
+    const barX = 590;
+    const barY = bY + 10;
+    const barW = 86;
+    const barH = b1UH - 20;
+    dCtx.fillStyle = '#f1f5f9';
+    dCtx.fillRect(barX, barY, barW, barH);
+    dCtx.fillStyle = '#0f172a';
+    for (let bx = barX + 6; bx < barX + barW - 6; bx += 3) {
+      if (bx % 5 !== 0) {
+        dCtx.fillRect(bx, barY + 3, (bx % 4 === 0) ? 2 : 1, barH - 11);
+      }
     }
+    dCtx.font = 'bold 8px "Consolas", "Courier New", monospace';
+    dCtx.fillText(`SRV-${8420 + b * 17}`, barX + 8, barY + barH - 3);
 
-    // LCD screen on 2U blades
-    if (is2U) {
-      const lcdX = 176;
-      const lcdY = currentY + 5;
-      ctx.fillStyle = '#0369a1';
-      ctx.fillRect(lcdX, lcdY, 48, 22);
-      ctx.strokeStyle = '#38bdf8';
-      ctx.lineWidth = 1.5;
-      ctx.strokeRect(lcdX, lcdY, 48, 22);
-
-      ctx.fillStyle = '#e0f2fe';
-      ctx.font = 'bold 8px monospace';
-      ctx.fillText(`18°C 42%`, lcdX + 4, lcdY + 10);
-      ctx.fillText(`BLADE-${bladeIndex}`, lcdX + 4, lcdY + 18);
-    }
-
-    // High-visibility status LEDs
-    const ledXStart = is2U ? 126 : 176;
-    const ledY = currentY + (bladeH / 2) - 1.5;
-    const ledCols = ['#00ff66', '#00e5ff', '#ffaa00', bladeIndex % 6 === 0 ? '#ff2222' : '#00ff66'];
-
+    // 4 Precision status light indicators (9px wide x 4px tall) spaced 24px center-to-center
+    const clusterX = 690;
+    const labels = ['PWR', 'NIC', 'SSD', 'ALM'];
+    dCtx.font = 'bold 8px "Consolas", "Courier New", monospace';
     for (let li = 0; li < 4; li++) {
-      const lx = ledXStart + li * 11;
-      const col = ledCols[li];
+      const lx = clusterX + li * 24;
+      dCtx.fillStyle = '#94a3b8';
+      dCtx.fillText(labels[li], lx, bY + 15);
 
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.arc(lx, ledY, 2.5, 0, Math.PI * 2);
-      ctx.fill();
+      let ledType = 'green';
+      if (li === 2) ledType = 'amber';
+      if (li === 3) ledType = (b % 5 === 0) ? 'red' : 'green';
 
-      // Outer glow ring
-      ctx.strokeStyle = col;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(lx, ledY, 4, 0, Math.PI * 2);
-      ctx.stroke();
+      drawSMDLed(lx, bY + 21, 9, 4, ledType);
     }
 
-    currentY += bladeH;
+    // Maintenance I/O ports (USB + VGA)
+    const portX = 820;
+    dCtx.fillStyle = '#0b0f16';
+    dCtx.fillRect(portX, bY + 12, 42, b1UH - 24);
+    dCtx.strokeStyle = '#334155';
+    dCtx.strokeRect(portX, bY + 12, 42, b1UH - 24);
+    dCtx.fillStyle = '#0284c7';
+    dCtx.fillRect(portX + 6, bY + 16, 12, 6);
+    dCtx.fillRect(portX + 24, bY + 16, 12, 6);
+
+    dCtx.fillStyle = '#0284c7';
+    dCtx.fillRect(portX + 54, bY + 14, 22, 14);
+    dCtx.fillStyle = '#050b14';
+    dCtx.fillRect(portX + 56, bY + 16, 18, 10);
   }
 
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
-  texture.needsUpdate = true;
-  return texture;
+  // 7. LOWER COMPUTE TIER (8U–5U, Y: 1618 to 1802, Height = 184px)
+  // 4U High-Density Storage / GPU Accelerator Array
+  dCtx.fillStyle = '#131822';
+  dCtx.fillRect(76, 1618, 872, 184);
+  dCtx.strokeStyle = '#2b3547';
+  dCtx.lineWidth = 1.5;
+  dCtx.strokeRect(76.5, 1618.5, 871, 183);
+
+  // Left: 4 Large Circular Fan Grilles
+  const fanRadius = 26;
+  for (let f = 0; f < 4; f++) {
+    const fx = 135 + f * 78;
+    const fy = 1618 + 92;
+
+    dCtx.fillStyle = '#070a10';
+    dCtx.beginPath();
+    dCtx.arc(fx, fy, fanRadius, 0, Math.PI * 2);
+    dCtx.fill();
+
+    dCtx.strokeStyle = '#334155';
+    dCtx.lineWidth = 1.2;
+    for (let r = 8; r <= fanRadius; r += 7) {
+      dCtx.beginPath();
+      dCtx.arc(fx, fy, r, 0, Math.PI * 2);
+      dCtx.stroke();
+    }
+
+    dCtx.fillStyle = '#1e2532';
+    dCtx.beginPath();
+    dCtx.arc(fx, fy, 7, 0, Math.PI * 2);
+    dCtx.fill();
+
+    drawSMDLed(fx - 4, fy - fanRadius - 8, 8, 4, (f === 2) ? 'amber' : 'green');
+  }
+
+  // Right: 3x4 SAS 3.5" Drive Matrix
+  const bayStartX = 470;
+  const bayW = 92;
+  const bayH = 46;
+  for (let r = 0; r < 3; r++) {
+    for (let c = 0; c < 4; c++) {
+      const bx = bayStartX + c * (bayW + 12);
+      const by = 1618 + 14 + r * (bayH + 8);
+      dCtx.fillStyle = '#1e2430';
+      dCtx.fillRect(bx, by, bayW, bayH);
+      dCtx.strokeStyle = '#334155';
+      dCtx.strokeRect(bx, by, bayW, bayH);
+
+      dCtx.fillStyle = '#2b3648';
+      dCtx.fillRect(bx + 4, by + 4, bayW - 8, 12);
+
+      drawSMDLed(bx + bayW - 11, by + 18, 7, 3.5, ((r + c) % 3 === 0) ? 'amber' : 'green');
+      drawSMDLed(bx + bayW - 11, by + 26, 7, 3.5, 'green');
+    }
+  }
+
+  dCtx.font = 'bold 11px "Consolas", "Courier New", monospace';
+  dCtx.fillStyle = '#94a3b8';
+  dCtx.fillText('SAN STORAGE BLADE 6000 // 24x 18TB SAS // 432TB RAW // HIGH-THROUGHPUT', 470, 1618 + 172);
+
+  // 8. BOTTOM TIER (4U–1U, Y: 1802 to 1988, Height = 186px) — Enterprise Rackmount UPS & PDU
+  dCtx.fillStyle = '#111620';
+  dCtx.fillRect(76, 1802, 872, 186);
+  dCtx.strokeStyle = '#273142';
+  dCtx.lineWidth = 1.5;
+  dCtx.strokeRect(76.5, 1802.5, 871, 185);
+
+  // Left master breaker levers
+  dCtx.fillStyle = '#1e2533';
+  dCtx.fillRect(96, 1802 + 25, 120, 136);
+  dCtx.fillStyle = '#dc2626'; // Red master cutoff
+  dCtx.fillRect(116, 1802 + 45, 24, 40);
+  dCtx.fillStyle = '#10b981'; // Green toggle
+  dCtx.fillRect(160, 1802 + 45, 24, 40);
+  dCtx.font = 'bold 9px "Consolas", "Courier New", monospace';
+  dCtx.fillStyle = '#94a3b8';
+  dCtx.fillText('MAIN PDU-A', 104, 1802 + 115);
+
+  // High-voltage warning badge
+  const badgeX = 240;
+  const badgeY = 1802 + 35;
+  dCtx.fillStyle = '#1e2430';
+  dCtx.fillRect(badgeX, badgeY, 180, 80);
+  dCtx.strokeStyle = '#eab308';
+  dCtx.lineWidth = 2;
+  dCtx.strokeRect(badgeX, badgeY, 180, 80);
+
+  // Yellow warning triangle
+  dCtx.fillStyle = '#eab308';
+  dCtx.beginPath();
+  dCtx.moveTo(badgeX + 24, badgeY + 60);
+  dCtx.lineTo(badgeX + 44, badgeY + 22);
+  dCtx.lineTo(badgeX + 64, badgeY + 60);
+  dCtx.closePath();
+  dCtx.fill();
+  dCtx.fillStyle = '#000000';
+  dCtx.font = 'bold 16px sans-serif';
+  dCtx.fillText('!', badgeX + 41, badgeY + 54);
+
+  dCtx.fillStyle = '#eab308';
+  dCtx.font = 'bold 11px "Consolas", "Courier New", monospace';
+  dCtx.fillText('WARNING: 400V', badgeX + 74, badgeY + 38);
+  dCtx.fillStyle = '#f8fafc';
+  dCtx.font = 'bold 9px "Consolas", "Courier New", monospace';
+  dCtx.fillText('3-PHASE 16kVA PDU', badgeX + 74, badgeY + 52);
+  dCtx.fillText('DUAL-FEED REDUNDANT', badgeX + 74, badgeY + 65);
+
+  // Glowing Cyan/Emerald battery load meter window (X = 450 to 920, Y = 1827, W = 470, H = 136)
+  const meterX = 450;
+  const meterY = 1802 + 25;
+  const meterW = 470;
+  const meterH = 136;
+
+  dCtx.fillStyle = '#050a12';
+  dCtx.fillRect(meterX, meterY, meterW, meterH);
+  dCtx.strokeStyle = '#1e293b';
+  dCtx.lineWidth = 1.5;
+  dCtx.strokeRect(meterX, meterY, meterW, meterH);
+
+  // Meter telemetry strings (Consolas High-Definition)
+  const upsLine1 = 'ONLINE // 98% LOAD // 230V // 12.4A // 50.0Hz';
+  const upsLine2 = 'UPS-BATTERY-PACK-A [NORMAL] // RUNTIME: 42 MIN';
+  dCtx.font = 'bold 13px "Consolas", "Courier New", monospace';
+  dCtx.fillStyle = '#00e5ff';
+  dCtx.fillText(upsLine1, meterX + 16, meterY + 30);
+  dCtx.font = 'bold 10px "Consolas", "Courier New", monospace';
+  dCtx.fillStyle = '#38bdf8';
+  dCtx.fillText(upsLine2, meterX + 16, meterY + 50);
+
+  // 16-Segment horizontal load bar
+  const barSegW = 22;
+  const barSegH = 28;
+  const barSegY = meterY + 62;
+  for (let i = 0; i < 16; i++) {
+    const bsX = meterX + 16 + i * (barSegW + 5);
+    const isLit = (i < 14);
+    dCtx.fillStyle = isLit ? '#00e5ff' : '#082030';
+    dCtx.fillRect(bsX, barSegY, barSegW, barSegH);
+  }
+
+  // Emissive Map for UPS: Pure Cyan (B > 160, R < 40) -> 100% steady glow!
+  eCtx.font = 'bold 13px "Consolas", "Courier New", monospace';
+  eCtx.fillStyle = '#00e5ff';
+  eCtx.fillText(upsLine1, meterX + 16, meterY + 30);
+  eCtx.font = 'bold 10px "Consolas", "Courier New", monospace';
+  eCtx.fillStyle = '#00e5ff';
+  eCtx.fillText(upsLine2, meterX + 16, meterY + 50);
+
+  for (let i = 0; i < 14; i++) {
+    const bsX = meterX + 16 + i * (barSegW + 5);
+    eCtx.fillStyle = '#00e5ff';
+    eCtx.fillRect(bsX, barSegY, barSegW, barSegH);
+  }
+
+  // 9. Bottom Intake Grille (Y: 1988 to 2048)
+  dCtx.fillStyle = '#0a0d13';
+  dCtx.fillRect(0, 1988, 1024, 60);
+  dCtx.strokeStyle = '#273142';
+  dCtx.lineWidth = 1.5;
+  dCtx.strokeRect(0, 1988, 1024, 60);
+
+  dCtx.fillStyle = '#1e2430';
+  for (let gy = 1996; gy < 2042; gy += 7) {
+    dCtx.fillRect(80, gy, 864, 3);
+  }
+
+  // 10. Create and configure Three.js CanvasTextures
+  const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
+  diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+  diffuseTexture.anisotropy = 8;
+  diffuseTexture.needsUpdate = true;
+
+  const emissiveTexture = new THREE.CanvasTexture(emisCanvas);
+  emissiveTexture.colorSpace = THREE.SRGBColorSpace;
+  emissiveTexture.anisotropy = 8;
+  emissiveTexture.needsUpdate = true;
+
+  return { diffuseTexture, emissiveTexture };
 }
 
 /**
@@ -6474,7 +7109,9 @@ export class WarehouseBuilder {
     const ceilingTex = createDataCenterCeilingTextures();
     this.ceilingTexture = ceilingTex.diffuseTexture;
     this.ceilingEmissiveTexture = ceilingTex.emissiveTexture;
-    this.serverBladeTexture = createServerBladeTexture();
+    const rackTex = createServerCabinetTextures();
+    this.serverBladeDiffuseTexture = rackTex.diffuseTexture;
+    this.serverBladeEmissiveTexture = rackTex.emissiveTexture;
     this.monitorScreenAtlasTex = createMonitorScreenAtlasTexture();
     this.screenATexture = createWindows11DesktopTexture();
     this.screenBTexture = createWindows11LockTexture();
@@ -6561,6 +7198,13 @@ export class WarehouseBuilder {
       roughness: 0.40,
     });
 
+    // Dark brushed steel rack side panels (Powder-coated metal finish)
+    this.serverCabinetMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1c2028,
+      roughness: 0.45,
+      metalness: 0.55,
+    });
+
     // Brushed Silver-Grey Frame Trim for cabinet doors and desk bevel edges
     this.silverTrimMaterial = new THREE.MeshStandardMaterial({
       color: 0x6c7685,
@@ -6575,10 +7219,149 @@ export class WarehouseBuilder {
       metalness: 0.25,
     });
 
-    // Server blade faceplates with glowing LEDs, LCDs, and patch cables (Self-Illuminating!)
-    this.serverRackBladeMaterial = new THREE.MeshBasicMaterial({
-      map: this.serverBladeTexture,
+    // Enterprise 42U Server Cabinet Front Face (MeshStandardMaterial with Emissive & GPU Blinking)
+    this.serverRackBladeUniforms = {
+      uTime: { value: 0.0 },
+    };
+
+    this.serverRackBladeMaterial = new THREE.MeshStandardMaterial({
+      map: this.serverBladeDiffuseTexture,
+      emissiveMap: this.serverBladeEmissiveTexture,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 1.15,
+      roughness: 0.40,
+      metalness: 0.60,
     });
+
+    this.serverRackBladeMaterial.customProgramCacheKey = () => 'EnterpriseRackBladeShader';
+
+    this.serverRackBladeMaterial.onBeforeCompile = (shader) => {
+      shader.uniforms.uTime = this.serverRackBladeUniforms.uTime;
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+varying vec3 vRackWorldPos;`
+      );
+
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `vRackWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
+#include <project_vertex>`
+      );
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+uniform float uTime;
+varying vec3 vRackWorldPos;
+
+float rackHash(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}`
+      );
+
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <emissivemap_fragment>',
+        `#include <emissivemap_fragment>
+#ifdef USE_EMISSIVEMAP
+  vec2 pix = vec2(vEmissiveMapUv.x * 1024.0, (1.0 - vEmissiveMapUv.y) * 2048.0);
+
+  // 1. ABSOLUTE SCREEN & INSCRIPTION GUARD:
+  // - OLED Telemetry Displays: strictly at X > 685.0 in 2U servers (Y: 234 to 974)
+  // - UPS Battery Load Window: strictly at Y >= 1800.0
+  // - All Cyan Text & Display Graphics: have B > 0.15
+  // These NEVER blink under any circumstances - characters remain 100% steady, razor-sharp & static!
+  bool isScreenOrText = (pix.y >= 1800.0) || 
+                        (pix.y >= 234.0 && pix.y < 974.0 && pix.x > 685.0) ||
+                        (emissiveColor.b > 0.15);
+
+  if (!isScreenOrText && (emissiveColor.g > 0.15 || emissiveColor.r > 0.15)) {
+    vec2 ledId;
+    bool isUpperPowerLed = false;
+
+    if (pix.y < 234.0) {
+      // Zone 1: Switches (Canvas Y: 48 to 234)
+      float swRow = floor((pix.y - 48.0) / 46.0);
+      float swCol = floor((pix.x - 76.0) / 25.0);
+      ledId = vec2(swCol, swRow);
+    } else if (pix.y < 974.0) {
+      // Zone 2: 2U Compute / NVMe Caddies (Canvas Y: 234 to 974)
+      float s = floor((pix.y - 234.0) / 92.5);
+      float localY = mod(pix.y - 234.0, 92.5);
+      float c = floor((pix.x - 100.0) / 58.0);
+      // Top LED is at localY ~ 21..24.5; Bottom LED is at localY ~ 33..36.5
+      // Split at 28.5 is strictly in the black gap between LEDs (ZERO slicing glitch!)
+      float r = (localY < 28.5) ? 0.0 : 1.0;
+      if (r < 0.5) {
+        isUpperPowerLed = true;
+      }
+      ledId = vec2(c, s * 2.0 + r + 10.0);
+    } else if (pix.y < 1618.0) {
+      // Zone 3: 1U Compute Blades (Canvas Y: 974 to 1618)
+      float b = floor((pix.y - 974.0) / 46.0);
+      float li = floor((pix.x - 680.0) / 24.0);
+      if (li < 0.5) {
+        isUpperPowerLed = true; // Blade PWR status indicator
+      }
+      ledId = vec2(li, b + 40.0);
+    } else {
+      // Zone 4: SAN Storage / Fans (Canvas Y: 1618 to 1802)
+      float r = floor((pix.y - 1618.0) / 28.0);
+      float c = floor((pix.x - 76.0) / 44.0);
+      ledId = vec2(c, r + 70.0);
+    }
+
+    vec2 rackSeed = floor(vRackWorldPos.xz * 2.0);
+    float h = rackHash(ledId + rackSeed * 17.31);
+    float h2 = rackHash(ledId * 2.3 + rackSeed * 31.7);
+
+    float ledMultiplier = 1.0;
+    if (isUpperPowerLed) {
+      // Upper Power / Presence indicators:
+      // 70% Steady Solid Green (authentic hardware power)
+      // 30% Smooth Breathing Heartbeat (calm, elegant, zero-jitter)
+      if (h < 0.70) {
+        ledMultiplier = 1.0;
+      } else {
+        float breath = 0.5 + 0.5 * sin(uTime * 2.5 + h * 6.28);
+        ledMultiplier = mix(0.30, 1.30, breath);
+      }
+    } else {
+      // Lower LEDs: Drive Activity / Network / Bus Traffic
+      // Smooth, natural optical waveforms (eliminates harsh 1-frame strobe noise)
+      if (h < 0.15) {
+        // 15% Steady idle link
+        ledMultiplier = 1.0;
+      } else if (h < 0.60) {
+        // 45% Dynamic Traffic Bursts: rhythmic burst envelope + smooth optical pulse train
+        float cyclePeriod = 1.2 + fract(h * 3.71) * 0.8;
+        float burstPhase = fract((uTime + h * 13.0) / cyclePeriod);
+        float inBurst = smoothstep(0.0, 0.05, burstPhase) * (1.0 - smoothstep(0.35, 0.42, burstPhase));
+        float pulseSpeed = 6.0 + fract(h2 * 5.1) * 4.0;
+        float pulse = 0.5 + 0.5 * sin(uTime * pulseSpeed);
+        float wave = inBurst * pulse;
+        ledMultiplier = mix(0.18, 1.45, wave);
+      } else if (h < 0.85) {
+        // 25% Continuous Data Streaming (smooth continuous optical wave)
+        float speed = 3.5 + fract(h * 4.3) * 3.0;
+        float pulse = 0.5 + 0.5 * sin(uTime * speed + h * 6.28);
+        pulse = pulse * pulse;
+        ledMultiplier = mix(0.18, 1.40, pulse);
+      } else {
+        // 15% System Heartbeat / Sync
+        float pulse = 0.5 + 0.5 * sin(uTime * 3.0 + h * 6.28);
+        ledMultiplier = mix(0.20, 1.35, pulse);
+      }
+    }
+
+    totalEmissiveRadiance *= ledMultiplier;
+  }
+#endif`
+      );
+    };
 
     // Monitor screen displays (Self-Illuminating!)
     // Preserved classic BSOD material
@@ -6840,6 +7623,7 @@ export class WarehouseBuilder {
       stanchionPosts: [],
       stanchionHardware: [],
       stanchionBelts: [],
+      serverCabinet: [],
       serverChassis: [],
       silverTrim: [],
       deskSurface: [],
@@ -7142,6 +7926,7 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.stanchionPosts, material: this.stanchionPostMaterial, name: 'DC_StanchionPosts' },
       { bucket: visualBuckets.stanchionHardware, material: this.stanchionHardwareMaterial, name: 'DC_StanchionHardware' },
       { bucket: visualBuckets.stanchionBelts, material: this.stanchionBeltMaterial, name: 'DC_StanchionBelts' },
+      { bucket: visualBuckets.serverCabinet, material: this.serverCabinetMaterial, name: 'DC_ServerCabinet' },
       { bucket: visualBuckets.serverChassis, material: this.serverChassisMaterial, name: 'DC_Chassis' },
       { bucket: visualBuckets.silverTrim, material: this.silverTrimMaterial, name: 'DC_SilverTrim' },
       { bucket: visualBuckets.deskSurface, material: this.deskSurfaceMaterial, name: 'DC_DeskSurfaces' },
@@ -7215,6 +8000,11 @@ export class WarehouseBuilder {
           mergedGeo.computeBoundingSphere();
           const mesh = new THREE.Mesh(mergedGeo, def.material);
           mesh.name = def.name;
+          if (def.name === 'DC_ServerBlades') {
+            mesh.onBeforeRender = () => {
+              this.serverRackBladeUniforms.uTime.value = performance.now() * 0.001;
+            };
+          }
           group.add(mesh);
         } else {
           console.error(`[WarehouseBuilder] mergeGeometries failed for bucket ${def.name}`);
@@ -7263,9 +8053,9 @@ export class WarehouseBuilder {
     const d = 0.80;
     const centerY = baseY + h / 2;
 
-    // 1. Cabinet Chassis (Industrial Gunmetal Slate 0x363d47)
+    // 1. Cabinet Chassis (Dark brushed steel rack side panels #1c2028, roughness: 0.45, metalness: 0.55)
     const chassisGeo = new THREE.BoxGeometry(w, h, d);
-    addPart(visualBuckets.serverChassis, chassisGeo, x, centerY, z, 0, rotY, 0, true);
+    addPart(visualBuckets.serverCabinet, chassisGeo, x, centerY, z, 0, rotY, 0, true);
     chassisGeo.dispose();
 
     // 2. Brushed Silver-Grey Frame Trim around front door (0x6c7685)

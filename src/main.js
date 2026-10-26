@@ -34,7 +34,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const player = new PlayerController(engine.camera, input);
   player.setCollider(warehouse.playerColliderMesh || colliderMesh);
-  player.teleport(0, 0.1, -7.0);
+  player.teleport(0, 0.0, -3.0);
+  player.yaw = Math.PI;
+  player.pitch = 0.0;
+  window.__rocPlayer = player;
 
   const viewmodel = new WeaponViewmodel(engine.camera, sound);
 
