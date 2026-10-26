@@ -7894,11 +7894,12 @@ float rackHash(vec2 p) {
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, 9.2, 0.0, -8.8);
 
     // Zone B: 42U Server Racks
-    // Back Wall Server Racks: Full row of 8 massive cabinets across Z = 12.8 facing -Z!
-    // Stood directly ON TOP of the raised platform at baseY = platH (0.35m)!
+    // Back Wall Server Racks: Full row of 8 massive cabinets across Z = 12.52 facing -Z!
+    // Stood directly ON TOP of the raised platform at baseY = platH (0.35m), with 8cm rear wall clearance!
     const backRackX = [-5.6, -4.0, -2.4, -0.8, 0.8, 2.4, 4.0, 5.6];
+    const backRackZ = 12.52; // Rear face at Z = 12.92, wall at Z = 13.00 -> Clean, unclipped clearance
     for (const rx of backRackX) {
-      this._buildServerCabinet(addPart, addVisual, visualBuckets, rx, 12.8, 0, platH); // rotY = 0 faces -Z, on platform!
+      this._buildServerCabinet(addPart, addVisual, visualBuckets, rx, backRackZ, 0, platH); // rotY = 0 faces -Z, on platform!
     }
 
     // Left Wall Server Racks: 4 cabinets angled at 35° toward player on the lower floor
