@@ -1845,7 +1845,2991 @@ function createMonitorScreenAtlasTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+// ---------------------------------------------------------------------------
+// High-Resolution Procedural 16:9 Screen Textures (1024x576)
+// ---------------------------------------------------------------------------
+
+/**
+ * Procedural Windows 11 Sunrise Mountain Lake Landscape Wallpaper (1024x576 widescreen).
+ * Exact composition, lighting, and color palette of the Windows 11 Sunrise Mountain Lake wallpaper:
+ * - Clear morning sky & low glowing sun (cx = 504, cy = 288) with soft atmospheric solar bloom
+ * - Left snowy mountain ridge, dense evergreen pine forest belt, and sunlit frosted snow bluff (x = 0 to 590)
+ * - Far-right distant misty headland (x = 770 to 1024, y = 298 to 345)
+ * - Glassy turquoise-teal alpine lake (y = 345 to 576) with inverted mountain reflections and sun shimmer column
+ * - Right foreground golden-reed coastal spit and terraced lush green grass banks (x = 595 to 1024, y = 358 to 515)
+ */
+function drawWindows11BloomWallpaper(ctx, width = 1024, height = 576) {
+  const horizonY = 345;
+
+  // =========================================================================
+  // 1. CLEAR MORNING SKY & LOW GLOWING SUN (y = 0 to 345)
+  // =========================================================================
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, horizonY);
+  skyGrad.addColorStop(0, '#a3c6da'); // Soft powder-blue at top
+  skyGrad.addColorStop(160 / horizonY, '#bedae8');
+  skyGrad.addColorStop(280 / horizonY, '#dceef2'); // Warm misty pale-cyan
+  skyGrad.addColorStop(1, '#eef5f4'); // Warm ivory horizon glow
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, width, horizonY);
+
+  // Soft atmospheric solar bloom behind and around the sun (cx = 504, cy = 288)
+  const sunX = 504;
+  const sunY = 288;
+  const sunBloom = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, 150);
+  sunBloom.addColorStop(0, 'rgba(255, 255, 250, 0.85)');
+  sunBloom.addColorStop(0.2, 'rgba(255, 252, 240, 0.55)');
+  sunBloom.addColorStop(0.55, 'rgba(255, 248, 230, 0.18)');
+  sunBloom.addColorStop(1, 'rgba(255, 248, 230, 0)');
+  ctx.fillStyle = sunBloom;
+  ctx.fillRect(sunX - 150, sunY - 150, 300, 300);
+
+  // Brilliant pure-white solar disc (cx = 504, cy = 288, radius = 27px)
+  ctx.save();
+  ctx.shadowColor = 'rgba(255, 255, 245, 0.9)';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(sunX, sunY, 27, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // =========================================================================
+  // 2. FAR-RIGHT DISTANT MISTY HEADLAND (x = 770 to 1024, y = 298 to 345)
+  // =========================================================================
+  ctx.save();
+  // Back distant hazy ridge
+  const backRightGrad = ctx.createLinearGradient(840, 345, 1024, 285);
+  backRightGrad.addColorStop(0, '#d8cbcf');
+  backRightGrad.addColorStop(1, '#b4c4d2');
+  ctx.fillStyle = backRightGrad;
+  ctx.beginPath();
+  ctx.moveTo(840, horizonY);
+  ctx.bezierCurveTo(890, 335, 940, 318, 980, 305);
+  ctx.bezierCurveTo(1000, 298, 1015, 292, 1024, 288);
+  ctx.lineTo(1024, horizonY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Foreground distant headland: dusty rose-taupe base -> pale slate upper ridge
+  const rightHeadlandGrad = ctx.createLinearGradient(770, horizonY, 1024, 298);
+  rightHeadlandGrad.addColorStop(0, '#d5c5c8');
+  rightHeadlandGrad.addColorStop(0.45, '#c5b7bc');
+  rightHeadlandGrad.addColorStop(0.8, '#b6c3cd');
+  rightHeadlandGrad.addColorStop(1, '#aebdca');
+  ctx.fillStyle = rightHeadlandGrad;
+  ctx.beginPath();
+  ctx.moveTo(770, horizonY);
+  ctx.bezierCurveTo(805, 342, 835, 336, 868, 333);
+  ctx.bezierCurveTo(900, 330, 930, 322, 965, 312);
+  ctx.bezierCurveTo(990, 305, 1010, 301, 1024, 298);
+  ctx.lineTo(1024, horizonY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle snow facets and shadowed gullies on the right headland
+  ctx.strokeStyle = 'rgba(245, 240, 242, 0.45)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(880, 333);
+  ctx.lineTo(920, 325);
+  ctx.moveTo(945, 318);
+  ctx.lineTo(995, 304);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(150, 165, 180, 0.35)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(895, 335);
+  ctx.lineTo(915, 342);
+  ctx.moveTo(960, 320);
+  ctx.lineTo(978, 334);
+  ctx.stroke();
+  ctx.restore();
+
+  // =========================================================================
+  // 3. LEFT SNOWY MOUNTAIN RIDGE, PINE FOREST BELT & SUNLIT BLUFF
+  // =========================================================================
+  // A. Upper Snowy Peaks (x = 0, y = 140 sloping down to x = 440, y = 335)
+  ctx.save();
+  // Layer 1: Background Distant Ridge & Glacial Dome
+  const backPeakGrad = ctx.createLinearGradient(0, 130, 440, 335);
+  backPeakGrad.addColorStop(0, '#8aa9be');
+  backPeakGrad.addColorStop(0.45, '#b0c8d8');
+  backPeakGrad.addColorStop(0.85, '#d0e0eb');
+  backPeakGrad.addColorStop(1, '#e4eef4');
+  ctx.fillStyle = backPeakGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 135);
+  ctx.bezierCurveTo(20, 130, 45, 145, 70, 160);
+  ctx.bezierCurveTo(100, 175, 120, 170, 150, 190);
+  ctx.bezierCurveTo(180, 210, 210, 225, 250, 250);
+  ctx.bezierCurveTo(290, 275, 340, 295, 390, 315);
+  ctx.bezierCurveTo(415, 325, 430, 330, 440, 335);
+  ctx.lineTo(440, horizonY);
+  ctx.lineTo(0, horizonY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Layer 2: Main Mountain Rocky Ridges & Sunlit Glaciers
+  const mainPeakGrad = ctx.createLinearGradient(0, 145, 420, 335);
+  mainPeakGrad.addColorStop(0, '#97b3c6');
+  mainPeakGrad.addColorStop(0.4, '#c5dae6');
+  mainPeakGrad.addColorStop(0.8, '#dceaf2');
+  mainPeakGrad.addColorStop(1, '#eaf2f7');
+  ctx.fillStyle = mainPeakGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 150);
+  ctx.bezierCurveTo(25, 155, 55, 172, 85, 182);
+  ctx.bezierCurveTo(115, 192, 145, 198, 175, 215);
+  ctx.bezierCurveTo(215, 235, 255, 258, 305, 282);
+  ctx.bezierCurveTo(355, 305, 400, 322, 435, 335);
+  ctx.lineTo(435, horizonY);
+  ctx.lineTo(0, horizonY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Layer 3: Sunlit Glacial Bulges & Facets facing the morning sun
+  const facetGrad = ctx.createLinearGradient(0, 150, 300, 260);
+  facetGrad.addColorStop(0, '#ffffff');
+  facetGrad.addColorStop(0.5, '#e2eef6');
+  facetGrad.addColorStop(1, '#bcd2e2');
+  ctx.fillStyle = facetGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 170);
+  ctx.bezierCurveTo(35, 165, 70, 185, 100, 198);
+  ctx.bezierCurveTo(130, 210, 160, 215, 190, 232);
+  ctx.bezierCurveTo(220, 248, 250, 262, 275, 275);
+  ctx.lineTo(260, 290);
+  ctx.bezierCurveTo(190, 265, 120, 235, 0, 205);
+  ctx.closePath();
+  ctx.fill();
+
+  // Diagonal snow ridge highlights
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(10, 155); ctx.bezierCurveTo(40, 165, 65, 178, 90, 186);
+  ctx.moveTo(105, 192); ctx.bezierCurveTo(135, 202, 165, 212, 195, 226);
+  ctx.moveTo(205, 232); ctx.bezierCurveTo(245, 250, 280, 270, 325, 292);
+  ctx.moveTo(335, 298); ctx.bezierCurveTo(370, 314, 405, 325, 430, 334);
+  ctx.stroke();
+
+  // Subtle diagonal snow ridges & cool crevasse shadow streaks
+  ctx.strokeStyle = 'rgba(120, 145, 168, 0.42)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.moveTo(35, 175); ctx.lineTo(70, 198);
+  ctx.moveTo(110, 205); ctx.lineTo(150, 230);
+  ctx.moveTo(180, 238); ctx.lineTo(225, 264);
+  ctx.moveTo(260, 272); ctx.lineTo(305, 298);
+  ctx.stroke();
+  ctx.restore();
+
+  // B. Mid-Slope Evergreen Pine Forest Belt (x = 0, y = 190-260 down to x = 465, y = 335)
+  ctx.save();
+  // 1. Base dark forest silhouette filling the wide terrace band
+  const forestBeltGrad = ctx.createLinearGradient(0, 190, 465, 335);
+  forestBeltGrad.addColorStop(0, '#16281a');
+  forestBeltGrad.addColorStop(0.5, '#1e3421');
+  forestBeltGrad.addColorStop(1, '#2b472c');
+  ctx.fillStyle = forestBeltGrad;
+  ctx.beginPath();
+  // Top boundary of tree belt
+  ctx.moveTo(0, 195);
+  ctx.bezierCurveTo(45, 205, 95, 222, 150, 242);
+  ctx.bezierCurveTo(210, 265, 280, 288, 350, 308);
+  ctx.bezierCurveTo(395, 320, 435, 328, 465, 335);
+  // Bottom boundary of tree belt where it meets foreground snow
+  ctx.lineTo(465, 340);
+  ctx.bezierCurveTo(410, 336, 340, 325, 260, 308);
+  ctx.bezierCurveTo(170, 290, 80, 268, 0, 258);
+  ctx.closePath();
+  ctx.fill();
+
+  const drawPineTree = (tx, ty, th, tw, color) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(tx, ty - th);
+    ctx.lineTo(tx + tw * 0.5, ty);
+    ctx.lineTo(tx - tw * 0.5, ty);
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 2. Carpet the entire terrace with dense overlapping pine trees (500+ trees across multiple rows)
+  for (let step = 0; step < 520; step++) {
+    const tRatio = step / 520;
+    const baseX = tRatio * 465;
+    // Top crest of trees at this x
+    const topY = 195 + Math.pow(tRatio, 0.88) * 140;
+    // Bottom edge of trees at this x
+    const botY = 258 + Math.pow(tRatio, 0.88) * 82;
+    const bandHeight = Math.max(8, botY - topY);
+
+    // Multi-row distribution
+    const pseudoA = Math.sin(step * 12.9898 + 4.12);
+    const pseudoB = Math.cos(step * 78.233 + 1.67);
+    const pseudoC = Math.sin(step * 45.164 + 9.81);
+
+    const verticalFraction = (pseudoA * 0.5 + 0.5);
+    const treeY = topY + verticalFraction * bandHeight;
+    const treeH = 6 + (pseudoB * 0.5 + 0.5) * 12 * (1 - tRatio * 0.4);
+    const treeW = 2.8 + (pseudoC * 0.5 + 0.5) * 3.2;
+
+    // Background darker tree
+    drawPineTree(baseX + pseudoB * 2, treeY, treeH, treeW, '#16281a');
+
+    // Mid forest foliage
+    if (step % 2 === 0) {
+      drawPineTree(baseX + 1, treeY + 1, treeH * 0.85, treeW * 0.85, '#233c26');
+    }
+    // Sunlit golden-olive tip where morning sunlight grazes the tops
+    if (step % 3 === 0) {
+      drawPineTree(baseX + 0.5, treeY - treeH * 0.35, treeH * 0.45, treeW * 0.55, '#4f693e');
+    }
+  }
+
+  // Soft morning mist/haze drifting across lower half of tree line
+  const treeMist = ctx.createLinearGradient(0, 240, 465, 335);
+  treeMist.addColorStop(0, 'rgba(235, 225, 220, 0.16)');
+  treeMist.addColorStop(0.5, 'rgba(235, 225, 220, 0.32)');
+  treeMist.addColorStop(1, 'rgba(250, 240, 235, 0.42)');
+  ctx.fillStyle = treeMist;
+  ctx.beginPath();
+  ctx.moveTo(0, 245);
+  ctx.bezierCurveTo(90, 265, 180, 290, 270, 312);
+  ctx.bezierCurveTo(340, 325, 410, 333, 465, 335);
+  ctx.lineTo(465, 345);
+  ctx.lineTo(0, 275);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  // C. Lower Foreground Snowy/Frosted Slope (x = 0, y = 255 tapering down to lake at x = 590, y = 345)
+  ctx.save();
+  const snowSlopeGrad = ctx.createLinearGradient(0, 255, 590, horizonY);
+  snowSlopeGrad.addColorStop(0, '#eae8ed'); // Soft warm-tinted snow top crest
+  snowSlopeGrad.addColorStop(0.35, '#dde3eb');
+  snowSlopeGrad.addColorStop(0.7, '#cdd6e0'); // Mid-slope frost shadow
+  snowSlopeGrad.addColorStop(1, '#9eb2c4'); // Water's edge shadow
+  ctx.fillStyle = snowSlopeGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 255);
+  ctx.bezierCurveTo(80, 268, 170, 290, 260, 310);
+  ctx.bezierCurveTo(350, 325, 440, 336, 520, 342);
+  ctx.bezierCurveTo(550, 344, 575, 345, 590, horizonY);
+  ctx.lineTo(590, horizonY);
+  ctx.lineTo(0, horizonY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Rolling snow drift highlights along the crest
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.lineWidth = 2.2;
+  ctx.beginPath();
+  ctx.moveTo(0, 256);
+  ctx.bezierCurveTo(80, 269, 170, 291, 260, 311);
+  ctx.bezierCurveTo(350, 326, 440, 337, 520, 342.5);
+  ctx.bezierCurveTo(550, 344.5, 575, 345, 590, horizonY);
+  ctx.stroke();
+
+  // Frost texture ripples on the snow embankment
+  ctx.strokeStyle = 'rgba(180, 198, 214, 0.45)';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(30, 275); ctx.bezierCurveTo(90, 286, 150, 302, 210, 316);
+  ctx.moveTo(120, 300); ctx.bezierCurveTo(180, 312, 240, 324, 310, 331);
+  ctx.moveTo(250, 322); ctx.bezierCurveTo(320, 330, 390, 337, 470, 342);
+  ctx.stroke();
+  ctx.restore();
+
+  // =========================================================================
+  // 4. GLASSY TURQUOISE-TEAL ALPINE LAKE & MIRROR REFLECTIONS (y = 345 to 576)
+  // =========================================================================
+  ctx.save();
+  // Water Base Gradient: #86bac8 at horizon -> #4294ab center -> #185a70 deep teal in foreground
+  const waterGrad = ctx.createLinearGradient(0, horizonY, 0, height);
+  waterGrad.addColorStop(0, '#86bac8'); // Misty horizon line
+  waterGrad.addColorStop(0.12, '#62a8ba');
+  waterGrad.addColorStop(0.38, '#4294ab'); // Glowing turquoise center
+  waterGrad.addColorStop(0.72, '#28758c');
+  waterGrad.addColorStop(1, '#185a70'); // Deep teal in bottom foreground
+  ctx.fillStyle = waterGrad;
+  ctx.fillRect(0, horizonY, width, height - horizonY);
+
+  // Inverted Mountain & Forest Reflection (x = 0 to 430, y = 345 to 485)
+  // Mirror reflection of the dark forest and mountain slope
+  const reflGrad = ctx.createLinearGradient(0, horizonY, 0, 485);
+  reflGrad.addColorStop(0, 'rgba(19, 56, 68, 0.72)');
+  reflGrad.addColorStop(0.45, 'rgba(28, 77, 92, 0.58)');
+  reflGrad.addColorStop(0.8, 'rgba(35, 95, 112, 0.28)');
+  reflGrad.addColorStop(1, 'rgba(40, 110, 130, 0)');
+  ctx.fillStyle = reflGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, horizonY);
+  ctx.bezierCurveTo(80, 385, 150, 435, 200, 465);
+  ctx.bezierCurveTo(240, 485, 280, 478, 320, 440);
+  ctx.bezierCurveTo(360, 405, 395, 370, 435, horizonY);
+  ctx.closePath();
+  ctx.fill();
+
+  // Soft vertical reflection ripples
+  ctx.fillStyle = 'rgba(19, 56, 68, 0.28)';
+  for (let rx = 10; rx < 360; rx += 4) {
+    const rHeight = 35 + Math.sin(rx * 0.08) * 22 + Math.cos(rx * 0.15) * 12;
+    ctx.fillRect(rx, horizonY, 2.5, rHeight);
+  }
+
+  // Fine horizontal glassy water-ripple lines breaking up lower reflection edge
+  ctx.strokeStyle = 'rgba(120, 195, 210, 0.42)';
+  ctx.lineWidth = 1.2;
+  for (let ry = horizonY + 5; ry < 485; ry += 4) {
+    const rw = 70 + Math.sin(ry * 0.25) * 45;
+    const rx = 20 + Math.cos(ry * 0.18) * 20;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + rw, ry);
+    ctx.stroke();
+  }
+
+  // Soft sun shimmer column directly below the sun (x = 450 to 555, y = 345 to 460)
+  const shimmerGrad = ctx.createLinearGradient(sunX - 55, 0, sunX + 55, 0);
+  shimmerGrad.addColorStop(0, 'rgba(225, 250, 255, 0)');
+  shimmerGrad.addColorStop(0.3, 'rgba(225, 250, 255, 0.22)');
+  shimmerGrad.addColorStop(0.5, 'rgba(240, 253, 255, 0.38)');
+  shimmerGrad.addColorStop(0.7, 'rgba(225, 250, 255, 0.22)');
+  shimmerGrad.addColorStop(1, 'rgba(225, 250, 255, 0)');
+  ctx.fillStyle = shimmerGrad;
+  ctx.fillRect(sunX - 55, horizonY, 110, 115);
+
+  // Horizontal glint ripples along the sun shimmer column
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.65)';
+  for (let sy = horizonY + 2; sy < 460; sy += 4) {
+    const progress = (sy - horizonY) / 115;
+    const sw = (28 + Math.sin(sy * 0.6) * 18) * (1 - progress * 0.45);
+    const sox = sunX + Math.sin(sy * 0.4) * 6;
+    ctx.lineWidth = 1 + (1 - progress) * 0.6;
+    ctx.beginPath();
+    ctx.moveTo(sox - sw * 0.5, sy);
+    ctx.lineTo(sox + sw * 0.5, sy);
+    ctx.stroke();
+  }
+
+  // Crisp horizon shoreline line separating land from water (y = 345)
+  ctx.strokeStyle = '#3a6b7c';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(0, horizonY);
+  ctx.lineTo(width, horizonY);
+  ctx.stroke();
+  ctx.restore();
+
+  // =========================================================================
+  // 5. RIGHT FOREGROUND GOLDEN-REED & LUSH GREEN MEADOW PENINSULA
+  //    (x = 595 to 1024, y = 358 to 515)
+  // =========================================================================
+  ctx.save();
+  // A. Upper Golden Reed Spit (x = 595, y = 404 out to x = 1024, y = 358)
+  const reedGrad = ctx.createLinearGradient(600, 404, 1024, 358);
+  reedGrad.addColorStop(0, '#decab0'); // Warm sunlit wheat/tan
+  reedGrad.addColorStop(0.45, '#c9b190');
+  reedGrad.addColorStop(0.8, '#bfa480');
+  reedGrad.addColorStop(1, '#a88d6b');
+  ctx.fillStyle = reedGrad;
+  ctx.beginPath();
+  ctx.moveTo(595, 404); // Tip of the spit
+  ctx.bezierCurveTo(680, 396, 780, 382, 890, 368);
+  ctx.bezierCurveTo(940, 362, 985, 360, 1024, 358);
+  ctx.lineTo(1024, 420);
+  ctx.bezierCurveTo(940, 422, 850, 424, 760, 420);
+  ctx.bezierCurveTo(690, 418, 630, 412, 595, 404); // Bottom contour
+  ctx.closePath();
+  ctx.fill();
+
+  // Shoreline shadow along golden spit
+  ctx.strokeStyle = '#8c7355';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(595, 404);
+  ctx.bezierCurveTo(680, 396, 780, 382, 890, 368);
+  ctx.bezierCurveTo(940, 362, 985, 360, 1024, 358);
+  ctx.stroke();
+
+  // Fine short vertical & diagonal reed texture strokes
+  for (let r = 0; r < 240; r++) {
+    const rx = 605 + Math.random() * 415;
+    const norm = (rx - 595) / 429;
+    const topY = 404 - norm * 44;
+    const ry = topY + 2 + Math.random() * 22;
+    const rLen = 3 + Math.random() * 4.5;
+    const rAngle = -0.15 + (Math.random() - 0.5) * 0.35;
+    ctx.strokeStyle = r % 2 === 0 ? '#f2e5d0' : (r % 3 === 0 ? '#c4ab82' : '#8c7355');
+    ctx.lineWidth = 0.85;
+    ctx.beginPath();
+    ctx.moveTo(rx, ry);
+    ctx.lineTo(rx + Math.sin(rAngle) * rLen, ry - Math.cos(rAngle) * rLen);
+    ctx.stroke();
+  }
+
+  // B. Lower Terraced Green Grass Banks (x = 755 to 1024, y = 408 to 512)
+  // Tier 1: Upper Green Meadow Bank
+  const grassTier1Grad = ctx.createLinearGradient(755, 412, 1024, 465);
+  grassTier1Grad.addColorStop(0, '#65833d'); // Sunlit top meadow green
+  grassTier1Grad.addColorStop(0.55, '#486328'); // Mid foliage green
+  grassTier1Grad.addColorStop(1, '#344b1c'); // Shadowed contour
+  ctx.fillStyle = grassTier1Grad;
+  ctx.beginPath();
+  ctx.moveTo(755, 418);
+  ctx.bezierCurveTo(775, 432, 805, 448, 850, 452);
+  ctx.bezierCurveTo(910, 456, 965, 446, 1024, 436);
+  ctx.lineTo(1024, 475);
+  ctx.bezierCurveTo(940, 478, 860, 472, 800, 454);
+  ctx.bezierCurveTo(775, 442, 760, 428, 755, 418);
+  ctx.closePath();
+  ctx.fill();
+
+  // Tier 2: Lower Stepped Waterfront Grass Bank
+  const grassTier2Grad = ctx.createLinearGradient(810, 455, 1024, 512);
+  grassTier2Grad.addColorStop(0, '#53742d');
+  grassTier2Grad.addColorStop(0.5, '#3a531e');
+  grassTier2Grad.addColorStop(1, '#2c4016'); // Shadowed water's edge
+  ctx.fillStyle = grassTier2Grad;
+  ctx.beginPath();
+  ctx.moveTo(815, 454);
+  ctx.bezierCurveTo(835, 474, 875, 492, 930, 504);
+  ctx.bezierCurveTo(965, 510, 995, 506, 1024, 498);
+  ctx.lineTo(1024, 524);
+  ctx.lineTo(920, 524);
+  ctx.bezierCurveTo(870, 515, 835, 490, 815, 454);
+  ctx.closePath();
+  ctx.fill();
+
+  // Fine organic grass-blade texture strokes along contoured terrace rims
+  for (let g = 0; g < 220; g++) {
+    const gx = 760 + Math.random() * 260;
+    const tier = g % 2 === 0 ? 1 : 2;
+    let gy = 422 + (gx - 760) * 0.18 + Math.random() * 16;
+    if (tier === 2 && gx > 815) {
+      gy = 458 + (gx - 815) * 0.22 + Math.random() * 22;
+    }
+    const gLen = 3.5 + Math.random() * 4.5;
+    const gAngle = (Math.random() - 0.45) * 0.5;
+    ctx.strokeStyle = g % 3 === 0 ? '#7da34c' : (g % 2 === 0 ? '#486328' : '#2c4016');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(gx, gy);
+    ctx.lineTo(gx + Math.sin(gAngle) * gLen, gy - Math.cos(gAngle) * gLen);
+    ctx.stroke();
+  }
+
+  // Dark shoreline shadow rim & wet water reflection line where grass meets lake
+  ctx.strokeStyle = 'rgba(26, 56, 40, 0.65)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.moveTo(815, 454);
+  ctx.bezierCurveTo(835, 474, 875, 492, 930, 504);
+  ctx.bezierCurveTo(965, 510, 995, 506, 1024, 498);
+  ctx.stroke();
+
+  ctx.strokeStyle = 'rgba(180, 235, 245, 0.45)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(820, 456);
+  ctx.bezierCurveTo(840, 476, 880, 494, 932, 506);
+  ctx.bezierCurveTo(968, 512, 998, 508, 1024, 500);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawWindows11Taskbar(ctx, width = 1024, height = 576, activeApps = {}) {
+  const barY = 538;
+  const barH = 38;
+
+  // Frosted taskbar body
+  ctx.fillStyle = 'rgba(235, 243, 252, 0.94)';
+  ctx.fillRect(0, barY, width, barH);
+
+  // Top border line
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, barY + 0.5);
+  ctx.lineTo(width, barY + 0.5);
+  ctx.stroke();
+
+  // Helper for active indicator dot under an icon
+  const drawActiveDot = (centerX) => {
+    ctx.fillStyle = '#0078d4';
+    ctx.beginPath();
+    ctx.roundRect(centerX - 4, barY + barH - 4, 8, 3, 1.5);
+    ctx.fill();
+  };
+
+  // Centered Icons (Centered around x = 512)
+  const icons = [
+    { id: 'start', x: 370 },
+    { id: 'search', x: 406 },
+    { id: 'taskview', x: 442 },
+    { id: 'widgets', x: 478 },
+    { id: 'explorer', x: 514 },
+    { id: 'edge', x: 550 },
+    { id: 'terminal', x: 586 },
+    { id: 'excel', x: 622 },
+    { id: 'taskmgr', x: 658 }
+  ];
+
+  for (const ic of icons) {
+    const cx = ic.x + 13;
+    const cy = barY + 19;
+
+    if (ic.id === 'start') {
+      // 4 bright blue Windows Start squares
+      ctx.fillStyle = '#0078d4';
+      ctx.fillRect(cx - 9, cy - 9, 8, 8);
+      ctx.fillRect(cx + 1, cy - 9, 8, 8);
+      ctx.fillRect(cx - 9, cy + 1, 8, 8);
+      ctx.fillRect(cx + 1, cy + 1, 8, 8);
+    } else if (ic.id === 'search') {
+      // Search magnifier
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx + 2.5, cy + 2.5);
+      ctx.lineTo(cx + 7.5, cy + 7.5);
+      ctx.stroke();
+    } else if (ic.id === 'taskview') {
+      // Task view cards
+      ctx.fillStyle = '#64748b';
+      ctx.beginPath();
+      ctx.roundRect(cx - 8, cy - 6, 9, 12, 1.5);
+      ctx.fill();
+      ctx.fillStyle = '#475569';
+      ctx.beginPath();
+      ctx.roundRect(cx - 2, cy - 8, 10, 14, 1.5);
+      ctx.fill();
+    } else if (ic.id === 'widgets') {
+      // Weather widget
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.arc(cx - 1, cy - 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.arc(cx + 3, cy + 2, 5, 0, Math.PI * 2);
+      ctx.arc(cx - 3, cy + 4, 4, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (ic.id === 'explorer') {
+      // File Explorer folder
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.roundRect(cx - 9, cy - 6, 18, 14, 2);
+      ctx.fill();
+      ctx.fillStyle = '#0284c7';
+      ctx.beginPath();
+      ctx.roundRect(cx - 9, cy - 2, 18, 10, 2);
+      ctx.fill();
+      if (activeApps.explorer) drawActiveDot(cx);
+    } else if (ic.id === 'edge') {
+      // Edge browser swirl orb
+      const edgeGrad = ctx.createLinearGradient(cx - 8, cy - 8, cx + 8, cy + 8);
+      edgeGrad.addColorStop(0, '#0284c7');
+      edgeGrad.addColorStop(0.5, '#06b6d4');
+      edgeGrad.addColorStop(1, '#10b981');
+      ctx.fillStyle = edgeGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(cx - 2, cy - 2, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (ic.id === 'terminal') {
+      // Dark Terminal box with >_
+      ctx.fillStyle = '#1e293b';
+      ctx.beginPath();
+      ctx.roundRect(cx - 8, cy - 7, 16, 14, 2);
+      ctx.fill();
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 8px monospace';
+      ctx.fillText('>_', cx - 5, cy + 3);
+      if (activeApps.terminal) drawActiveDot(cx);
+    } else if (ic.id === 'excel') {
+      // Excel green box with X
+      ctx.fillStyle = '#16a34a';
+      ctx.beginPath();
+      ctx.roundRect(cx - 8, cy - 7, 16, 14, 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 9px sans-serif';
+      ctx.fillText('X', cx - 3, cy + 4);
+    } else if (ic.id === 'taskmgr') {
+      // Task Manager dark blue box with pulse
+      ctx.fillStyle = '#0f172a';
+      ctx.beginPath();
+      ctx.roundRect(cx - 8, cy - 7, 16, 14, 2);
+      ctx.fill();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(cx - 6, cy);
+      ctx.lineTo(cx - 2, cy - 4);
+      ctx.lineTo(cx + 1, cy + 4);
+      ctx.lineTo(cx + 6, cy);
+      ctx.stroke();
+      if (activeApps.taskmgr) drawActiveDot(cx);
+    }
+  }
+
+  // System Tray on Right
+  // Upward chevron ^
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.moveTo(830, barY + 22);
+  ctx.lineTo(834, barY + 17);
+  ctx.lineTo(838, barY + 22);
+  ctx.stroke();
+
+  // Language pill: ENG
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('ENG', 855, barY + 23);
+
+  // Wi-Fi icon (3 concentric arcs)
+  const wifiX = 895;
+  const wifiY = barY + 23;
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(wifiX, wifiY, 3, -0.8 * Math.PI, -0.2 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(wifiX, wifiY, 7, -0.8 * Math.PI, -0.2 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(wifiX, wifiY, 11, -0.8 * Math.PI, -0.2 * Math.PI); ctx.stroke();
+
+  // Speaker icon
+  const spkX = 922;
+  const spkY = barY + 20;
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.moveTo(spkX, spkY - 2);
+  ctx.lineTo(spkX + 4, spkY - 2);
+  ctx.lineTo(spkX + 8, spkY - 6);
+  ctx.lineTo(spkX + 8, spkY + 6);
+  ctx.lineTo(spkX + 4, spkY + 2);
+  ctx.lineTo(spkX, spkY + 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(spkX + 8, spkY, 4, -0.3 * Math.PI, 0.3 * Math.PI); ctx.stroke();
+  ctx.beginPath(); ctx.arc(spkX + 8, spkY, 7, -0.3 * Math.PI, 0.3 * Math.PI); ctx.stroke();
+
+  // Battery icon
+  const batX = 948;
+  const batY = barY + 15;
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(batX, batY, 14, 8);
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(batX + 14, batY + 2.5, 2, 3);
+  ctx.fillRect(batX + 2, batY + 2, 9, 4);
+
+  // Stacked Time & Date
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '500 11px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('11:05 AM', 974, barY + 17);
+  ctx.fillStyle = '#475569';
+  ctx.font = '500 9.5px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('26/10/2026', 974, barY + 29);
+
+  // Show desktop thin divider line
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(1020, barY + 8);
+  ctx.lineTo(1020, barY + barH - 8);
+  ctx.stroke();
+}
+
+/**
+ * Draws a desktop shortcut icon with a micro shortcut arrow badge and 2-line label.
+ */
+function drawDesktopShortcut(ctx, x, y, iconDrawer, label1, label2 = '') {
+  ctx.save();
+  iconDrawer(ctx, x, y);
+  ctx.restore();
+
+  // Micro label underneath with dark drop shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+  ctx.shadowBlur = 3;
+  ctx.shadowOffsetY = 1;
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '500 9.5px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(label1, x + 14, y + 40);
+  if (label2) {
+    ctx.fillText(label2, x + 14, y + 51);
+  }
+  ctx.restore();
+}
+
+function drawShortcutBadge(ctx, x, y) {
+  // Tiny 8x8 white square with dark arrow in lower-left corner
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+  ctx.beginPath();
+  ctx.roundRect(x - 2, y + 19, 9, 9, 2);
+  ctx.fill();
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(x + 1, y + 25);
+  ctx.lineTo(x + 4, y + 22);
+  ctx.lineTo(x + 1, y + 22);
+  ctx.stroke();
+}
+
+/**
+ * SCREEN A: Windows 11 "Bloom" Desktop Workspace (1024x576, 16:9 widescreen).
+ */
+function createWindows11DesktopTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Wallpaper & Bloom Sculpture
+  drawWindows11BloomWallpaper(ctx, 1024, 576);
+
+  // 2. Desktop Shortcut Icons (2 columns: x = 24 and x = 84)
+  // Column 1, Row 1 (x=24, y=22): Recycle Bin
+  drawDesktopShortcut(ctx, 24, 22, (c, x, y) => {
+    // Glass wastebasket
+    c.fillStyle = 'rgba(226, 232, 240, 0.75)';
+    c.strokeStyle = '#38bdf8';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.roundRect(x + 3, y + 4, 22, 20, [2, 2, 5, 5]);
+    c.fill();
+    c.stroke();
+    // Recycle arrows
+    c.strokeStyle = '#0284c7';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.arc(x + 14, y + 14, 5, 0, Math.PI * 1.5);
+    c.stroke();
+  }, 'Recycle Bin');
+
+  // Column 2, Row 1 (x=84, y=22): Discord
+  drawDesktopShortcut(ctx, 84, 22, (c, x, y) => {
+    c.fillStyle = '#5865f2';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    // Controller / Clyde face
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.arc(x + 10, y + 14, 2.8, 0, Math.PI * 2);
+    c.arc(x + 18, y + 14, 2.8, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#ffffff';
+    c.lineWidth = 1.8;
+    c.beginPath();
+    c.arc(x + 14, y + 15, 7, 0.2 * Math.PI, 0.8 * Math.PI);
+    c.stroke();
+    drawShortcutBadge(c, x, y);
+  }, 'Discord');
+
+  // Column 1, Row 2 (x=24, y=86): Game Launcher (Riot style)
+  drawDesktopShortcut(ctx, 24, 86, (c, x, y) => {
+    c.fillStyle = '#dc2626';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.moveTo(x + 7, y + 7);
+    c.lineTo(x + 21, y + 14);
+    c.lineTo(x + 7, y + 21);
+    c.closePath();
+    c.fill();
+    drawShortcutBadge(c, x, y);
+  }, 'Riot Client');
+
+  // Column 2, Row 2 (x=84, y=86): Epic Games
+  drawDesktopShortcut(ctx, 84, 86, (c, x, y) => {
+    c.fillStyle = '#1e1e24';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 8px sans-serif';
+    c.textAlign = 'center';
+    c.fillText('EPIC', x + 14, y + 17);
+    drawShortcutBadge(c, x, y);
+  }, 'Epic Games', 'Launcher');
+
+  // Column 1, Row 3 (x=24, y=150): Adobe Photoshop
+  drawDesktopShortcut(ctx, 24, 150, (c, x, y) => {
+    c.fillStyle = '#001e36';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    c.strokeStyle = '#31a8ff';
+    c.lineWidth = 1.5;
+    c.strokeRect(x + 1, y + 1, 26, 26);
+    c.fillStyle = '#31a8ff';
+    c.font = 'bold 12px sans-serif';
+    c.textAlign = 'center';
+    c.fillText('Ps', x + 14, y + 18);
+    drawShortcutBadge(c, x, y);
+  }, 'Adobe', 'Photoshop');
+
+  // Column 2, Row 3 (x=84, y=150): Steam / Driver
+  drawDesktopShortcut(ctx, 84, 150, (c, x, y) => {
+    const sGrad = c.createLinearGradient(x, y, x + 28, y + 28);
+    sGrad.addColorStop(0, '#171a21');
+    sGrad.addColorStop(1, '#1b2838');
+    c.fillStyle = sGrad;
+    c.beginPath();
+    c.arc(x + 14, y + 14, 14, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#66c0f4';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.arc(x + 16, y + 11, 4.5, 0, Math.PI * 2);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(x + 13, y + 13);
+    c.lineTo(x + 8, y + 19);
+    c.stroke();
+    drawShortcutBadge(c, x, y);
+  }, 'Steam');
+
+  // Column 1, Row 4 (x=24, y=214): Twitch
+  drawDesktopShortcut(ctx, 24, 214, (c, x, y) => {
+    c.fillStyle = '#9146ff';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.beginPath();
+    c.roundRect(x + 6, y + 6, 16, 14, 2);
+    c.fill();
+    c.fillStyle = '#9146ff';
+    c.fillRect(x + 10, y + 10, 2.5, 5);
+    c.fillRect(x + 15, y + 10, 2.5, 5);
+    drawShortcutBadge(c, x, y);
+  }, 'Twitch');
+
+  // Column 2, Row 4 (x=84, y=214): Battle.net
+  drawDesktopShortcut(ctx, 84, 214, (c, x, y) => {
+    c.fillStyle = '#0e3c82';
+    c.beginPath();
+    c.arc(x + 14, y + 14, 14, 0, Math.PI * 2);
+    c.fill();
+    c.strokeStyle = '#38bdf8';
+    c.lineWidth = 1.5;
+    c.beginPath();
+    c.arc(x + 14, y + 14, 8, 0, Math.PI * 1.5);
+    c.stroke();
+    drawShortcutBadge(c, x, y);
+  }, 'Battle.net');
+
+  // Column 1, Row 5 (x=24, y=278): Roblox Studio / 3D App
+  drawDesktopShortcut(ctx, 24, 278, (c, x, y) => {
+    c.fillStyle = '#00a2ff';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    c.fillStyle = '#ffffff';
+    c.save();
+    c.translate(x + 14, y + 14);
+    c.rotate(0.35);
+    c.fillRect(-6, -6, 12, 12);
+    c.fillStyle = '#00a2ff';
+    c.fillRect(-2.5, -2.5, 5, 5);
+    c.restore();
+    drawShortcutBadge(c, x, y);
+  }, 'Roblox', 'Studio');
+
+  // Column 2, Row 5 (x=84, y=278): Antigravity IDE
+  drawDesktopShortcut(ctx, 84, 278, (c, x, y) => {
+    c.fillStyle = '#1e1035';
+    c.beginPath();
+    c.roundRect(x, y, 28, 28, 6);
+    c.fill();
+    c.strokeStyle = '#38bdf8';
+    c.lineWidth = 1.8;
+    c.beginPath();
+    c.arc(x + 10, y + 14, 4, 0, Math.PI * 2);
+    c.arc(x + 18, y + 14, 4, 0, Math.PI * 2);
+    c.stroke();
+    drawShortcutBadge(c, x, y);
+  }, 'Antigravity');
+
+  // 3. Centered Frosted Taskbar
+  drawWindows11Taskbar(ctx, 1024, 576, { explorer: true });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * SCREEN B: Windows 11 "Glow" Lock Screen (1024x576, 16:9 widescreen).
+ */
+function createWindows11LockTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Deep Midnight Background (space-black -> dark-indigo)
+  const bgGrad = ctx.createLinearGradient(0, 0, 1024, 576);
+  bgGrad.addColorStop(0, '#03050a');
+  bgGrad.addColorStop(0.5, '#070b19');
+  bgGrad.addColorStop(1, '#140926');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, 1024, 576);
+
+  // 2. Glowing Planetary Sphere Centerpiece
+  const cx = 512;
+  const cy = 325;
+  const radius = 235;
+
+  // Ambient outer bloom around the bottom rim of sphere
+  const outerBloom = ctx.createRadialGradient(cx, cy + 220, 20, cx, cy + 220, 170);
+  outerBloom.addColorStop(0, 'rgba(255, 117, 143, 0.45)');
+  outerBloom.addColorStop(0.4, 'rgba(168, 85, 247, 0.28)');
+  outerBloom.addColorStop(0.8, 'rgba(99, 102, 241, 0.12)');
+  outerBloom.addColorStop(1, 'transparent');
+  ctx.fillStyle = outerBloom;
+  ctx.beginPath();
+  ctx.arc(cx, cy + 220, 170, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Draw Sphere interior
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.clip();
+
+  // Dark baseline sphere
+  const sphereBase = ctx.createLinearGradient(cx, cy - radius, cx, cy + radius);
+  sphereBase.addColorStop(0, '#040814');
+  sphereBase.addColorStop(0.6, '#081022');
+  sphereBase.addColorStop(1, '#0e0b24');
+  ctx.fillStyle = sphereBase;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+  // Electric Royal Blue Radial Light (Lower-left)
+  const blueLight = ctx.createRadialGradient(cx - 70, cy + 90, 20, cx - 70, cy + 90, 220);
+  blueLight.addColorStop(0, '#0088ff');
+  blueLight.addColorStop(0.35, '#0055d4');
+  blueLight.addColorStop(0.7, '#002288');
+  blueLight.addColorStop(1, 'transparent');
+  ctx.fillStyle = blueLight;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+  // Neon Violet/Purple Radial Light (Right outer crescent)
+  const purpleLight = ctx.createRadialGradient(cx + 120, cy + 60, 20, cx + 120, cy + 60, 200);
+  purpleLight.addColorStop(0, '#a855f7');
+  purpleLight.addColorStop(0.4, '#6b21a8');
+  purpleLight.addColorStop(0.75, '#3b0764');
+  purpleLight.addColorStop(1, 'transparent');
+  ctx.fillStyle = purpleLight;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+  // Horizon Warm Glow (Bottom rim)
+  const warmGlow = ctx.createRadialGradient(cx, cy + 230, 10, cx, cy + 230, 110);
+  warmGlow.addColorStop(0, '#ffe4cc');
+  warmGlow.addColorStop(0.25, '#ff9e80');
+  warmGlow.addColorStop(0.5, '#ff758f');
+  warmGlow.addColorStop(0.75, '#c084fc');
+  warmGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = warmGlow;
+  ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 2);
+
+  ctx.restore();
+
+  // Razor-sharp glowing rim arcs outside the clip
+  // Bottom warm horizon rim
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0.28 * Math.PI, 0.72 * Math.PI);
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = 'rgba(255, 215, 205, 0.95)';
+  ctx.shadowColor = '#ff758f';
+  ctx.shadowBlur = 14;
+  ctx.stroke();
+
+  // Right vibrant purple rim
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 1.88 * Math.PI, 0.28 * Math.PI);
+  ctx.lineWidth = 2.0;
+  ctx.strokeStyle = 'rgba(192, 132, 252, 0.85)';
+  ctx.shadowColor = '#a855f7';
+  ctx.shadowBlur = 12;
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Crisp Lock Screen Clock & Date (Upper-Center)
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
+  ctx.shadowBlur = 12;
+
+  // Digital Clock: 1:17
+  ctx.font = '600 96px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('1:17', 512, 135);
+
+  // Date: Monday, October 26
+  ctx.font = '500 22px "Segoe UI", Arial, sans-serif';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+  ctx.fillText('Monday, October 26', 512, 182);
+
+  // Micro Wi-Fi & Battery indicator at bottom-right
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(964, 538, 16, 9);
+  ctx.fillRect(980, 541, 2, 3);
+  ctx.fillRect(967, 541, 10, 4);
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * SCREEN C: Dark-Mode AI IDE Workspace (Antigravity / VS Code Style) (1024x576, 16:9 widescreen).
+ */
+function createAIIDEWorkspaceTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // Base background
+  ctx.fillStyle = '#141418';
+  ctx.fillRect(0, 0, 1024, 576);
+
+  // 1. Top Window Title Bar (h = 26px, #18181c)
+  ctx.fillStyle = '#18181c';
+  ctx.fillRect(0, 0, 1024, 26);
+  ctx.strokeStyle = '#26262e';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, 26.5); ctx.lineTo(1024, 26.5); ctx.stroke();
+
+  // Traffic light window dots
+  ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(14, 13, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(28, 13, 4.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#22c55e'; ctx.beginPath(); ctx.arc(42, 13, 4.5, 0, Math.PI * 2); ctx.fill();
+
+  // Window title
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '11px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('roc-and-load — WorldBuilder.js', 512, 17);
+
+  // Right layout icons
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 1.2;
+  ctx.strokeRect(960, 8, 14, 10);
+  ctx.strokeRect(982, 8, 14, 10);
+  ctx.strokeRect(1004, 8, 14, 10);
+  ctx.textAlign = 'left';
+
+  // 2. Left Activity Strip (x = 0 to 34, #141418)
+  ctx.fillStyle = '#141418';
+  ctx.fillRect(0, 26, 34, 528);
+  ctx.strokeStyle = '#23232b';
+  ctx.strokeRect(33.5, 26, 1, 528);
+
+  // File explorer icon
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 1.4;
+  ctx.strokeRect(9, 44, 15, 12);
+
+  // Search icon
+  ctx.beginPath(); ctx.arc(16, 76, 5, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(20, 80); ctx.lineTo(24, 84); ctx.stroke();
+
+  // Git Source Control (Active tab)
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(0, 96, 2.5, 26); // Active blue indicator strip
+  ctx.strokeStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(14, 103, 2.5, 0, Math.PI * 2);
+  ctx.arc(14, 115, 2.5, 0, Math.PI * 2);
+  ctx.arc(22, 109, 2.5, 0, Math.PI * 2);
+  ctx.stroke();
+  // Notification badge circle: 2
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.arc(24, 100, 5.5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('2', 24, 103);
+  ctx.textAlign = 'left';
+
+  // Debug run icon
+  ctx.fillStyle = '#6b7280';
+  ctx.beginPath();
+  ctx.moveTo(12, 134); ctx.lineTo(22, 140); ctx.lineTo(12, 146);
+  ctx.closePath(); ctx.fill();
+
+  // Settings gear at bottom
+  ctx.strokeStyle = '#6b7280';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath(); ctx.arc(17, 534, 5, 0, Math.PI * 2); ctx.stroke();
+
+  // 3. Left Sidebar: Source Control & Git Graph (x = 34 to 220, #19191f)
+  ctx.fillStyle = '#19191f';
+  ctx.fillRect(34, 26, 186, 528);
+  ctx.strokeStyle = '#26262e';
+  ctx.strokeRect(219.5, 26, 1, 528);
+
+  // Upper Source Control Pane (y = 26 to 270)
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('SOURCE CONTROL', 44, 44);
+
+  // Commit message input box
+  ctx.fillStyle = '#121216';
+  ctx.beginPath(); ctx.roundRect(42, 54, 168, 26, 4); ctx.fill();
+  ctx.strokeStyle = '#2e2e38'; ctx.stroke();
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Message (Enter to commit)', 48, 70);
+
+  // Royal-blue Commit button
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.roundRect(42, 86, 168, 24, 4); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('✓ Commit', 126, 102);
+  ctx.textAlign = 'left';
+
+  // Changes header
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('Changes', 44, 128);
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.roundRect(92, 120, 16, 12, 6); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8.5px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('2', 100, 129);
+  ctx.textAlign = 'left';
+
+  // File 1: WorldBuilder.js M
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 9.5px monospace';
+  ctx.fillText('JS', 44, 146);
+  ctx.fillStyle = '#e4e4e7';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('WorldBuilder.js', 62, 146);
+  ctx.fillStyle = '#f59e0b';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('M', 198, 146);
+
+  // File 2: EnemySpawner.js U
+  ctx.fillStyle = '#10b981';
+  ctx.font = 'bold 9.5px monospace';
+  ctx.fillText('JS', 44, 166);
+  ctx.fillStyle = '#e4e4e7';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('EnemySpawner.js', 62, 166);
+  ctx.fillStyle = '#22c55e';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('U', 198, 166);
+
+  // Lower Git Graph Pane (y = 270 to 554)
+  ctx.strokeStyle = '#26262e';
+  ctx.beginPath(); ctx.moveTo(34, 270); ctx.lineTo(220, 270); ctx.stroke();
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('GRAPH', 44, 288);
+
+  // 8 Git graph commit rows with branching track lines
+  const graphRows = [
+    { text: 'Merge PR #8571...', pill: 'main', dotCol: '#8b5cf6', trackCol: '#8b5cf6' },
+    { text: '[World] Add datacenter screens', dotCol: '#06b6d4', trackCol: '#06b6d4' },
+    { text: 'Merge PR #8569 from rj...', dotCol: '#ec4899', trackCol: '#ec4899' },
+    { text: '[World] Canvas filtering', dotCol: '#3b82f6', trackCol: '#3b82f6' },
+    { text: '[Dev] Telemetry metrics', dotCol: '#10b981', trackCol: '#10b981' },
+    { text: 'Merge PR #8562 from bn...', dotCol: '#8b5cf6', trackCol: '#8b5cf6' },
+    { text: '[Render] Anisotropy 8', dotCol: '#06b6d4', trackCol: '#06b6d4' },
+    { text: 'Merge PR #8555 from hj...', dotCol: '#ec4899', trackCol: '#ec4899' },
+  ];
+
+  let gy = 306;
+  for (let i = 0; i < graphRows.length; i++) {
+    const row = graphRows[i];
+    // Branch lane line
+    ctx.strokeStyle = row.trackCol;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(48, gy - 12);
+    ctx.lineTo(48, gy + 8);
+    ctx.stroke();
+
+    // Branch curve accent
+    if (i % 2 === 1) {
+      ctx.strokeStyle = '#ec4899';
+      ctx.beginPath();
+      ctx.moveTo(48, gy);
+      ctx.bezierCurveTo(54, gy, 58, gy + 4, 58, gy + 12);
+      ctx.stroke();
+    }
+
+    // Glowing commit dot
+    ctx.fillStyle = row.dotCol;
+    ctx.beginPath();
+    ctx.arc(48, gy - 2, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Commit message
+    ctx.fillStyle = '#d4d4d8';
+    ctx.font = '9px sans-serif';
+    ctx.fillText(row.text, 64, gy + 1);
+
+    // Pill badge for main
+    if (row.pill) {
+      ctx.fillStyle = '#8b5cf6';
+      ctx.beginPath(); ctx.roundRect(178, gy - 8, 30, 11, 4); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 7.5px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('main', 193, gy);
+      ctx.textAlign = 'left';
+    }
+
+    gy += 20;
+  }
+
+  // 4. Center Code Editor (x = 220 to 780, y = 26 to 390)
+  // Tab Bar (y = 26 to 54)
+  ctx.fillStyle = '#18181c';
+  ctx.fillRect(220, 26, 560, 28);
+  ctx.strokeStyle = '#23232b';
+  ctx.beginPath(); ctx.moveTo(220, 54); ctx.lineTo(780, 54); ctx.stroke();
+
+  // Active Tab: WorldBuilder.js
+  ctx.fillStyle = '#141418';
+  ctx.fillRect(220, 26, 140, 28);
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(220, 26, 140, 2); // Blue top line
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('WorldBuilder.js', 236, 43);
+  ctx.fillStyle = '#f59e0b';
+  ctx.beginPath(); ctx.arc(330, 40, 2.5, 0, Math.PI * 2); ctx.fill(); // Orange M dot
+  ctx.fillStyle = '#71717a';
+  ctx.fillText('×', 345, 43);
+
+  // Inactive Tabs
+  ctx.fillStyle = '#71717a';
+  ctx.fillText('main.js', 376, 43);
+  ctx.fillText('Walkthrough', 450, 43);
+  ctx.fillText('Implementation Plan', 550, 43);
+
+  // Breadcrumb bar (y = 54 to 70)
+  ctx.fillStyle = '#141418';
+  ctx.fillRect(220, 54, 560, 16);
+  ctx.fillStyle = '#71717a';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('src > world > WorldBuilder.js > _buildMonitor', 228, 66);
+
+  // Line Number Gutter & Code Lines (y = 70 to 390)
+  ctx.fillStyle = '#141418';
+  ctx.fillRect(220, 70, 560, 320);
+  ctx.strokeStyle = '#202026';
+  ctx.beginPath(); ctx.moveTo(252, 70); ctx.lineTo(252, 390); ctx.stroke();
+
+  const codeLines = [
+    { num: 18, tokens: [['#include ', '#c678dd'], ['"world/WorldBuilder.h"', '#98c379']] },
+    { num: 19, tokens: [['#include ', '#c678dd'], ['"render/CanvasTexture.h"', '#98c379']] },
+    { num: 20, tokens: [] },
+    { num: 21, tokens: [['using namespace ', '#c678dd'], ['world;', '#e5c07b']] },
+    { num: 22, tokens: [] },
+    { num: 23, tokens: [['namespace ', '#c678dd'], ['{', '#abb2bf']] },
+    { num: 24, tokens: [['  struct ', '#c678dd'], ['ScreenMetrics ', '#56b6c2'], ['{', '#abb2bf']] },
+    { num: 25, tokens: [['    const char ', '#c678dd'], ['*name;', '#e06c75']] },
+    { num: 26, tokens: [['    float ', '#56b6c2'], ['width;', '#e06c75']] },
+    { num: 27, tokens: [['    float ', '#56b6c2'], ['height;', '#e06c75']] },
+    { num: 28, tokens: [['  };', '#abb2bf']] },
+    { num: 29, tokens: [['  // End anonymous namespace', '#5c6370']] },
+    { num: 30, tokens: [] },
+    { num: 31, tokens: [['  static const ', '#c678dd'], ['ScreenMetrics ', '#56b6c2'], ['Default = {', '#abb2bf']] },
+    { num: 32, tokens: [['    "1024x576_Widescreen"', '#98c379'], [', ', '#abb2bf'], ['1024.0f', '#d19a66'], [', ', '#abb2bf'], ['576.0f', '#d19a66']] },
+    { num: 33, tokens: [['  };', '#abb2bf']] },
+    { num: 34, tokens: [] },
+    { num: 35, tokens: [['  bool ', '#56b6c2'], ['buildMonitorScreens', '#61afef'], ['(Warehouse &wh) {', '#abb2bf']] }
+  ];
+
+  let cyPos = 84;
+  for (const cl of codeLines) {
+    ctx.fillStyle = '#4b5563';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText(cl.num.toString(), 246, cyPos);
+    ctx.textAlign = 'left';
+
+    let cxPos = 260;
+    for (const [txt, col] of cl.tokens) {
+      ctx.fillStyle = col;
+      ctx.fillText(txt, cxPos, cyPos);
+      cxPos += ctx.measureText(txt).width;
+    }
+    cyPos += 14;
+  }
+
+  // Inline AI Diff Overlay (around line 36-38, y = 330 to 380)
+  // Red diff row (Line 36)
+  ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
+  ctx.fillRect(220, 328, 512, 16);
+  ctx.fillStyle = '#ef4444';
+  ctx.fillRect(220, 328, 3, 16);
+  ctx.fillStyle = '#ef4444';
+  ctx.font = '10px monospace';
+  ctx.fillText('36 -', 230, 340);
+  ctx.fillStyle = '#fca5a5';
+  ctx.fillText('   assert(screenId >= 0 && screenId < 4); // Old atlas quadrant', 260, 340);
+
+  // Green diff row (Line 37)
+  ctx.fillStyle = 'rgba(34, 197, 94, 0.18)';
+  ctx.fillRect(220, 345, 512, 16);
+  ctx.fillStyle = '#22c55e';
+  ctx.fillRect(220, 345, 3, 16);
+  ctx.fillStyle = '#22c55e';
+  ctx.font = '10px monospace';
+  ctx.fillText('37 +', 230, 357);
+  ctx.fillStyle = '#86efac';
+  ctx.fillText('   return setProceduralCanvasDisplay(ScreenType::Windows11Bloom);', 260, 357);
+
+  // Floating AI Diff Action Pill Toolbar
+  ctx.fillStyle = '#1e1e26';
+  ctx.beginPath(); ctx.roundRect(330, 365, 210, 22, 4); ctx.fill();
+  ctx.strokeStyle = '#3b82f6'; ctx.stroke();
+
+  // Accept Changes blue button
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.roundRect(334, 367, 102, 18, 3); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Accept Changes', 385, 379);
+
+  // Reject button
+  ctx.fillStyle = '#2d2d38';
+  ctx.beginPath(); ctx.roundRect(442, 367, 52, 18, 3); ctx.fill();
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText('Reject', 468, 379);
+
+  // Arrows
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('↑  ↓', 516, 379);
+  ctx.textAlign = 'left';
+
+  // Right Code Minimap (x = 732 to 780, y = 70 to 390)
+  ctx.fillStyle = '#16161b';
+  ctx.fillRect(732, 70, 48, 320);
+  ctx.strokeStyle = '#202026';
+  ctx.strokeRect(731.5, 70, 1, 320);
+
+  // Micro syntax bars on minimap
+  const miniColors = ['#c678dd', '#98c379', '#56b6c2', '#61afef', '#e5c07b', '#d19a66'];
+  for (let my = 75; my < 380; my += 5) {
+    const mw = 12 + ((my * 7) % 28);
+    const mc = miniColors[(my / 5) % miniColors.length];
+    ctx.fillStyle = mc;
+    ctx.fillRect(736, my, mw, 2.5);
+  }
+  // Viewport highlight box
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.07)';
+  ctx.fillRect(734, 180, 44, 120);
+
+  // 5. Bottom Terminal Panel (x = 220 to 780, y = 390 to 554, #121216)
+  ctx.fillStyle = '#121216';
+  ctx.fillRect(220, 390, 560, 164);
+  ctx.strokeStyle = '#282830';
+  ctx.beginPath(); ctx.moveTo(220, 390); ctx.lineTo(780, 390); ctx.stroke();
+
+  // Terminal Tab Bar (y = 390 to 414)
+  ctx.fillStyle = '#16161c';
+  ctx.fillRect(220, 390, 560, 24);
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Problems (4)', 232, 406);
+  ctx.fillText('Output', 304, 406);
+  ctx.fillText('Debug Console', 356, 406);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('Terminal', 440, 406);
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(440, 412, 42, 2); // Underline
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Ports', 504, 406);
+
+  // Terminal Body Lines
+  ctx.font = '9.5px monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('felipe@roc-dev', 232, 428);
+  ctx.fillStyle = '#a855f7';
+  ctx.fillText('rocAndLoad %', 304, 428);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillText('npm run build', 374, 428);
+
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText('vite v5.4.2 building for production...', 232, 444);
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('✓ 78 modules transformed.', 232, 460);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('dist/index.html                   1.42 kB │ gzip:  0.68 kB', 232, 476);
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('dist/assets/index-Dk82P.js     482.11 kB │ gzip: 132.45 kB', 232, 492);
+  ctx.fillStyle = '#22c55e';
+  ctx.font = 'bold 10px monospace';
+  ctx.fillText('✓ built in 429ms', 232, 510);
+
+  ctx.font = '9.5px monospace';
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('felipe@roc-dev rocAndLoad % █', 232, 530);
+
+  // 6. Right AI Agent Manager Sidebar (x = 780 to 1024, #19191f)
+  ctx.fillStyle = '#19191f';
+  ctx.fillRect(780, 26, 244, 528);
+  ctx.strokeStyle = '#282830';
+  ctx.strokeRect(779.5, 26, 1, 528);
+
+  // Header Bar
+  ctx.fillStyle = '#16161c';
+  ctx.fillRect(780, 26, 244, 30);
+  ctx.fillStyle = '#e4e4e7';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Checking File Types', 792, 45);
+
+  // Right icons in Agent header
+  ctx.fillStyle = '#71717a';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('+  ◫  ×', 975, 45);
+
+  // Card 1: Creating implementation plan
+  ctx.fillStyle = '#202028';
+  ctx.beginPath(); ctx.roundRect(790, 64, 224, 28, 5); ctx.fill();
+  ctx.strokeStyle = '#2d2d38'; ctx.stroke();
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('⚙ Creating implementation plan', 800, 81);
+
+  // Explanatory microtext
+  ctx.fillStyle = '#a1a1aa';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Found display texture definitions in', 792, 106);
+  ctx.fillText('WarehouseBuilder.js. Updating monitor canvas', 792, 118);
+  ctx.fillText('materials to 1024x576 resolution with', 792, 130);
+  ctx.fillText('high-fidelity procedural renders.', 792, 142);
+
+  // Card 2: Proceeded with Implementation Plan
+  ctx.fillStyle = '#16261c';
+  ctx.beginPath(); ctx.roundRect(790, 154, 224, 28, 5); ctx.fill();
+  ctx.strokeStyle = 'rgba(34, 197, 94, 0.3)'; ctx.stroke();
+  ctx.fillStyle = '#86efac';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('✓ Proceeded with Implementation Plan', 800, 171);
+
+  // Thought dropdown
+  ctx.fillStyle = '#71717a';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('> Thought for 2s', 792, 196);
+
+  // Card 3: Status Summary
+  ctx.fillStyle = '#202028';
+  ctx.beginPath(); ctx.roundRect(790, 208, 224, 52, 5); ctx.fill();
+  ctx.strokeStyle = '#2d2d38'; ctx.stroke();
+  ctx.fillStyle = '#d4d4d8';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('Checking WarehouseBuilder.js...', 800, 224);
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('✓ 4 new CanvasTextures generated', 800, 240);
+  ctx.fillStyle = '#a1a1aa';
+  ctx.fillText('Files: WarehouseBuilder.js', 800, 252);
+
+  // Bottom Chat input box & Accept all button
+  ctx.fillStyle = '#17171c';
+  ctx.fillRect(780, 480, 244, 74);
+  ctx.strokeStyle = '#26262e';
+  ctx.beginPath(); ctx.moveTo(780, 480); ctx.lineTo(1024, 480); ctx.stroke();
+
+  ctx.fillStyle = '#131317';
+  ctx.beginPath(); ctx.roundRect(790, 488, 224, 30, 4); ctx.fill();
+  ctx.strokeStyle = '#2e2e38'; ctx.stroke();
+  ctx.fillStyle = '#71717a';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Ask anything, @ to mention...', 798, 506);
+
+  // Model pill badge
+  ctx.fillStyle = '#a1a1aa';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('⚡ Gemini 3.8 Flash (High)', 792, 536);
+
+  // Bright blue Accept all button
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.roundRect(942, 524, 72, 22, 4); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Accept all', 978, 538);
+  ctx.textAlign = 'left';
+
+  // 7. Bottom Status Bar (y = 554 to 576, #18181c)
+  ctx.fillStyle = '#18181c';
+  ctx.fillRect(0, 554, 1024, 22);
+  ctx.strokeStyle = '#282830';
+  ctx.beginPath(); ctx.moveTo(0, 554); ctx.lineTo(1024, 554); ctx.stroke();
+
+  // Far-left blue branch pill
+  ctx.fillStyle = '#2563eb';
+  ctx.beginPath(); ctx.roundRect(6, 557, 54, 16, 3); ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('⑂ main*', 12, 568);
+
+  ctx.fillStyle = '#9ca3af';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('⊘ 0   ⚠ 0', 68, 568);
+
+  // Far-right status items
+  ctx.textAlign = 'right';
+  ctx.fillText('Ln 37, Col 1   Spaces: 2   UTF-8   LF   JavaScript   Antigravity', 1016, 568);
+  ctx.textAlign = 'left';
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * SCREEN D: Windows 11 Active Multi-Window Workspace (For Dual-Monitor Pairing) (1024x576, 16:9 widescreen).
+ */
+function createWindows11MultiWindowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Wallpaper background (Windows 11 Bloom)
+  drawWindows11BloomWallpaper(ctx, 1024, 576);
+
+  // 2. Left Window: Dark Windows Terminal / PowerShell (x = 36, y = 36, w = 450, h = 485)
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 18;
+  ctx.shadowOffsetY = 6;
+  ctx.fillStyle = '#0b0f19';
+  ctx.beginPath(); ctx.roundRect(36, 36, 450, 485, 8); ctx.fill();
+  ctx.strokeStyle = '#334155'; ctx.stroke();
+  ctx.restore();
+
+  // PowerShell Title Bar (y = 36 to 66)
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.roundRect(36, 36, 450, 30, [8, 8, 0, 0]); ctx.fill();
+  // Tab 1 (active)
+  ctx.fillStyle = '#0b0f19';
+  ctx.beginPath(); ctx.roundRect(42, 42, 110, 24, [4, 4, 0, 0]); ctx.fill();
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 8.5px monospace';
+  ctx.fillText('>_ PowerShell', 50, 57);
+  // Tab 2
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '8.5px sans-serif';
+  ctx.fillText('Azure Shell', 165, 57);
+  // Window controls
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('—  □  ×', 440, 55);
+
+  // PowerShell Body Content
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '9.5px monospace';
+  ctx.fillText('Windows PowerShell [Version 10.0.22631.3007]', 48, 86);
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('(c) Microsoft Corporation. All rights reserved.', 48, 100);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('PS C:\\DataCenter\\Cluster> Get-ClusterStatus -Detailed', 48, 124);
+
+  // Telemetry table
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 9px monospace';
+  ctx.fillText('NodeID      Status     CPU Load   Memory       Uptime', 48, 144);
+  ctx.fillStyle = '#475569';
+  ctx.fillText('---------------------------------------------------------', 48, 154);
+
+  const clusterNodes = [
+    { id: 'NODE-01', stat: 'ONLINE', load: '24%', mem: '32.4 GB', up: '42d 18h' },
+    { id: 'NODE-02', stat: 'ONLINE', load: '38%', mem: '48.1 GB', up: '42d 18h' },
+    { id: 'NODE-03', stat: 'ONLINE', load: '19%', mem: '28.0 GB', up: '42d 18h' },
+    { id: 'STORAGE', stat: 'HEALTHY', load: '41%', mem: '1.84 PB', up: '180d 04h' }
+  ];
+
+  let ny = 170;
+  for (const n of clusterNodes) {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.font = '9px monospace';
+    ctx.fillText(n.id, 48, ny);
+    ctx.fillStyle = '#22c55e';
+    ctx.fillText(n.stat, 126, ny);
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(n.load, 194, ny);
+    ctx.fillText(n.mem, 260, ny);
+    ctx.fillText(n.up, 345, ny);
+    ny += 16;
+  }
+
+  // Ping test section
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('PS C:\\DataCenter\\Cluster> ping gateway.corp.net', 48, 252);
+  ctx.fillStyle = '#cbd5e1';
+  ctx.fillText('Reply from 10.0.0.1: bytes=32 time=0.4ms TTL=64', 48, 268);
+  ctx.fillText('Reply from 10.0.0.1: bytes=32 time=0.3ms TTL=64', 48, 282);
+  ctx.fillStyle = '#22c55e';
+  ctx.fillText('Packets: Sent = 4, Received = 4, Lost = 0 (0% loss)', 48, 300);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('PS C:\\DataCenter\\Cluster> █', 48, 330);
+
+  // 3. Right Window: Windows 11 Task Manager Performance (x = 510, y = 50, w = 480, h = 470)
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.5)';
+  ctx.shadowBlur = 20;
+  ctx.shadowOffsetY = 8;
+  ctx.fillStyle = '#1e293b';
+  ctx.beginPath(); ctx.roundRect(510, 50, 480, 470, 8); ctx.fill();
+  ctx.strokeStyle = '#475569'; ctx.stroke();
+  ctx.restore();
+
+  // Task Manager Title Bar
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.roundRect(510, 50, 480, 32, [8, 8, 0, 0]); ctx.fill();
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Task Manager — Performance', 530, 70);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('—  □  ×', 950, 70);
+
+  // Left Nav Rail inside Task Manager (w = 44px)
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(510, 82, 44, 438);
+  ctx.strokeStyle = '#334155';
+  ctx.strokeRect(553.5, 82, 1, 438);
+
+  // Active CPU icon on nav rail
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillRect(510, 94, 2.5, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('CPU', 522, 110);
+  ctx.fillStyle = '#64748b';
+  ctx.fillText('MEM', 522, 140);
+  ctx.fillText('DISK', 522, 170);
+  ctx.fillText('NET', 522, 200);
+  ctx.fillText('GPU', 522, 230);
+
+  // Main Performance Body Panel
+  // CPU Header
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 13px sans-serif';
+  ctx.fillText('CPU  AMD EPYC 9654 96-Core Processor', 568, 108);
+
+  // CPU live utilization sparkline chart area
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.roundRect(568, 120, 404, 120, 4); ctx.fill();
+  ctx.strokeStyle = '#334155'; ctx.stroke();
+
+  // Grid lines inside chart
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 1;
+  for (let gy = 145; gy < 240; gy += 25) {
+    ctx.beginPath(); ctx.moveTo(568, gy); ctx.lineTo(972, gy); ctx.stroke();
+  }
+  for (let gx = 620; gx < 970; gx += 60) {
+    ctx.beginPath(); ctx.moveTo(gx, 120); ctx.lineTo(gx, 240); ctx.stroke();
+  }
+
+  // Live CPU waveform curve with gradient fill
+  const waveGrad = ctx.createLinearGradient(568, 120, 568, 240);
+  waveGrad.addColorStop(0, 'rgba(56, 189, 248, 0.45)');
+  waveGrad.addColorStop(1, 'rgba(56, 189, 248, 0.05)');
+  ctx.fillStyle = waveGrad;
+  ctx.beginPath();
+  ctx.moveTo(568, 240);
+  ctx.lineTo(568, 200);
+  ctx.bezierCurveTo(610, 180, 640, 215, 680, 170);
+  ctx.bezierCurveTo(720, 135, 750, 195, 790, 150);
+  ctx.bezierCurveTo(830, 120, 870, 180, 910, 160);
+  ctx.bezierCurveTo(940, 145, 960, 155, 972, 148);
+  ctx.lineTo(972, 240);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(568, 200);
+  ctx.bezierCurveTo(610, 180, 640, 215, 680, 170);
+  ctx.bezierCurveTo(720, 135, 750, 195, 790, 150);
+  ctx.bezierCurveTo(830, 120, 870, 180, 910, 160);
+  ctx.bezierCurveTo(940, 145, 960, 155, 972, 148);
+  ctx.stroke();
+
+  // Top-right percentage badge
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('28% Utilization', 875, 140);
+
+  // Metrics row
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Utilization: 28%  •  Speed: 3.42 GHz  •  Processes: 248  •  Threads: 3120', 568, 258);
+
+  // Memory section
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Memory  64.2 / 256 GB (25%)', 568, 282);
+  // Memory horizontal usage bar
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.roundRect(568, 290, 404, 12, 3); ctx.fill();
+  ctx.fillStyle = '#22c55e';
+  ctx.beginPath(); ctx.roundRect(568, 290, 101, 12, 3); ctx.fill();
+
+  // GPU Section
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('GPU 0  NVIDIA H100 PCIe (Temp: 44°C, Util: 12%)', 568, 324);
+  // GPU mini sparkline
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath(); ctx.roundRect(568, 332, 404, 45, 3); ctx.fill();
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(568, 365);
+  ctx.lineTo(650, 360);
+  ctx.lineTo(720, 345);
+  ctx.lineTo(800, 358);
+  ctx.lineTo(890, 350);
+  ctx.lineTo(972, 354);
+  ctx.stroke();
+
+  // 4. Centered Windows 11 Frosted Taskbar
+  drawWindows11Taskbar(ctx, 1024, 576, { terminal: true, taskmgr: true });
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * SCREEN E: Enterprise IT Technical Support & Ticket ERP Web Portal (1024x576, 16:9 widescreen).
+ * Authentic procedural recreation of an IT Service web application running in a dark browser chrome.
+ */
+function createITServicePortalTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // --- 1. DARK BROWSER CHROME & BOOKMARKS (y = 0 to 72) ---
+  // Top tab strip background
+  ctx.fillStyle = '#1e2229';
+  ctx.fillRect(0, 0, 1024, 26);
+
+  // Browser Tabs (5 tabs)
+  const tabs = [
+    { title: 'R&L Service', active: false, x: 10, w: 108, icon: 'shield' },
+    { title: 'R&L INTRANET', active: true, x: 122, w: 124, icon: 'globe' },
+    { title: '(2) WebChat', active: false, x: 250, w: 108, icon: 'chat' },
+    { title: 'AI Assistant', active: false, x: 362, w: 102, icon: 'sparkle' },
+    { title: 'Nova guia', active: false, x: 468, w: 80, icon: 'plus' }
+  ];
+
+  for (const t of tabs) {
+    if (t.active) {
+      ctx.fillStyle = '#282c34';
+      ctx.beginPath();
+      ctx.roundRect(t.x, 2, t.w, 24, [6, 6, 0, 0]);
+      ctx.fill();
+      ctx.strokeStyle = '#3e4451';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    } else {
+      ctx.fillStyle = '#1e2229';
+      ctx.fillRect(t.x, 3, t.w, 23);
+      ctx.strokeStyle = '#2d333f';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(t.x, 4, t.w, 22);
+    }
+
+    // Favicons
+    if (t.icon === 'shield') {
+      ctx.fillStyle = '#10b981';
+      ctx.beginPath();
+      ctx.arc(t.x + 12, 14, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (t.icon === 'globe') {
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath();
+      ctx.arc(t.x + 12, 14, 5.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (t.icon === 'chat') {
+      ctx.fillStyle = '#22c55e';
+      ctx.beginPath();
+      ctx.arc(t.x + 12, 14, 5, 0, Math.PI * 2);
+      ctx.fill();
+      // Red notification badge
+      ctx.fillStyle = '#ef4444';
+      ctx.beginPath();
+      ctx.arc(t.x + 16, 9, 3, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (t.icon === 'sparkle') {
+      ctx.fillStyle = '#a855f7';
+      ctx.beginPath();
+      ctx.arc(t.x + 12, 14, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (t.icon === 'plus') {
+      ctx.fillStyle = '#64748b';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.fillText('+', t.x + 10, 17);
+    }
+
+    // Tab Title
+    ctx.fillStyle = t.active ? '#f8fafc' : '#94a3b8';
+    ctx.font = t.active ? 'bold 8.5px sans-serif' : '8.5px sans-serif';
+    ctx.fillText(t.title, t.x + 23, 17);
+
+    // Close button 'x' on non-plus tabs
+    if (t.icon !== 'plus') {
+      ctx.fillStyle = '#64748b';
+      ctx.font = '8px sans-serif';
+      ctx.fillText('✕', t.x + t.w - 12, 16);
+    }
+  }
+
+  // Top-Right Window Controls
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('—   □   ✕', 955, 16);
+
+  // Address Bar row (y = 26 to 50)
+  ctx.fillStyle = '#282c34';
+  ctx.fillRect(0, 26, 1024, 24);
+
+  // Browser Nav Chevrons & Refresh
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('‹   ›', 14, 42);
+  ctx.font = '12px sans-serif';
+  ctx.fillText('↻', 46, 42);
+
+  // Rounded URL Pill
+  ctx.fillStyle = '#1e2229';
+  ctx.beginPath();
+  ctx.roundRect(74, 29, 855, 19, 9.5);
+  ctx.fill();
+  ctx.strokeStyle = '#3b4252';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Green padlock icon
+  ctx.fillStyle = '#10b981';
+  ctx.font = '9px sans-serif';
+  ctx.fillText('🔒', 84, 43);
+
+  // Full ERP URL
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '9.5px "Segoe UI", sans-serif';
+  ctx.fillText('https://erp.rocload.srv.br/webforms/AtdTecnico/Agenda.aspx', 104, 43);
+
+  // Star & Extension icons on right of address bar
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('★', 885, 43);
+  ctx.fillText('🧩', 908, 43);
+
+  // User Profile Circle avatar & menu dots
+  ctx.fillStyle = '#3b82f6';
+  ctx.beginPath();
+  ctx.arc(952, 38, 7.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 7px sans-serif';
+  ctx.fillText('RA', 947, 41);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('⋮', 974, 42);
+
+  // Bookmarks Bar (y = 50 to 72)
+  ctx.fillStyle = '#1e2229';
+  ctx.fillRect(0, 50, 1024, 22);
+  ctx.strokeStyle = '#2d333f';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 71.5);
+  ctx.lineTo(1024, 71.5);
+  ctx.stroke();
+
+  const bookmarks = [
+    { title: 'R&L Service', icon: '🏢', x: 12 },
+    { title: 'Intranet', icon: '🌐', x: 104 },
+    { title: 'WebChat', icon: '💬', x: 172 },
+    { title: 'Drive Analistas', icon: '📁', x: 248 },
+    { title: 'Drive Atend.', icon: '📂', x: 358 },
+    { title: 'AI Assistant', icon: '✨', x: 452 }
+  ];
+
+  ctx.font = '8.5px sans-serif';
+  for (const b of bookmarks) {
+    ctx.fillStyle = '#cbd5e1';
+    ctx.fillText(`${b.icon} ${b.title}`, b.x, 65);
+  }
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('📋 Todos os favoritos', 892, 65);
+
+  // --- 2. SLATE-BLUE METALLIC ERP HEADER BANNER (y = 72 to 124) ---
+  const headerGrad = ctx.createLinearGradient(0, 72, 1024, 124);
+  headerGrad.addColorStop(0, '#262e3d');
+  headerGrad.addColorStop(0.5, '#3e4b5f');
+  headerGrad.addColorStop(1, '#27303f');
+  ctx.fillStyle = headerGrad;
+  ctx.fillRect(0, 72, 1024, 52);
+
+  // Subtle metallic bevel lines
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 72.5);
+  ctx.lineTo(1024, 72.5);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#151b24';
+  ctx.beginPath();
+  ctx.moveTo(0, 123.5);
+  ctx.lineTo(1024, 123.5);
+  ctx.stroke();
+
+  // Left Brand Monogram (RL SERVICE)
+  ctx.fillStyle = '#064e3b';
+  ctx.beginPath();
+  ctx.roundRect(14, 79, 62, 38, 5);
+  ctx.fill();
+  ctx.strokeStyle = '#10b981';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 20px "Segoe UI", sans-serif';
+  ctx.fillText('RL', 24, 101);
+
+  ctx.fillStyle = '#34d399';
+  ctx.font = 'bold 6px sans-serif';
+  ctx.fillText('S E R V I C E', 19, 112);
+
+  // Green Shield Badge next to monogram
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.moveTo(85, 87);
+  ctx.lineTo(95, 87);
+  ctx.lineTo(95, 100);
+  ctx.lineTo(90, 106);
+  ctx.lineTo(85, 100);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('✓', 87.5, 99);
+
+  // User Greeting & Date
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillText('Boa Tarde, Roc Admin', 106, 94);
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '9.5px sans-serif';
+  ctx.fillText('Segunda-feira, 26 de Outubro de 2026', 106, 110);
+
+  // Center Notification Pill Button
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.roundRect(455, 84, 126, 26, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#f1f5f9';
+  ctx.font = 'bold 8.5px sans-serif';
+  ctx.fillText('🔔 NOTIFICAÇÕES', 472, 101);
+
+  // Right Header Action Buttons (Row of 5 compact dark-slate action buttons)
+  const headerBtns = [
+    { title: 'Intranet', x: 720, w: 56, textCol: '#e2e8f0' },
+    { title: 'Meu Cadastro', x: 780, w: 76, textCol: '#e2e8f0' },
+    { title: 'Alterar Senha', x: 860, w: 74, textCol: '#e2e8f0' },
+    { title: 'Ajuda', x: 938, w: 40, textCol: '#e2e8f0' },
+    { title: 'Logoff', x: 982, w: 36, textCol: '#fca5a5' }
+  ];
+
+  for (const hb of headerBtns) {
+    ctx.fillStyle = '#334155';
+    ctx.beginPath();
+    ctx.roundRect(hb.x, 86, hb.w, 23, 3);
+    ctx.fill();
+    ctx.strokeStyle = '#475569';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    ctx.fillStyle = hb.textCol;
+    ctx.font = 'bold 8px sans-serif';
+    ctx.fillText(hb.title, hb.x + 5, 101);
+  }
+
+  // --- 3. LEFT VERTICAL NAVIGATION SIDEBAR (x = 0 to 94, y = 124 to 548) ---
+  ctx.fillStyle = '#374151';
+  ctx.fillRect(0, 124, 94, 424);
+
+  // Sidebar Header: "Módulos"
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 124, 94, 20);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('Módulos', 26, 138);
+
+  // Stacked Vertical Menu Cells
+  const menuCells = [
+    { label: 'Administrador', active: false },
+    { label: 'Atendimento', active: false },
+    { label: 'Atendimento Técnico', active: true },
+    { label: 'Comercial', active: false },
+    { label: 'Estoq.Componentes', active: false },
+    { label: 'Estoq.Equipamentos', active: false },
+    { label: 'Financeiro', active: false },
+    { label: 'Laboratório', active: false },
+    { label: 'Montagem', active: false }
+  ];
+
+  let cellY = 144;
+  for (const mc of menuCells) {
+    if (mc.active) {
+      ctx.fillStyle = '#dbeafe';
+      ctx.fillRect(0, cellY, 94, 19);
+      ctx.fillStyle = '#2563eb';
+      ctx.fillRect(0, cellY, 3, 19); // Active blue indicator strip
+      ctx.fillStyle = '#1e3a8a';
+      ctx.font = 'bold 8px sans-serif';
+    } else {
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(0, cellY, 94, 19);
+      ctx.strokeStyle = '#d1d5db';
+      ctx.lineWidth = 0.5;
+      ctx.strokeRect(0, cellY, 94, 19);
+      ctx.fillStyle = '#1f2937';
+      ctx.font = '7.5px sans-serif';
+    }
+    ctx.fillText(mc.label, 6, cellY + 13);
+    cellY += 19;
+  }
+
+  // Accordion Header: "Relatórios ▾"
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 315, 94, 20);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('Relatórios  ▾', 18, 329);
+
+  // Fill lower sidebar
+  ctx.fillStyle = '#26303f';
+  ctx.fillRect(0, 335, 94, 213);
+
+  // --- 4. MAIN ERP CONTENT AREA & DENSE TICKET GRID (x = 94 to 1024, y = 124 to 548) ---
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(94, 124, 930, 424);
+
+  // Top Sub-Navigation Tabs
+  const subTabs = [
+    { label: 'Agenda', active: true, x: 98, w: 58 },
+    { label: 'Validar Chamado', active: false, x: 160, w: 92 },
+    { label: 'Solicitar Material', active: false, x: 256, w: 96 },
+    { label: 'Empréstimo Montagem', active: false, x: 356, w: 118 }
+  ];
+
+  for (const st of subTabs) {
+    if (st.active) {
+      ctx.fillStyle = '#334155';
+      ctx.beginPath();
+      ctx.roundRect(st.x, 126, st.w, 22, [4, 4, 0, 0]);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 8.5px sans-serif';
+    } else {
+      ctx.fillStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.roundRect(st.x, 126, st.w, 22, [4, 4, 0, 0]);
+      ctx.fill();
+      ctx.strokeStyle = '#cbd5e1';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+      ctx.fillStyle = '#1e293b';
+      ctx.font = '8.5px sans-serif';
+    }
+    ctx.fillText(st.label, st.x + 6, 140);
+  }
+
+  // Section 1: "Informar utilização de material"
+  ctx.fillStyle = '#b91c1c';
+  ctx.font = 'bold 10.5px sans-serif';
+  ctx.fillText('Informar utilização de material', 98, 163);
+
+  // Section 1 Mini Table Header
+  ctx.fillStyle = '#b8c5d6';
+  ctx.fillRect(98, 168, 920, 15);
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('Nº do Chamado', 190, 179);
+  ctx.fillText('Data de Conclusão', 460, 179);
+  ctx.fillText('Nome Fantasia do Cliente', 750, 179);
+
+  // Section 1 Empty Row
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(98, 183, 920, 15);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(98, 183, 920, 15);
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'italic 8px sans-serif';
+  ctx.fillText('Nenhum Chamado encontrado', 510, 194);
+
+  // Section 2: "Chamados do Técnico"
+  ctx.fillStyle = '#b91c1c';
+  ctx.font = 'bold 10.5px sans-serif';
+  ctx.fillText('Chamados do Técnico', 98, 213);
+
+  // Search Controls
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('Pesquisar Nº Chamado', 98, 232);
+
+  // Search Input Field
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(200, 222, 105, 16);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(200, 222, 105, 16);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '7.5px sans-serif';
+  ctx.fillText('Nº do chamado', 205, 233);
+
+  // Search Button
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.roundRect(310, 222, 56, 16, 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('Pesquisar', 318, 233);
+
+  // Dense Ticket Data Table Header
+  ctx.fillStyle = '#b8c5d6';
+  ctx.fillRect(98, 245, 920, 17);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 0.5;
+  ctx.strokeRect(98, 245, 920, 17);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('Nº chamado', 104, 257);
+  ctx.fillText('Nome Fantasia', 165, 257);
+  ctx.fillText('Localização', 645, 257);
+  ctx.fillText('Data Agendamento', 735, 257);
+  ctx.fillText('Tipo Atendimento', 830, 257);
+  ctx.fillText('Não Agendado ▾', 905, 257);
+  ctx.fillText('Ações', 975, 257);
+
+  // 16 Realistic Parody Ticket Rows
+  const ticketData = [
+    { num: '105169', client: 'PLAZA NITERÓI', loc: 'SANTA ROSA', date: '22/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '105021', client: 'ANCAR - MIDWAY MALL', loc: 'TIROL', date: '20/10/2026 13:30', type: 'Técnico', status: 'Agendado' },
+    { num: '104978', client: 'ANCAR - CONDOMÍNIO EDIFÍCIO PORTO VELHO SHOPPING', loc: 'FLODOALDO P.', date: '19/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104240', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104239', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104238', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104237', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104236', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104218', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104217', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104216', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104214', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104213', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104212', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104211', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' },
+    { num: '104181', client: 'ARM ARMAZÉNS GERAIS & LOGÍSTICA LTDA', loc: 'XERÉM', date: '05/10/2026 18:00', type: 'Técnico', status: 'Agendado' }
+  ];
+
+  let rowY = 262;
+  const rowH = 17.2;
+
+  for (let i = 0; i < ticketData.length; i++) {
+    const t = ticketData[i];
+    ctx.fillStyle = i % 2 === 0 ? '#ffffff' : '#f8fafc';
+    ctx.fillRect(98, rowY, 920, rowH);
+
+    // Row border line
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(98, rowY + rowH);
+    ctx.lineTo(1018, rowY + rowH);
+    ctx.stroke();
+
+    // Row cell text
+    ctx.fillStyle = '#1e293b';
+    ctx.font = '7.5px sans-serif';
+    ctx.fillText(t.num, 104, rowY + 12);
+    ctx.fillText(t.client, 165, rowY + 12);
+    ctx.fillText(t.loc, 645, rowY + 12);
+    ctx.fillText(t.date, 735, rowY + 12);
+    ctx.fillText(t.type, 830, rowY + 12);
+    ctx.fillText(t.status, 905, rowY + 12);
+
+    // Right-aligned underlined 'detalhes' link
+    ctx.fillStyle = '#2563eb';
+    ctx.fillText('detalhes', 975, rowY + 12);
+    ctx.strokeStyle = '#2563eb';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(975, rowY + 13.5);
+    ctx.lineTo(1005, rowY + 13.5);
+    ctx.stroke();
+
+    rowY += rowH;
+  }
+
+  // --- 5. BOTTOM STATUS BAR (y = 548 to 576) ---
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 548, 1024, 28);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 548.5);
+  ctx.lineTo(1024, 548.5);
+  ctx.stroke();
+
+  // Telemetry indicators
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = 'bold 8px monospace';
+  ctx.fillText('LATÊNCIA:', 14, 565);
+  ctx.fillStyle = '#10b981';
+  ctx.fillText('▊ 2ms', 64, 565);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('SISTEMA:', 116, 565);
+  ctx.fillStyle = '#10b981';
+  ctx.fillText('▊ 14.02', 162, 565);
+
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('USUÁRIOS:', 222, 565);
+  ctx.fillStyle = '#38bdf8';
+  ctx.fillText('43', 274, 565);
+
+  // Copyright Centered
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('© 2026 R&L Service - Todos os direitos reservados.', 430, 565);
+
+  // Bottom-Right Action Button
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.roundRect(878, 553, 134, 18, 2);
+  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('Notas de Atualização (1.4.1)', 888, 565);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * SCREEN F: Dark-Mode Music Streaming Desktop App (1024x576, 16:9 widescreen).
+ * High-detail procedural recreation of a modern music streaming desktop application.
+ */
+function createMusicAppTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // Deep pitch-black base shell
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, 1024, 576);
+
+  // --- 1. TOP NAVIGATION BAR (y = 0 to 42) ---
+  // Nav Chevrons (< >)
+  ctx.fillStyle = '#121212';
+  ctx.beginPath();
+  ctx.arc(22, 21, 12, 0, Math.PI * 2);
+  ctx.arc(50, 21, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('‹', 19, 25);
+  ctx.fillText('›', 47, 25);
+
+  // Home Circle Button
+  ctx.fillStyle = '#1f1f1f';
+  ctx.beginPath();
+  ctx.arc(372, 21, 14, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('⌂', 368, 25);
+
+  // Search Pill
+  ctx.fillStyle = '#1f1f1f';
+  ctx.beginPath();
+  ctx.roundRect(398, 8, 270, 26, 13);
+  ctx.fill();
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('🔍 O que você quer ouvir?', 412, 25);
+
+  // Browse box icon on right of search pill
+  ctx.fillStyle = '#737373';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('🗂', 644, 25);
+
+  // Top-Right Notifications, Friends & User Avatar
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('🔔', 848, 25);
+  ctx.fillText('👥', 878, 25);
+
+  // Circular User Avatar
+  ctx.fillStyle = '#334155';
+  ctx.beginPath();
+  ctx.arc(912, 21, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('RA', 906, 24);
+
+  // Window Controls
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('—   □   ✕', 955, 25);
+
+  // --- 2. LEFT MINI LIBRARY RAIL (x = 6 to 48, y = 44 to 496) ---
+  ctx.fillStyle = '#121212';
+  ctx.beginPath();
+  ctx.roundRect(6, 44, 42, 452, 6);
+  ctx.fill();
+
+  // Top Library Icons
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('|||\\', 12, 60);
+  ctx.fillText('+', 34, 60);
+
+  // Stack of 10 playlist art thumbnails (26x26px, x = 14)
+  const thumbDefs = [
+    { bg: ['#4f46e5', '#7c3aed'], icon: '♥', textCol: '#ffffff' },
+    { bg: ['#eab308', '#ca8a04'], icon: '🎤', textCol: '#000000' },
+    { bg: ['#0284c7', '#0369a1'], icon: '🎧', textCol: '#ffffff' },
+    { bg: ['#ec4899', '#be185d'], icon: '🌆', textCol: '#ffffff' },
+    { bg: ['#374151', '#1f2937'], icon: '🎸', textCol: '#ffffff' },
+    { bg: ['#06b6d4', '#0891b2'], icon: '⚡', textCol: '#ffffff' },
+    { bg: ['#16a34a', '#15803d'], icon: '🌊', textCol: '#ffffff' },
+    { bg: ['#2563eb', '#1d4ed8'], icon: '🛡', textCol: '#ffffff' },
+    { bg: ['#e2e8f0', '#94a3b8'], icon: '✨', textCol: '#0f172a' },
+    { bg: ['#dc2626', '#991b1b'], icon: '🔥', textCol: '#ffffff' }
+  ];
+
+  let thumbY = 72;
+  for (const td of thumbDefs) {
+    const tGrad = ctx.createLinearGradient(14, thumbY, 40, thumbY + 26);
+    tGrad.addColorStop(0, td.bg[0]);
+    tGrad.addColorStop(1, td.bg[1]);
+    ctx.fillStyle = tGrad;
+    ctx.beginPath();
+    ctx.roundRect(14, thumbY, 26, 26, 3);
+    ctx.fill();
+
+    ctx.fillStyle = td.textCol;
+    ctx.font = '9px sans-serif';
+    ctx.fillText(td.icon, 21, thumbY + 17);
+    thumbY += 32;
+  }
+
+  // --- 3. CENTER MAIN MUSIC FEED (x = 54 to 784, y = 44 to 496) ---
+  ctx.fillStyle = '#121212';
+  ctx.beginPath();
+  ctx.roundRect(54, 44, 730, 452, 6);
+  ctx.fill();
+
+  // Subtle upper slate ambience
+  const feedGlow = ctx.createLinearGradient(54, 44, 54, 180);
+  feedGlow.addColorStop(0, '#1c2430');
+  feedGlow.addColorStop(1, '#121212');
+  ctx.fillStyle = feedGlow;
+  ctx.beginPath();
+  ctx.roundRect(54, 44, 730, 136, [6, 6, 0, 0]);
+  ctx.fill();
+
+  // Filter Pills (Tudo, Músicas, Podcasts, Audiolivros)
+  const pills = [
+    { label: 'Tudo', active: true, x: 64, w: 44 },
+    { label: 'Músicas', active: false, x: 114, w: 58 },
+    { label: 'Podcasts', active: false, x: 178, w: 62 },
+    { label: 'Audiolivros', active: false, x: 246, w: 72 }
+  ];
+
+  for (const p of pills) {
+    if (p.active) {
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(p.x, 52, p.w, 20, 10);
+      ctx.fill();
+      ctx.fillStyle = '#000000';
+      ctx.font = 'bold 9.5px sans-serif';
+    } else {
+      ctx.fillStyle = '#242424';
+      ctx.beginPath();
+      ctx.roundRect(p.x, 52, p.w, 20, 10);
+      ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '9.5px sans-serif';
+    }
+    ctx.fillText(p.label, p.x + 8, 66);
+  }
+
+  // 2x4 Quick-Play Cards Grid (y = 80 to 148)
+  const quickCards = [
+    { title: 'Músicas Curtidas', bg: ['#4f46e5', '#7c3aed'], icon: '♥', col: 0, row: 0 },
+    { title: 'Starlight (Remix)', bg: ['#0f172a', '#0284c7'], icon: '⚡', col: 1, row: 0 },
+    { title: 'This Is Eminem', bg: ['#eab308', '#854d0e'], icon: '🎤', col: 2, row: 0 },
+    { title: 'Adapt or Vanish', bg: ['#dc2626', '#450a0a'], icon: '⚔', col: 3, row: 0 },
+    { title: 'Touch The Cosmos', bg: ['#06b6d4', '#164e63'], icon: '🪐', col: 0, row: 1 },
+    { title: 'Top Hits de 2018', bg: ['#ec4899', '#831843'], icon: '⭐', col: 1, row: 1 },
+    { title: 'Grand Theft Auto VI', bg: ['#f97316', '#7c2d12'], icon: '🌴', col: 2, row: 1 },
+    { title: 'Escape The Noise', bg: ['#3b82f6', '#172554'], icon: '🎧', col: 3, row: 1 }
+  ];
+
+  for (const qc of quickCards) {
+    const cardX = 64 + qc.col * 178;
+    const cardY = 80 + qc.row * 36;
+    ctx.fillStyle = '#242424';
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, 172, 30, 4);
+    ctx.fill();
+
+    // Mini album square on left
+    const qGrad = ctx.createLinearGradient(cardX, cardY, cardX + 30, cardY + 30);
+    qGrad.addColorStop(0, qc.bg[0]);
+    qGrad.addColorStop(1, qc.bg[1]);
+    ctx.fillStyle = qGrad;
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, 30, 30, [4, 0, 0, 4]);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(qc.icon, cardX + 9, cardY + 19);
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 9px sans-serif';
+    ctx.fillText(qc.title, cardX + 36, cardY + 19);
+  }
+
+  // Section 1: "Feito para Roc Admin"
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '8.5px sans-serif';
+  ctx.fillText('Feito para', 64, 166);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('Roc Admin', 64, 180);
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('Mostrar tudo', 720, 180);
+
+  // Row of 6 Mix Cards (112x94px art)
+  const mixCards = [
+    { title: 'Descobertas da Semana', sub: 'Seu atalho para novas joias...', bg: ['#ec4899', '#1e1b4b'], badge: 'RADAR' },
+    { title: 'DJ Beta', sub: 'Todo tipo de música escolhida...', bg: ['#1d4ed8', '#1e40af'], badge: 'DJ' },
+    { title: 'Daily Mix 1', sub: 'dream_wave fm, Moebius...', bg: ['#0f766e', '#042f2e'], badge: 'MIX 01' },
+    { title: 'Daily Mix 2', sub: 'Post Malone, Drake, Eminem...', bg: ['#ca8a04', '#422006'], badge: 'MIX 02' },
+    { title: 'Daily Mix 3', sub: 'David Guetta, Tiësto, TELY...', bg: ['#ea580c', '#431407'], badge: 'MIX 03' },
+    { title: 'Daily Mix 4', sub: 'Jagex Audio Team, LoL...', bg: ['#9333ea', '#3b0764'], badge: 'MIX 04' }
+  ];
+
+  for (let i = 0; i < mixCards.length; i++) {
+    const mc = mixCards[i];
+    const mx = 64 + i * 120;
+    const my = 188;
+
+    // Card background
+    ctx.fillStyle = '#181818';
+    ctx.beginPath();
+    ctx.roundRect(mx, my, 114, 126, 6);
+    ctx.fill();
+
+    // Album art cover
+    const mGrad = ctx.createLinearGradient(mx + 5, my + 5, mx + 109, my + 95);
+    mGrad.addColorStop(0, mc.bg[0]);
+    mGrad.addColorStop(1, mc.bg[1]);
+    ctx.fillStyle = mGrad;
+    ctx.beginPath();
+    ctx.roundRect(mx + 5, my + 5, 104, 82, 4);
+    ctx.fill();
+
+    // Badge on art
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+    ctx.beginPath();
+    ctx.roundRect(mx + 10, my + 64, 42, 16, 2);
+    ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 7.5px sans-serif';
+    ctx.fillText(mc.badge, mx + 14, my + 75);
+
+    // Title & subtitle
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 8.5px sans-serif';
+    ctx.fillText(mc.title, mx + 5, my + 102);
+
+    ctx.fillStyle = '#a7a7a7';
+    ctx.font = '7px sans-serif';
+    ctx.fillText(mc.sub, mx + 5, my + 114);
+  }
+
+  // Section 2: "Novos lançamentos para você"
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('Músicas novinhas em folha dos artistas que você adora.', 64, 335);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 14px sans-serif';
+  ctx.fillText('Novos lançamentos para você', 64, 349);
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('Mostrar tudo', 720, 349);
+
+  // Row of 6 Album Release Cards
+  const releaseCards = [
+    { title: 'The Light We Lost', artist: 'dream_wave fm', bg: ['#38bdf8', '#0369a1'], symbol: '✧' },
+    { title: 'FIRESTARTER', artist: 'R&L Sound Team', bg: ['#ef4444', '#7f1d1d'], symbol: '🔥' },
+    { title: 'Origin', artist: 'Ilkay Sencan', bg: ['#d97706', '#78350f'], symbol: '☕' },
+    { title: 'Fluxiverse Vol.3', artist: 'Flux Pavilion', bg: ['#06b6d4', '#155e75'], symbol: '⚡' },
+    { title: 'Say It Back', artist: 'Gaullin', bg: ['#f97316', '#9a3412'], symbol: '🌅' },
+    { title: 'Sad King', artist: 'Besomorph', bg: ['#be123c', '#4c0519'], symbol: '👑' }
+  ];
+
+  for (let i = 0; i < releaseCards.length; i++) {
+    const rc = releaseCards[i];
+    const rx = 64 + i * 120;
+    const ry = 356;
+
+    ctx.fillStyle = '#181818';
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, 114, 126, 6);
+    ctx.fill();
+
+    const rGrad = ctx.createLinearGradient(rx + 5, ry + 5, rx + 109, ry + 95);
+    rGrad.addColorStop(0, rc.bg[0]);
+    rGrad.addColorStop(1, rc.bg[1]);
+    ctx.fillStyle = rGrad;
+    ctx.beginPath();
+    ctx.roundRect(rx + 5, ry + 5, 104, 82, 4);
+    ctx.fill();
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '22px sans-serif';
+    ctx.fillText(rc.symbol, rx + 44, ry + 52);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 8.5px sans-serif';
+    ctx.fillText(rc.title, rx + 5, ry + 102);
+
+    ctx.fillStyle = '#a7a7a7';
+    ctx.font = '7.5px sans-serif';
+    ctx.fillText(rc.artist, rx + 5, ry + 114);
+  }
+
+  // --- 4. RIGHT SIDEBAR ("NOW PLAYING") (x = 790 to 1018, y = 44 to 496) ---
+  ctx.fillStyle = '#121212';
+  ctx.beginPath();
+  ctx.roundRect(790, 44, 228, 452, 6);
+  ctx.fill();
+
+  // Sidebar Header
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.fillText('Starlight (Skrillex & ring noord Remix)', 798, 60);
+
+  // Large Cover Art (x = 798, y = 68, w = 212, h = 175)
+  ctx.fillStyle = '#080d1a';
+  ctx.beginPath();
+  ctx.roundRect(798, 68, 212, 175, 6);
+  ctx.fill();
+
+  // Cyan Radar Grid & Targeting Insignia
+  ctx.strokeStyle = '#1e293b';
+  ctx.lineWidth = 0.5;
+  for (let gx = 808; gx < 1000; gx += 20) {
+    ctx.beginPath(); ctx.moveTo(gx, 68); ctx.lineTo(gx, 243); ctx.stroke();
+  }
+  for (let gy = 78; gy < 240; gy += 20) {
+    ctx.beginPath(); ctx.moveTo(798, gy); ctx.lineTo(1010, gy); ctx.stroke();
+  }
+
+  // Target rings
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.arc(904, 155, 30, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(904, 155, 55, 0, Math.PI * 2); ctx.stroke();
+
+  // Glowing center winged sword emblem
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(904, 105); ctx.lineTo(904, 205);
+  ctx.moveTo(864, 155); ctx.lineTo(944, 155);
+  ctx.moveTo(884, 125); ctx.lineTo(904, 105); ctx.lineTo(924, 125);
+  ctx.stroke();
+
+  // Track Details underneath cover art
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('Starlight - Skrillex & ring noord Re...', 798, 262);
+
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('Danny L Harle, PinkPantheress, Skrillex...', 798, 276);
+
+  // Circle plus icon
+  ctx.strokeStyle = '#b3b3b3';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(996, 268, 7, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('+', 994, 271);
+
+  // Section: "Videoclipes relacionados"
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('Videoclipes relacionados', 798, 302);
+
+  // Video 1
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.roundRect(798, 312, 102, 54, 4);
+  ctx.fill();
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('🏔', 838, 342);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('On A Mountain', 798, 376);
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '7px sans-serif';
+  ctx.fillText('Danny L Harle, DJ...', 798, 386);
+
+  // Video 2
+  ctx.fillStyle = '#450a0a';
+  ctx.beginPath();
+  ctx.roundRect(908, 312, 102, 54, 4);
+  ctx.fill();
+  ctx.fillStyle = '#ef4444';
+  ctx.font = '16px sans-serif';
+  ctx.fillText('🌋', 948, 342);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('Interlocked', 908, 376);
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '7px sans-serif';
+  ctx.fillText('Danny L Harle, DJ...', 908, 386);
+
+  // Section: "Sobre o artista"
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9.5px sans-serif';
+  ctx.fillText('Sobre o artista', 798, 412);
+
+  // Artist Card
+  ctx.fillStyle = '#1c1c1c';
+  ctx.beginPath();
+  ctx.roundRect(798, 420, 212, 68, 4);
+  ctx.fill();
+
+  ctx.fillStyle = '#3b82f6';
+  ctx.beginPath();
+  ctx.arc(816, 442, 10, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('Danny L Harle', 834, 438);
+
+  ctx.fillStyle = '#38bdf8';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('✓ Artista Verificado', 834, 450);
+
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '7.5px sans-serif';
+  ctx.fillText('3.489.120 ouvintes mensais', 806, 468);
+  ctx.fillText('Londres, Reino Unido • Electronic / Hyperpop', 806, 479);
+
+  // --- 5. BOTTOM PLAYER CONTROLS BAR (y = 498 to 542) ---
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 498, 1024, 44);
+
+  // Left Track Info
+  ctx.fillStyle = '#080d1a';
+  ctx.beginPath();
+  ctx.roundRect(16, 503, 34, 34, 3);
+  ctx.fill();
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 9px sans-serif';
+  ctx.fillText('Starlight - Skrillex & ring noord Remix', 58, 517);
+
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '7.5px sans-serif';
+  ctx.fillText('Danny L Harle, PinkPantheress, Skrillex', 58, 529);
+
+  // Green Heart
+  ctx.fillStyle = '#1db954';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('♥', 236, 524);
+
+  // Center Playback Controls
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('⇄', 450, 516);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('⏮', 478, 516);
+
+  // Circular Play Button
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(512, 513, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#000000';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.fillText('▶', 509.5, 517);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '12px sans-serif';
+  ctx.fillText('⏭', 542, 516);
+
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '11px sans-serif';
+  ctx.fillText('↻', 570, 516);
+
+  // Seekbar
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '7.5px sans-serif';
+  ctx.fillText('1:00', 374, 532);
+
+  ctx.fillStyle = '#4d4d4d';
+  ctx.beginPath();
+  ctx.roundRect(396, 529, 230, 3, 1.5);
+  ctx.fill();
+
+  // Active portion & white scrubber knob
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(396, 529, 82, 3, 1.5);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.arc(478, 530.5, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#a7a7a7';
+  ctx.fillText('2:55', 632, 532);
+
+  // Right Controls
+  ctx.fillStyle = '#b3b3b3';
+  ctx.font = '10px sans-serif';
+  ctx.fillText('🎤   ☰   💻   🔊', 838, 524);
+
+  // Volume slider
+  ctx.fillStyle = '#4d4d4d';
+  ctx.beginPath();
+  ctx.roundRect(930, 521, 60, 3, 1.5);
+  ctx.fill();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(930, 521, 38, 3, 1.5);
+  ctx.fill();
+
+  // --- 6. WINDOWS 11 DARK TASKBAR (y = 542 to 576) ---
+  ctx.fillStyle = '#181818';
+  ctx.fillRect(0, 542, 1024, 34);
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 542.5);
+  ctx.lineTo(1024, 542.5);
+  ctx.stroke();
+
+  // Centered Windows 11 App Icons
+  const taskIcons = [
+    { type: 'start', x: 426 },
+    { type: 'search', x: 454 },
+    { type: 'taskview', x: 482 },
+    { type: 'explorer', x: 510 },
+    { type: 'edge', x: 538 },
+    { type: 'spotify', x: 566 },
+    { type: 'terminal', x: 594 },
+    { type: 'discord', x: 622 }
+  ];
+
+  for (const ti of taskIcons) {
+    const cx = ti.x + 9;
+    const cy = 558;
+
+    if (ti.type === 'start') {
+      ctx.fillStyle = '#0078d4';
+      ctx.fillRect(cx - 7, cy - 7, 6, 6);
+      ctx.fillRect(cx + 1, cy - 7, 6, 6);
+      ctx.fillRect(cx - 7, cy + 1, 6, 6);
+      ctx.fillRect(cx + 1, cy + 1, 6, 6);
+    } else if (ti.type === 'search') {
+      ctx.strokeStyle = '#94a3b8';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(cx - 1, cy - 1, 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(cx + 3, cy + 3); ctx.lineTo(cx + 7, cy + 7); ctx.stroke();
+    } else if (ti.type === 'taskview') {
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(cx - 7, cy - 4, 7, 9);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - 2, cy - 7, 7, 9);
+    } else if (ti.type === 'explorer') {
+      ctx.fillStyle = '#eab308';
+      ctx.fillRect(cx - 7, cy - 5, 14, 11);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(cx - 5, cy - 7, 6, 3);
+    } else if (ti.type === 'edge') {
+      ctx.fillStyle = '#0284c7';
+      ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#38bdf8';
+      ctx.beginPath(); ctx.arc(cx - 2, cy - 2, 4, 0, Math.PI * 2); ctx.fill();
+    } else if (ti.type === 'spotify') {
+      // Vibrant Spotify Green Circle
+      ctx.fillStyle = '#1db954';
+      ctx.beginPath();
+      ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sound waves inside Spotify icon
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.arc(cx, cy + 4, 6, -Math.PI * 0.75, -Math.PI * 0.25);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy + 5, 4, -Math.PI * 0.75, -Math.PI * 0.25);
+      ctx.stroke();
+
+      // Active app indicator pill underneath icon
+      ctx.fillStyle = '#1db954';
+      ctx.beginPath();
+      ctx.roundRect(cx - 6, 571, 12, 2.5, 1.25);
+      ctx.fill();
+    } else if (ti.type === 'terminal') {
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(cx - 7, cy - 6, 14, 12);
+      ctx.strokeStyle = '#475569';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - 7, cy - 6, 14, 12);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 7px monospace';
+      ctx.fillText('>_', cx - 5, cy + 3);
+    } else if (ti.type === 'discord') {
+      ctx.fillStyle = '#5865f2';
+      ctx.beginPath(); ctx.arc(cx, cy, 7, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 7px sans-serif';
+      ctx.fillText('🎮', cx - 4, cy + 3);
+    }
+  }
+
+  // System Tray on far right
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '8px sans-serif';
+  ctx.fillText('POR PTB2', 885, 562);
+  ctx.fillText('📶  🔊  🔋', 932, 562);
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px sans-serif';
+  ctx.fillText('12:30', 980, 555);
+  ctx.fillStyle = '#a7a7a7';
+  ctx.font = '7.5px sans-serif';
+  ctx.fillText('26/10/2026', 972, 566);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
   texture.needsUpdate = true;
   return texture;
 }
@@ -3492,6 +6476,12 @@ export class WarehouseBuilder {
     this.ceilingEmissiveTexture = ceilingTex.emissiveTexture;
     this.serverBladeTexture = createServerBladeTexture();
     this.monitorScreenAtlasTex = createMonitorScreenAtlasTexture();
+    this.screenATexture = createWindows11DesktopTexture();
+    this.screenBTexture = createWindows11LockTexture();
+    this.screenCTexture = createAIIDEWorkspaceTexture();
+    this.screenDTexture = createWindows11MultiWindowTexture();
+    this.screenETexture = createITServicePortalTexture();
+    this.screenFTexture = createMusicAppTexture();
     this.chairMeshTexture = createChairMeshTexture();
     this.outletTexture = createBrazilianITFaceplateTexture();
     this.stanchionBeltTexture = createStanchionBeltTexture();
@@ -3590,9 +6580,29 @@ export class WarehouseBuilder {
       map: this.serverBladeTexture,
     });
 
-    // Monitor screen displays sliced from the screen atlas (Self-Illuminating!)
+    // Monitor screen displays (Self-Illuminating!)
+    // Preserved classic BSOD material
     this.monitorScreenMaterial = new THREE.MeshBasicMaterial({
       map: this.monitorScreenAtlasTex,
+    });
+    // High-resolution procedural 16:9 widescreen materials
+    this.screenAMaterial = new THREE.MeshBasicMaterial({
+      map: this.screenATexture,
+    });
+    this.screenBMaterial = new THREE.MeshBasicMaterial({
+      map: this.screenBTexture,
+    });
+    this.screenCMaterial = new THREE.MeshBasicMaterial({
+      map: this.screenCTexture,
+    });
+    this.screenDMaterial = new THREE.MeshBasicMaterial({
+      map: this.screenDTexture,
+    });
+    this.screenEMaterial = new THREE.MeshBasicMaterial({
+      map: this.screenETexture,
+    });
+    this.screenFMaterial = new THREE.MeshBasicMaterial({
+      map: this.screenFTexture,
     });
 
     // Warning Yellow for barrier top pad and floor hazard line
@@ -3835,6 +6845,13 @@ export class WarehouseBuilder {
       deskSurface: [],
       serverRackBlade: [],
       monitorScreen: [],
+      screenBsod: [],
+      screenA: [],
+      screenB: [],
+      screenC: [],
+      screenD: [],
+      screenE: [],
+      screenF: [],
       warningYellow: [],
       glowingCyan: [],
       chairFrame: [],
@@ -4129,7 +7146,13 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.silverTrim, material: this.silverTrimMaterial, name: 'DC_SilverTrim' },
       { bucket: visualBuckets.deskSurface, material: this.deskSurfaceMaterial, name: 'DC_DeskSurfaces' },
       { bucket: visualBuckets.serverRackBlade, material: this.serverRackBladeMaterial, name: 'DC_ServerBlades' },
-      { bucket: visualBuckets.monitorScreen, material: this.monitorScreenMaterial, name: 'DC_MonitorScreens' },
+      { bucket: visualBuckets.screenBsod, material: this.monitorScreenMaterial, name: 'DC_ScreenBSOD' },
+      { bucket: visualBuckets.screenA, material: this.screenAMaterial, name: 'DC_ScreenA' },
+      { bucket: visualBuckets.screenB, material: this.screenBMaterial, name: 'DC_ScreenB' },
+      { bucket: visualBuckets.screenC, material: this.screenCMaterial, name: 'DC_ScreenC' },
+      { bucket: visualBuckets.screenD, material: this.screenDMaterial, name: 'DC_ScreenD' },
+      { bucket: visualBuckets.screenE, material: this.screenEMaterial, name: 'DC_ScreenE' },
+      { bucket: visualBuckets.screenF, material: this.screenFMaterial, name: 'DC_ScreenF' },
       { bucket: visualBuckets.warningYellow, material: this.warningYellowMaterial, name: 'DC_WarningYellow' },
       { bucket: visualBuckets.glowingCyan, material: this.glowingCyanMaterial, name: 'DC_CyanGlow' },
       { bucket: visualBuckets.chairFrame, material: this.chairFrameMaterial, name: 'DC_ChairFrames' },
@@ -4321,7 +7344,7 @@ export class WarehouseBuilder {
     let leftPcX, rightPcX;
 
     if (tierName === 'close') {
-      // Row 1: Dual monitors on Left (outer edge at -3.46), Ultrawide on Right (outer edge at 3.18)
+      // Row 1: Dual monitors on LeftDesk (front-right in player view), Ultrawide BSOD on RightDesk (front-left in player view)
       leftPcX = (leftDeskX - 0.50 - 0.46) - 0.14 - pcW / 2;
       rightPcX = (rightDeskX + 0.68) + 0.14 + pcW / 2;
     } else if (tierName === 'mid') {
@@ -4348,36 +7371,38 @@ export class WarehouseBuilder {
 
     // Place Hero Scale Monitors (Collision-Free: 8.5cm dual-screen gap, 26cm PC clearance, ergonomic inward curve)
     if (tierName === 'close') {
-      // Row 1: Dual monitors on Left Desk, Centered Ultrawide on Right Desk
-      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX - 0.50, surfaceY, z, -0.10, false, 0); // Dashboard (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX + 0.50, surfaceY, z, 0.10, false, 1);  // Alert (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX, surfaceY, z, 0, true, 2);             // BSOD Ultrawide centered
+      // Row 1: Front-Left Single-Monitor Desk (BSOD), Front-Right Dual-Monitor Desk (Screen C + Screen A)
+      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX, surfaceY, z, 0, true, 'bsod');             // BSOD Ultrawide centered on Front-Left desk
+      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX + 0.50, surfaceY, z, 0.10, false, 'screenC');  // Screen C (Dark-Mode AI IDE) on Left monitor of Front-Right desk
+      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX - 0.50, surfaceY, z, -0.10, false, 'screenA'); // Screen A (Windows 11 Bloom Desktop) on Right monitor of Front-Right desk
 
-      // Left desk chair (slightly shifted toward primary dashboard monitor, swiveled inward)
+      // Front-Right desk chair (centered between dual monitors)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX - 0.18, baseY, z - 0.92, 0.38, addPartMatrix);
-      // Right desk chair (centered on ultrawide, swiveled left toward aisle)
+      // Front-Left desk chair (centered on ultrawide BSOD, swiveled slightly toward aisle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, rightDeskX + 0.12, baseY, z - 1.00, -0.52, addPartMatrix);
     } else if (tierName === 'mid') {
-      // Row 2: Centered Ultrawide on Left Desk, Dual monitors on Right Desk
-      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX, surfaceY, z, 0, true, 1);              // Alert Ultrawide centered
-      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 3); // Matrix (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 0);  // Dashboard (angled inward)
+      // Row 2: Mid-Left Dual-Monitor Desk (Screen C AI IDE + Screen D Multi-Window), Mid-Right Single-Monitor Desk (Screen B Glow Lock Screen)
+      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 'screenC'); // Screen C (Dark-Mode AI IDE) (angled inward)
+      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 'screenD'); // Screen D (Windows 11 Active Multi-Window) (angled inward)
+      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX, surfaceY, z, 0, true, 'screenB');              // Windows 11 Glow Lock Screen Ultrawide centered
 
-      // Left desk chair (pushed back with hurried exit angle)
+      // Mid-Right desk chair (pushed back with hurried exit angle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX + 0.20, baseY, z - 1.04, 0.75, addPartMatrix);
-      // Right desk chair (casual slight angle)
+      // Mid-Left desk chair (casual slight angle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, rightDeskX - 0.15, baseY, z - 0.86, -0.22, addPartMatrix);
     } else {
       // Row 3 (Far, on +0.35m platform): High-density NOC Dual-Monitor Monitoring Station
-      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX - 0.50, surfaceY, z, -0.10, false, 2);  // BSOD (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX + 0.50, surfaceY, z, 0.10, false, 1);   // Alert (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 0); // Dashboard (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 3);  // Matrix (angled inward)
+      // Left Desk in view: Screen A (Windows 11 Bloom Desktop) + Screen D (Windows 11 Active Multi-Window)
+      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 'screenA'); // Windows 11 Bloom Desktop
+      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 'screenD'); // Windows 11 Active Multi-Window
+      // Right Desk in view: Screen E (Enterprise IT Ticket ERP Portal) + Screen F (Dark-Mode Music App)
+      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX + 0.50, surfaceY, z, 0.10, false, 'screenE');  // Screen E (Enterprise IT ERP Portal)
+      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX - 0.50, surfaceY, z, -0.10, false, 'screenF');  // Screen F (Dark-Mode Music App)
 
       // Left desk chair (on raised platform baseY = platH, swiveled toward left aisle)
-      this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX - 0.10, baseY, z - 0.90, -0.62, addPartMatrix);
-      // Right desk chair (on raised platform baseY = platH, pushed back with rapid swivel)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, rightDeskX + 0.25, baseY, z - 1.05, 0.98, addPartMatrix);
+      // Right desk chair (on raised platform baseY = platH, pushed back with rapid swivel)
+      this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX - 0.10, baseY, z - 0.90, -0.62, addPartMatrix);
     }
   }
 
@@ -4777,7 +7802,7 @@ export class WarehouseBuilder {
    * Builds a Monitor (+40% Hero Scale) facing -Z directly toward player.
    * Stand post and base are positioned strictly BEHIND the screen (+Z side).
    */
-  _buildMonitor(addPart, addVisual, visualBuckets, x, y, z, rotY = 0, isUltrawide = false, screenType = 0) {
+  _buildMonitor(addPart, addVisual, visualBuckets, x, y, z, rotY = 0, isUltrawide = false, screenType = 'bsod') {
     // Hero Scale: Standard (0.92m x 0.58m), Ultrawide (1.36m x 0.62m)
     const monW = isUltrawide ? 1.36 : 0.92;
     const monH = isUltrawide ? 0.62 : 0.58;
@@ -4813,18 +7838,29 @@ export class WarehouseBuilder {
     const screenW = monW - 0.04;
     const screenH = monH - 0.04;
 
-    let uMin = 0.0, uMax = 0.5, vMin = 0.5, vMax = 1.0;
-    if (screenType === 1) {
-      uMin = 0.5; uMax = 1.0; vMin = 0.5; vMax = 1.0; // Critical Alert
-    } else if (screenType === 2) {
-      uMin = 0.0; uMax = 0.5; vMin = 0.0; vMax = 0.5; // Classic BSOD
-    } else if (screenType === 3) {
-      uMin = 0.5; uMax = 1.0; vMin = 0.0; vMax = 0.5; // Matrix Telemetry
+    let targetBucket = visualBuckets.screenA;
+    let uMin = 0.0, uMax = 1.0, vMin = 0.0, vMax = 1.0;
+
+    if (screenType === 'bsod' || screenType === 2) {
+      targetBucket = visualBuckets.screenBsod;
+      uMin = 0.0; uMax = 0.5; vMin = 0.0; vMax = 0.5; // Classic BSOD in existing atlas (untouched)
+    } else if (screenType === 'screenA' || screenType === 'A' || screenType === 0) {
+      targetBucket = visualBuckets.screenA;
+    } else if (screenType === 'screenB' || screenType === 'B' || screenType === 1) {
+      targetBucket = visualBuckets.screenB;
+    } else if (screenType === 'screenC' || screenType === 'C' || screenType === 3) {
+      targetBucket = visualBuckets.screenC;
+    } else if (screenType === 'screenD' || screenType === 'D' || screenType === 4) {
+      targetBucket = visualBuckets.screenD;
+    } else if (screenType === 'screenE' || screenType === 'E' || screenType === 5) {
+      targetBucket = visualBuckets.screenE;
+    } else if (screenType === 'screenF' || screenType === 'F' || screenType === 6) {
+      targetBucket = visualBuckets.screenF;
     }
 
     const screenGeo = createPlaneFacingPlayer(screenW, screenH, uMin, vMin, uMax, vMax);
     screenGeo.translate(0, 0, -monD / 2 - 0.004);
-    addVisual(visualBuckets.monitorScreen, screenGeo, x, centerY, z, 0, rotY, 0);
+    addVisual(targetBucket, screenGeo, x, centerY, z, 0, rotY, 0);
     screenGeo.dispose();
   }
 
