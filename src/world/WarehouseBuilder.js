@@ -49,6 +49,48 @@ function createPlaneFacingPlayer(w, h, uMin = 0, vMin = 0, uMax = 1, vMax = 1) {
 }
 
 /**
+ * Creates a custom PlaneGeometry whose front face points towards +Z (rear of monitor),
+ * with correct unmirrored UV mapping for rear-facing panels:
+ * (X = +hw) -> U = uMin (observer's left), (X = -hw) -> U = uMax (observer's right).
+ */
+function createPlaneFacingRear(w, h, uMin = 0, vMin = 0, uMax = 1, vMax = 1) {
+  const geo = new THREE.BufferGeometry();
+  const hw = w / 2;
+  const hh = h / 2;
+
+  // Vertices facing +Z away from screen (toward rear observer)
+  // Observer looking down -Z: observer's left is -X, right is +X
+  const positions = new Float32Array([
+    -hw,  hh, 0, // 0: Observer Top-Left (-X, +Y)
+     hw,  hh, 0, // 1: Observer Top-Right (+X, +Y)
+    -hw, -hh, 0, // 2: Observer Bottom-Left (-X, -Y)
+     hw, -hh, 0  // 3: Observer Bottom-Right (+X, -Y)
+  ]);
+
+  const normals = new Float32Array([
+    0, 0, 1,
+    0, 0, 1,
+    0, 0, 1,
+    0, 0, 1
+  ]);
+
+  const uvs = new Float32Array([
+    uMin, vMax, // 0: Top-Left
+    uMax, vMax, // 1: Top-Right
+    uMin, vMin, // 2: Bottom-Left
+    uMax, vMin  // 3: Bottom-Right
+  ]);
+
+  const indices = [0, 2, 1, 2, 3, 1];
+
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('normal', new THREE.BufferAttribute(normals, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  return geo;
+}
+
+/**
  * Procedural Clean Solid Anti-Static Tile Textures for the Main Room Lower Floor (1024x1024).
  * Modular 2x2 grid of clean, uniform solid anthracite anti-static access tiles (each 512x512px).
  * - Balanced architectural anthracite slate palette (#252933 base with #13171d recessed gasket seams).
@@ -7723,6 +7765,399 @@ function createSplitAcFrontTextures() {
  * Builds the compact, intimate Enterprise Data Center Shooting Range.
  * Rendered in batched draw calls with zero PointLights.
  */
+/**
+ * Procedural Front Stand "PC" Micro-Logo Texture (128x64).
+ * Inspired by Dell P2425H front stand logo:
+ * - Platinum-silver background (#cfd6df) matching stand finish
+ * - Crisp dark-charcoal (#252930) geometric sans-serif: upright "P" (left) and -25° tilted "C" (right)
+ */
+function createStandFrontLogoTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+
+  // Platinum-silver background matching monitorStandSilverMaterial
+  ctx.fillStyle = '#cfd6df';
+  ctx.fillRect(0, 0, 128, 64);
+
+  // Dark-charcoal "PC" parody text (with tilted "C")
+  ctx.fillStyle = '#252930';
+  ctx.font = '900 34px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Upright "P"
+  ctx.fillText('P', 64 - 15, 32);
+
+  // Tilted "C" (-25 degrees)
+  ctx.save();
+  ctx.translate(64 + 15, 32);
+  ctx.rotate(-25 * Math.PI / 180);
+  ctx.fillText('C', 0, 0);
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Dell P2425H Monitor Rear Panel Texture (1024x576, 16:9 widescreen).
+ * High-resolution canvas texture mapped to the rear of every workstation monitor:
+ * - Matte graphite-charcoal shell (#252830) with subtle radial/vertical ambient sheen
+ * - Continuous row of fine dark cooling ventilation micro-slots along top edge
+ * - Upper-center circular silver parody emblem (radius ~52px) with upright "P" and -25° tilted "C"
+ * - Center square VESA mount panel (y = 165 to 365) with recessed border, 4 corner screws, center hinge boss,
+ *   and horizontal pill-shaped quick-release button tab below
+ * - Lower recessed downward-facing I/O port pocket (y = 395 to 560) with port label strip (~, HDMI, DP, USB),
+ *   metallic connector outlines, and realistic black-and-white regulatory sticker featuring TWO crisp white QR codes
+ * - Bottom-left rear controls: circular tactile power button with power symbol and circular 5-way mini OSD joystick nub
+ */
+function createMonitorBackTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Matte graphite-charcoal background & ambient radial sheen
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, 576);
+  bgGrad.addColorStop(0, '#262932');
+  bgGrad.addColorStop(0.35, '#2b2f39');
+  bgGrad.addColorStop(0.70, '#242731');
+  bgGrad.addColorStop(1, '#1b1d24');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, 1024, 576);
+
+  // Ambient radial sheen catching ceiling overhead light
+  const ambientGlow = ctx.createRadialGradient(512, 180, 50, 512, 180, 500);
+  ambientGlow.addColorStop(0, 'rgba(255, 255, 255, 0.08)');
+  ambientGlow.addColorStop(0.5, 'rgba(255, 255, 255, 0.02)');
+  ambientGlow.addColorStop(1, 'transparent');
+  ctx.fillStyle = ambientGlow;
+  ctx.fillRect(0, 0, 1024, 576);
+
+  // 2. Top Micro-Ventilation Cooling Slots (continuous horizontal row)
+  ctx.fillStyle = '#111318';
+  for (let vx = 36; vx < 1024 - 36; vx += 7) {
+    ctx.fillRect(vx, 7, 3.5, 9);
+  }
+  ctx.strokeStyle = '#383e4a';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(34, 18.5);
+  ctx.lineTo(1024 - 34, 18.5);
+  ctx.stroke();
+
+  // 3. Upper-Center Circular "PC" Parody Logo Ring (centered at x = 512, y = 88, radius = 48px)
+  const logoX = 512;
+  const logoY = 88;
+  const logoR = 48;
+
+  // Dark recessed circular well
+  ctx.fillStyle = '#161920';
+  ctx.beginPath();
+  ctx.arc(logoX, logoY, logoR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Crisp silver-white outer ring (#e2e8f0, lineWidth: 5px)
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 4.8;
+  ctx.beginPath();
+  ctx.arc(logoX, logoY, logoR - 2.4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner subtle metallic bevel line
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.arc(logoX, logoY, logoR - 5.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Bold geometric sans-serif letters "PC" in bright brushed silver (#f1f5f9)
+  ctx.fillStyle = '#f1f5f9';
+  ctx.font = '900 44px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  // Upright "P" on left
+  ctx.fillText('P', logoX - 16, logoY);
+
+  // Tilted "C" on right, rotated counter-clockwise by -25 degrees
+  ctx.save();
+  ctx.translate(logoX + 16, logoY);
+  ctx.rotate(-25 * Math.PI / 180);
+  ctx.fillText('C', 0, 0);
+  ctx.restore();
+
+  // 4. Center Square VESA Mount Cavity & Quick-Release Latch (y = 165 to 365)
+  const vesaX = 512 - 130; // 382
+  const vesaY = 165;
+  const vesaW = 260;
+  const vesaH = 195;
+
+  ctx.fillStyle = '#1a1c22';
+  ctx.beginPath();
+  ctx.roundRect(vesaX, vesaY, vesaW, vesaH, 4);
+  ctx.fill();
+
+  // 1px-2px dark recessed seam (#14161b)
+  ctx.strokeStyle = '#121419';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Inner bevel highlight
+  ctx.strokeStyle = '#2d323c';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(vesaX + 2, vesaY + vesaH - 1);
+  ctx.lineTo(vesaX + vesaW - 1, vesaY + vesaH - 1);
+  ctx.lineTo(vesaX + vesaW - 1, vesaY + 2);
+  ctx.stroke();
+
+  // 4 VESA Corner Screw Inserts
+  const screwOffsets = [
+    [vesaX + 28, vesaY + 28],
+    [vesaX + vesaW - 28, vesaY + 28],
+    [vesaX + 28, vesaY + vesaH - 28],
+    [vesaX + vesaW - 28, vesaY + vesaH - 28]
+  ];
+  for (const [sx, sy] of screwOffsets) {
+    ctx.fillStyle = '#0f1115';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#475569';
+    ctx.beginPath();
+    ctx.arc(sx, sy, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#1e293b';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(sx - 3, sy); ctx.lineTo(sx + 3, sy);
+    ctx.moveTo(sx, sy - 3); ctx.lineTo(sx, sy + 3);
+    ctx.stroke();
+  }
+
+  // Circular center hinge boss
+  const hingeCx = 512;
+  const hingeCy = vesaY + vesaH / 2;
+  ctx.fillStyle = '#14161c';
+  ctx.beginPath();
+  ctx.arc(hingeCx, hingeCy, 42, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#282d36';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.fillStyle = '#1c1f27';
+  ctx.beginPath();
+  ctx.arc(hingeCx, hingeCy, 30, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Horizontal pill-shaped VESA quick-release button tab directly below
+  const tabW = 68;
+  const tabH = 14;
+  const tabX = 512 - tabW / 2;
+  const tabY = vesaY + vesaH + 6;
+  ctx.fillStyle = '#1c1f26';
+  ctx.beginPath();
+  ctx.roundRect(tabX, tabY, tabW, tabH, 4);
+  ctx.fill();
+  ctx.strokeStyle = '#121418';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(512 - 6, tabY + 5);
+  ctx.lineTo(512, tabY + 9);
+  ctx.lineTo(512 + 6, tabY + 5);
+  ctx.stroke();
+
+  // 5. Lower Recessed Downward-Facing I/O Port Pocket & QR Regulatory Label (x = 240 to 784, y = 395 to 560)
+  const pocketX = 240;
+  const pocketY = 395;
+  const pocketW = 544;
+  const pocketH = 165;
+
+  const pocketGrad = ctx.createLinearGradient(0, pocketY, 0, pocketY + pocketH);
+  pocketGrad.addColorStop(0, '#101217'); // Deep dark inner shadow
+  pocketGrad.addColorStop(0.2, '#14161d');
+  pocketGrad.addColorStop(1, '#1c2026');
+  ctx.fillStyle = pocketGrad;
+  ctx.beginPath();
+  ctx.roundRect(pocketX, pocketY, pocketW, pocketH, [6, 6, 0, 0]);
+  ctx.fill();
+
+  // Upper horizontal port label lip (y = 395 to 421)
+  ctx.fillStyle = '#181b22';
+  ctx.fillRect(pocketX, pocketY, pocketW, 26);
+  ctx.strokeStyle = '#2b303b';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(pocketX, pocketY + 26.5);
+  ctx.lineTo(pocketX + pocketW, pocketY + 26.5);
+  ctx.stroke();
+
+  // Recessed port label strip with tiny crisp dark/grey port micro-icons
+  ctx.fillStyle = '#64748b';
+  ctx.font = 'bold 9px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillText('~', pocketX + 45, pocketY + 13);
+  ctx.fillText('HDMI', pocketX + 160, pocketY + 13);
+  ctx.fillText('DP', pocketX + 235, pocketY + 13);
+  ctx.fillText('USB-B ⑂', pocketX + 310, pocketY + 13);
+  ctx.fillText('SS ⑂', pocketX + 410, pocketY + 13);
+  ctx.fillText('SS ⑂', pocketX + 480, pocketY + 13);
+
+  // Metallic port connector edges peeking from underneath the horizontal lip
+  const ports = [
+    [pocketX + 35, 20, '#0a0b0e'],
+    [pocketX + 148, 24, '#334155'],
+    [pocketX + 223, 24, '#334155'],
+    [pocketX + 298, 24, '#0284c7'],
+    [pocketX + 398, 24, '#0284c7'],
+    [pocketX + 468, 24, '#0284c7']
+  ];
+  for (const [px, pw, pcol] of ports) {
+    ctx.fillStyle = pcol;
+    ctx.fillRect(px, pocketY + 27, pw, 5);
+  }
+
+  // Realistic Black-and-White Regulatory / Serial Sticker with TWO crisp white QR code squares
+  const stickerW = 124;
+  const stickerH = 62;
+  const stickerX = 512 - stickerW / 2;
+  const stickerY = pocketY + 54;
+
+  ctx.fillStyle = '#0b0d11';
+  ctx.beginPath();
+  ctx.roundRect(stickerX, stickerY, stickerW, stickerH, 3);
+  ctx.fill();
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Helper: draw crisp procedural QR code square
+  const drawQRCode = (qx, qy, size) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(qx, qy, size, size);
+
+    ctx.fillStyle = '#000000';
+    const cellSize = size / 9;
+
+    // Finder pattern top-left
+    ctx.fillRect(qx, qy, cellSize * 3, cellSize * 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(qx + cellSize, qy + cellSize, cellSize, cellSize);
+
+    // Finder pattern top-right
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(qx + cellSize * 6, qy, cellSize * 3, cellSize * 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(qx + cellSize * 7, qy + cellSize, cellSize, cellSize);
+
+    // Finder pattern bottom-left
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(qx, qy + cellSize * 6, cellSize * 3, cellSize * 3);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(qx + cellSize, qy + cellSize * 7, cellSize, cellSize);
+
+    // Inner QR data bits
+    ctx.fillStyle = '#000000';
+    const dataBits = [
+      [3, 0], [4, 1], [5, 0], [3, 2], [4, 3], [5, 2],
+      [0, 4], [2, 4], [4, 4], [6, 4], [8, 4],
+      [1, 5], [3, 5], [5, 5], [7, 5],
+      [3, 6], [5, 6], [7, 6], [4, 7], [6, 7], [8, 7],
+      [3, 8], [5, 8], [7, 8]
+    ];
+    for (const [bx, by] of dataBits) {
+      ctx.fillRect(qx + bx * cellSize, qy + by * cellSize, cellSize, cellSize);
+    }
+  };
+
+  drawQRCode(stickerX + 11, stickerY + 8, 36);
+  drawQRCode(stickerX + 57, stickerY + 8, 36);
+
+  ctx.fillStyle = '#cbd5e1';
+  ctx.font = '6px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('MODEL: P2425Hb', stickerX + 11, stickerY + 50);
+  ctx.fillText('DP/N: 09X4Y1', stickerX + 70, stickerY + 50);
+  ctx.fillStyle = '#94a3b8';
+  ctx.fillText('CN-0P2425H-PC00-A00', stickerX + 11, stickerY + 57);
+
+  // 6. Bottom-Left Rear OSD Joystick & Tactile Power Button (x = 82 and x = 132, y = 505)
+  // Left: Circular tactile power button
+  const pBtnX = 82;
+  const pBtnY = 505;
+  ctx.fillStyle = '#14161c';
+  ctx.beginPath();
+  ctx.arc(pBtnX, pBtnY, 15, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#2b303c';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.fillStyle = '#222630';
+  ctx.beginPath();
+  ctx.arc(pBtnX, pBtnY, 11, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.arc(pBtnX, pBtnY + 1, 5, -Math.PI * 0.7, -Math.PI * 0.3, true);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(pBtnX, pBtnY - 5);
+  ctx.lineTo(pBtnX, pBtnY);
+  ctx.stroke();
+
+  // Right: Circular 5-way mini OSD Joystick nub
+  const joyX = 132;
+  const joyY = 505;
+  ctx.fillStyle = '#14161c';
+  ctx.beginPath();
+  ctx.arc(joyX, joyY, 19, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#2b303c';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  const joyGrad = ctx.createRadialGradient(joyX - 3, joyY - 3, 2, joyX, joyY, 14);
+  joyGrad.addColorStop(0, '#3a414e');
+  joyGrad.addColorStop(0.7, '#242832');
+  joyGrad.addColorStop(1, '#171920');
+  ctx.fillStyle = joyGrad;
+  ctx.beginPath();
+  ctx.arc(joyX, joyY, 13, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#0f1115';
+  const dimpleDist = 6.5;
+  ctx.fillRect(joyX - 1, joyY - dimpleDist - 1, 2, 2);
+  ctx.fillRect(joyX - 1, joyY + dimpleDist - 1, 2, 2);
+  ctx.fillRect(joyX - dimpleDist - 1, joyY - 1, 2, 2);
+  ctx.fillRect(joyX + dimpleDist - 1, joyY - 1, 2, 2);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export class WarehouseBuilder {
   constructor(scene) {
     this.scene = scene;
@@ -7769,6 +8204,8 @@ export class WarehouseBuilder {
     this.sffRearTexture = createSFFRearTexture();
     this.sffBadgeTexture = createSFFBadgeTexture();
     this.sffStickerTexture = createSFFStickerTexture();
+    this.monitorBackTexture = createMonitorBackTexture();
+    this.monitorStandLogoTexture = createStandFrontLogoTexture();
 
     // Enterprise Data Center Raised Plenum Floor Textures
     const plenumTex = createPerforatedFloorTextures();
@@ -8084,6 +8521,25 @@ float rackHash(vec2 p) {
     this.screenFMaterial = new THREE.MeshBasicMaterial({
       map: this.screenFTexture,
     });
+    // Dell P2425H Monitor Materials
+    this.monitorBackMaterial = new THREE.MeshStandardMaterial({
+      map: this.monitorBackTexture,
+      roughness: 0.62,
+      metalness: 0.25,
+    });
+    this.monitorStandSilverMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcfd6df,
+      roughness: 0.32,
+      metalness: 0.68,
+    });
+    this.monitorHousingMaterial = new THREE.MeshStandardMaterial({
+      color: 0x14161b,
+      roughness: 0.70,
+      metalness: 0.15,
+    });
+    this.monitorStandLogoMaterial = new THREE.MeshBasicMaterial({
+      map: this.monitorStandLogoTexture,
+    });
 
     // Warning Yellow for barrier top pad and floor hazard line
     this.warningYellowMaterial = new THREE.MeshStandardMaterial({
@@ -8333,6 +8789,10 @@ float rackHash(vec2 p) {
       screenD: [],
       screenE: [],
       screenF: [],
+      monitorBack: [],
+      monitorStandSilver: [],
+      monitorHousing: [],
+      monitorStandLogo: [],
       warningYellow: [],
       plenumFloor: [],
       plenumBase: [],
@@ -8701,6 +9161,10 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.screenD, material: this.screenDMaterial, name: 'DC_ScreenD' },
       { bucket: visualBuckets.screenE, material: this.screenEMaterial, name: 'DC_ScreenE' },
       { bucket: visualBuckets.screenF, material: this.screenFMaterial, name: 'DC_ScreenF' },
+      { bucket: visualBuckets.monitorBack, material: this.monitorBackMaterial, name: 'DC_MonitorBack' },
+      { bucket: visualBuckets.monitorStandSilver, material: this.monitorStandSilverMaterial, name: 'DC_MonitorStandSilver' },
+      { bucket: visualBuckets.monitorHousing, material: this.monitorHousingMaterial, name: 'DC_MonitorHousing' },
+      { bucket: visualBuckets.monitorStandLogo, material: this.monitorStandLogoMaterial, name: 'DC_MonitorStandLogo' },
       { bucket: visualBuckets.warningYellow, material: this.warningYellowMaterial, name: 'DC_WarningYellow' },
       { bucket: visualBuckets.glowingCyan, material: this.glowingCyanMaterial, name: 'DC_CyanGlow' },
       { bucket: visualBuckets.chairFrame, material: this.chairFrameMaterial, name: 'DC_ChairFrames' },
@@ -9358,42 +9822,189 @@ float rackHash(vec2 p) {
    * Builds a Monitor (+40% Hero Scale) facing -Z directly toward player.
    * Stand post and base are positioned strictly BEHIND the screen (+Z side).
    */
+  /**
+   * Builds a Monitor (+40% Hero Scale) facing -Z directly toward player.
+   * Dell P2425H Industrial Design:
+   * - Ultra-thin 3-sided front micro-bezels + bottom chin bar with ice-blue power LED pinpoint.
+   * - Contoured matte charcoal rear casing with procedural CanvasTexture (cooling vents, circular "PC" logo,
+   *   VESA mount with quick-release tab, recessed port pocket with QR sticker, OSD joystick & power button).
+   * - Iconic Dell Platinum-Silver Stand with thin beveled base plate, black under-pad, vertical riser column
+   *   featuring an OPEN cable-management pass-through cutout slot, and front "PC" micro-badge.
+   * - Screen display plane kept at 100% exact original coordinates, size, and existing screen textures!
+   */
   _buildMonitor(addPart, addVisual, visualBuckets, x, y, z, rotY = 0, isUltrawide = false, screenType = 'bsod') {
     // Hero Scale: Standard (0.92m x 0.58m), Ultrawide (1.36m x 0.62m)
     const monW = isUltrawide ? 1.36 : 0.92;
     const monH = isUltrawide ? 0.62 : 0.58;
-    const monD = 0.05;
-
-    // 1. Stand Post (BEHIND the monitor on +Z side: local z = +0.05)
-    const postH = 0.38;
-    const postGeo = new THREE.BoxGeometry(0.06, postH, 0.06);
-    postGeo.translate(0, postH / 2, monD / 2 + 0.03);
-    addPart(visualBuckets.serverChassis, postGeo, x, y, z, 0, rotY, 0, false);
-    postGeo.dispose();
-
-    // 2. Stand Base (On desk surface, under post on +Z side: local z = +0.05)
-    const baseGeo = new THREE.BoxGeometry(0.32, 0.018, 0.22);
-    baseGeo.translate(0, 0.009, monD / 2 + 0.03);
-    addPart(visualBuckets.serverChassis, baseGeo, x, y, z, 0, rotY, 0, false);
-    baseGeo.dispose();
-
-    // 3. Monitor Bezel Frame (Centered at y + 0.34)
+    const monD = 0.045;
     const centerY = y + 0.34;
-    const bezelGeo = new THREE.BoxGeometry(monW, monH, monD);
-    addPart(visualBuckets.serverChassis, bezelGeo, x, centerY, z, 0, rotY, 0, true);
-    bezelGeo.dispose();
 
-    // 4. Brushed Silver Frame Bevel
-    const trimGeo = new THREE.BoxGeometry(monW + 0.02, 0.015, 0.015);
-    trimGeo.translate(0, -monH / 2, -monD / 2);
-    addVisual(visualBuckets.silverTrim, trimGeo, x, centerY, z, 0, rotY, 0);
-    trimGeo.dispose();
+    // Stand offsets in local monitor space (+Z is behind monitor)
+    const standZ = monD / 2 + 0.048; // Center of vertical column
+    const baseZ = monD / 2 + 0.055;  // Center of base plate
 
-    // 5. Glowing Front Screen Plane (Positioned in FRONT on -Z side: local z = -monD/2 - 0.004)
-    // Uses createPlaneFacingPlayer so normal points toward -Z and UVs are unmirrored!
+    // -----------------------------------------------------------------------
+    // 1. Sleek Low-Profile Platinum-Silver Base Plate + Black Under-Pad
+    // -----------------------------------------------------------------------
+    // Bottom thin matte-black foot pad (~0.004m thick) resting flush on desk surface
+    const footPadGeo = new THREE.BoxGeometry(0.276, 0.004, 0.206);
+    footPadGeo.translate(0, 0.002, baseZ);
+    addVisual(visualBuckets.monitorHousing, footPadGeo, x, y, z, 0, rotY, 0);
+    footPadGeo.dispose();
+
+    // Platinum-Silver Base Plate (0.28m wide x 0.21m deep x 0.009m thick)
+    const basePlateGeo = new THREE.BoxGeometry(0.280, 0.009, 0.210);
+    basePlateGeo.translate(0, 0.0085, baseZ);
+    addPart(visualBuckets.monitorStandSilver, basePlateGeo, x, y, z, 0, rotY, 0, false);
+    basePlateGeo.dispose();
+
+    // Subtle beveled edge trim on base plate
+    const chamferGeo = new THREE.BoxGeometry(0.284, 0.003, 0.214);
+    chamferGeo.translate(0, 0.0055, baseZ);
+    addVisual(visualBuckets.monitorStandSilver, chamferGeo, x, y, z, 0, rotY, 0);
+    chamferGeo.dispose();
+
+    // -----------------------------------------------------------------------
+    // 2. Contoured Silver Vertical Riser Column with Cable-Management Pass-Through Slot
+    // -----------------------------------------------------------------------
+    // Column dimensions: width ~0.056m x depth ~0.032m
+    // A. Lower solid section / column foot (y = 0.013 to y = 0.065, height = 0.052m)
+    const footH = 0.052;
+    const lowerColGeo = new THREE.BoxGeometry(0.056, footH, 0.032);
+    lowerColGeo.translate(0, 0.013 + footH / 2, standZ);
+    addVisual(visualBuckets.monitorStandSilver, lowerColGeo, x, y, z, 0, rotY, 0);
+    lowerColGeo.dispose();
+
+    // Front Riser "PC" Micro-Logo (facing user/keyboard on front of lower section)
+    const standLogoGeo = createPlaneFacingPlayer(0.024, 0.012);
+    standLogoGeo.translate(0, 0.013 + footH / 2, standZ - 0.016 - 0.001);
+    addVisual(visualBuckets.monitorStandLogo, standLogoGeo, x, y, z, 0, rotY, 0);
+    standLogoGeo.dispose();
+
+    // B. Middle Section with OPEN Cable Pass-Through Slot (y = 0.065 to y = 0.160, height = 0.095m)
+    const slotH = 0.095;
+    const pillarW = 0.015; // Left & Right framing pillars (0.015 * 2 + 0.026 slot = 0.056 total width)
+    const leftPillarGeo = new THREE.BoxGeometry(pillarW, slotH, 0.032);
+    leftPillarGeo.translate(-0.0205, 0.065 + slotH / 2, standZ);
+    addVisual(visualBuckets.monitorStandSilver, leftPillarGeo, x, y, z, 0, rotY, 0);
+    leftPillarGeo.dispose();
+
+    const rightPillarGeo = new THREE.BoxGeometry(pillarW, slotH, 0.032);
+    rightPillarGeo.translate(0.0205, 0.065 + slotH / 2, standZ);
+    addVisual(visualBuckets.monitorStandSilver, rightPillarGeo, x, y, z, 0, rotY, 0);
+    rightPillarGeo.dispose();
+
+    // Dark-grey inner sleeve lining inside the slot (top and bottom curved lip)
+    const sleeveBotGeo = new THREE.BoxGeometry(0.026, 0.008, 0.030);
+    sleeveBotGeo.translate(0, 0.065 + 0.004, standZ);
+    addVisual(visualBuckets.monitorHousing, sleeveBotGeo, x, y, z, 0, rotY, 0);
+    sleeveBotGeo.dispose();
+
+    const sleeveTopGeo = new THREE.BoxGeometry(0.026, 0.008, 0.030);
+    sleeveTopGeo.translate(0, 0.160 - 0.004, standZ);
+    addVisual(visualBuckets.monitorHousing, sleeveTopGeo, x, y, z, 0, rotY, 0);
+    sleeveTopGeo.dispose();
+
+    // C. Upper solid section / riser body (y = 0.160 to y = 0.440, height = 0.280m)
+    const upperH = 0.280;
+    const upperColGeo = new THREE.BoxGeometry(0.056, upperH, 0.032);
+    upperColGeo.translate(0, 0.160 + upperH / 2, standZ);
+    addVisual(visualBuckets.monitorStandSilver, upperColGeo, x, y, z, 0, rotY, 0);
+    upperColGeo.dispose();
+
+    // Rounded top cap of riser
+    const topCapGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.056, 16);
+    topCapGeo.rotateZ(Math.PI / 2);
+    topCapGeo.translate(0, 0.440, standZ);
+    addVisual(visualBuckets.monitorStandSilver, topCapGeo, x, y, z, 0, rotY, 0);
+    topCapGeo.dispose();
+
+    // D. Matte-black VESA Hinge Neck connecting column to monitor back
+    const neckGeo = new THREE.BoxGeometry(0.042, 0.046, 0.038);
+    neckGeo.translate(0, 0.02, monD / 2 + 0.024);
+    addVisual(visualBuckets.monitorHousing, neckGeo, x, centerY, z, 0, rotY, 0);
+    neckGeo.dispose();
+
+    // -----------------------------------------------------------------------
+    // 3. Monitor Casing & Rear Panel with High-Resolution Procedural Texture
+    // -----------------------------------------------------------------------
+    // Main casing box (collidable)
+    const casingGeo = new THREE.BoxGeometry(monW, monH, monD);
+    addPart(visualBuckets.monitorHousing, casingGeo, x, centerY, z, 0, rotY, 0, true);
+    casingGeo.dispose();
+
+    // High-Resolution Procedural Rear Texture Plane (facing +Z away from player)
+    const rearPlaneGeo = createPlaneFacingRear(monW, monH);
+    rearPlaneGeo.translate(0, 0, monD / 2 + 0.001);
+    addVisual(visualBuckets.monitorBack, rearPlaneGeo, x, centerY, z, 0, rotY, 0);
+    rearPlaneGeo.dispose();
+
+    // 3D VESA mount square relief
+    const vesaBlockGeo = new THREE.BoxGeometry(0.15, 0.15, 0.006);
+    vesaBlockGeo.translate(0, 0.02, monD / 2 + 0.004);
+    addVisual(visualBuckets.monitorHousing, vesaBlockGeo, x, centerY, z, 0, rotY, 0);
+    vesaBlockGeo.dispose();
+
+    // 3D Downward-facing I/O Port Overhang Lip
+    const portLipGeo = new THREE.BoxGeometry(0.36, 0.010, 0.012);
+    portLipGeo.translate(0, -0.09, monD / 2 + 0.006);
+    addVisual(visualBuckets.monitorHousing, portLipGeo, x, centerY, z, 0, rotY, 0);
+    portLipGeo.dispose();
+
+    // 3D OSD Joystick nub (at lower-left of rear shell: +X in local space)
+    const joyGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.006, 12);
+    joyGeo.rotateX(Math.PI / 2);
+    joyGeo.translate(-monW * 0.38, -monH * 0.38, monD / 2 + 0.004);
+    addVisual(visualBuckets.monitorHousing, joyGeo, x, centerY, z, 0, rotY, 0);
+    joyGeo.dispose();
+
+    // 3D Power button ring
+    const pBtnGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.003, 12);
+    pBtnGeo.rotateX(Math.PI / 2);
+    pBtnGeo.translate(-monW * 0.38 + 0.025, -monH * 0.38, monD / 2 + 0.003);
+    addVisual(visualBuckets.monitorHousing, pBtnGeo, x, centerY, z, 0, rotY, 0);
+    pBtnGeo.dispose();
+
+    // -----------------------------------------------------------------------
+    // 4. Ultra-Thin 3-Sided Front Micro-Bezel & Chin Bar
+    // -----------------------------------------------------------------------
     const screenW = monW - 0.04;
     const screenH = monH - 0.04;
 
+    // Top micro-bezel (~0.008m border)
+    const topBezelGeo = new THREE.BoxGeometry(screenW + 0.016, 0.008, 0.006);
+    topBezelGeo.translate(0, screenH / 2 + 0.004, -monD / 2 - 0.002);
+    addVisual(visualBuckets.monitorHousing, topBezelGeo, x, centerY, z, 0, rotY, 0);
+    topBezelGeo.dispose();
+
+    // Left micro-bezel (~0.008m border)
+    const leftBezelGeo = new THREE.BoxGeometry(0.008, screenH, 0.006);
+    leftBezelGeo.translate(-screenW / 2 - 0.004, 0, -monD / 2 - 0.002);
+    addVisual(visualBuckets.monitorHousing, leftBezelGeo, x, centerY, z, 0, rotY, 0);
+    leftBezelGeo.dispose();
+
+    // Right micro-bezel (~0.008m border)
+    const rightBezelGeo = new THREE.BoxGeometry(0.008, screenH, 0.006);
+    rightBezelGeo.translate(screenW / 2 + 0.004, 0, -monD / 2 - 0.002);
+    addVisual(visualBuckets.monitorHousing, rightBezelGeo, x, centerY, z, 0, rotY, 0);
+    rightBezelGeo.dispose();
+
+    // Bottom chin bar (~0.016m tall)
+    const chinGeo = new THREE.BoxGeometry(screenW + 0.016, 0.016, 0.008);
+    chinGeo.translate(0, -screenH / 2 - 0.008, -monD / 2 - 0.001);
+    addVisual(visualBuckets.monitorHousing, chinGeo, x, centerY, z, 0, rotY, 0);
+    chinGeo.dispose();
+
+    // Tiny ice-blue power LED pinpoint near bottom-right corner of chin
+    const ledGeo = new THREE.BoxGeometry(0.0025, 0.0025, 0.002);
+    ledGeo.translate(screenW / 2 - 0.025, -screenH / 2 - 0.008, -monD / 2 - 0.0055);
+    addVisual(visualBuckets.sffIceBlueLed, ledGeo, x, centerY, z, 0, rotY, 0);
+    ledGeo.dispose();
+
+    // -----------------------------------------------------------------------
+    // 5. Glowing Front Screen Plane (Positioned in FRONT on -Z side: local z = -monD/2 - 0.004)
+    // 100% UNTOUCHED dimensions, coordinates, and existing textures!
+    // -----------------------------------------------------------------------
     let targetBucket = visualBuckets.screenA;
     let uMin = 0.0, uMax = 1.0, vMin = 0.0, vMax = 1.0;
 
