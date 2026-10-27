@@ -49,82 +49,499 @@ function createPlaneFacingPlayer(w, h, uMin = 0, vMin = 0, uMax = 1, vMax = 1) {
 }
 
 /**
- * Unified cohesive floor texture for both Firing Bay & Data Center.
- * High-contrast architectural dark slate concrete with crisp grid lines.
+ * Procedural Clean Solid Anti-Static Tile Textures for the Main Room Lower Floor (1024x1024).
+ * Modular 2x2 grid of clean, uniform solid anthracite anti-static access tiles (each 512x512px).
+ * - Balanced architectural anthracite slate palette (#252933 base with #13171d recessed gasket seams).
+ * - 4 subtle metallic corner lock-screw / tile-lifter dimples (#3b4252) inset near corners.
+ * - Directional micro-speckle / brushed anti-static texture across every tile.
+ * - 100% free of ventilation grilles or micro-perforations for a clean, grounded lower floor arena.
+ * - Scaled with repeat.set(10, 11.75) for exact 1.0m x 1.0m physical tile squares across W=20.0m x L=23.5m.
+ * - Accompanied by a matched 1024x1024 bumpMap for realistic normal depth under overhead lights.
  */
-function createUnifiedFloorTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 512;
-  const ctx = canvas.getContext('2d');
+function createSolidFloorTextures() {
+  const width = 1024;
+  const height = 1024;
 
-  // Readable dark industrial slate slab (NOT pitch black!)
-  ctx.fillStyle = '#242830';
-  ctx.fillRect(0, 0, 512, 512);
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = width;
+  diffCanvas.height = height;
+  const diffCtx = diffCanvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = width;
+  bumpCanvas.height = height;
+  const bumpCtx = bumpCanvas.getContext('2d');
+
+  // Base tile fill - balanced architectural dark slate anthracite #252933
+  diffCtx.fillStyle = '#252933';
+  diffCtx.fillRect(0, 0, width, height);
+
+  // Bump neutral gray 128
+  bumpCtx.fillStyle = '#808080';
+  bumpCtx.fillRect(0, 0, width, height);
+
+  // Subtle directional micro-speckle / brushed anti-static texture
+  const imgData = diffCtx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+  const bumpImgData = bumpCtx.getImageData(0, 0, width, height);
+  const bumpData = bumpImgData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const noise = (Math.random() - 0.5) * 8;
+    data[i] = Math.min(255, Math.max(0, data[i] + noise));
+    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + noise));
+    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + noise));
+
+    const bNoise = (Math.random() - 0.5) * 5;
+    bumpData[i] = Math.min(255, Math.max(0, bumpData[i] + bNoise));
+    bumpData[i + 1] = bumpData[i];
+    bumpData[i + 2] = bumpData[i];
+  }
+  diffCtx.putImageData(imgData, 0, 0);
+  bumpCtx.putImageData(bumpImgData, 0, 0);
+
+  // 2x2 modular tile quadrants (all 4 tiles are clean, uniform solid tiles!)
+  const quadrants = [
+    { x: 0, y: 0 },
+    { x: 512, y: 0 },
+    { x: 0, y: 512 },
+    { x: 512, y: 512 },
+  ];
+
+  for (const q of quadrants) {
+    const qx = q.x;
+    const qy = q.y;
+    const qw = 512;
+    const qh = 512;
+
+    // Crisp dark rubberized gasket seam around perimeter (#13171d)
+    diffCtx.strokeStyle = '#13171d';
+    diffCtx.lineWidth = 4;
+    diffCtx.strokeRect(qx + 2, qy + 2, qw - 4, qh - 4);
+
+    bumpCtx.strokeStyle = '#181818';
+    bumpCtx.lineWidth = 5;
+    bumpCtx.strokeRect(qx + 2, qy + 2, qw - 4, qh - 4);
+
+    // Subtle bevel edge highlight inside gasket
+    diffCtx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
+    diffCtx.lineWidth = 1.5;
+    diffCtx.beginPath();
+    diffCtx.moveTo(qx + 4, qy + qh - 4);
+    diffCtx.lineTo(qx + 4, qy + 4);
+    diffCtx.lineTo(qx + qw - 4, qy + 4);
+    diffCtx.stroke();
+
+    bumpCtx.strokeStyle = '#9a9a9a';
+    bumpCtx.lineWidth = 1.5;
+    bumpCtx.beginPath();
+    bumpCtx.moveTo(qx + 4, qy + qh - 4);
+    bumpCtx.lineTo(qx + 4, qy + 4);
+    bumpCtx.lineTo(qx + qw - 4, qy + 4);
+    bumpCtx.stroke();
+
+    // 4 Corner metallic lock-screw / tile-lifter dimples (#3b4252)
+    const screwOffsets = [
+      [24, 24],
+      [qw - 24, 24],
+      [24, qh - 24],
+      [qw - 24, qh - 24]
+    ];
+
+    for (const [sx, sy] of screwOffsets) {
+      const cx = qx + sx;
+      const cy = qy + sy;
+
+      // Recessed outer gasket ring
+      diffCtx.fillStyle = '#13171d';
+      diffCtx.beginPath();
+      diffCtx.arc(cx, cy, 7, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      bumpCtx.fillStyle = '#141414';
+      bumpCtx.beginPath();
+      bumpCtx.arc(cx, cy, 7, 0, Math.PI * 2);
+      bumpCtx.fill();
+
+      // Metallic screw head
+      diffCtx.fillStyle = '#3b4252';
+      diffCtx.beginPath();
+      diffCtx.arc(cx, cy, 5, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      bumpCtx.fillStyle = '#9c9c9c';
+      bumpCtx.beginPath();
+      bumpCtx.arc(cx, cy, 5, 0, Math.PI * 2);
+      bumpCtx.fill();
+
+      // Specular highlight rim
+      diffCtx.fillStyle = '#657187';
+      diffCtx.beginPath();
+      diffCtx.arc(cx - 1.2, cy - 1.2, 2.0, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      // Dark drive socket (hex/torx)
+      diffCtx.fillStyle = '#181c24';
+      diffCtx.beginPath();
+      diffCtx.arc(cx, cy, 1.8, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      bumpCtx.fillStyle = '#000000';
+      bumpCtx.beginPath();
+      bumpCtx.arc(cx, cy, 2.2, 0, Math.PI * 2);
+      bumpCtx.fill();
+    }
+  }
+
+  // UV repeat set for exact 1.0m x 1.0m square tiles across Main Room Floor (W=20.0m x L=23.5m)
+  // Each UV unit contains 2x2 tiles -> 10 repeats across X = 20 tiles (1.0m), 11.75 repeats across Z = 23.5 tiles (1.0m)
+  const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
+  diffuseTexture.wrapS = THREE.RepeatWrapping;
+  diffuseTexture.wrapT = THREE.RepeatWrapping;
+  diffuseTexture.repeat.set(10, 11.75);
+  diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+  diffuseTexture.anisotropy = 8;
+  diffuseTexture.needsUpdate = true;
+
+  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+  bumpTexture.wrapS = THREE.RepeatWrapping;
+  bumpTexture.wrapT = THREE.RepeatWrapping;
+  bumpTexture.repeat.set(10, 11.75);
+  bumpTexture.anisotropy = 8;
+  bumpTexture.needsUpdate = true;
+
+  return { diffuseTexture, bumpTexture };
+}
+
+/**
+ * Procedural Perforated Server-Cooling Plenum Floor Textures for the Raised Platform Stage (1024x1024).
+ * Modular 2x2 grid of authentic server-cooling plenum tiles (each 512x512px).
+ * - Rich dark anthracite slate palette (#22262e base with #14171e perimeter gasket seams).
+ * - Authentic 6x6 center micro-perforation dot matrix airflow holes (#12151b) with depth-carved bump recesses.
+ * - 4 heavy-duty metallic corner locking bolts (#475569) with torx drive sockets.
+ * - Scaled with repeat.set(7, 3) for exact 1.0m x 1.0m physical tile squares across platW=14.0m x platL=6.0m.
+ * - Accompanied by a matched 1024x1024 bumpMap for crisp lighting response under ceiling panels.
+ */
+function createPerforatedFloorTextures() {
+  const width = 1024;
+  const height = 1024;
+
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = width;
+  diffCanvas.height = height;
+  const diffCtx = diffCanvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = width;
+  bumpCanvas.height = height;
+  const bumpCtx = bumpCanvas.getContext('2d');
+
+  // Base tile fill - deep server-stage anthracite #22262e
+  diffCtx.fillStyle = '#22262e';
+  diffCtx.fillRect(0, 0, width, height);
+
+  // Bump neutral gray 128
+  bumpCtx.fillStyle = '#808080';
+  bumpCtx.fillRect(0, 0, width, height);
 
   // Subtle aggregate micro-noise
-  const imgData = ctx.getImageData(0, 0, 512, 512);
+  const imgData = diffCtx.getImageData(0, 0, width, height);
+  const data = imgData.data;
+  const bumpImgData = bumpCtx.getImageData(0, 0, width, height);
+  const bumpData = bumpImgData.data;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const grain = (Math.random() - 0.5) * 10;
+    data[i] = Math.min(255, Math.max(0, data[i] + grain));
+    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
+    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
+
+    const bNoise = (Math.random() - 0.5) * 6;
+    bumpData[i] = Math.min(255, Math.max(0, bumpData[i] + bNoise));
+    bumpData[i + 1] = bumpData[i];
+    bumpData[i + 2] = bumpData[i];
+  }
+  diffCtx.putImageData(imgData, 0, 0);
+  bumpCtx.putImageData(bumpImgData, 0, 0);
+
+  // 2x2 modular tile quadrants (512x512 each)
+  const quadrants = [
+    { x: 0, y: 0 },
+    { x: 512, y: 0 },
+    { x: 0, y: 512 },
+    { x: 512, y: 512 },
+  ];
+
+  for (const q of quadrants) {
+    const qx = q.x;
+    const qy = q.y;
+    const qw = 512;
+    const qh = 512;
+
+    // Crisp dark perimeter gasket seam (#14171e)
+    diffCtx.strokeStyle = '#14171e';
+    diffCtx.lineWidth = 4;
+    diffCtx.strokeRect(qx + 2, qy + 2, qw - 4, qh - 4);
+
+    bumpCtx.strokeStyle = '#161616';
+    bumpCtx.lineWidth = 5;
+    bumpCtx.strokeRect(qx + 2, qy + 2, qw - 4, qh - 4);
+
+    // Subtle bevel edge highlight inside gasket
+    diffCtx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
+    diffCtx.lineWidth = 1.5;
+    diffCtx.beginPath();
+    diffCtx.moveTo(qx + 4, qy + qh - 4);
+    diffCtx.lineTo(qx + 4, qy + 4);
+    diffCtx.lineTo(qx + qw - 4, qy + 4);
+    diffCtx.stroke();
+
+    bumpCtx.strokeStyle = '#9a9a9a';
+    bumpCtx.lineWidth = 1.5;
+    bumpCtx.beginPath();
+    bumpCtx.moveTo(qx + 4, qy + qh - 4);
+    bumpCtx.lineTo(qx + 4, qy + 4);
+    bumpCtx.lineTo(qx + qw - 4, qy + 4);
+    bumpCtx.stroke();
+
+    // Authentic 6x6 Center Micro-Perforation Dot Matrix (Airflow Plenum Holes)
+    const cx = qx + qw / 2;
+    const cy = qy + qh / 2;
+    const spacing = 26; // 6 holes centered from -65px to +65px
+
+    for (let r = 0; r < 6; r++) {
+      for (let c = 0; c < 6; c++) {
+        const hx = cx + (c - 2.5) * spacing;
+        const hy = cy + (r - 2.5) * spacing;
+
+        // Recessed perforation hole
+        diffCtx.fillStyle = '#12151b';
+        diffCtx.beginPath();
+        diffCtx.arc(hx, hy, 3.2, 0, Math.PI * 2);
+        diffCtx.fill();
+
+        // Depressed hole in bump map
+        bumpCtx.fillStyle = '#101010';
+        bumpCtx.beginPath();
+        bumpCtx.arc(hx, hy, 3.2, 0, Math.PI * 2);
+        bumpCtx.fill();
+
+        // Punched sheet metal rim bevel highlight
+        diffCtx.strokeStyle = 'rgba(255, 255, 255, 0.035)';
+        diffCtx.lineWidth = 0.8;
+        diffCtx.beginPath();
+        diffCtx.arc(hx - 0.5, hy - 0.5, 3.2, Math.PI * 0.75, Math.PI * 1.75);
+        diffCtx.stroke();
+      }
+    }
+
+    // 4 Corner heavy-duty metallic locking bolts (#475569)
+    const boltOffsets = [
+      [24, 24],
+      [qw - 24, 24],
+      [24, qh - 24],
+      [qw - 24, qh - 24]
+    ];
+
+    for (const [bxOffset, byOffset] of boltOffsets) {
+      const bx = qx + bxOffset;
+      const by = qy + byOffset;
+
+      // Recessed outer gasket ring
+      diffCtx.fillStyle = '#14171e';
+      diffCtx.beginPath();
+      diffCtx.arc(bx, by, 7.5, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      bumpCtx.fillStyle = '#141414';
+      bumpCtx.beginPath();
+      bumpCtx.arc(bx, by, 7.5, 0, Math.PI * 2);
+      bumpCtx.fill();
+
+      // Metallic bolt head
+      diffCtx.fillStyle = '#475569';
+      diffCtx.beginPath();
+      diffCtx.arc(bx, by, 5.5, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      bumpCtx.fillStyle = '#9e9e9e';
+      bumpCtx.beginPath();
+      bumpCtx.arc(bx, by, 5.5, 0, Math.PI * 2);
+      bumpCtx.fill();
+
+      // Specular highlight rim
+      diffCtx.fillStyle = '#64748b';
+      diffCtx.beginPath();
+      diffCtx.arc(bx - 1.2, by - 1.2, 2.2, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      // Dark drive socket (hex/torx)
+      diffCtx.fillStyle = '#14171e';
+      diffCtx.beginPath();
+      diffCtx.arc(bx, by, 1.8, 0, Math.PI * 2);
+      diffCtx.fill();
+
+      bumpCtx.fillStyle = '#000000';
+      bumpCtx.beginPath();
+      bumpCtx.arc(bx, by, 2.0, 0, Math.PI * 2);
+      bumpCtx.fill();
+    }
+  }
+
+  // UV repeat set for exact 1.0m x 1.0m square tiles across Raised Platform (platW=14.0m x platL=6.0m)
+  // Each UV unit contains 2x2 tiles -> 7 repeats across X = 14 tiles (1.0m), 3 repeats across Z = 6 tiles (1.0m)
+  const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
+  diffuseTexture.wrapS = THREE.RepeatWrapping;
+  diffuseTexture.wrapT = THREE.RepeatWrapping;
+  diffuseTexture.repeat.set(7, 3);
+  diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+  diffuseTexture.anisotropy = 8;
+  diffuseTexture.needsUpdate = true;
+
+  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+  bumpTexture.wrapS = THREE.RepeatWrapping;
+  bumpTexture.wrapT = THREE.RepeatWrapping;
+  bumpTexture.repeat.set(7, 3);
+  bumpTexture.anisotropy = 8;
+  bumpTexture.needsUpdate = true;
+
+  return { diffuseTexture, bumpTexture };
+}
+
+/**
+ * Compatibility aliases
+ */
+function createUnifiedFloorTexture() {
+  return createSolidFloorTextures().diffuseTexture;
+}
+
+function createPlenumFloorTextures() {
+  return createPerforatedFloorTextures();
+}
+
+/**
+ * Procedural Ribbed Rubber Step Tread with Sight-Line Accent (512x64).
+ * Spans depth of step nosing lip (y: 0 to 64 = 0.046m) and repeats along step length (x: 512 = 1.0m).
+ * - Dark charcoal ribbed rubber (#161920) with fine parallel grip grooves.
+ * - Recessed 3px cool-ice / cyan-silver metallic sight-line (#8ca2b8 / #56c4b8).
+ * - Anodized metal bullnose bevel highlights.
+ */
+function createStepTreadTexture() {
+  const width = 512;
+  const height = 64;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  // Base rubber fill #161920
+  ctx.fillStyle = '#161920';
+  ctx.fillRect(0, 0, width, height);
+
+  // Micro rubber stipple grain
+  const imgData = ctx.getImageData(0, 0, width, height);
   const data = imgData.data;
   for (let i = 0; i < data.length; i += 4) {
-    const grain = (Math.random() - 0.5) * 14;
+    const grain = (Math.random() - 0.5) * 8;
     data[i] = Math.min(255, Math.max(0, data[i] + grain));
     data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
     data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
   }
   ctx.putImageData(imgData, 0, 0);
 
-  // 2x2 grid of 600x600mm server room floor tiles with crisp dark seams
-  ctx.strokeStyle = '#14171e';
-  ctx.lineWidth = 5;
-  ctx.strokeRect(2, 2, 508, 508);
-  ctx.beginPath();
-  ctx.moveTo(256, 0); ctx.lineTo(256, 512);
-  ctx.moveTo(0, 256); ctx.lineTo(512, 256);
-  ctx.stroke();
+  // Rear transition bevel to metal nosing channel (y = 0..6)
+  ctx.fillStyle = '#262c36';
+  ctx.fillRect(0, 0, width, 2);
+  ctx.fillStyle = '#1c212a';
+  ctx.fillRect(0, 2, width, 4);
 
-  // Subtle bevel seam highlight
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
-  ctx.lineWidth = 1.5;
-  ctx.beginPath();
-  ctx.moveTo(258, 0); ctx.lineTo(258, 512);
-  ctx.moveTo(0, 258); ctx.lineTo(512, 258);
-  ctx.stroke();
+  // 6 Longitudinal anti-slip ribbed grip ridges (y = 8..44)
+  const numRibs = 6;
+  const ribHeight = 4;
+  const ribSpacing = 6;
+  const startY = 8;
 
-  // Perforated hole grid in tile centers
-  const quadrants = [[128, 128], [384, 128], [128, 384], [384, 384]];
-  for (const [qx, qy] of quadrants) {
-    ctx.fillStyle = '#171b22';
-    for (let r = -2; r <= 2; r++) {
-      for (let c = -2; c <= 2; c++) {
-        ctx.beginPath();
-        ctx.arc(qx + c * 22, qy + r * 22, 2.8, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
+  for (let r = 0; r < numRibs; r++) {
+    const ry = startY + r * ribSpacing;
+
+    // Recessed dark groove
+    ctx.fillStyle = '#0b0d11';
+    ctx.fillRect(0, ry - 1, width, 2);
+
+    // Raised rubber ridge
+    ctx.fillStyle = '#1c2028';
+    ctx.fillRect(0, ry + 1, width, ribHeight);
+
+    // Ridge specular edge
+    ctx.fillStyle = '#2e3542';
+    ctx.fillRect(0, ry + 1, width, 1);
   }
 
-  // Corner locking screw heads
-  const corners = [
-    [16, 16], [240, 16], [272, 16], [496, 16],
-    [16, 240], [240, 240], [272, 240], [496, 240],
-    [16, 272], [240, 272], [272, 272], [496, 272],
-    [16, 496], [240, 496], [272, 496], [496, 496]
-  ];
-  ctx.fillStyle = '#475569';
-  for (const [cx, cy] of corners) {
-    ctx.beginPath();
-    ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // Recessed Sight-Line Accent Strip (y = 47..56)
+  ctx.fillStyle = '#0a0c0e';
+  ctx.fillRect(0, 47, width, 9);
+
+  // Cool-ice / silver-cyan metallic sight line (#8ca2b8 with #56c4b8 accent)
+  const sightGrad = ctx.createLinearGradient(0, 48, 0, 55);
+  sightGrad.addColorStop(0, '#9bb2c8');
+  sightGrad.addColorStop(0.5, '#56c4b8'); // high-tech cyan-ice accent
+  sightGrad.addColorStop(1, '#6b7e92');
+
+  ctx.fillStyle = sightGrad;
+  ctx.fillRect(0, 49, width, 5);
+
+  // Center bright highlight core
+  ctx.fillStyle = '#d2e4f2';
+  ctx.fillRect(0, 51, width, 1.5);
+
+  // Front bullnose lip shadow (y = 57..64)
+  ctx.fillStyle = '#121418';
+  ctx.fillRect(0, 57, width, 4);
+  ctx.fillStyle = '#0a0b0e';
+  ctx.fillRect(0, 61, width, 3);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(8, 10);
+  texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 8;
   texture.needsUpdate = true;
   return texture;
+}
+
+/**
+ * Creates a step tread BoxGeometry with custom UV mapping on the top surface.
+ * Sight-line is oriented toward the outer exposed step edge.
+ */
+function createTreadBoxGeo(lenX, h, lenZ, repeatCount, axis = 'x') {
+  const geo = new THREE.BoxGeometry(lenX, h, lenZ);
+  const uvAttr = geo.getAttribute('uv');
+  const posAttr = geo.getAttribute('position');
+  const normAttr = geo.getAttribute('normal');
+
+  for (let i = 0; i < posAttr.count; i++) {
+    if (normAttr.getY(i) > 0.5) {
+      if (axis === 'x') {
+        const u = ((posAttr.getX(i) / lenX) + 0.5) * repeatCount;
+        const normZ = (posAttr.getZ(i) / lenZ) + 0.5;
+        const v = 1 - normZ; // sight-line on outer front lip
+        uvAttr.setXY(i, u, v);
+      } else if (axis === 'z_left') {
+        const u = ((posAttr.getZ(i) / lenZ) + 0.5) * repeatCount;
+        const normX = (posAttr.getX(i) / lenX) + 0.5;
+        const v = 1 - normX; // sight-line on left outer edge (-X)
+        uvAttr.setXY(i, u, v);
+      } else {
+        const u = ((posAttr.getZ(i) / lenZ) + 0.5) * repeatCount;
+        const normX = (posAttr.getX(i) / lenX) + 0.5;
+        const v = normX; // sight-line on right outer edge (+X)
+        uvAttr.setXY(i, u, v);
+      }
+    }
+  }
+  uvAttr.needsUpdate = true;
+  return geo;
 }
 
 /**
@@ -7103,8 +7520,10 @@ export class WarehouseBuilder {
     this.colliderMesh = null;
     this.coverNodes = [];
 
-    // 1. Textures (SRGB + anisotropy 4)
-    this.floorTexture = createUnifiedFloorTexture();
+    // 1. Textures (SRGB + anisotropy 8)
+    const mainFloorTex = createSolidFloorTextures();
+    this.floorTexture = mainFloorTex.diffuseTexture;
+    this.floorBumpTexture = mainFloorTex.bumpTexture;
     this.wallTexture = createDataCenterWallTexture();
     const ceilingTex = createDataCenterCeilingTextures();
     this.ceilingTexture = ceilingTex.diffuseTexture;
@@ -7139,10 +7558,19 @@ export class WarehouseBuilder {
     this.sffBadgeTexture = createSFFBadgeTexture();
     this.sffStickerTexture = createSFFStickerTexture();
 
+    // Enterprise Data Center Raised Plenum Floor Textures
+    const plenumTex = createPerforatedFloorTextures();
+    this.plenumFloorTexture = plenumTex.diffuseTexture;
+    this.plenumFloorBumpTexture = plenumTex.bumpTexture;
+
+    this.stepTreadTexture = createStepTreadTexture();
+
     // 2. High-Readability Industrial Palette (NO pure pitch-black silhouettes!)
     this.floorMaterial = new THREE.MeshStandardMaterial({
       map: this.floorTexture,
-      roughness: 0.65,
+      bumpMap: this.floorBumpTexture,
+      bumpScale: 0.0015,
+      roughness: 0.75,
       metalness: 0.20,
     });
 
@@ -7196,6 +7624,41 @@ export class WarehouseBuilder {
       color: 0x363d47,
       metalness: 0.55,
       roughness: 0.40,
+    });
+
+    // Enterprise Raised Plenum Floor Stage Materials
+    this.plenumFloorMaterial = new THREE.MeshStandardMaterial({
+      map: this.plenumFloorTexture,
+      bumpMap: this.plenumFloorBumpTexture,
+      bumpScale: 0.002,
+      roughness: 0.72,
+      metalness: 0.22,
+    });
+
+    // Solid dark structural gunmetal for the raised platform base box walls
+    this.plenumBaseMaterial = new THREE.MeshStandardMaterial({
+      color: 0x181c24,
+      roughness: 0.65,
+      metalness: 0.35,
+    });
+
+    // Grounding dark rubber/anthracite cove baseboard strip along floor (y = 0)
+    this.plenumBaseboardMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0f1217,
+      roughness: 0.85,
+      metalness: 0.10,
+    });
+
+    this.stepNosingMetalMaterial = new THREE.MeshStandardMaterial({
+      color: 0x4b5563,
+      roughness: 0.40,
+      metalness: 0.65,
+    });
+
+    this.stepTreadMaterial = new THREE.MeshStandardMaterial({
+      map: this.stepTreadTexture,
+      roughness: 0.80,
+      metalness: 0.15,
     });
 
     // Dark brushed steel rack side panels (Powder-coated metal finish)
@@ -7637,6 +8100,11 @@ float rackHash(vec2 p) {
       screenE: [],
       screenF: [],
       warningYellow: [],
+      plenumFloor: [],
+      plenumBase: [],
+      plenumBaseboard: [],
+      stepNosingMetal: [],
+      stepTread: [],
       glowingCyan: [],
       chairFrame: [],
       chairMesh: [],
@@ -7733,27 +8201,78 @@ float rackHash(vec2 p) {
     registerCollider(floorCollider, 0, -0.5, zCenter);
     floorCollider.dispose();
 
-    // 2. RAISED PLATFORM FLOOR FOR ROW 3 & BACK SERVERS (Z = 7.5 to 13.5, Height = +0.35m)
-    // Elevates Row 3 & the back wall server racks. Width is 14.0m so it leaves a clean 78cm aisle
-    // to the angled flank servers, completely eliminating corner clipping!
+    // 2. ENTERPRISE DATA CENTER RAISED PLENUM FLOOR STAGE (Z = 7.5 to 13.5, Height = +0.35m)
+    // Elevates Row 3 workstations and the back wall server racks on an authentic modular access plenum floor.
+    // Dimensions & collider bounds are 100% preserved (platW = 14.0m, platL = 6.0m, platH = 0.35m, platZ = 10.5m).
     const platW = 14.0;
     const platL = 6.0;
     const platH = 0.35;
     const platZ = 10.5;
-    const platformGeo = new THREE.BoxGeometry(platW, platH, platL);
-    addPart(visualBuckets.serverChassis, platformGeo, 0, platH / 2, platZ, 0, 0, 0, true);
-    platformGeo.dispose();
 
-    // Platform step hazard trim on front edge
-    const frontTrimGeo = new THREE.BoxGeometry(platW, 0.04, 0.08);
-    addVisual(visualBuckets.warningYellow, frontTrimGeo, 0, platH, 7.5);
-    frontTrimGeo.dispose();
+    // A. Static BVH Environment Collider for Raised Platform (Identical bounds: 14.0m x 0.35m x 6.0m)
+    const platformColliderGeo = new THREE.BoxGeometry(platW, platH, platL);
+    registerCollider(platformColliderGeo, 0, platH / 2, platZ);
+    platformColliderGeo.dispose();
 
-    // Platform step hazard trim on left and right side edges
-    const sideTrimGeo = new THREE.BoxGeometry(0.08, 0.04, platL);
-    addVisual(visualBuckets.warningYellow, sideTrimGeo, -platW / 2, platH, platZ);
-    addVisual(visualBuckets.warningYellow, sideTrimGeo, platW / 2, platH, platZ);
-    sideTrimGeo.dispose();
+    // B. Solid, Grounded 3D Platform Base Box (y = 0.0 to y = platH = 0.35m)
+    // 100% opaque, outward-facing solid box walls in dark structural gunmetal (#181c24)
+    const platformBaseGeo = new THREE.BoxGeometry(platW, platH, platL);
+    addVisual(visualBuckets.plenumBase, platformBaseGeo, 0, platH / 2, platZ);
+    platformBaseGeo.dispose();
+
+    // C. Clean, Uniform Modular Anti-Static Tiled Top Cap (Sitting cleanly on top at y = platH + 0.002m)
+    const topPlaneGeo = new THREE.PlaneGeometry(platW, platL);
+    topPlaneGeo.rotateX(-Math.PI / 2);
+    addVisual(visualBuckets.plenumFloor, topPlaneGeo, 0, platH + 0.002, platZ);
+    topPlaneGeo.dispose();
+
+    // D. Grounding Cove Baseboard Trim at y = 0.0 (0.015m thick x 0.035m tall in #0f1217)
+    // Front baseboard strip (Z = 7.5)
+    const frontBaseboardGeo = new THREE.BoxGeometry(platW + 0.03, 0.035, 0.015);
+    addVisual(visualBuckets.plenumBaseboard, frontBaseboardGeo, 0, 0.035 / 2, 7.5 - 0.015 / 2);
+    frontBaseboardGeo.dispose();
+
+    // Left side baseboard strip (X = -7.0m)
+    const leftBaseboardGeo = new THREE.BoxGeometry(0.015, 0.035, platL);
+    addVisual(visualBuckets.plenumBaseboard, leftBaseboardGeo, -platW / 2 - 0.015 / 2, 0.035 / 2, platZ);
+    leftBaseboardGeo.dispose();
+
+    // Right side baseboard strip (X = +7.0m)
+    const rightBaseboardGeo = new THREE.BoxGeometry(0.015, 0.035, platL);
+    addVisual(visualBuckets.plenumBaseboard, rightBaseboardGeo, platW / 2 + 0.015 / 2, 0.035 / 2, platZ);
+    rightBaseboardGeo.dispose();
+
+    // E. Flush, Low-Profile Brushed Slate-Steel Top Perimeter Nosing Channels (No overhanging gap or z-fighting)
+    // Front nosing metal channel
+    const frontNosingGeo = new THREE.BoxGeometry(platW + 0.03, 0.018, 0.024);
+    addVisual(visualBuckets.stepNosingMetal, frontNosingGeo, 0, platH + 0.001, 7.5 - 0.012);
+    frontNosingGeo.dispose();
+
+    // Left side nosing metal channel
+    const leftNosingGeo = new THREE.BoxGeometry(0.024, 0.018, platL);
+    addVisual(visualBuckets.stepNosingMetal, leftNosingGeo, -platW / 2 - 0.012, platH + 0.001, platZ);
+    leftNosingGeo.dispose();
+
+    // Right side nosing metal channel
+    const rightNosingGeo = new THREE.BoxGeometry(0.024, 0.018, platL);
+    addVisual(visualBuckets.stepNosingMetal, rightNosingGeo, platW / 2 + 0.012, platH + 0.001, platZ);
+    rightNosingGeo.dispose();
+
+    // F. Flush Ribbed Rubber Anti-Slip Step Tread with High-Tech Sight-Line Accent
+    // Front step tread
+    const frontTreadGeo = createTreadBoxGeo(platW, 0.004, 0.020, 14, 'x');
+    addVisual(visualBuckets.stepTread, frontTreadGeo, 0, platH + 0.005, 7.5 - 0.010);
+    frontTreadGeo.dispose();
+
+    // Left side step tread (direct box aligned along Z, no Y-rotation!)
+    const leftTreadGeo = createTreadBoxGeo(0.020, 0.004, platL, 6, 'z_left');
+    addVisual(visualBuckets.stepTread, leftTreadGeo, -platW / 2 - 0.010, platH + 0.005, platZ);
+    leftTreadGeo.dispose();
+
+    // Right side step tread (direct box aligned along Z, no Y-rotation!)
+    const rightTreadGeo = createTreadBoxGeo(0.020, 0.004, platL, 6, 'z_right');
+    addVisual(visualBuckets.stepTread, rightTreadGeo, platW / 2 + 0.010, platH + 0.005, platZ);
+    rightTreadGeo.dispose();
 
     // 3. PERIMETER WALLS & CEILING
     // Suspended Tech Ceiling (Y = H = 3.8m, facing down -Y toward room)
@@ -7932,6 +8451,11 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.silverTrim, material: this.silverTrimMaterial, name: 'DC_SilverTrim' },
       { bucket: visualBuckets.deskSurface, material: this.deskSurfaceMaterial, name: 'DC_DeskSurfaces' },
       { bucket: visualBuckets.serverRackBlade, material: this.serverRackBladeMaterial, name: 'DC_ServerBlades' },
+      { bucket: visualBuckets.plenumFloor, material: this.plenumFloorMaterial, name: 'DC_PlenumFloor' },
+      { bucket: visualBuckets.plenumBase, material: this.plenumBaseMaterial, name: 'DC_PlenumBase' },
+      { bucket: visualBuckets.plenumBaseboard, material: this.plenumBaseboardMaterial, name: 'DC_PlenumBaseboard' },
+      { bucket: visualBuckets.stepNosingMetal, material: this.stepNosingMetalMaterial, name: 'DC_StepNosingMetal' },
+      { bucket: visualBuckets.stepTread, material: this.stepTreadMaterial, name: 'DC_StepTread' },
       { bucket: visualBuckets.screenBsod, material: this.monitorScreenMaterial, name: 'DC_ScreenBSOD' },
       { bucket: visualBuckets.screenA, material: this.screenAMaterial, name: 'DC_ScreenA' },
       { bucket: visualBuckets.screenB, material: this.screenBMaterial, name: 'DC_ScreenB' },
