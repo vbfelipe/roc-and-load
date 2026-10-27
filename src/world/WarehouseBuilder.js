@@ -8421,13 +8421,6 @@ float rackHash(vec2 p) {
       this._buildServerCabinet(addPart, addVisual, visualBuckets, rx, backRackZ, 0, platH); // rotY = 0 faces -Z, on platform!
     }
 
-    // Left Wall Server Racks: 4 cabinets angled at 35° toward player on the lower floor
-    const flankZ = [0.5, 3.5, 6.5, 9.5];
-    for (const fz of flankZ) {
-      this._buildServerCabinet(addPart, addVisual, visualBuckets, -8.5, fz, -0.70, 0.0); // Angled inward
-      this._buildServerCabinet(addPart, addVisual, visualBuckets, 8.5, fz, 0.70, 0.0);   // Angled inward
-    }
-
     // Zone C: Workstation Cover Rows
     // Row 1: Close Distance (Z = 1.8m, Floor level)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 1.8, 0.0, 'close', addPartMatrix);
