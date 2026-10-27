@@ -835,4 +835,117 @@ export class SoundManager {
       noise.stop(t + 0.020);
     }
   }
+
+  /**
+   * Destructible LCD Monitor Screen Shatter + Electrical Short Pop SFX.
+   * Layer 1: High-Frequency Glass Crunch (90ms high-passed noise at 2800 Hz + 4 micro-pings at 3200, 4700, 5800, 2400 Hz)
+   * Layer 2: LCD Capacitive Pop (180 Hz -> 48 Hz snap over 65ms + 120 Hz buzz tail over 80ms)
+   */
+  playMonitorShatter() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // 1. High-Frequency Glass Crunch (90ms high-passed white noise at 2800 Hz)
+    const noiseBuffer = this._createNoiseBuffer(0.10);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const hpFilter = this.ctx.createBiquadFilter();
+      hpFilter.type = 'highpass';
+      hpFilter.frequency.setValueAtTime(2800, t);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.55, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.090);
+
+      noise.connect(hpFilter);
+      hpFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noise.start(t);
+      noise.stop(t + 0.092);
+    }
+
+    // 2. Four rapid metallic/glassy micro-pings (3200 Hz, 4700 Hz, 5800 Hz, 2400 Hz decaying over 45ms–110ms)
+    const pings = [
+      { freq: 3200, dur: 0.075, gain: 0.18, type: 'sine' },
+      { freq: 4700, dur: 0.055, gain: 0.16, type: 'triangle' },
+      { freq: 5800, dur: 0.045, gain: 0.14, type: 'sine' },
+      { freq: 2400, dur: 0.110, gain: 0.20, type: 'triangle' },
+    ];
+    for (const p of pings) {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = p.type;
+      osc.frequency.setValueAtTime(p.freq, t);
+      osc.frequency.exponentialRampToValueAtTime(p.freq * 0.85, t + p.dur);
+
+      g.gain.setValueAtTime(p.gain, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + p.dur);
+
+      osc.connect(g);
+      g.connect(this.masterGain);
+
+      osc.start(t);
+      osc.stop(t + p.dur + 0.005);
+    }
+
+    // 3. LCD Capacitive Pop: low-mid electrical snap (180 Hz -> 48 Hz over 65ms)
+    const snapOsc = this.ctx.createOscillator();
+    const snapGain = this.ctx.createGain();
+    snapOsc.type = 'sawtooth';
+    snapOsc.frequency.setValueAtTime(180, t);
+    snapOsc.frequency.exponentialRampToValueAtTime(48, t + 0.065);
+
+    snapGain.gain.setValueAtTime(0.35, t);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.065);
+
+    snapOsc.connect(snapGain);
+    snapGain.connect(this.masterGain);
+
+    snapOsc.start(t);
+    snapOsc.stop(t + 0.068);
+
+    // 4. Electrical buzz tail (120 Hz over 80ms)
+    const buzzOsc = this.ctx.createOscillator();
+    const buzzGain = this.ctx.createGain();
+    buzzOsc.type = 'sawtooth';
+    buzzOsc.frequency.setValueAtTime(120, t + 0.015);
+
+    buzzGain.gain.setValueAtTime(0.0, t);
+    buzzGain.gain.setValueAtTime(0.18, t + 0.015);
+    buzzGain.gain.exponentialRampToValueAtTime(0.001, t + 0.095);
+
+    buzzOsc.connect(buzzGain);
+    buzzGain.connect(this.masterGain);
+
+    buzzOsc.start(t + 0.015);
+    buzzOsc.stop(t + 0.098);
+  }
+
+  /**
+   * Light glass-tick sound for shooting an already-broken monitor screen.
+   */
+  playGlassTick() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(4200 + Math.random() * 800, t);
+    osc.frequency.exponentialRampToValueAtTime(2600, t + 0.035);
+
+    g.gain.setValueAtTime(0.12, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+
+    osc.connect(g);
+    g.connect(this.masterGain);
+
+    osc.start(t);
+    osc.stop(t + 0.038);
+  }
 }

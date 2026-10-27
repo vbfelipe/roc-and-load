@@ -154,6 +154,7 @@ export class WeaponSystem {
 
     this.colliderMesh = null;
     this.boxManager = null;
+    this.monitorScreens = [];
     this.crosshairEl = null;
 
     // Shared Textures & Base Materials (Instanced for independent mesh opacity)
@@ -272,6 +273,10 @@ export class WeaponSystem {
     this.colliderMesh = colliderMesh;
   }
 
+  setMonitorScreens(screens) {
+    this.monitorScreens = screens;
+  }
+
   setBoxManager(boxManager) {
     this.boxManager = boxManager;
   }
@@ -338,6 +343,24 @@ export class WeaponSystem {
     this.sparkPool = new ObjectPool(() => {
       const mesh = new THREE.Mesh(sparkGeo, this.sparkMaterial);
       mesh.name = 'ImpactSpark';
+      mesh._velocity = new THREE.Vector3();
+      mesh._life = 0;
+      mesh._maxLife = 0;
+      mesh.visible = false;
+      this.scene.add(mesh);
+      return mesh;
+    }, 32);
+
+    // 5. Pooled Cyan/White/Amber Electric Sparks & Glass Shards (32 items)
+    const glassGeo = new THREE.BoxGeometry(0.014, 0.014, 0.014);
+    this.glassSparkPool = new ObjectPool(() => {
+      const mesh = new THREE.Mesh(glassGeo, new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        depthWrite: false,
+      }));
+      mesh.name = 'MonitorGlassSpark';
       mesh._velocity = new THREE.Vector3();
       mesh._life = 0;
       mesh._maxLife = 0;
@@ -477,7 +500,23 @@ export class WeaponSystem {
       spark.scale.set(progress, progress, progress);
     });
 
-    // 5. Update Bullet Decals Lifecycle (2.5s hold + 1.0s smooth fade-out + 0.4s hot-metal cooling)
+    // 5. Update Monitor Glass & Electric Sparks
+    this.glassSparkPool.forEachActive((spark) => {
+      spark._life -= delta;
+      if (spark._life <= 0) {
+        spark.visible = false;
+        this.glassSparkPool.release(spark);
+        return;
+      }
+
+      spark._velocity.y -= 15.0 * delta;
+      spark.position.addScaledVector(spark._velocity, delta);
+
+      const progress = Math.max(0, spark._life / spark._maxLife);
+      spark.scale.set(progress, progress, progress);
+    });
+
+    // 6. Update Bullet Decals Lifecycle (2.5s hold + 1.0s smooth fade-out + 0.4s hot-metal cooling)
     this.decalPool.forEachActive((decal) => {
       decal.userData.age += delta;
       const age = decal.userData.age;
@@ -624,6 +663,7 @@ export class WeaponSystem {
 
     let closestHit = null;
     let hitObject = null;
+    let hitScreenMesh = null;
 
     if (this.boxManager && typeof this.boxManager.raycast === 'function') {
       const boxHit = this.boxManager.raycast(_raycaster);
@@ -633,12 +673,27 @@ export class WeaponSystem {
       }
     }
 
-    // 2. Raycast against merged BVH warehouse geometry
-    if (!closestHit && this.colliderMesh) {
+    // Raycast against individual destructible monitor screens
+    if (this.monitorScreens && this.monitorScreens.length > 0) {
+      const screenHits = _raycaster.intersectObjects(this.monitorScreens, false);
+      if (screenHits.length > 0) {
+        if (!closestHit || screenHits[0].distance < closestHit.distance) {
+          closestHit = screenHits[0];
+          hitObject = 'monitorScreen';
+          hitScreenMesh = screenHits[0].object;
+        }
+      }
+    }
+
+    // Raycast against merged BVH warehouse geometry
+    if (this.colliderMesh) {
       const hits = _raycaster.intersectObject(this.colliderMesh, false);
       if (hits.length > 0) {
-        closestHit = hits[0];
-        hitObject = 'arena';
+        if (!closestHit || hits[0].distance < closestHit.distance) {
+          closestHit = hits[0];
+          hitObject = 'arena';
+          hitScreenMesh = null;
+        }
       }
     }
 
@@ -652,22 +707,58 @@ export class WeaponSystem {
       // Spawn ballistic bolt from muzzle socket to hit point
       this._spawnTracer(_muzzlePos, _hitPoint);
 
-      // Burst 6-8 hot metal impact sparks arcing with gravity
-      this._spawnImpactSparks(_hitPoint, normal);
-
-      // Handle Arena Impact Decal
-      if (hitObject === 'arena') {
+      if (hitObject === 'monitorScreen' && hitScreenMesh) {
+        const isBroken = !!hitScreenMesh.userData.isBroken;
+        if (!isBroken) {
+          hitScreenMesh.userData.isBroken = true;
+          if (hitScreenMesh.userData.brokenMaterial) {
+            hitScreenMesh.material = hitScreenMesh.userData.brokenMaterial;
+          }
+          if (hitScreenMesh.userData.brokenGeometry) {
+            hitScreenMesh.geometry = hitScreenMesh.userData.brokenGeometry;
+          }
+          this._spawnMonitorSparks(_hitPoint, normal, true);
+          if (this.sound && typeof this.sound.playMonitorShatter === 'function') {
+            this.sound.playMonitorShatter();
+          }
+        } else {
+          this._spawnMonitorSparks(_hitPoint, normal, false);
+          if (this.sound && typeof this.sound.playGlassTick === 'function') {
+            this.sound.playGlassTick();
+          }
+        }
+        // NOTE: Wall bullet decals are suppressed on monitor screens!
+      } else if (hitObject === 'arena') {
+        // Burst 6-8 hot metal impact sparks arcing with gravity
+        this._spawnImpactSparks(_hitPoint, normal);
         this._spawnDecal(_hitPoint, normal);
-      }
-
-      // Handle Box Impact callback
-      if (hitObject === 'box' && this.boxManager) {
+      } else if (hitObject === 'box' && this.boxManager) {
+        this._spawnImpactSparks(_hitPoint, normal);
         this.boxManager.onHit(closestHit);
       }
     } else {
       // Whiff into distance (100 units forward along camera ray)
       _hitPoint.copy(_rayOrigin).addScaledVector(_rayDirection, 100);
       this._spawnTracer(_muzzlePos, _hitPoint);
+    }
+  }
+
+  _spawnMonitorSparks(hitPoint, normal, isFirstHit) {
+    const count = isFirstHit ? 14 : 6;
+    const sparkColors = [0x00e5ff, 0xffffff, 0xffcc00, 0x38bdf8];
+    for (let i = 0; i < count; i++) {
+      const spark = this.glassSparkPool.acquire();
+      spark.visible = true;
+      spark.position.copy(hitPoint);
+      spark._life = 0.20 + Math.random() * 0.18;
+      spark._maxLife = spark._life;
+      spark.material.color.setHex(sparkColors[Math.floor(Math.random() * sparkColors.length)]);
+
+      _scratchVec1.copy(normal).multiplyScalar(2.2 + Math.random() * 3.5);
+      _scratchVec1.x += (Math.random() - 0.5) * 4.2;
+      _scratchVec1.y += Math.random() * 3.0;
+      _scratchVec1.z += (Math.random() - 0.5) * 4.2;
+      spark._velocity.copy(_scratchVec1);
     }
   }
 
@@ -800,6 +891,14 @@ export class WeaponSystem {
       spark.visible = false;
     });
     this.sparkPool.releaseAll();
+
+    // Clear and reset all glass/electric sparks
+    if (this.glassSparkPool) {
+      this.glassSparkPool.forEachActive((spark) => {
+        spark.visible = false;
+      });
+      this.glassSparkPool.releaseAll();
+    }
 
     // Reset viewmodel
     if (this.viewmodel && typeof this.viewmodel.reset === 'function') {

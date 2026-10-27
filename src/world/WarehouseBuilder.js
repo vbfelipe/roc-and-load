@@ -2946,6 +2946,318 @@ function createMonitorScreenAtlasTexture() {
   return texture;
 }
 
+/**
+ * Procedural High-Resolution Shattered Broken LCD Panel Texture (1024x576 widescreen).
+ * Replicating real LCD impact rupture (image_b892f6.jpg):
+ * 1. Deep dead-matrix black canvas (#030306)
+ * 2. Dense neon vertical RGB & golden-yellow ribbons (short-circuited column drivers)
+ * 3. Curved fracture discontinuity zones & dead blackout pockets (#020205)
+ * 4. Bottom corner horizontal glitch scanline wedges (pink, magenta, orange, white)
+ * 5. Electric violet/purple liquid-crystal pressure bleed node (cx ≈ 345, cy ≈ 375 in V1)
+ * 6. Blinding white crushed-glass spiderweb impact starburst (cx ≈ 490, cy ≈ 305 in V1)
+ * Supports variant = 1 and variant = 2 with varied impact centers and ribbons so dual-monitors look distinct!
+ */
+function createBrokenMonitorScreenTexture(variant = 1) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 576;
+  const ctx = canvas.getContext('2d');
+  const width = 1024;
+  const height = 576;
+
+  const isV2 = variant === 2;
+
+  // Impact and pressure-bleed coordinates
+  const impactX = isV2 ? 565 : 490;
+  const impactY = isV2 ? 265 : 305;
+  const bleedX = isV2 ? 685 : 345;
+  const bleedY = isV2 ? 335 : 375;
+  const ribbonX = isV2 ? 655 : 312;
+
+  let seed = isV2 ? 987654 : 123456;
+  const rnd = () => {
+    seed = (seed * 9301 + 49297) % 233280;
+    return seed / 233280;
+  };
+
+  // 1. Deep Dead-Matrix Black Canvas (#030306)
+  ctx.fillStyle = '#030306';
+  ctx.fillRect(0, 0, width, height);
+
+  // 2. Dense Vertical RGB & Driver Short-Circuit Ribbons
+  const neonPalette = [
+    '#00ff2b', '#16a34a', '#00ff66', '#10b981', '#22c55e', // Neon Matrix Green
+    '#0044ff', '#00e5ff', '#38bdf8', '#0284c7', '#2563eb', // Electric Blue & Cyan
+    '#ff0022', '#ff5500', '#dc2626', '#f97316', '#ea580c', // Crimson Red & Hot Orange
+    '#ff1493', '#c026d3', '#d946ef', '#a855f7', '#7c3aed', // Magenta & Violet
+    '#ffffff', '#f1f5f9', '#ffea75',                         // White & Pale Yellow
+  ];
+
+  let currentX = 0;
+  while (currentX < width) {
+    const isGap = rnd() < 0.28;
+    if (isGap) {
+      currentX += 3 + Math.floor(rnd() * 18);
+      continue;
+    }
+
+    const colW = 1 + Math.floor(rnd() * 4);
+    const colColor = neonPalette[Math.floor(rnd() * neonPalette.length)];
+    const isDotted = rnd() < 0.16;
+
+    if (isDotted) {
+      ctx.fillStyle = colColor;
+      for (let y = 0; y < height; y += 4) {
+        if (rnd() > 0.25) {
+          ctx.fillRect(currentX, y, colW, 2);
+        }
+      }
+    } else {
+      ctx.fillStyle = colColor;
+      ctx.fillRect(currentX, 0, colW, height);
+    }
+
+    currentX += colW + (rnd() < 0.4 ? 0 : 1 + Math.floor(rnd() * 3));
+  }
+
+  // Bold Golden-Yellow Ribbon (28px wide)
+  const ribW = 28;
+  const ribGrad = ctx.createLinearGradient(ribbonX, 0, ribbonX + ribW, 0);
+  ribGrad.addColorStop(0, '#f59e0b');
+  ribGrad.addColorStop(0.3, '#ffcc00');
+  ribGrad.addColorStop(0.7, '#fff04d');
+  ribGrad.addColorStop(1, '#d97706');
+  ctx.fillStyle = ribGrad;
+  ctx.fillRect(ribbonX, 0, ribW, height);
+
+  // Horizontal scanline cross-hatching inside the ribbon
+  ctx.fillStyle = 'rgba(10, 10, 15, 0.45)';
+  for (let y = 0; y < height; y += 3) {
+    ctx.fillRect(ribbonX, y, ribW, 1.2);
+  }
+
+  // Thin bright white pinstripe down ribbon
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(ribbonX + 11, 0, 2.5, height);
+
+  // 3. Curved Fracture Discontinuity Zones & Dead Blackout Pockets
+  ctx.fillStyle = '#020205';
+
+  // Shard 1: Mid-Left dead pocket
+  ctx.beginPath();
+  ctx.moveTo(110, 170);
+  ctx.quadraticCurveTo(230, 140, 270, 230);
+  ctx.quadraticCurveTo(280, 330, 190, 390);
+  ctx.quadraticCurveTo(80, 330, 110, 170);
+  ctx.closePath();
+  ctx.fill();
+
+  // Shard 2: Upper-Center above impact
+  ctx.beginPath();
+  ctx.moveTo(impactX - 90, 20);
+  ctx.quadraticCurveTo(impactX + 70, 10, impactX + 90, 150);
+  ctx.quadraticCurveTo(impactX, 170, impactX - 100, 130);
+  ctx.closePath();
+  ctx.fill();
+
+  // Shard 3: Mid-Right dead pocket
+  ctx.beginPath();
+  ctx.moveTo(690, 190);
+  ctx.quadraticCurveTo(850, 220, 830, 420);
+  ctx.quadraticCurveTo(710, 420, 670, 310);
+  ctx.closePath();
+  ctx.fill();
+
+  // Shard 4: Lower dead shard
+  ctx.beginPath();
+  ctx.moveTo(impactX - 50, impactY + 70);
+  ctx.quadraticCurveTo(impactX + 110, impactY + 50, impactX + 130, impactY + 190);
+  ctx.quadraticCurveTo(impactX + 20, impactY + 230, impactX - 60, impactY + 170);
+  ctx.closePath();
+  ctx.fill();
+
+  // Secondary offset fracture lines across dead zones
+  ctx.fillStyle = '#00ff2b';
+  for (let x = 120; x < 260; x += 14) {
+    if (rnd() > 0.4) {
+      ctx.fillRect(x, 190 + rnd() * 30, 2, 70 + rnd() * 80);
+    }
+  }
+
+  // 4. Bottom Corner Glitch Scanline Wedges
+  // Bottom-Left Wedge: horizontal pink/magenta/white scanlines
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(0, 460);
+  ctx.lineTo(240, 520);
+  ctx.lineTo(190, height);
+  ctx.lineTo(0, height);
+  ctx.closePath();
+  ctx.clip();
+
+  const cornerPaletteL = ['#ff1493', '#ff66cc', '#ffffff', '#ff0055', '#c026d3', '#38bdf8'];
+  for (let y = 460; y < height; y += 2) {
+    const barH = 1 + Math.floor(rnd() * 3);
+    ctx.fillStyle = cornerPaletteL[Math.floor(rnd() * cornerPaletteL.length)];
+    ctx.fillRect(0, y, 260, barH);
+  }
+  ctx.restore();
+
+  // Bottom-Right Wedge: horizontal magenta/hot orange/white scanlines
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(860, 460);
+  ctx.lineTo(width, 430);
+  ctx.lineTo(width, height);
+  ctx.lineTo(810, height);
+  ctx.closePath();
+  ctx.clip();
+
+  const cornerPaletteR = ['#ff1493', '#ff5500', '#ffffff', '#ff0022', '#ff66cc', '#ffea75'];
+  for (let y = 430; y < height; y += 2) {
+    const barH = 1 + Math.floor(rnd() * 3);
+    ctx.fillStyle = cornerPaletteR[Math.floor(rnd() * cornerPaletteR.length)];
+    ctx.fillRect(800, y, width - 800, barH);
+  }
+  ctx.restore();
+
+  // 5. Electric Violet/Purple Liquid-Crystal Pressure Bleed
+  const bleedGrad = ctx.createRadialGradient(bleedX, bleedY, 0, bleedX, bleedY, 95);
+  bleedGrad.addColorStop(0.0, 'rgba(124, 58, 237, 0.95)');   // #7c3aed
+  bleedGrad.addColorStop(0.25, 'rgba(192, 38, 211, 0.90)');  // #c026d3
+  bleedGrad.addColorStop(0.55, 'rgba(56, 189, 248, 0.75)');  // #38bdf8
+  bleedGrad.addColorStop(0.80, 'rgba(76, 29, 149, 0.35)');
+  bleedGrad.addColorStop(1.0, 'rgba(3, 3, 6, 0.0)');
+  ctx.fillStyle = bleedGrad;
+  ctx.beginPath();
+  ctx.arc(bleedX, bleedY, 95, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Radial ink-bleed spikes
+  const numSpokes = 24;
+  for (let i = 0; i < numSpokes; i++) {
+    const angle = (i / numSpokes) * Math.PI * 2 + (rnd() - 0.5) * 0.15;
+    const spokeLen = 45 + rnd() * 65;
+    const spokeWidth = 0.06 + rnd() * 0.08;
+
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(192, 38, 211, 0.85)' : 'rgba(56, 189, 248, 0.75)';
+    ctx.beginPath();
+    ctx.moveTo(bleedX, bleedY);
+    ctx.lineTo(bleedX + Math.cos(angle - spokeWidth) * spokeLen, bleedY + Math.sin(angle - spokeWidth) * spokeLen);
+    ctx.lineTo(bleedX + Math.cos(angle + spokeWidth) * spokeLen, bleedY + Math.sin(angle + spokeWidth) * spokeLen);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // 6. Blinding White Crushed-Glass Spiderweb Impact Starburst
+  // Radial glow around core
+  const coreGlow = ctx.createRadialGradient(impactX, impactY, 0, impactX, impactY, 68);
+  coreGlow.addColorStop(0.0, '#ffffff');
+  coreGlow.addColorStop(0.35, 'rgba(255, 255, 255, 0.96)');
+  coreGlow.addColorStop(0.70, 'rgba(230, 245, 255, 0.75)');
+  coreGlow.addColorStop(1.0, 'rgba(200, 230, 255, 0.0)');
+  ctx.fillStyle = coreGlow;
+  ctx.beginPath();
+  ctx.arc(impactX, impactY, 68, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Dense jagged pulverized glass center (36-vertex starburst)
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  const corePts = 36;
+  for (let i = 0; i < corePts; i++) {
+    const a = (i / corePts) * Math.PI * 2;
+    const r = 26 + (i % 2 === 0 ? 18 + rnd() * 12 : 6 + rnd() * 8);
+    const px = impactX + Math.cos(a) * r;
+    const py = impactY + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Concentric spiderweb tension rings (9 irregular rings)
+  const ringRadii = [38, 62, 92, 130, 175, 230, 290, 360, 440];
+  for (let rIdx = 0; rIdx < ringRadii.length; rIdx++) {
+    const baseR = ringRadii[rIdx];
+    const steps = 32;
+    ctx.strokeStyle = rIdx < 4 ? 'rgba(255, 255, 255, 0.88)' : 'rgba(235, 245, 255, 0.65)';
+    ctx.lineWidth = rIdx < 3 ? 1.6 : 1.1;
+    ctx.beginPath();
+    for (let s = 0; s <= steps; s++) {
+      const a = (s / steps) * Math.PI * 2;
+      const jitter = (rnd() - 0.5) * (baseR * 0.12);
+      const px = impactX + Math.cos(a) * (baseR + jitter);
+      const py = impactY + Math.sin(a) * ((baseR + jitter) * 0.85); // slight elliptical tension
+      if (s === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // 100 Razor-sharp jagged white glass fracture rays radiating across entire screen
+  const numRays = 105;
+  for (let i = 0; i < numRays; i++) {
+    let currentAngle = (i / numRays) * Math.PI * 2 + (rnd() - 0.5) * 0.05;
+    const totalDist = 180 + rnd() * 650;
+    const numSegments = 6 + Math.floor(rnd() * 4);
+    const segLen = totalDist / numSegments;
+
+    // Line weight: 15% heavy fissure (2.2px), 45% medium (1.4px), 40% hairline (0.85px)
+    const rayType = rnd();
+    ctx.lineWidth = rayType < 0.15 ? 2.2 : (rayType < 0.60 ? 1.4 : 0.85);
+    ctx.strokeStyle = rayType < 0.60 ? '#ffffff' : 'rgba(235, 245, 255, 0.85)';
+
+    ctx.beginPath();
+    let curX = impactX + Math.cos(currentAngle) * (15 + rnd() * 12);
+    let curY = impactY + Math.sin(currentAngle) * (15 + rnd() * 12);
+    ctx.moveTo(curX, curY);
+
+    for (let seg = 0; seg < numSegments; seg++) {
+      currentAngle += (rnd() - 0.5) * 0.14;
+      curX += Math.cos(currentAngle) * segLen;
+      curY += Math.sin(currentAngle) * segLen;
+      ctx.lineTo(curX, curY);
+
+      // Branching micro-cracks
+      if (seg === Math.floor(numSegments / 2) && rnd() < 0.55) {
+        const branchAngle = currentAngle + (rnd() > 0.5 ? 0.65 : -0.65);
+        const branchLen = 22 + rnd() * 42;
+        ctx.moveTo(curX, curY);
+        ctx.lineTo(curX + Math.cos(branchAngle) * branchLen, curY + Math.sin(branchAngle) * branchLen);
+        ctx.moveTo(curX, curY); // Resume main ray
+      }
+    }
+    ctx.stroke();
+  }
+
+  // Glass splinter micro-needles near core
+  const numSplinters = 60;
+  ctx.lineWidth = 0.9;
+  ctx.strokeStyle = '#ffffff';
+  for (let i = 0; i < numSplinters; i++) {
+    const a = rnd() * Math.PI * 2;
+    const startR = 30 + rnd() * 45;
+    const len = 12 + rnd() * 22;
+    const x1 = impactX + Math.cos(a) * startR;
+    const y1 = impactY + Math.sin(a) * startR;
+    const x2 = x1 + Math.cos(a + (rnd() - 0.5) * 0.3) * len;
+    const y2 = y1 + Math.sin(a + (rnd() - 0.5) * 0.3) * len;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 // ---------------------------------------------------------------------------
 // High-Resolution Procedural 16:9 Screen Textures (1024x576)
 // ---------------------------------------------------------------------------
@@ -8182,6 +8494,8 @@ export class WarehouseBuilder {
     this.screenDTexture = createWindows11MultiWindowTexture();
     this.screenETexture = createITServicePortalTexture();
     this.screenFTexture = createMusicAppTexture();
+    this.brokenScreenTexture1 = createBrokenMonitorScreenTexture(1);
+    this.brokenScreenTexture2 = createBrokenMonitorScreenTexture(2);
     this.chairMeshTexture = createChairMeshTexture();
     this.outletTexture = createBrazilianITFaceplateTexture();
     this.stanchionBeltTexture = createStanchionBeltTexture();
@@ -8521,6 +8835,25 @@ float rackHash(vec2 p) {
     this.screenFMaterial = new THREE.MeshBasicMaterial({
       map: this.screenFTexture,
     });
+    // Destructible Broken LCD Monitor Materials (Emissive backlit cracked LCD)
+    this.brokenScreenMaterial1 = new THREE.MeshStandardMaterial({
+      map: this.brokenScreenTexture1,
+      emissiveMap: this.brokenScreenTexture1,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.75,
+      roughness: 0.25,
+      metalness: 0.10,
+    });
+    this.brokenScreenMaterial2 = new THREE.MeshStandardMaterial({
+      map: this.brokenScreenTexture2,
+      emissiveMap: this.brokenScreenTexture2,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.75,
+      roughness: 0.25,
+      metalness: 0.10,
+    });
+
+    this.monitorScreens = [];
     // Dell P2425H Monitor Materials
     this.monitorBackMaterial = new THREE.MeshStandardMaterial({
       map: this.monitorBackTexture,
@@ -8753,7 +9086,25 @@ float rackHash(vec2 p) {
     });
   }
 
+  /**
+   * Restores all shattered destructible monitor display screens in the Data Center
+   * back to their clean, intact OS display state.
+   */
+  resetMonitors() {
+    if (!this.monitorScreens) return;
+    for (const mesh of this.monitorScreens) {
+      mesh.userData.isBroken = false;
+      if (mesh.userData.intactMaterial) {
+        mesh.material = mesh.userData.intactMaterial;
+      }
+      if (mesh.userData.intactGeometry) {
+        mesh.geometry = mesh.userData.intactGeometry;
+      }
+    }
+  }
+
   build() {
+    this.monitorScreens = [];
     const group = new THREE.Group();
     group.name = 'DataCenterArena';
     this.scene.add(group);
@@ -10002,33 +10353,57 @@ float rackHash(vec2 p) {
     ledGeo.dispose();
 
     // -----------------------------------------------------------------------
-    // 5. Glowing Front Screen Plane (Positioned in FRONT on -Z side: local z = -monD/2 - 0.004)
-    // 100% UNTOUCHED dimensions, coordinates, and existing textures!
+    // 5. Destructible Independent Front Screen Plane (Positioned on -Z side)
+    // Kept at exact original dimensions, coordinates, and existing textures!
+    // Un-merged so each monitor shatters independently when shot.
     // -----------------------------------------------------------------------
-    let targetBucket = visualBuckets.screenA;
+    let targetMaterial = this.screenAMaterial;
     let uMin = 0.0, uMax = 1.0, vMin = 0.0, vMax = 1.0;
 
     if (screenType === 'bsod' || screenType === 2) {
-      targetBucket = visualBuckets.screenBsod;
+      targetMaterial = this.monitorScreenMaterial;
       uMin = 0.0; uMax = 0.5; vMin = 0.0; vMax = 0.5; // Classic BSOD in existing atlas (untouched)
     } else if (screenType === 'screenA' || screenType === 'A' || screenType === 0) {
-      targetBucket = visualBuckets.screenA;
+      targetMaterial = this.screenAMaterial;
     } else if (screenType === 'screenB' || screenType === 'B' || screenType === 1) {
-      targetBucket = visualBuckets.screenB;
+      targetMaterial = this.screenBMaterial;
     } else if (screenType === 'screenC' || screenType === 'C' || screenType === 3) {
-      targetBucket = visualBuckets.screenC;
+      targetMaterial = this.screenCMaterial;
     } else if (screenType === 'screenD' || screenType === 'D' || screenType === 4) {
-      targetBucket = visualBuckets.screenD;
+      targetMaterial = this.screenDMaterial;
     } else if (screenType === 'screenE' || screenType === 'E' || screenType === 5) {
-      targetBucket = visualBuckets.screenE;
+      targetMaterial = this.screenEMaterial;
     } else if (screenType === 'screenF' || screenType === 'F' || screenType === 6) {
-      targetBucket = visualBuckets.screenF;
+      targetMaterial = this.screenFMaterial;
     }
 
-    const screenGeo = createPlaneFacingPlayer(screenW, screenH, uMin, vMin, uMax, vMax);
-    screenGeo.translate(0, 0, -monD / 2 - 0.004);
-    addVisual(targetBucket, screenGeo, x, centerY, z, 0, rotY, 0);
-    screenGeo.dispose();
+    // Assign broken material variant (alternating 1 and 2 for distinct cracks on dual setups)
+    const brokenMat = (this.monitorScreens.length % 2 === 0) ? this.brokenScreenMaterial1 : this.brokenScreenMaterial2;
+
+    const intactGeo = createPlaneFacingPlayer(screenW, screenH, uMin, vMin, uMax, vMax);
+    const brokenGeo = (screenType === 'bsod' || screenType === 2)
+      ? createPlaneFacingPlayer(screenW, screenH, 0.0, 0.0, 1.0, 1.0)
+      : intactGeo;
+
+    const screenMesh = new THREE.Mesh(intactGeo, targetMaterial);
+    screenMesh.name = `DC_MonitorScreen_${screenType}_${this.monitorScreens.length}`;
+
+    // Exact world position: offset by -monD/2 - 0.004 along local -Z, rotated by rotY
+    const screenOffset = new THREE.Vector3(0, 0, -monD / 2 - 0.004);
+    screenOffset.applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+    screenMesh.position.set(x + screenOffset.x, centerY, z + screenOffset.z);
+    screenMesh.rotation.y = rotY;
+
+    screenMesh.userData.isMonitorScreen = true;
+    screenMesh.userData.isBroken = false;
+    screenMesh.userData.intactMaterial = targetMaterial;
+    screenMesh.userData.brokenMaterial = brokenMat;
+    screenMesh.userData.intactGeometry = intactGeo;
+    screenMesh.userData.brokenGeometry = brokenGeo;
+    screenMesh.userData.screenType = screenType;
+
+    this.scene.add(screenMesh);
+    this.monitorScreens.push(screenMesh);
   }
 
   /**

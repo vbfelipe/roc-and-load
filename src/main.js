@@ -50,6 +50,7 @@ window.addEventListener('DOMContentLoaded', () => {
     player
   );
   weaponSystem.setCollider(warehouse.weaponColliderMesh || colliderMesh);
+  weaponSystem.setMonitorScreens(warehouse.monitorScreens);
   weaponSystem.setPlayer(player);
   weaponSystem.setHUD(hud);
 
@@ -237,6 +238,7 @@ window.addEventListener('DOMContentLoaded', () => {
       sound.playExitClick();
       player.reset(0, 0.1, -7.0, Math.PI, 0);
       weaponSystem.reset();
+      warehouse.resetMonitors();
       setGameState('MAIN_MENU');
     });
   }
