@@ -7511,6 +7511,215 @@ function createSFFStickerTexture() {
 }
 
 /**
+ * Procedural LG Artcool Mirror Split AC Front Panel Textures (1024x256).
+ * Edge-to-edge frameless smoked titanium/gunmetal mirror finish with realistic
+ * horizon reflection sheen, bottom brushed satin-silver trim bar, non-emissive
+ * "DUAL INVERTER" micro-label, and hidden-until-lit "18°" digital LED readout with
+ * cooling snowflake icon and dedicated emissiveMap.
+ */
+function createSplitAcFrontTextures() {
+  const w = 1024;
+  const h = 256;
+
+  // --- 1. DIFFUSE TEXTURE ---
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = w;
+  diffCanvas.height = h;
+  const ctx = diffCanvas.getContext('2d');
+
+  // 1.1 Rich Smoked Titanium/Gunmetal Mirror Gradient (LG Artcool Smoked Glass)
+  // Blends from warm smoked silver-slate across upper/middle curve down to deep smoked charcoal near bottom
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0.00, '#4a5260'); // warm smoked silver-slate at upper curve
+  bg.addColorStop(0.18, '#3d4452');
+  bg.addColorStop(0.45, '#323945');
+  bg.addColorStop(0.70, '#262c36');
+  bg.addColorStop(0.88, '#1e232c'); // deep smoked charcoal near bottom lip
+  bg.addColorStop(1.00, '#161920');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, w, h);
+
+  // 1.2 Soft, wide, low-contrast horizon reflection sweep across upper curve
+  const horizonSheen = ctx.createLinearGradient(0, 25, w, 110);
+  horizonSheen.addColorStop(0.00, 'rgba(255, 255, 255, 0.00)');
+  horizonSheen.addColorStop(0.25, 'rgba(255, 255, 255, 0.03)');
+  horizonSheen.addColorStop(0.50, 'rgba(255, 255, 255, 0.07)');
+  horizonSheen.addColorStop(0.75, 'rgba(255, 255, 255, 0.03)');
+  horizonSheen.addColorStop(1.00, 'rgba(255, 255, 255, 0.00)');
+  ctx.fillStyle = horizonSheen;
+  ctx.fillRect(0, 0, w, h);
+
+  // Subtle natural diagonal sheen to enhance curved smoked glass depth
+  const glassReflect = ctx.createLinearGradient(w * 0.15, 0, w * 0.55, h);
+  glassReflect.addColorStop(0.0, 'rgba(255, 255, 255, 0.00)');
+  glassReflect.addColorStop(0.4, 'rgba(255, 255, 255, 0.03)');
+  glassReflect.addColorStop(0.5, 'rgba(224, 242, 254, 0.06)');
+  glassReflect.addColorStop(0.6, 'rgba(255, 255, 255, 0.03)');
+  glassReflect.addColorStop(1.0, 'rgba(255, 255, 255, 0.00)');
+  ctx.fillStyle = glassReflect;
+  ctx.fillRect(0, 0, w, h);
+
+  // 1.3 Frameless Edge Treatment:
+  // Tiny ultra-dark 2px chamfer shadow around outer glass edges (NO white picture-frame border!)
+  ctx.strokeStyle = 'rgba(10, 12, 16, 0.75)';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, w - 2, h - 2);
+
+  // 1.4 Single sleek, thin brushed satin-silver horizontal trim bar along bottom edge
+  const btmTrim = ctx.createLinearGradient(0, h - 6, 0, h);
+  btmTrim.addColorStop(0.0, 'rgba(203, 213, 225, 0.85)');
+  btmTrim.addColorStop(0.4, 'rgba(241, 245, 249, 0.95)');
+  btmTrim.addColorStop(1.0, 'rgba(148, 163, 184, 0.80)');
+  ctx.fillStyle = btmTrim;
+  ctx.fillRect(0, h - 5, w, 3);
+
+  // Gasket shadow line under the bottom silver trim bar
+  ctx.fillStyle = '#0a0c10';
+  ctx.fillRect(0, h - 2, w, 2);
+
+  // 1.5 Subtle circular metallic parody emblem near center-left bottom edge of glass
+  const emblemX = 260;
+  const emblemY = 222;
+  ctx.strokeStyle = 'rgba(203, 213, 225, 0.45)';
+  ctx.lineWidth = 1.6;
+  ctx.beginPath();
+  ctx.arc(emblemX, emblemY, 10, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Inner stylized cooling circle arc
+  ctx.strokeStyle = 'rgba(226, 232, 240, 0.50)';
+  ctx.lineWidth = 1.4;
+  ctx.beginPath();
+  ctx.arc(emblemX, emblemY, 5.5, 0.2 * Math.PI, 1.8 * Math.PI);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(226, 232, 240, 0.60)';
+  ctx.beginPath();
+  ctx.arc(emblemX - 1.5, emblemY - 1.5, 2, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 1.6 Lower-Right Quadrant: Hidden-Until-Lit LED Display (78%–84% X, 62%–72% Y)
+  const ledX = 820;
+  const ledY = 178;
+
+  // Non-emissive subtle satin-silver micro-typography directly above the LED readout
+  ctx.save();
+  ctx.fillStyle = 'rgba(226, 232, 240, 0.45)';
+  ctx.font = '600 12px "Inter", system-ui, -apple-system, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('DUAL INVERTER', ledX - 10, ledY - 32);
+  ctx.restore();
+
+  // Digital readout "18°" on diffuse canvas
+  ctx.save();
+  ctx.font = '700 42px "Inter", "Segoe UI", monospace, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+
+  // Glow halo
+  ctx.shadowColor = 'rgba(56, 189, 248, 0.85)';
+  ctx.shadowBlur = 12;
+  ctx.fillStyle = '#7dd3fc';
+  ctx.fillText('18°', ledX, ledY);
+
+  // Crisp core
+  ctx.shadowBlur = 3;
+  ctx.fillStyle = '#eefaff';
+  ctx.fillText('18°', ledX, ledY);
+  ctx.restore();
+
+  // Cooling snowflake micro-icon next to the temperature readout
+  const iconX = ledX + 82;
+  const iconY = ledY - 2;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+  ctx.lineWidth = 1.8;
+  ctx.shadowColor = 'rgba(56, 189, 248, 0.85)';
+  ctx.shadowBlur = 8;
+  for (let a = 0; a < 3; a++) {
+    const angle = (a * Math.PI) / 3;
+    const dx = Math.cos(angle) * 7.5;
+    const dy = Math.sin(angle) * 7.5;
+    ctx.beginPath();
+    ctx.moveTo(iconX - dx, iconY - dy);
+    ctx.lineTo(iconX + dx, iconY + dy);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#eefaff';
+  ctx.beginPath();
+  ctx.arc(iconX, iconY, 2.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // --- 2. EMISSIVE MAP TEXTURE ---
+  // Pure black background (#000000) so ONLY the hidden LED display glows
+  const emisCanvas = document.createElement('canvas');
+  emisCanvas.width = w;
+  emisCanvas.height = h;
+  const eCtx = emisCanvas.getContext('2d');
+
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, w, h);
+
+  // Glowing 18° numeral on emissive map
+  eCtx.save();
+  eCtx.font = '700 42px "Inter", "Segoe UI", monospace, sans-serif';
+  eCtx.textAlign = 'left';
+  eCtx.textBaseline = 'middle';
+
+  // Soft cyan blur halo
+  eCtx.shadowColor = '#38bdf8';
+  eCtx.shadowBlur = 14;
+  eCtx.fillStyle = '#7dd3fc';
+  eCtx.fillText('18°', ledX, ledY);
+
+  // Bright white core
+  eCtx.shadowBlur = 4;
+  eCtx.fillStyle = '#ffffff';
+  eCtx.fillText('18°', ledX, ledY);
+  eCtx.restore();
+
+  // Glowing snowflake micro-icon on emissive map
+  eCtx.save();
+  eCtx.strokeStyle = '#38bdf8';
+  eCtx.lineWidth = 2.0;
+  eCtx.shadowColor = '#38bdf8';
+  eCtx.shadowBlur = 10;
+  for (let a = 0; a < 3; a++) {
+    const angle = (a * Math.PI) / 3;
+    const dx = Math.cos(angle) * 7.5;
+    const dy = Math.sin(angle) * 7.5;
+    eCtx.beginPath();
+    eCtx.moveTo(iconX - dx, iconY - dy);
+    eCtx.lineTo(iconX + dx, iconY + dy);
+    eCtx.stroke();
+  }
+  eCtx.fillStyle = '#ffffff';
+  eCtx.beginPath();
+  eCtx.arc(iconX, iconY, 2.5, 0, Math.PI * 2);
+  eCtx.fill();
+  eCtx.restore();
+
+  // Wrap in Three.js CanvasTextures (1024x256, LinearFilter, anisotropy = 8)
+  const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
+  diffuseTexture.colorSpace = THREE.SRGBColorSpace;
+  diffuseTexture.minFilter = THREE.LinearFilter;
+  diffuseTexture.magFilter = THREE.LinearFilter;
+  diffuseTexture.anisotropy = 8;
+  diffuseTexture.needsUpdate = true;
+
+  const emissiveTexture = new THREE.CanvasTexture(emisCanvas);
+  emissiveTexture.colorSpace = THREE.SRGBColorSpace;
+  emissiveTexture.minFilter = THREE.LinearFilter;
+  emissiveTexture.magFilter = THREE.LinearFilter;
+  emissiveTexture.anisotropy = 8;
+  emissiveTexture.needsUpdate = true;
+
+  return { diffuseTexture, emissiveTexture };
+}
+
+/**
  * Builds the compact, intimate Enterprise Data Center Shooting Range.
  * Rendered in batched draw calls with zero PointLights.
  */
@@ -7545,6 +7754,9 @@ export class WarehouseBuilder {
     this.coffeeSideTexture = createCoffeeSideTexture();
     this.coffeeHopperTexture = createCoffeeHopperTexture();
     this.palmFrondTexture = createPalmFrondTexture();
+    const splitAcTex = createSplitAcFrontTextures();
+    this.splitAcFrontTexture = splitAcTex.diffuseTexture;
+    this.splitAcFrontEmissiveTexture = splitAcTex.emissiveTexture;
 
     // High-Detail Workstation Peripheral Textures
     const kbTextures = createMechanicalKeyboardTextures();
@@ -7659,6 +7871,28 @@ export class WarehouseBuilder {
       map: this.stepTreadTexture,
       roughness: 0.80,
       metalness: 0.15,
+    });
+
+    // Enterprise Split AC Materials (LG Artcool Mirror Style)
+    this.splitAcBodyMaterial = new THREE.MeshStandardMaterial({
+      color: 0x22262e,
+      roughness: 0.55,
+      metalness: 0.20,
+    });
+
+    this.splitAcFrontMaterial = new THREE.MeshStandardMaterial({
+      map: this.splitAcFrontTexture,
+      roughness: 0.14,
+      metalness: 0.72,
+      emissive: new THREE.Color(0xffffff),
+      emissiveMap: this.splitAcFrontEmissiveTexture,
+      emissiveIntensity: 1.35,
+    });
+
+    this.splitAcLouverMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0b0d12,
+      roughness: 0.85,
+      metalness: 0.10,
     });
 
     // Dark brushed steel rack side panels (Powder-coated metal finish)
@@ -8137,6 +8371,9 @@ float rackHash(vec2 p) {
       sffIceBlueLed: [],
       sffBadge: [],
       sffSticker: [],
+      splitAcBody: [],
+      splitAcFront: [],
+      splitAcLouver: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -8412,6 +8649,14 @@ float rackHash(vec2 p) {
     // B. Potted Areca Palm Plant (GREEN Rectangle: Z = -8.8m, X = +9.2m corner)
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, 9.2, 0.0, -8.8);
 
+    // C. Enterprise Wall-Mounted Split AC Units (LG Artcool Mirror Style - +40% FPS Hero Scale)
+    // 3 units mounted high on the wall with the stanchions, coffee machine & plant (X = 10.0m) near ceiling (Y = 3.42m)
+    // Facing into room (-X), spaced at Z = 0.0m, Z = 5.0m, Z = 10.0m exactly where indicated in screenshot
+    const acZPositions = [0.0, 5.0, 10.0];
+    for (const acZ of acZPositions) {
+      this._buildSplitAC(addVisual, registerCollider, visualBuckets, 9.845, 3.42, acZ);
+    }
+
     // Zone B: 42U Server Racks
     // Back Wall Server Racks: Full row of 8 massive cabinets across Z = 12.52 facing -Z!
     // Stood directly ON TOP of the raised platform at baseY = platH (0.35m), with 8cm rear wall clearance!
@@ -8489,6 +8734,9 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.sffIceBlueLed, material: this.sffIceBlueLedMaterial, name: 'DC_SFFIceBlueLed' },
       { bucket: visualBuckets.sffBadge, material: this.sffBadgeMaterial, name: 'DC_SFFBadge' },
       { bucket: visualBuckets.sffSticker, material: this.sffStickerMaterial, name: 'DC_SFFSticker' },
+      { bucket: visualBuckets.splitAcBody, material: this.splitAcBodyMaterial, name: 'DC_SplitAcBody' },
+      { bucket: visualBuckets.splitAcFront, material: this.splitAcFrontMaterial, name: 'DC_SplitAcFront' },
+      { bucket: visualBuckets.splitAcLouver, material: this.splitAcLouverMaterial, name: 'DC_SplitAcLouver' },
     ];
 
     for (const def of bucketDefs) {
@@ -9701,6 +9949,195 @@ float rackHash(vec2 p) {
     const potCollider = new THREE.CylinderGeometry(0.36, 0.36, 0.60, 12);
     registerCollider(potCollider, px, 0.30, pz);
     potCollider.dispose();
+  }
+
+  /**
+   * Builds an individual Enterprise Split AC Unit (LG Artcool Mirror Style - +40% FPS Hero Scale).
+   * Exact Footprint: 1.512m wide (along Z) x 0.490m tall (along Y) x 0.308m deep (along X).
+   * Mounted flush against wall at X = 10.0m near ceiling (y = 3.42m).
+   * Facing into the room (-X).
+   */
+  _buildSplitAC(addVisual, registerCollider, visualBuckets, x, y, z) {
+    const w = 1.512; // Width along Z (+40%: 1.08 * 1.4)
+    const h = 0.490; // Height along Y (+40%: 0.35 * 1.4)
+    const d = 0.308; // Depth along X (+40%: 0.22 * 1.4)
+    const endcapThick = 0.018;
+    const wInner = w - 2 * endcapThick; // 1.476m
+
+    // 1. Sculpted Aerodynamic Side Endcaps (Custom 2D Profile THREE.Shape + ExtrudeGeometry)
+    // Authentic LG Artcool side profile: rounded top crown, expansive front mirror arc (76% height),
+    // recessed discharge throat, and 38° swept-back underbelly to flush rear wall
+    const endcapShape = new THREE.Shape();
+    endcapShape.moveTo(0.154, 0.245); // Flush against rear wall
+    endcapShape.lineTo(-0.100, 0.245); // Top crown start
+    endcapShape.quadraticCurveTo(-0.136, 0.245, -0.136, 0.225); // Rounded top crown
+    endcapShape.quadraticCurveTo(-0.158, 0.050, -0.136, -0.145); // Expansive convex front mirror arc
+    endcapShape.lineTo(-0.075, -0.145); // Louver throat upper ledge
+    endcapShape.lineTo(-0.075, -0.195); // Louver throat cavity depth
+    endcapShape.quadraticCurveTo(0.030, -0.235, 0.154, -0.245); // Swept-back underbelly to rear wall
+    endcapShape.lineTo(0.154, 0.245); // Rear wall vertical closure
+
+    const endcapGeo = new THREE.ExtrudeGeometry(endcapShape, { depth: endcapThick, bevelEnabled: false });
+    // Left endcap at Z = z - w/2
+    addVisual(visualBuckets.splitAcBody, endcapGeo, x, y, z - w / 2);
+    // Right endcap at Z = z + w/2 - endcapThick
+    addVisual(visualBuckets.splitAcBody, endcapGeo, x, y, z + w / 2 - endcapThick);
+    endcapGeo.dispose();
+
+    // 2. Signature Brushed Chrome/Silver Side Accent Strip (~0.012m wide) along parting contour
+    const arcShape = new THREE.Shape();
+    arcShape.moveTo(-0.136, 0.225);
+    arcShape.quadraticCurveTo(-0.158, 0.050, -0.136, -0.145);
+    arcShape.lineTo(-0.124, -0.145);
+    arcShape.quadraticCurveTo(-0.146, 0.050, -0.124, 0.225);
+    arcShape.closePath();
+
+    const arcGeo = new THREE.ExtrudeGeometry(arcShape, { depth: 0.003, bevelEnabled: false });
+    addVisual(visualBuckets.silverTrim, arcGeo, x, y, z - w / 2 - 0.001);
+    addVisual(visualBuckets.silverTrim, arcGeo, x, y, z + w / 2 - 0.002);
+    arcGeo.dispose();
+
+    // Recessed side mold seam line groove right behind the metallic arc
+    const seamShape = new THREE.Shape();
+    seamShape.moveTo(-0.123, 0.225);
+    seamShape.quadraticCurveTo(-0.145, 0.050, -0.123, -0.145);
+    seamShape.lineTo(-0.119, -0.145);
+    seamShape.quadraticCurveTo(-0.141, 0.050, -0.119, 0.225);
+    seamShape.closePath();
+
+    const seamGeo = new THREE.ExtrudeGeometry(seamShape, { depth: 0.002, bevelEnabled: false });
+    addVisual(visualBuckets.splitAcLouver, seamGeo, x, y, z - w / 2 - 0.001);
+    addVisual(visualBuckets.splitAcLouver, seamGeo, x, y, z + w / 2 - 0.001);
+    seamGeo.dispose();
+
+    // 3. Main Upper Dark Matte Chassis Housing (visualBuckets.splitAcBody)
+    const upperBodyGeo = new THREE.BoxGeometry(0.279, 0.380, wInner);
+    addVisual(visualBuckets.splitAcBody, upperBodyGeo, x + 0.0145, y + 0.055, z);
+    upperBodyGeo.dispose();
+
+    // Top crown rounded bevel facet transitioning to front mirror glass
+    const crownBevelGeo = new THREE.BoxGeometry(0.042, 0.028, wInner);
+    crownBevelGeo.rotateZ(0.61);
+    addVisual(visualBuckets.splitAcBody, crownBevelGeo, x - 0.116, y + 0.235, z);
+    crownBevelGeo.dispose();
+
+    // Recessed top air intake grille
+    const intakeGeo = new THREE.BoxGeometry(0.220, 0.018, wInner - 0.040);
+    addVisual(visualBuckets.splitAcLouver, intakeGeo, x + 0.030, y + 0.242, z);
+    intakeGeo.dispose();
+
+    // Top intake grille fine slats
+    const slatGeo = new THREE.BoxGeometry(0.210, 0.006, 0.014);
+    for (let si = -0.65; si <= 0.65; si += 0.10) {
+      addVisual(visualBuckets.splitAcBody, slatGeo, x + 0.030, y + 0.248, z + si);
+    }
+    slatGeo.dispose();
+
+    // 4. Swept-Back Aerodynamic Underbelly Cowl (visualBuckets.splitAcBody)
+    // Tapers back toward wall at ~38° swept angle - completely eliminating blocky 90° bottom-front corner!
+    const underbellyGeo = new THREE.BoxGeometry(0.235, 0.016, wInner);
+    underbellyGeo.rotateZ(-0.215);
+    addVisual(visualBuckets.splitAcBody, underbellyGeo, x + 0.0395, y - 0.220, z);
+    underbellyGeo.dispose();
+
+    // Aerodynamic rounded lower lip along discharge vent entrance
+    const lowerLipGeo = new THREE.CylinderGeometry(0.010, 0.010, wInner, 8, 1, false, -Math.PI / 2, Math.PI);
+    lowerLipGeo.rotateX(Math.PI / 2);
+    addVisual(visualBuckets.splitAcBody, lowerLipGeo, x - 0.075, y - 0.195, z);
+    lowerLipGeo.dispose();
+
+    // Rear wall bottom closure seal
+    const rearBottomGeo = new THREE.BoxGeometry(0.070, 0.030, wInner);
+    addVisual(visualBuckets.splitAcBody, rearBottomGeo, x + 0.119, y - 0.235, z);
+    rearBottomGeo.dispose();
+
+    // 5. Deep Recessed Airflow Throat (visualBuckets.splitAcLouver)
+    const throatGeo = new THREE.BoxGeometry(0.120, 0.050, wInner);
+    addVisual(visualBuckets.splitAcLouver, throatGeo, x - 0.015, y - 0.170, z);
+    throatGeo.dispose();
+
+    // 6. Open Motorized Louver Blade & Satin Silver Leading Edge Highlight
+    const bladeChord = 0.075;
+    const bladeThick = 0.008;
+    const bladeAngle = -0.49; // ~28° downward into room
+
+    const bladeGeo = new THREE.BoxGeometry(bladeChord, bladeThick, wInner - 0.008);
+    bladeGeo.rotateZ(bladeAngle);
+    addVisual(visualBuckets.splitAcBody, bladeGeo, x - 0.070, y - 0.175, z);
+    bladeGeo.dispose();
+
+    // Satin silver leading edge highlight
+    const bladeTipGeo = new THREE.BoxGeometry(0.008, 0.004, wInner - 0.008);
+    bladeTipGeo.rotateZ(bladeAngle);
+    const tipOffsetX = -Math.cos(0.49) * (bladeChord / 2);
+    const tipOffsetY = -Math.sin(0.49) * (bladeChord / 2);
+    addVisual(visualBuckets.silverTrim, bladeTipGeo, x - 0.070 + tipOffsetX, y - 0.175 + tipOffsetY, z);
+    bladeTipGeo.dispose();
+
+    // 7. 11 Vertical Directional Air-Guide Deflector Fins inside throat gap
+    const finGeo = new THREE.BoxGeometry(0.055, 0.042, 0.005);
+    const finCount = 11;
+    const finSpan = 1.30;
+    const finStep = finSpan / (finCount - 1);
+    for (let fi = 0; fi < finCount; fi++) {
+      const fz = -finSpan / 2 + fi * finStep;
+      addVisual(visualBuckets.splitAcBody, finGeo, x - 0.015, y - 0.170, z + fz);
+    }
+    finGeo.dispose();
+
+    // 8. Frameless Convex Curved Smoked-Mirror Front Glass Panel (visualBuckets.splitAcFront)
+    // Edge-to-edge frameless front mirror with convex curve bowing slightly forward into room
+    const frontH = 0.370; // 76% of total height for signature LG Artcool smoked mirror dominance
+    const segY = 12;
+    const positions = [];
+    const uvs = [];
+    const indices = [];
+
+    for (let j = 0; j <= segY; j++) {
+      const v = j / segY;
+      const yRel = -frontH / 2 + v * frontH;
+      // Convex parabolic bow: apex at center (v ~ 0.5), bowing forward towards -X
+      const xRel = -0.018 * Math.sin(v * Math.PI);
+
+      // Left vertex (u = 0, Z = -w / 2)
+      positions.push(xRel, yRel, -w / 2);
+      uvs.push(0, v);
+
+      // Right vertex (u = 1, Z = +w / 2)
+      positions.push(xRel, yRel, w / 2);
+      uvs.push(1, v);
+    }
+
+    for (let j = 0; j < segY; j++) {
+      const bl = j * 2;
+      const br = j * 2 + 1;
+      const tl = (j + 1) * 2;
+      const tr = (j + 1) * 2 + 1;
+
+      // CCW winding facing -X into room
+      indices.push(bl, br, tr);
+      indices.push(bl, tr, tl);
+    }
+
+    const frontGeo = new THREE.BufferGeometry();
+    frontGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    frontGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+    frontGeo.setIndex(indices);
+    frontGeo.computeVertexNormals();
+
+    // Position centered at x - 0.136, y + 0.040, z (spans from y - 0.145 to y + 0.225)
+    addVisual(visualBuckets.splitAcFront, frontGeo, x - 0.136, y + 0.040, z);
+    frontGeo.dispose();
+
+    // 9. Brushed Satin-Silver Horizontal Trim Bar along bottom edge of front glass panel
+    const trimBarGeo = new THREE.BoxGeometry(0.008, 0.005, w + 0.002);
+    addVisual(visualBuckets.silverTrim, trimBarGeo, x - 0.136, y - 0.145, z);
+    trimBarGeo.dispose();
+
+    // 10. Static BVH Environment Collider (Unchanged exact bounds)
+    const colliderGeo = new THREE.BoxGeometry(d + 0.03, h + 0.03, w + 0.03);
+    registerCollider(colliderGeo, x, y, z);
+    colliderGeo.dispose();
   }
 }
 
