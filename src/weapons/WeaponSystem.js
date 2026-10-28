@@ -323,6 +323,7 @@ export class WeaponSystem {
       this.hud.onReloadStart();
     }
 
+    const ammoBeforeReload = this.currentAmmo;
     const shellsNeeded = this.maxAmmo - this.currentAmmo;
 
     this.viewmodel.startReloadAnimation({
@@ -359,7 +360,7 @@ export class WeaponSystem {
           this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
           this.hud.setEmptyState(false);
           if (this.currentWeapon === 'pistol') {
-            this.hud.onReloadComplete();
+            this.hud.onReloadComplete(ammoBeforeReload);
           }
         }
       }

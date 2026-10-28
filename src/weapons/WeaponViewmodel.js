@@ -1446,25 +1446,26 @@ export class WeaponViewmodel {
     portRecess.position.set(0, 0.0255, -0.008);
     this.shotgunReceiverGroup.add(portRecess);
 
-    // Reciprocating Polished Nickel / Stainless Breechbolt (Moves backward on pump!)
+    // Reciprocating Polished Nickel / Stainless Breechbolt (Anchored at rear of ejection port z = +0.019 so it retracts cleanly inside the port without ever clipping out the rear receiver humpback)
     this.shotgunBoltGroup = new THREE.Group();
     this.shotgunBoltGroup.name = 'ShotgunBreechbolt';
+    this.shotgunBoltGroup.position.set(0, 0, 0.019);
     this.shotgunReceiverGroup.add(this.shotgunBoltGroup);
 
     const boltBodyGeo = new THREE.BoxGeometry(0.0358, 0.0192, 0.054);
     const boltBody = new THREE.Mesh(boltBodyGeo, this.brightBoltMaterial);
-    boltBody.position.set(0, 0.0252, -0.008);
+    boltBody.position.set(0, 0.0252, -0.027);
     this.shotgunBoltGroup.add(boltBody);
 
     // Machined extractor claw & horizontal flute on breechbolt face
     const boltExtractorGeo = new THREE.BoxGeometry(0.0364, 0.0038, 0.015);
     const boltExtractor = new THREE.Mesh(boltExtractorGeo, this.darkMaterial);
-    boltExtractor.position.set(0, 0.0235, -0.022);
+    boltExtractor.position.set(0, 0.0235, -0.041);
     this.shotgunBoltGroup.add(boltExtractor);
 
     const boltFluteGeo = new THREE.BoxGeometry(0.0362, 0.0018, 0.034);
     const boltFlute = new THREE.Mesh(boltFluteGeo, this.serrationMaterial);
-    boltFlute.position.set(0, 0.0285, -0.002);
+    boltFlute.position.set(0, 0.0285, -0.021);
     this.shotgunBoltGroup.add(boltFlute);
 
     // Ejection anchor positioned at the Model 1912 ejection port
@@ -1730,10 +1731,10 @@ export class WeaponViewmodel {
     rearFerrule.position.set(0, 0.0065, -0.143);
     this.shotgunPumpGroup.add(rearFerrule);
 
-    // Bright Steel Action Slide Bar (Left side connecting pump to receiver breechblock)
-    const actionBarGeo = new THREE.BoxGeometry(0.0028, 0.0075, 0.115);
+    // Bright Steel Action Slide Bar (Left side connecting pump to receiver front extension)
+    const actionBarGeo = new THREE.BoxGeometry(0.0028, 0.0075, 0.082);
     const actionBar = new THREE.Mesh(actionBarGeo, this.brightBoltMaterial);
-    actionBar.position.set(-0.0132, 0.0065, -0.092);
+    actionBar.position.set(-0.0132, 0.0065, -0.110);
     this.shotgunPumpGroup.add(actionBar);
 
     // =========================================================================
@@ -1769,13 +1770,6 @@ export class WeaponViewmodel {
     const sTriggerGuard = new THREE.Mesh(sTgGeo, this.bluedSteelMaterial);
     sTriggerGuard.position.set(0.0055, 0, 0);
     this.shotgunReceiverGroup.add(sTriggerGuard);
-
-    // Cross-bolt safety button at front of trigger guard bow
-    const safetyBtnGeo = new THREE.CylinderGeometry(0.0024, 0.0024, 0.015, 14);
-    safetyBtnGeo.rotateZ(Math.PI / 2);
-    const safetyBtn = new THREE.Mesh(safetyBtnGeo, this.fiberOpticMaterial);
-    safetyBtn.position.set(0, -0.018, 0.025);
-    this.shotgunReceiverGroup.add(safetyBtn);
 
     // Curved Steel Shotgun Trigger
     const sTrigShape = new THREE.Shape();
@@ -1876,9 +1870,7 @@ export class WeaponViewmodel {
 
     this.isReloading = false;
     this.isPumping = false;
-    this.shotgunPumpOffset = 0;
-    if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
-    if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+    this._updateShotgunPumpVisuals(0);
     if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
     if (this.magGroup) {
@@ -2041,6 +2033,23 @@ export class WeaponViewmodel {
   }
 
   /**
+   * Updates the reciprocating shotgun pump fore-end position and retracts the
+   * silver breechbolt strictly inside the ejection port window (z <= +0.019)
+   * so it never clips through the rear humpback of the receiver.
+   */
+  _updateShotgunPumpVisuals(pumpZ) {
+    this.shotgunPumpOffset = pumpZ;
+    if (this.shotgunPumpGroup) {
+      this.shotgunPumpGroup.position.z = pumpZ;
+    }
+    if (this.shotgunBoltGroup) {
+      this.shotgunBoltGroup.position.z = 0.019;
+      const openRatio = Math.min(1, Math.max(0, pumpZ / 0.064));
+      this.shotgunBoltGroup.scale.z = Math.max(0.10, 1.0 - openRatio * 0.90);
+    }
+  }
+
+  /**
    * Plays the automatic pump-action cycling animation after a shotgun blast:
    * - Briskly pulls the ribbed walnut corn-cob fore-end and silver breechbolt backward (+0.064m)
    * - Ejects the spent red 12-gauge hull at peak open breech
@@ -2068,9 +2077,7 @@ export class WeaponViewmodel {
         .to({ z: 0.064 }, 110)
         .easing(TWEEN.Easing.Cubic.Out)
         .onUpdate(() => {
-          this.shotgunPumpOffset = pumpState.z;
-          if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpState.z;
-          if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpState.z * 0.88;
+          this._updateShotgunPumpVisuals(pumpState.z);
         })
         .onComplete(() => {
           if (typeof onEjectShell === 'function') {
@@ -2085,14 +2092,10 @@ export class WeaponViewmodel {
             .to({ z: 0 }, 105)
             .easing(TWEEN.Easing.Back.Out)
             .onUpdate(() => {
-              this.shotgunPumpOffset = pumpState.z;
-              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpState.z;
-              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpState.z * 0.88;
+              this._updateShotgunPumpVisuals(pumpState.z);
             })
             .onComplete(() => {
-              this.shotgunPumpOffset = 0;
-              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
-              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+              this._updateShotgunPumpVisuals(0);
               this.isPumping = false;
               if (typeof onComplete === 'function') {
                 onComplete();
@@ -2526,9 +2529,7 @@ export class WeaponViewmodel {
         .to({ z: 0.064 }, 115)
         .easing(TWEEN.Easing.Cubic.Out)
         .onUpdate(() => {
-          this.shotgunPumpOffset = pumpObj.z;
-          if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpObj.z;
-          if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpObj.z * 0.88;
+          this._updateShotgunPumpVisuals(pumpObj.z);
         })
         .onComplete(() => {
           this.posSpring.impulse(0, 0.012, -0.048);
@@ -2541,14 +2542,10 @@ export class WeaponViewmodel {
             .to({ z: 0 }, 110)
             .easing(TWEEN.Easing.Back.Out)
             .onUpdate(() => {
-              this.shotgunPumpOffset = pumpObj.z;
-              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpObj.z;
-              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpObj.z * 0.88;
+              this._updateShotgunPumpVisuals(pumpObj.z);
             })
             .onComplete(() => {
-              this.shotgunPumpOffset = 0;
-              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
-              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+              this._updateShotgunPumpVisuals(0);
             });
           this.reloadTweens.push(pumpFwd);
           pumpFwd.start();
@@ -2575,9 +2572,7 @@ export class WeaponViewmodel {
     const safetyTimer = setTimeout(() => {
       if (this.isReloading) {
         this.isReloading = false;
-        this.shotgunPumpOffset = 0;
-        if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
-        if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+        this._updateShotgunPumpVisuals(0);
         if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
         if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
         this.reloadTilt.roll = 0;
@@ -2617,15 +2612,9 @@ export class WeaponViewmodel {
     this.isPumping = false;
     this.isSlideLocked = false;
     this.slideBlowback = 0;
-    this.shotgunPumpOffset = 0;
+    this._updateShotgunPumpVisuals(0);
     if (this.slideGroup) {
       this.slideGroup.position.set(0, 0, 0);
-    }
-    if (this.shotgunPumpGroup) {
-      this.shotgunPumpGroup.position.set(0, 0, 0);
-    }
-    if (this.shotgunBoltGroup) {
-      this.shotgunBoltGroup.position.set(0, 0, 0);
     }
     if (this.shotgunCarrierGroup) {
       this.shotgunCarrierGroup.rotation.set(0, 0, 0);

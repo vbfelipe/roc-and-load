@@ -279,12 +279,14 @@ export class HUD {
     }
   }
 
-  // Reload finish callback: sequential pip refill
-  onReloadComplete() {
+  // Reload finish callback: animate only the spent pips refilling
+  onReloadComplete(previousAmmo = 0) {
     this.updateAmmo(this.maxAmmo, this.maxAmmo);
 
-    // Staggered cartridge refill pop animation via CSS
-    for (let i = 0; i < this.bulletPips.length; i++) {
+    const startIdx = Math.max(0, Math.min(this.bulletPips.length, previousAmmo));
+
+    // Staggered cartridge refill pop animation via CSS only for spent pips
+    for (let i = startIdx; i < this.bulletPips.length; i++) {
       const pip = this.bulletPips[i];
       pip.classList.remove('spent');
       pip.style.transform = '';
@@ -293,7 +295,7 @@ export class HUD {
       // Trigger crisp CSS animation
       pip.classList.remove('refilling');
       void pip.offsetWidth; // Force reflow
-      pip.style.animationDelay = `${i * 35}ms`;
+      pip.style.animationDelay = `${(i - startIdx) * 35}ms`;
       pip.classList.add('refilling');
 
       pip.addEventListener(
