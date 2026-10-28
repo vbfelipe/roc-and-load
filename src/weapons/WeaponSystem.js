@@ -15,6 +15,9 @@ const _muzzlePos = new THREE.Vector3();
 const _hitPoint = new THREE.Vector3();
 const _tracerDir = new THREE.Vector3();
 const _tracerSpawn = new THREE.Vector3();
+const _pelletForward = new THREE.Vector3();
+const _pelletRight = new THREE.Vector3();
+const _pelletUp = new THREE.Vector3();
 const _raycaster = new THREE.Raycaster();
 _raycaster.firstHitOnly = true;
 
@@ -142,6 +145,22 @@ export class WeaponSystem {
     this.sound = soundManager;
     this.player = player;
 
+    this.currentWeapon = 'pistol';
+    this.weapons = {
+      pistol: {
+        currentAmmo: 7,
+        maxAmmo: 7,
+        fireRate: 0.45,
+        isSlideLocked: false,
+      },
+      shotgun: {
+        currentAmmo: 6,
+        maxAmmo: 6,
+        fireRate: 0.72,
+        isSlideLocked: false,
+      },
+    };
+
     this.fireRate = 0.45;
     this.fireTimer = 0;
     this.wasMouseDown0 = false;
@@ -195,6 +214,13 @@ export class WeaponSystem {
       roughness: 0.20,
     });
 
+    // Red 12-Gauge Shotgun Hull Material
+    this.shotgunHullMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc81e1e,
+      metalness: 0.08,
+      roughness: 0.42,
+    });
+
     // Impact Sparks Material (Hot metal orange-yellow)
     this.sparkMaterial = new THREE.MeshBasicMaterial({
       color: 0xffaa22,
@@ -232,8 +258,57 @@ export class WeaponSystem {
   setHUD(hud) {
     this.hud = hud;
     if (this.hud) {
-      this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
+      if (typeof this.hud.setWeapon === 'function') {
+        this.hud.setWeapon(this.currentWeapon, this.currentAmmo, this.maxAmmo);
+      } else {
+        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
+      }
       this.hud.setReloadCallback(() => this.startReload());
+    }
+  }
+
+  /**
+   * Switches between Slot 1 ('pistol' - .50 AE Desert Eagle)
+   * and Slot 2 ('shotgun' - Winchester Model 1912 12-Gauge).
+   */
+  switchWeapon(weaponType) {
+    if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null) return;
+    if (weaponType !== 'pistol' && weaponType !== 'shotgun') return;
+    if (this.currentWeapon === weaponType) return;
+
+    // 1. Persist current weapon state
+    const prevState = this.weapons[this.currentWeapon];
+    if (prevState) {
+      prevState.currentAmmo = this.currentAmmo;
+      prevState.isSlideLocked = this.isSlideLocked;
+    }
+
+    // 2. Cancel any active reload and load target weapon state
+    this.isReloading = false;
+    this.currentWeapon = weaponType;
+    const nextState = this.weapons[weaponType];
+    this.currentAmmo = nextState.currentAmmo;
+    this.maxAmmo = nextState.maxAmmo;
+    this.fireRate = nextState.fireRate;
+    this.isSlideLocked = nextState.isSlideLocked;
+    this.fireTimer = 0.22; // Brief equip readiness delay
+
+    // 3. Switch 3D viewmodel & ADS state
+    if (this.viewmodel) {
+      this.viewmodel.setADS(false);
+      this.viewmodel.switchWeapon(weaponType);
+      if (weaponType === 'pistol') {
+        this.viewmodel.setSlideLocked(this.isSlideLocked);
+      }
+    }
+
+    // 4. Update HUD to display active weapon caliber, mode, ammo count, and cartridge/shotshell pips
+    if (this.hud) {
+      if (typeof this.hud.setWeapon === 'function') {
+        this.hud.setWeapon(weaponType, this.currentAmmo, this.maxAmmo);
+      } else {
+        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true);
+      }
     }
   }
 
@@ -248,7 +323,23 @@ export class WeaponSystem {
       this.hud.onReloadStart();
     }
 
+    const shellsNeeded = this.maxAmmo - this.currentAmmo;
+
     this.viewmodel.startReloadAnimation({
+      shellsToLoad: shellsNeeded,
+      onShellInserted: () => {
+        if (this.currentWeapon === 'shotgun' && this.currentAmmo < this.maxAmmo) {
+          this.currentAmmo++;
+          this.weapons.shotgun.currentAmmo = this.currentAmmo;
+          if (this.hud) {
+            if (typeof this.hud.onShotgunShellInserted === 'function') {
+              this.hud.onShotgunShellInserted(this.currentAmmo, this.maxAmmo);
+            } else {
+              this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
+            }
+          }
+        }
+      },
       onCameraNudge: (pitchImpulse) => {
         if (this.player && typeof this.player.applyCameraRecoil === 'function') {
           this.player.applyCameraRecoil(pitchImpulse);
@@ -258,12 +349,18 @@ export class WeaponSystem {
         this.currentAmmo = this.maxAmmo;
         this.isSlideLocked = false;
         this.isReloading = false;
-        this.viewmodel.setSlideLocked(false);
+        this.weapons[this.currentWeapon].currentAmmo = this.maxAmmo;
+        this.weapons[this.currentWeapon].isSlideLocked = false;
+        if (this.currentWeapon === 'pistol') {
+          this.viewmodel.setSlideLocked(false);
+        }
 
         if (this.hud) {
           this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
           this.hud.setEmptyState(false);
-          this.hud.onReloadComplete();
+          if (this.currentWeapon === 'pistol') {
+            this.hud.onReloadComplete();
+          }
         }
       }
     });
@@ -286,7 +383,7 @@ export class WeaponSystem {
   }
 
   _initObjectPools() {
-    // 1. Bullet Decals Pool (Strictly 12 items, tight .50 AE scale ~0.24m)
+    // 1. Bullet & Buckshot Decals Pool (64 items to support 8-pellet 12-gauge buckshot clusters + .50 AE craters)
     // Each mesh clones the base material for independent opacity fading
     const decalGeo = new THREE.PlaneGeometry(0.24, 0.24);
     const emberGeo = new THREE.PlaneGeometry(0.11, 0.11);
@@ -305,9 +402,9 @@ export class WeaponSystem {
 
       this.scene.add(mesh);
       return mesh;
-    }, 12);
+    }, 64);
 
-    // 2. Ballistic Tracers Pool (20 items, fast-moving 150u/s golden streak bolts)
+    // 2. Ballistic Tracers Pool (48 items, fast-moving 150u/s golden streak bolts)
     // Tapered cylinder along Z: length 0.85m, front tip facing +Z, tail at origin (0, 0, 0)
     const tracerLength = 0.85;
     const tracerGeo = new THREE.CylinderGeometry(0.0018, 0.0042, tracerLength, 8);
@@ -323,7 +420,7 @@ export class WeaponSystem {
       mesh._maxDist = 0;
       this.scene.add(mesh);
       return mesh;
-    }, 20);
+    }, 48);
 
     // 3. Pooled Shiny Brass .50 AE Shell Casings (15 items)
     const casingGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.032, 10);
@@ -338,7 +435,27 @@ export class WeaponSystem {
       return mesh;
     }, 15);
 
-    // 4. Pooled Hot Metal Impact Sparks (32 items)
+    // 3b. Pooled Red 12-Gauge Shotgun Shells with Brass Base (15 items)
+    const shellHullGeo = new THREE.CylinderGeometry(0.0095, 0.0095, 0.042, 12);
+    const shellBrassGeo = new THREE.CylinderGeometry(0.0098, 0.0098, 0.015, 12);
+    this.shotgunShellPool = new ObjectPool(() => {
+      const group = new THREE.Group();
+      group.name = 'ShotgunShellCasing';
+      const hull = new THREE.Mesh(shellHullGeo, this.shotgunHullMaterial);
+      hull.position.y = 0.007;
+      const brass = new THREE.Mesh(shellBrassGeo, this.casingMaterial);
+      brass.position.y = -0.020;
+      group.add(hull);
+      group.add(brass);
+      group._velocity = new THREE.Vector3();
+      group._rotVelocity = new THREE.Vector3();
+      group._life = 0;
+      group.visible = false;
+      this.scene.add(group);
+      return group;
+    }, 15);
+
+    // 4. Pooled Hot Metal Impact Sparks (64 items)
     const sparkGeo = new THREE.BoxGeometry(0.016, 0.016, 0.016);
     this.sparkPool = new ObjectPool(() => {
       const mesh = new THREE.Mesh(sparkGeo, this.sparkMaterial);
@@ -349,7 +466,7 @@ export class WeaponSystem {
       mesh.visible = false;
       this.scene.add(mesh);
       return mesh;
-    }, 32);
+    }, 64);
 
     // 5. Pooled Cyan/White/Amber Electric Sparks & Glass Shards (32 items)
     const glassGeo = new THREE.BoxGeometry(0.014, 0.014, 0.014);
@@ -389,6 +506,16 @@ export class WeaponSystem {
     // 3. Advance fire timer
     if (this.fireTimer > 0) {
       this.fireTimer -= delta;
+    }
+
+    // 3b. Weapon Slot Switching (Key 1 = .50 AE Pistol, Key 2 = Winchester Model 1912 Shotgun)
+    if (this.input.consumeKeyJustPressed('Digit1') || this.input.consumeKeyJustPressed('1')) {
+      this.switchWeapon('pistol');
+      return;
+    }
+    if (this.input.consumeKeyJustPressed('Digit2') || this.input.consumeKeyJustPressed('2')) {
+      this.switchWeapon('shotgun');
+      return;
     }
 
     // 4. Manual KeyR Reload check
@@ -484,6 +611,33 @@ export class WeaponSystem {
       }
     });
 
+    // 3b. Update Pooled Red 12-Gauge Shotgun Hulls (Gravity + tumbling + bounce)
+    if (this.shotgunShellPool) {
+      this.shotgunShellPool.forEachActive((shell) => {
+        shell._life -= delta;
+        if (shell._life <= 0) {
+          shell.visible = false;
+          this.shotgunShellPool.release(shell);
+          return;
+        }
+
+        shell._velocity.y -= 14.0 * delta;
+        shell.position.addScaledVector(shell._velocity, delta);
+
+        shell.rotation.x += shell._rotVelocity.x * delta;
+        shell.rotation.y += shell._rotVelocity.y * delta;
+        shell.rotation.z += shell._rotVelocity.z * delta;
+
+        if (shell.position.y < 0.018) {
+          shell.position.y = 0.018;
+          shell._velocity.y = -shell._velocity.y * 0.32;
+          shell._velocity.x *= 0.65;
+          shell._velocity.z *= 0.65;
+          shell._rotVelocity.multiplyScalar(0.58);
+        }
+      });
+    }
+
     // 4. Update Impact Sparks (Gravity-driven hot metal arcs)
     this.sparkPool.forEachActive((spark) => {
       spark._life -= delta;
@@ -567,47 +721,74 @@ export class WeaponSystem {
     }
 
     this.currentAmmo--;
+    this.weapons[this.currentWeapon].currentAmmo = this.currentAmmo;
     this.fireTimer = this.fireRate;
 
+    const isShotgun = this.currentWeapon === 'shotgun';
+
     if (this.sound) {
-      this.sound.playGunshot();
+      if (isShotgun && typeof this.sound.playShotgunBlast === 'function') {
+        this.sound.playShotgunBlast();
+      } else {
+        this.sound.playGunshot();
+      }
     }
     if (this.viewmodel) {
       this.viewmodel.applyRecoil();
     }
     if (this.player && typeof this.player.applyCameraRecoil === 'function') {
-      this.player.applyCameraRecoil(this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042);
+      const pitchKick = isShotgun
+        ? (this.viewmodel && this.viewmodel.isADS ? 0.036 : 0.062)
+        : (this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042);
+      this.player.applyCameraRecoil(pitchKick);
     }
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this.muzzleLight.intensity = 6.0;
+    this.muzzleLight.intensity = isShotgun ? 8.5 : 6.0;
     this.muzzleLight.visible = true;
     this.flashDuration = 0.045;
 
-    this._ejectShellCasing();
-    this._performHitscan();
+    if (isShotgun) {
+      // Multi-pellet 12-gauge buckshot spread hitscan
+      this._performShotgunHitscan();
 
-    if (this.currentAmmo === 0) {
-      this.isSlideLocked = true;
-      if (this.viewmodel) {
-        this.viewmodel.setSlideLocked(true);
+      // Automatic pump-action cycle after blast, ejecting the spent red 12-gauge hull on rearward stroke
+      if (this.viewmodel && typeof this.viewmodel.startShotgunPumpAnimation === 'function') {
+        this.viewmodel.startShotgunPumpAnimation({
+          onEjectShell: () => this._ejectShellCasing('shotgun'),
+        });
       }
-      if (this.sound) {
-        this.sound.playSlideCatchRing();
-      }
-      if (this.hud) {
+
+      if (this.currentAmmo === 0 && this.hud) {
         this.hud.setEmptyState(true);
+      }
+    } else {
+      this._ejectShellCasing('pistol');
+      this._performHitscan();
+
+      if (this.currentAmmo === 0) {
+        this.isSlideLocked = true;
+        this.weapons.pistol.isSlideLocked = true;
+        if (this.viewmodel) {
+          this.viewmodel.setSlideLocked(true);
+        }
+        if (this.sound) {
+          this.sound.playSlideCatchRing();
+        }
+        if (this.hud) {
+          this.hud.setEmptyState(true);
+        }
       }
     }
 
-    // Update HUD ammo readout & bullet pips
+    // Update HUD ammo readout & cartridge/shotshell pips
     if (this.hud) {
       this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
     }
   }
 
-  _ejectShellCasing() {
+  _ejectShellCasing(weaponType = 'pistol') {
     let ejectPos = _scratchVec1;
     if (this.viewmodel && typeof this.viewmodel.getEjectionWorldPosition === 'function') {
       ejectPos = this.viewmodel.getEjectionWorldPosition(_scratchVec1);
@@ -615,10 +796,11 @@ export class WeaponSystem {
       ejectPos.copy(this.camera.position);
     }
 
-    const casing = this.casingPool.acquire();
+    const pool = weaponType === 'shotgun' && this.shotgunShellPool ? this.shotgunShellPool : this.casingPool;
+    const casing = pool.acquire();
     casing.visible = true;
     casing.position.copy(ejectPos);
-    casing._life = 1.1; // 1.1s active life
+    casing._life = 1.25; // 1.25s active life
 
     // Calculate camera space orientation vectors
     _camRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
@@ -642,6 +824,122 @@ export class WeaponSystem {
       Math.random() * Math.PI,
       Math.random() * Math.PI
     );
+  }
+
+  /**
+   * 12-Gauge 00-Buckshot Multi-Pellet Hitscan (8 Pellets in a Conical Choke Pattern).
+   * Spawns individual pellet tracers, smaller buckshot pellet decals in a realistic cluster,
+   * and preserves destructible monitor screen behavior without duplicate audio spam.
+   */
+  _performShotgunHitscan() {
+    _rayOrigin.copy(this.camera.position);
+    this.camera.getWorldDirection(_pelletForward);
+    _pelletRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+    _pelletUp.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+
+    this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
+
+    const numPellets = 8;
+    // Tighter choked spread when aiming down the receiver groove & front bead sight
+    const maxSpread = this.viewmodel.isADS ? 0.038 : 0.068;
+    const baseAngleOffset = Math.random() * Math.PI * 2;
+    let playedGlassTickThisBlast = false;
+
+    for (let i = 0; i < numPellets; i++) {
+      _rayDirection.copy(_pelletForward);
+
+      if (i === 0) {
+        // Center core pellet with tiny jitter
+        const r = maxSpread * 0.18 * Math.random();
+        const a = Math.random() * Math.PI * 2;
+        _rayDirection.addScaledVector(_pelletRight, Math.cos(a) * r);
+        _rayDirection.addScaledVector(_pelletUp, Math.sin(a) * r);
+      } else {
+        // 7 outer buckshot ring pellets distributed evenly around the cone with organic radial variance
+        const ringIdx = i - 1;
+        const angle = baseAngleOffset + (ringIdx / 7) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
+        const radius = maxSpread * (0.42 + Math.random() * 0.58);
+        _rayDirection.addScaledVector(_pelletRight, Math.cos(angle) * radius);
+        _rayDirection.addScaledVector(_pelletUp, Math.sin(angle) * radius);
+      }
+      _rayDirection.normalize();
+
+      _raycaster.set(_rayOrigin, _rayDirection);
+      _raycaster.far = 100;
+
+      let closestHit = null;
+      let hitObject = null;
+      let hitScreenMesh = null;
+
+      if (this.boxManager && typeof this.boxManager.raycast === 'function') {
+        const boxHit = this.boxManager.raycast(_raycaster);
+        if (boxHit) {
+          closestHit = boxHit;
+          hitObject = 'box';
+        }
+      }
+
+      if (this.monitorScreens && this.monitorScreens.length > 0) {
+        const screenHits = _raycaster.intersectObjects(this.monitorScreens, false);
+        if (screenHits.length > 0) {
+          if (!closestHit || screenHits[0].distance < closestHit.distance) {
+            closestHit = screenHits[0];
+            hitObject = 'monitorScreen';
+            hitScreenMesh = screenHits[0].object;
+          }
+        }
+      }
+
+      if (this.colliderMesh) {
+        const hits = _raycaster.intersectObject(this.colliderMesh, false);
+        if (hits.length > 0) {
+          if (!closestHit || hits[0].distance < closestHit.distance) {
+            closestHit = hits[0];
+            hitObject = 'arena';
+            hitScreenMesh = null;
+          }
+        }
+      }
+
+      if (closestHit) {
+        _hitPoint.copy(closestHit.point);
+        const normal = closestHit.face ? closestHit.face.normal : (closestHit.normal || _scratchVec2.set(0, 0, -1));
+
+        this._spawnTracer(_muzzlePos, _hitPoint, true);
+
+        if (hitObject === 'monitorScreen' && hitScreenMesh) {
+          const isBroken = !!hitScreenMesh.userData.isBroken;
+          if (!isBroken) {
+            hitScreenMesh.userData.isBroken = true;
+            if (hitScreenMesh.userData.brokenMaterial) {
+              hitScreenMesh.material = hitScreenMesh.userData.brokenMaterial;
+            }
+            if (hitScreenMesh.userData.brokenGeometry) {
+              hitScreenMesh.geometry = hitScreenMesh.userData.brokenGeometry;
+            }
+            this._spawnMonitorSparks(_hitPoint, normal, true);
+            if (this.sound && typeof this.sound.playMonitorShatter === 'function') {
+              this.sound.playMonitorShatter();
+            }
+          } else {
+            this._spawnMonitorSparks(_hitPoint, normal, false, 2);
+            if (!playedGlassTickThisBlast && this.sound && typeof this.sound.playGlassTick === 'function') {
+              playedGlassTickThisBlast = true;
+              this.sound.playGlassTick();
+            }
+          }
+        } else if (hitObject === 'arena') {
+          this._spawnImpactSparks(_hitPoint, normal, 2);
+          this._spawnDecal(_hitPoint, normal, true);
+        } else if (hitObject === 'box' && this.boxManager) {
+          this._spawnImpactSparks(_hitPoint, normal, 2);
+          this.boxManager.onHit(closestHit);
+        }
+      } else {
+        _hitPoint.copy(_rayOrigin).addScaledVector(_rayDirection, 100);
+        this._spawnTracer(_muzzlePos, _hitPoint, true);
+      }
+    }
   }
 
   _performHitscan() {
@@ -743,8 +1041,8 @@ export class WeaponSystem {
     }
   }
 
-  _spawnMonitorSparks(hitPoint, normal, isFirstHit) {
-    const count = isFirstHit ? 14 : 6;
+  _spawnMonitorSparks(hitPoint, normal, isFirstHit, overrideCount = null) {
+    const count = overrideCount !== null ? overrideCount : (isFirstHit ? 14 : 6);
     const sparkColors = [0x00e5ff, 0xffffff, 0x38bdf8, 0xdbeafe];
     for (let i = 0; i < count; i++) {
       const spark = this.glassSparkPool.acquire();
@@ -762,8 +1060,8 @@ export class WeaponSystem {
     }
   }
 
-  _spawnImpactSparks(hitPoint, normal) {
-    const count = 6 + Math.floor(Math.random() * 3); // 6 to 8 sparks
+  _spawnImpactSparks(hitPoint, normal, overrideCount = null) {
+    const count = overrideCount !== null ? overrideCount : (6 + Math.floor(Math.random() * 3));
     for (let i = 0; i < count; i++) {
       const spark = this.sparkPool.acquire();
       spark.visible = true;
@@ -780,7 +1078,7 @@ export class WeaponSystem {
     }
   }
 
-  _spawnTracer(startPoint, endPoint) {
+  _spawnTracer(startPoint, endPoint, isPellet = false) {
     const tracer = this.tracerPool.acquire();
 
     // Direction vector from barrel muzzle socket to hit point
@@ -793,12 +1091,12 @@ export class WeaponSystem {
     tracer.position.copy(_tracerSpawn);
     tracer.lookAt(endPoint);
 
-    // Scale bolt length if target is closer than 0.85m so it never overshoots the impact point
+    const thickness = isPellet ? 0.65 : 1.0;
     const baseLength = 0.85;
     if (totalDist < baseLength) {
-      tracer.scale.set(1.0, 1.0, Math.max(0.1, totalDist / baseLength));
+      tracer.scale.set(thickness, thickness, Math.max(0.1, totalDist / baseLength));
     } else {
-      tracer.scale.set(1.0, 1.0, 1.0);
+      tracer.scale.set(thickness, thickness, isPellet ? 0.75 : 1.0);
     }
 
     tracer._dir.copy(_tracerDir);
@@ -808,7 +1106,7 @@ export class WeaponSystem {
     tracer.visible = true;
   }
 
-  _spawnDecal(hitPoint, surfaceNormal) {
+  _spawnDecal(hitPoint, surfaceNormal, isPellet = false) {
     const decal = this.decalPool.acquire();
 
     // Reset age and visual state
@@ -831,15 +1129,23 @@ export class WeaponSystem {
     // Random rotation around surface normal
     decal.rotateZ(Math.random() * Math.PI * 2);
 
-    // Vary scale slightly (0.85 to 1.15) so hits never look like identical stamps
-    const s = 0.85 + Math.random() * 0.30;
+    // Buckshot pellets leave smaller individual punctures (~0.44-0.58 scale) so all 8 holes form a distinct spread pattern
+    const s = isPellet ? (0.44 + Math.random() * 0.14) : (0.85 + Math.random() * 0.30);
     decal.scale.set(s, s, 1.0);
   }
 
   reset() {
     TWEEN.removeAll();
 
-    this.currentAmmo = this.maxAmmo;
+    this.currentWeapon = 'pistol';
+    this.weapons.pistol.currentAmmo = 7;
+    this.weapons.pistol.isSlideLocked = false;
+    this.weapons.shotgun.currentAmmo = 6;
+    this.weapons.shotgun.isSlideLocked = false;
+
+    this.maxAmmo = 7;
+    this.currentAmmo = 7;
+    this.fireRate = 0.45;
     this.isReloading = false;
     this.isSlideLocked = false;
     this.fireTimer = 0;
@@ -885,6 +1191,13 @@ export class WeaponSystem {
       casing.visible = false;
     });
     this.casingPool.releaseAll();
+
+    if (this.shotgunShellPool) {
+      this.shotgunShellPool.forEachActive((shell) => {
+        shell.visible = false;
+      });
+      this.shotgunShellPool.releaseAll();
+    }
 
     // Clear and reset all impact sparks
     this.sparkPool.forEachActive((spark) => {

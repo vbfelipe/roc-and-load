@@ -1151,4 +1151,254 @@ export class SoundManager {
       scuff.stop(t + 0.10);
     }
   }
+
+  /**
+   * Winchester Model 1912 12-Gauge Shotgun Blast.
+   * Multi-layered procedural synthesis:
+   * 1. Massive 12-Gauge Sub-Bass Concussion (118Hz -> 22Hz over 0.18s)
+   * 2. Room-Filling Buckshot Propellant Roar (Lowpass noise 2600Hz -> 210Hz over 0.48s)
+   * 3. High-Energy Muzzle Pressure Crack (Bandpass transient burst at 2100Hz)
+   */
+  playShotgunBlast() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // 1. Deep 12-Gauge Sub-Bass Concussion Boom
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(118, t);
+    subOsc.frequency.exponentialRampToValueAtTime(22, t + 0.18);
+
+    subGain.gain.setValueAtTime(1.30, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.20);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+    subOsc.start(t);
+    subOsc.stop(t + 0.21);
+
+    // 2. Room-Filling Propellant Blast Roar
+    const roarBuffer = this._createNoiseBuffer(0.52);
+    if (roarBuffer) {
+      const roar = this.ctx.createBufferSource();
+      roar.buffer = roarBuffer;
+
+      const lpFilter = this.ctx.createBiquadFilter();
+      lpFilter.type = 'lowpass';
+      lpFilter.frequency.setValueAtTime(2650, t);
+      lpFilter.frequency.exponentialRampToValueAtTime(195, t + 0.48);
+      lpFilter.Q.setValueAtTime(1.9, t);
+
+      const roarGain = this.ctx.createGain();
+      roarGain.gain.setValueAtTime(1.12, t);
+      roarGain.gain.exponentialRampToValueAtTime(0.001, t + 0.49);
+
+      roar.connect(lpFilter);
+      lpFilter.connect(roarGain);
+      roarGain.connect(this.masterGain);
+      roar.start(t);
+      roar.stop(t + 0.50);
+
+      // 3. Crisp Muzzle Pressure Crack
+      const crack = this.ctx.createBufferSource();
+      crack.buffer = roarBuffer;
+
+      const bpFilter = this.ctx.createBiquadFilter();
+      bpFilter.type = 'bandpass';
+      bpFilter.frequency.setValueAtTime(2150, t);
+      bpFilter.Q.setValueAtTime(1.6, t);
+
+      const crackGain = this.ctx.createGain();
+      crackGain.gain.setValueAtTime(0.68, t);
+      crackGain.gain.exponentialRampToValueAtTime(0.001, t + 0.065);
+
+      crack.connect(bpFilter);
+      bpFilter.connect(crackGain);
+      crackGain.connect(this.masterGain);
+      crack.start(t);
+      crack.stop(t + 0.070);
+    }
+  }
+
+  /**
+   * Iconic Winchester Model 1912 Two-Stroke Pump-Action Rack ("CHK-CHK").
+   * - Stroke 1 (t = 0ms): Breech unlock clack + steel action slide rearward scrape.
+   * - Stroke 2 (t = 120ms): Forward slide stroke + solid steel breechbolt lock slam.
+   */
+  playShotgunPump() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const noiseBuffer = this._createNoiseBuffer(0.28);
+    if (!noiseBuffer) return;
+
+    // STROKE 1: Rearward Pump Pull (Unlock + Slide)
+    const pullNoise = this.ctx.createBufferSource();
+    pullNoise.buffer = noiseBuffer;
+
+    const pullFilter = this.ctx.createBiquadFilter();
+    pullFilter.type = 'bandpass';
+    pullFilter.frequency.setValueAtTime(1450, t);
+    pullFilter.frequency.exponentialRampToValueAtTime(2200, t + 0.085);
+    pullFilter.Q.setValueAtTime(3.2, t);
+
+    const pullGain = this.ctx.createGain();
+    pullGain.gain.setValueAtTime(0.52, t);
+    pullGain.gain.exponentialRampToValueAtTime(0.001, t + 0.095);
+
+    pullNoise.connect(pullFilter);
+    pullFilter.connect(pullGain);
+    pullGain.connect(this.masterGain);
+    pullNoise.start(t);
+    pullNoise.stop(t + 0.10);
+
+    // Metallic unlock transient ping
+    const unlockOsc = this.ctx.createOscillator();
+    const unlockGain = this.ctx.createGain();
+    unlockOsc.type = 'triangle';
+    unlockOsc.frequency.setValueAtTime(680, t);
+    unlockOsc.frequency.exponentialRampToValueAtTime(240, t + 0.035);
+    unlockGain.gain.setValueAtTime(0.32, t);
+    unlockGain.gain.exponentialRampToValueAtTime(0.001, t + 0.040);
+    unlockOsc.connect(unlockGain);
+    unlockGain.connect(this.masterGain);
+    unlockOsc.start(t);
+    unlockOsc.stop(t + 0.042);
+
+    // STROKE 2: Forward Pump Slam into Battery (t + 120ms)
+    const t2 = t + 0.120;
+    const pushNoise = this.ctx.createBufferSource();
+    pushNoise.buffer = noiseBuffer;
+
+    const pushFilter = this.ctx.createBiquadFilter();
+    pushFilter.type = 'bandpass';
+    pushFilter.frequency.setValueAtTime(2400, t2);
+    pushFilter.frequency.exponentialRampToValueAtTime(1250, t2 + 0.080);
+    pushFilter.Q.setValueAtTime(3.5, t2);
+
+    const pushGain = this.ctx.createGain();
+    pushGain.gain.setValueAtTime(0.001, t);
+    pushGain.gain.setValueAtTime(0.62, t2);
+    pushGain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.085);
+
+    pushNoise.connect(pushFilter);
+    pushFilter.connect(pushGain);
+    pushGain.connect(this.masterGain);
+    pushNoise.start(t2);
+    pushNoise.stop(t2 + 0.090);
+
+    // Heavy breechbolt lock lug thud at end of forward stroke
+    const lockOsc = this.ctx.createOscillator();
+    const lockGain = this.ctx.createGain();
+    lockOsc.type = 'triangle';
+    lockOsc.frequency.setValueAtTime(195, t2 + 0.015);
+    lockOsc.frequency.exponentialRampToValueAtTime(52, t2 + 0.065);
+    lockGain.gain.setValueAtTime(0.001, t);
+    lockGain.gain.setValueAtTime(0.46, t2 + 0.015);
+    lockGain.gain.exponentialRampToValueAtTime(0.001, t2 + 0.070);
+    lockOsc.connect(lockGain);
+    lockGain.connect(this.masterGain);
+    lockOsc.start(t2 + 0.015);
+    lockOsc.stop(t2 + 0.075);
+  }
+
+  /**
+   * 12-Gauge Shotshell Insertion into Tubular Magazine Loading Gate.
+   * Combines plastic hull slide with crisp spring-loaded carrier latch click.
+   */
+  playShotgunShellInsert() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const noiseBuffer = this._createNoiseBuffer(0.08);
+    if (noiseBuffer) {
+      const slide = this.ctx.createBufferSource();
+      slide.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1150, t);
+      filter.frequency.exponentialRampToValueAtTime(2600, t + 0.055);
+      filter.Q.setValueAtTime(2.8, t);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.38, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.062);
+
+      slide.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      slide.start(t);
+      slide.stop(t + 0.065);
+    }
+
+    // Brass rim & magazine tube latch snap (t + 28ms)
+    const snapTime = t + 0.028;
+    const snapOsc = this.ctx.createOscillator();
+    const snapGain = this.ctx.createGain();
+    snapOsc.type = 'sine';
+    snapOsc.frequency.setValueAtTime(2150, snapTime);
+    snapOsc.frequency.exponentialRampToValueAtTime(780, snapTime + 0.028);
+
+    snapGain.gain.setValueAtTime(0.001, t);
+    snapGain.gain.setValueAtTime(0.34, snapTime);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, snapTime + 0.032);
+
+    snapOsc.connect(snapGain);
+    snapGain.connect(this.masterGain);
+    snapOsc.start(snapTime);
+    snapOsc.stop(snapTime + 0.035);
+  }
+
+  /**
+   * Tactical Weapon Equip / Switch SFX (Keys 1 & 2).
+   */
+  playWeaponSwitch(toShotgun = false) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const noiseBuffer = this._createNoiseBuffer(0.14);
+    if (noiseBuffer) {
+      const swoosh = this.ctx.createBufferSource();
+      swoosh.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(toShotgun ? 480 : 650, t);
+      filter.frequency.exponentialRampToValueAtTime(toShotgun ? 1150 : 1550, t + 0.11);
+      filter.Q.setValueAtTime(1.8, t);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.28, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+      swoosh.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+      swoosh.start(t);
+      swoosh.stop(t + 0.13);
+    }
+
+    // Subtle mechanical steel settle click
+    const clinkTime = t + 0.055;
+    const clinkOsc = this.ctx.createOscillator();
+    const clinkGain = this.ctx.createGain();
+    clinkOsc.type = 'triangle';
+    clinkOsc.frequency.setValueAtTime(toShotgun ? 920 : 1380, clinkTime);
+    clinkOsc.frequency.exponentialRampToValueAtTime(toShotgun ? 310 : 520, clinkTime + 0.035);
+
+    clinkGain.gain.setValueAtTime(0.001, t);
+    clinkGain.gain.setValueAtTime(0.24, clinkTime);
+    clinkGain.gain.exponentialRampToValueAtTime(0.001, clinkTime + 0.040);
+
+    clinkOsc.connect(clinkGain);
+    clinkGain.connect(this.masterGain);
+    clinkOsc.start(clinkTime);
+    clinkOsc.stop(clinkTime + 0.045);
+  }
 }

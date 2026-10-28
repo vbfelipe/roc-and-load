@@ -6,10 +6,13 @@ export class HUD {
     this.container = null;
     this.ammoCountEl = null;
     this.ammoPanelEl = null;
+    this.caliberTextEl = null;
+    this.modeTagEl = null;
     this.pipsContainerEl = null;
     this.reloadPromptEl = null;
     this.bulletPips = [];
 
+    this.currentWeapon = 'pistol';
     this.currentAmmo = 7;
     this.maxAmmo = 7;
     this._lastReportedAmmo = null;
@@ -44,7 +47,7 @@ export class HUD {
     });
     uiLayer.appendChild(this.reloadPromptEl);
 
-    // 2. Bottom-Right .50 AE AMMO Panel
+    // 2. Bottom-Right Tactical Weapon & Ammo Panel (.50 AE / 12 GAUGE)
     this.ammoPanelEl = document.createElement('div');
     this.ammoPanelEl.id = 'hud-ammo-panel';
     this.ammoPanelEl.className = 'hud-ammo-panel';
@@ -52,9 +55,9 @@ export class HUD {
       <div class="panel-header">
         <div class="caliber-tag">
           <span class="status-led"></span>
-          <span>.50 AE</span>
+          <span id="hud-caliber-text">.50 AE</span>
         </div>
-        <div class="mode-tag">SEMI-AUTO</div>
+        <div id="hud-mode-tag" class="mode-tag">SEMI-AUTO</div>
       </div>
 
       <div class="panel-body">
@@ -70,25 +73,59 @@ export class HUD {
     uiLayer.appendChild(this.ammoPanelEl);
 
     this.ammoCountEl = this.ammoPanelEl.querySelector('#hud-ammo-current');
+    this.caliberTextEl = this.ammoPanelEl.querySelector('#hud-caliber-text');
+    this.modeTagEl = this.ammoPanelEl.querySelector('#hud-mode-tag');
     this.pipsContainerEl = this.ammoPanelEl.querySelector('#hud-bullet-pips');
 
-    // Build the 7 visual bullet pips
+    // Build initial cartridge pips
     this._buildBulletPips();
+  }
+
+  /**
+   * Switches the HUD between Weapon 1 ('pistol' - .50 AE, 7 brass cartridges)
+   * and Weapon 2 ('shotgun' - 12 GAUGE, 6 red shotshells).
+   */
+  setWeapon(weaponType, currentAmmo, maxAmmo) {
+    this.currentWeapon = weaponType;
+    this.currentAmmo = currentAmmo;
+    this.maxAmmo = maxAmmo;
+    this._lastReportedAmmo = null;
+    this._lastReportedMax = null;
+
+    const isShotgun = weaponType === 'shotgun';
+    if (this.caliberTextEl) {
+      this.caliberTextEl.textContent = isShotgun ? '12 GAUGE' : '.50 AE';
+    }
+    if (this.modeTagEl) {
+      this.modeTagEl.textContent = isShotgun ? 'PUMP-ACTION' : 'SEMI-AUTO';
+    }
+
+    this._buildBulletPips();
+    this.updateAmmo(currentAmmo, maxAmmo, true);
   }
 
   _buildBulletPips() {
     this.bulletPips = [];
     this.pipsContainerEl.innerHTML = '';
 
+    const isShotgun = this.currentWeapon === 'shotgun';
+
     for (let i = 0; i < this.maxAmmo; i++) {
       const pip = document.createElement('div');
-      pip.className = 'bullet-pip';
+      pip.className = isShotgun ? 'bullet-pip shotshell-pip' : 'bullet-pip';
       pip.dataset.index = i;
-      pip.innerHTML = `
-        <div class="pip-ogive"></div>
-        <div class="pip-casing"></div>
-        <div class="pip-rim"></div>
-      `;
+      pip.innerHTML = isShotgun
+        ? `
+          <div class="shell-crimp"></div>
+          <div class="shell-hull"></div>
+          <div class="shell-brass"></div>
+          <div class="shell-rim"></div>
+        `
+        : `
+          <div class="pip-ogive"></div>
+          <div class="pip-casing"></div>
+          <div class="pip-rim"></div>
+        `;
       this.pipsContainerEl.appendChild(pip);
       this.bulletPips.push(pip);
     }
@@ -220,9 +257,31 @@ export class HUD {
     }
   }
 
+  /**
+   * Called each time a 12-gauge shotshell is thumb-loaded into the Winchester Model 1912 magazine.
+   * Pops the corresponding red shotshell pip in real time.
+   */
+  onShotgunShellInserted(current, max = 6) {
+    this.updateAmmo(current, max, true);
+    const pipIdx = current - 1;
+    if (pipIdx >= 0 && pipIdx < this.bulletPips.length) {
+      const pip = this.bulletPips[pipIdx];
+      pip.classList.remove('spent', 'refilling');
+      void pip.offsetWidth;
+      pip.classList.add('refilling');
+      pip.addEventListener(
+        'animationend',
+        () => {
+          pip.classList.remove('refilling');
+        },
+        { once: true }
+      );
+    }
+  }
+
   // Reload finish callback: sequential pip refill
   onReloadComplete() {
-    this.updateAmmo(7, 7);
+    this.updateAmmo(this.maxAmmo, this.maxAmmo);
 
     // Staggered cartridge refill pop animation via CSS
     for (let i = 0; i < this.bulletPips.length; i++) {
@@ -249,10 +308,7 @@ export class HUD {
   }
 
   reset() {
-    this.currentAmmo = 7;
-    this.maxAmmo = 7;
-    this._lastReportedAmmo = null;
-    this._lastReportedMax = null;
+    this.setWeapon('pistol', 7, 7);
 
     if (this.reloadPromptEl) {
       this.reloadPromptEl.classList.add('hidden');

@@ -11,6 +11,8 @@ let _cachedBrushedTexture = null;
 let _cachedNoiseTexture = null;
 let _cachedEngravingTexture = null;
 let _cachedFlashTexture = null;
+let _cachedWalnutTexture = null;
+let _cachedWinchesterEngravingTexture = null;
 
 /**
  * Creates an offline procedural horizontal brushed-steel grain texture (256x256)
@@ -140,6 +142,94 @@ function createEngravingTexture() {
 }
 
 /**
+ * Creates a rich procedural oiled American walnut woodgrain texture (256x256)
+ * for the Winchester Model 1912 buttstock, semi-pistol wrist, and ribbed corn-cob pump fore-end.
+ */
+function createWalnutWoodTexture() {
+  if (_cachedWalnutTexture) return _cachedWalnutTexture;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Warm American walnut base gradient
+  const baseGrad = ctx.createLinearGradient(0, 0, 256, 256);
+  baseGrad.addColorStop(0.0, '#6e3a1a');
+  baseGrad.addColorStop(0.35, '#7c4320');
+  baseGrad.addColorStop(0.70, '#5e3015');
+  baseGrad.addColorStop(1.0, '#6b3819');
+  ctx.fillStyle = baseGrad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Longitudinal wood fiber streaks and organic cathedral grain waves
+  for (let i = 0; i < 950; i++) {
+    const y = Math.random() * 256;
+    const x = Math.random() * 220;
+    const len = 35 + Math.random() * 140;
+    const wave = (Math.random() - 0.5) * 4.5;
+    const isDark = Math.random() > 0.36;
+    const alpha = 0.05 + Math.random() * 0.12;
+    ctx.strokeStyle = isDark
+      ? `rgba(28, 12, 4, ${alpha})`
+      : `rgba(168, 98, 48, ${alpha * 0.75})`;
+    ctx.lineWidth = 0.6 + Math.random() * 1.6;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.quadraticCurveTo(x + len * 0.5, y + wave, x + len, y + (Math.random() - 0.5) * 2.0);
+    ctx.stroke();
+  }
+
+  // Subtle fine wood pore stipple
+  for (let i = 0; i < 400; i++) {
+    const px = Math.random() * 256;
+    const py = Math.random() * 256;
+    ctx.fillStyle = 'rgba(20, 8, 2, 0.14)';
+    ctx.fillRect(px, py, 3 + Math.random() * 5, 0.8);
+  }
+
+  _cachedWalnutTexture = new THREE.CanvasTexture(canvas);
+  _cachedWalnutTexture.colorSpace = THREE.SRGBColorSpace;
+  _cachedWalnutTexture.wrapS = THREE.RepeatWrapping;
+  _cachedWalnutTexture.wrapT = THREE.RepeatWrapping;
+  _cachedWalnutTexture.repeat.set(2, 2);
+  _cachedWalnutTexture.needsUpdate = true;
+  return _cachedWalnutTexture;
+}
+
+/**
+ * Creates a factory roll-mark engraving texture (256x64) for the Winchester Model 1912 receiver:
+ * "WINCHESTER — MODEL 12 — 12 GA." and "U.S." ordnance stamp.
+ */
+function createWinchesterEngravingTexture() {
+  if (_cachedWinchesterEngravingTexture) return _cachedWinchesterEngravingTexture;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0, 0, 256, 64);
+
+  ctx.fillStyle = '#9aa4b2';
+  ctx.font = 'bold 10px Georgia, "Times New Roman", serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('WINCHESTER — MODEL 1912', 12, 24);
+
+  ctx.font = 'bold 8px Arial, Helvetica, sans-serif';
+  ctx.fillText('12 GA. — 2 3/4 CHAM. — FULL', 12, 39);
+
+  ctx.font = 'bold 15px Georgia, "Times New Roman", serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('U.S.', 242, 38);
+
+  _cachedWinchesterEngravingTexture = new THREE.CanvasTexture(canvas);
+  _cachedWinchesterEngravingTexture.colorSpace = THREE.SRGBColorSpace;
+  _cachedWinchesterEngravingTexture.needsUpdate = true;
+  return _cachedWinchesterEngravingTexture;
+}
+
+/**
  * Procedural flame starburst canvas texture (256x256) for realistic GPU additive muzzle flash.
  */
 function createMuzzleFlashTexture() {
@@ -241,38 +331,63 @@ export class WeaponViewmodel {
     this.root.name = 'WeaponViewmodel';
     this.camera.add(this.root);
 
-    // Dedicated World-Space Muzzle Socket for bullet tracers & effects
+    // Active weapon type ('pistol' = Slot 1 Desert Eagle .50 AE, 'shotgun' = Slot 2 Winchester Model 1912)
+    this.currentWeapon = 'pistol';
+
+    // Dedicated World-Space Muzzle Sockets for bullet/pellet tracers & effects
     this.muzzleSocket = new THREE.Object3D();
-    this.muzzleSocket.name = 'MuzzleSocket';
+    this.muzzleSocket.name = 'PistolMuzzleSocket';
+    this.shotgunMuzzleSocket = new THREE.Object3D();
+    this.shotgunMuzzleSocket.name = 'ShotgunMuzzleSocket';
     this.muzzleWorldPos = new THREE.Vector3();
     this.muzzleAnchor = this.muzzleSocket;
 
-    // Ejection port anchor & world position for .50 AE brass casings
+    // Ejection port anchors & world position for .50 AE brass casings and 12-gauge red hulls
     this.ejectionAnchor = new THREE.Group();
+    this.shotgunEjectionAnchor = new THREE.Group();
     this.ejectionWorldPos = new THREE.Vector3();
     this.flashTimer = 0;
 
+    // Slot 1 (.50 AE Desert Eagle) Hip & ADS Transforms
     // Sightline Height: Low-profile combat sights sit at local y = +0.0515
-    // In ADS, adsPosition.y = -0.0515 brings front & rear sights dead-center to camera eye (y = 0)
-    this.hipPosition = new THREE.Vector3(0.165, -0.142, -0.30);
-    this.adsPosition = new THREE.Vector3(0.0, -0.0515, -0.21);
+    this.pistolHipPosition = new THREE.Vector3(0.165, -0.142, -0.30);
+    this.pistolAdsPosition = new THREE.Vector3(0.0, -0.0515, -0.21);
+    this.pistolHipRotation = new THREE.Euler(0.05, -0.08, 0.02);
+    this.pistolAdsRotation = new THREE.Euler(0, 0, 0);
 
-    this.hipRotation = new THREE.Euler(0.05, -0.08, 0.02);
-    this.adsRotation = new THREE.Euler(0, 0, 0);
+    // Slot 2 (Winchester Model 1912 12-Gauge Shotgun) Hip & ADS Transforms
+    // Sightline Height: Matted receiver sighting groove & front brass bead sit at local y = +0.0495
+    this.shotgunHipPosition = new THREE.Vector3(0.158, -0.118, -0.285);
+    this.shotgunAdsPosition = new THREE.Vector3(0.0, -0.0495, -0.225);
+    this.shotgunHipRotation = new THREE.Euler(0.035, -0.095, 0.015);
+    this.shotgunAdsRotation = new THREE.Euler(0, 0, 0);
+
+    this.hipPosition = this.pistolHipPosition;
+    this.adsPosition = this.pistolAdsPosition;
+    this.hipRotation = this.pistolHipRotation;
+    this.adsRotation = this.pistolAdsRotation;
 
     this.isADS = false;
     this.adsAlpha = 0;
 
-    // Slide Blowback, Hammer Action & Reload state
+    // Slide Blowback, Hammer Action, Pump Action & Reload state
     this.slideBlowback = 0;
     this.hammerRecoil = 0;
     this.hammerRestAngle = 0.40; // Cocked backward resting nicely above beaver-tail
     this.isSlideLocked = false;
     this.isReloading = false;
+    this.isPumping = false;
+    this.shotgunPumpOffset = 0;
     this.reloadTilt = { roll: 0, pitch: 0, yaw: 0, y: 0 };
     this.triggerMesh = null;
+    this.shotgunTriggerMesh = null;
     this.magRelease = null;
     this.magGroup = null;
+    this.shotgunGroup = null;
+    this.shotgunPumpGroup = null;
+    this.shotgunBoltGroup = null;
+    this.shotgunCarrierGroup = null;
+    this.shotgunReloadShell = null;
     this.reloadTweens = [];
     this.reloadTimers = [];
 
@@ -295,9 +410,10 @@ export class WeaponViewmodel {
     this.bobCycle = 0;
     this.bobSpring = new Spring3D({ stiffness: 180, damping: 18, mass: 1.0 });
 
-    // Build 3D mesh
+    // Build 3D meshes for both weapons
     this._buildMaterials();
     this._buildGunMesh();
+    this._buildShotgunMesh();
     this._buildMuzzleFlashRig();
 
     // Disable shadow casting and receiving on first-person gun to eliminate shadow map passes
@@ -400,6 +516,81 @@ export class WeaponViewmodel {
       transparent: true,
       side: THREE.DoubleSide,
       opacity: 1.0,
+    });
+
+    // 10. Winchester Model 1912 Deep Charcoal-Blued Ordnance Steel (Balanced satin gunmetal-blue)
+    this.bluedSteelMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2b3340,
+      metalness: 0.58,
+      roughness: 0.34,
+      bumpMap: this.brushedNoiseTexture,
+      bumpScale: 0.0010,
+      roughnessMap: this.brushedNoiseTexture,
+      envMapIntensity: 0.78,
+    });
+
+    // 11. Polished Nickel / Stainless Breechbolt & Shell Lifter (Signature bright silver bolt)
+    this.brightBoltMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe6edf5,
+      metalness: 0.48,
+      roughness: 0.24,
+      emissive: 0x222933,
+      emissiveIntensity: 0.35,
+      bumpMap: this.brushedNoiseTexture,
+      bumpScale: 0.0007,
+      envMapIntensity: 1.15,
+      polygonOffset: true,
+      polygonOffsetFactor: -3,
+      polygonOffsetUnits: -3,
+    });
+
+    // 12. Oiled American Walnut Stock & Ribbed Corn-Cob Pump Fore-End
+    this.walnutTexture = createWalnutWoodTexture();
+    this.walnutMaterial = new THREE.MeshStandardMaterial({
+      map: this.walnutTexture,
+      color: 0xd98a54,
+      metalness: 0.06,
+      roughness: 0.38,
+      bumpMap: this.walnutTexture,
+      bumpScale: 0.0028,
+      envMapIntensity: 0.80,
+    });
+
+    // 13. Deep Recessed Walnut Grooves (For the 18-ring "Corn-Cob" pump handle)
+    this.walnutGrooveMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e0d04,
+      metalness: 0.04,
+      roughness: 0.82,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+
+    // 14. Classic Polished Brass (Front Sight Bead & 12-Gauge Shell High-Brass Head)
+    this.brassMaterial = new THREE.MeshStandardMaterial({
+      color: 0xfbbf24,
+      metalness: 0.92,
+      roughness: 0.20,
+      envMapIntensity: 1.25,
+    });
+
+    // 15. Crimson 12-Gauge Shotshell Hull Material
+    this.shellHullMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc81e1e,
+      metalness: 0.08,
+      roughness: 0.42,
+    });
+
+    // 16. Winchester Model 1912 Roll-Mark Receiver Engraving Material
+    this.winchesterEngravingTexture = createWinchesterEngravingTexture();
+    this.winchesterEngravingMaterial = new THREE.MeshBasicMaterial({
+      map: this.winchesterEngravingTexture,
+      transparent: true,
+      opacity: 0.82,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
   }
 
@@ -1167,6 +1358,573 @@ export class WeaponViewmodel {
     }
   }
 
+  /**
+   * Builds the procedural Winchester Model 1912 (M12) 12-Gauge Pump-Action Shotgun:
+   * - Streamlined hammerless blued steel receiver with signature curved humpback rear tang
+   * - Polished nickel/stainless reciprocating breechbolt visible inside right-side ejection port
+   * - Stepped takedown receiver extension collar & toothed barrel adjusting sleeve lock
+   * - 20" tapered blued ordnance steel barrel with pedestal brass/fiber front bead sight
+   * - Full-length tubular magazine with figure-8 barrel yoke band & takedown pin
+   * - Reciprocating 18-ring "Corn-Cob" oiled American walnut pump fore-end & steel action slide bar
+   * - Contoured American walnut semi-pistol grip wrist, raised comb buttstock, and ribbed buttplate
+   * - Bottom loading gate with pivoting bright steel shell carrier & animated 3D red 12-gauge shell
+   */
+  _buildShotgunMesh() {
+    this.shotgunGroup = new THREE.Group();
+    this.shotgunGroup.name = 'WinchesterModel1912';
+    this.shotgunGroup.visible = false;
+    this.root.add(this.shotgunGroup);
+
+    // =========================================================================
+    // 1. STREAMLINED HAMMERLESS WINCHESTER MODEL 1912 RECEIVER
+    // =========================================================================
+    this.shotgunReceiverGroup = new THREE.Group();
+    this.shotgunReceiverGroup.name = 'ShotgunReceiver';
+    this.shotgunGroup.add(this.shotgunReceiverGroup);
+
+    // 1.1 Iconic Humpback Receiver Side Profile (Spans z = -0.056 to z = +0.092)
+    const recShape = new THREE.Shape();
+    recShape.moveTo(-0.056, -0.005); // Front bottom under magazine collar
+    recShape.lineTo(-0.056, 0.041);  // Front vertical face up to top sighting plane
+    recShape.lineTo(0.046, 0.041);   // Straight top receiver deck
+    // Signature Winchester M1912 curved humpback rear shoulder dropping into stock wrist
+    recShape.quadraticCurveTo(0.070, 0.040, 0.082, 0.025);
+    recShape.quadraticCurveTo(0.090, 0.015, 0.092, 0.004);
+    recShape.lineTo(0.080, -0.010);  // Lower rear tang junction with walnut wrist
+    recShape.lineTo(-0.036, -0.008); // Flat lower receiver floor
+    recShape.lineTo(-0.042, -0.005); // Front step to magazine tube
+    recShape.closePath();
+
+    const recGeoRaw = new THREE.ExtrudeGeometry(recShape, {
+      depth: 0.031,
+      curveSegments: 32,
+      bevelEnabled: true,
+      bevelThickness: 0.0022,
+      bevelSize: 0.0020,
+      bevelSegments: 5,
+    });
+    recGeoRaw.rotateY(-Math.PI / 2);
+    recGeoRaw.translate(0.0155, 0, 0);
+    const recGeo = BufferGeometryUtils.mergeVertices(recGeoRaw, 1e-4);
+    recGeo.computeVertexNormals();
+    const receiverMesh = new THREE.Mesh(recGeo, this.bluedSteelMaterial);
+    this.shotgunReceiverGroup.add(receiverMesh);
+
+    // Rounded cylindrical upper receiver crown for smooth machined steel highlight
+    const recCrownGeo = new THREE.CylinderGeometry(0.0162, 0.0162, 0.102, 32);
+    recCrownGeo.rotateX(Math.PI / 2);
+    recCrownGeo.scale(1.0, 0.55, 1.0);
+    const recCrown = new THREE.Mesh(recCrownGeo, this.bluedSteelMaterial);
+    recCrown.position.set(0, 0.0345, -0.005);
+    this.shotgunReceiverGroup.add(recCrown);
+
+    // 1.2 Authentic Winchester M1912 Matted Sighting Plane & Rear Sighting U-Notch
+    const sightRampGeo = new THREE.BoxGeometry(0.010, 0.0022, 0.102);
+    const sightRamp = new THREE.Mesh(sightRampGeo, this.darkMaterial);
+    sightRamp.position.set(0, 0.0432, -0.004);
+    this.shotgunReceiverGroup.add(sightRamp);
+
+    const sightGrooveGeo = new THREE.BoxGeometry(0.0042, 0.0014, 0.100);
+    const sightGroove = new THREE.Mesh(sightGrooveGeo, this.cavityMaterial);
+    sightGroove.position.set(0, 0.0442, -0.004);
+    this.shotgunReceiverGroup.add(sightGroove);
+
+    // Low-profile rear sighting ears flanking the central sighting groove at z = +0.042
+    const rearEarGeo = new THREE.BoxGeometry(0.0032, 0.0042, 0.008);
+    const rearEarLeft = new THREE.Mesh(rearEarGeo, this.darkMaterial);
+    rearEarLeft.position.set(-0.0038, 0.0462, 0.042);
+    this.shotgunReceiverGroup.add(rearEarLeft);
+
+    const rearEarRight = new THREE.Mesh(rearEarGeo, this.darkMaterial);
+    rearEarRight.position.set(0.0038, 0.0462, 0.042);
+    this.shotgunReceiverGroup.add(rearEarRight);
+
+    // 1.3 Ejection Port Cavity & Reciprocating Bright Silver Breechbolt
+    // Recessed dark port window framing the bright polished stainless breechblock
+    const portRecessGeo = new THREE.BoxGeometry(0.0354, 0.0215, 0.058);
+    const portRecess = new THREE.Mesh(portRecessGeo, this.cavityMaterial);
+    portRecess.position.set(0, 0.0255, -0.008);
+    this.shotgunReceiverGroup.add(portRecess);
+
+    // Reciprocating Polished Nickel / Stainless Breechbolt (Moves backward on pump!)
+    this.shotgunBoltGroup = new THREE.Group();
+    this.shotgunBoltGroup.name = 'ShotgunBreechbolt';
+    this.shotgunReceiverGroup.add(this.shotgunBoltGroup);
+
+    const boltBodyGeo = new THREE.BoxGeometry(0.0358, 0.0192, 0.054);
+    const boltBody = new THREE.Mesh(boltBodyGeo, this.brightBoltMaterial);
+    boltBody.position.set(0, 0.0252, -0.008);
+    this.shotgunBoltGroup.add(boltBody);
+
+    // Machined extractor claw & horizontal flute on breechbolt face
+    const boltExtractorGeo = new THREE.BoxGeometry(0.0364, 0.0038, 0.015);
+    const boltExtractor = new THREE.Mesh(boltExtractorGeo, this.darkMaterial);
+    boltExtractor.position.set(0, 0.0235, -0.022);
+    this.shotgunBoltGroup.add(boltExtractor);
+
+    const boltFluteGeo = new THREE.BoxGeometry(0.0362, 0.0018, 0.034);
+    const boltFlute = new THREE.Mesh(boltFluteGeo, this.serrationMaterial);
+    boltFlute.position.set(0, 0.0285, -0.002);
+    this.shotgunBoltGroup.add(boltFlute);
+
+    // Ejection anchor positioned at the Model 1912 ejection port
+    this.shotgunEjectionAnchor.position.set(0.020, 0.026, -0.008);
+    this.shotgunReceiverGroup.add(this.shotgunEjectionAnchor);
+
+    // 1.4 Stepped Takedown Receiver Extension Collar (Front of receiver: z = -0.056 to -0.082)
+    const tdUpperRingGeo = new THREE.CylinderGeometry(0.0152, 0.0156, 0.026, 28);
+    tdUpperRingGeo.rotateX(Math.PI / 2);
+    const tdUpperRing = new THREE.Mesh(tdUpperRingGeo, this.bluedSteelMaterial);
+    tdUpperRing.position.set(0, 0.0285, -0.068);
+    this.shotgunReceiverGroup.add(tdUpperRing);
+
+    const tdLowerRingGeo = new THREE.CylinderGeometry(0.0128, 0.0132, 0.024, 24);
+    tdLowerRingGeo.rotateX(Math.PI / 2);
+    const tdLowerRing = new THREE.Mesh(tdLowerRingGeo, this.bluedSteelMaterial);
+    tdLowerRing.position.set(0, 0.0065, -0.067);
+    this.shotgunReceiverGroup.add(tdLowerRing);
+
+    const tdWebGeo = new THREE.BoxGeometry(0.026, 0.024, 0.024);
+    const tdWeb = new THREE.Mesh(tdWebGeo, this.bluedSteelMaterial);
+    tdWeb.position.set(0, 0.0175, -0.067);
+    this.shotgunReceiverGroup.add(tdWeb);
+
+    // Vertical machined takedown seam line & barrel adjusting sleeve lock ring
+    const tdSeamGeo = new THREE.BoxGeometry(0.036, 0.044, 0.0012);
+    const tdSeam = new THREE.Mesh(tdSeamGeo, this.cavityMaterial);
+    tdSeam.position.set(0, 0.018, -0.056);
+    this.shotgunReceiverGroup.add(tdSeam);
+
+    const adjustSleeveGeo = new THREE.CylinderGeometry(0.0158, 0.0158, 0.007, 24);
+    adjustSleeveGeo.rotateX(Math.PI / 2);
+    const adjustSleeve = new THREE.Mesh(adjustSleeveGeo, this.darkMaterial);
+    adjustSleeve.position.set(0, 0.0285, -0.078);
+    this.shotgunReceiverGroup.add(adjustSleeve);
+
+    // 1.5 Bottom Loading Port & Pivoting Bright Steel Shell Carrier/Lifter
+    const loadWellGeo = new THREE.BoxGeometry(0.022, 0.005, 0.056);
+    const loadWell = new THREE.Mesh(loadWellGeo, this.cavityMaterial);
+    loadWell.position.set(0, -0.007, -0.006);
+    this.shotgunReceiverGroup.add(loadWell);
+
+    this.shotgunCarrierGroup = new THREE.Group();
+    this.shotgunCarrierGroup.position.set(0, -0.0065, 0.018); // Hinged at rear of loading port
+    this.shotgunReceiverGroup.add(this.shotgunCarrierGroup);
+
+    const carrierPlateGeo = new THREE.BoxGeometry(0.018, 0.0022, 0.048);
+    const carrierPlate = new THREE.Mesh(carrierPlateGeo, this.brightBoltMaterial);
+    carrierPlate.position.set(0, 0, -0.024);
+    this.shotgunCarrierGroup.add(carrierPlate);
+
+    // 1.6 Factory Roll-Mark Engravings & Receiver Pins ("WINCHESTER - MODEL 1912 - U.S.")
+    const sEngraveGeo = new THREE.PlaneGeometry(0.088, 0.020);
+    const sEngraveLeft = new THREE.Mesh(sEngraveGeo, this.winchesterEngravingMaterial);
+    sEngraveLeft.rotation.y = -Math.PI / 2;
+    sEngraveLeft.position.set(-0.0178, 0.005, -0.004);
+    this.shotgunReceiverGroup.add(sEngraveLeft);
+
+    const sEngraveRight = new THREE.Mesh(sEngraveGeo, this.winchesterEngravingMaterial);
+    sEngraveRight.rotation.y = Math.PI / 2;
+    sEngraveRight.position.set(0.0178, 0.005, -0.004);
+    this.shotgunReceiverGroup.add(sEngraveRight);
+
+    const recPinGeo = new THREE.CylinderGeometry(0.0022, 0.0022, 0.036, 12);
+    recPinGeo.rotateZ(Math.PI / 2);
+    const recPin1 = new THREE.Mesh(recPinGeo, this.darkMaterial);
+    recPin1.position.set(0, 0.004, 0.036);
+    this.shotgunReceiverGroup.add(recPin1);
+
+    const recPin2 = new THREE.Mesh(recPinGeo, this.darkMaterial);
+    recPin2.position.set(0, 0.012, 0.056);
+    this.shotgunReceiverGroup.add(recPin2);
+
+    // =========================================================================
+    // 2. LONG 20" TAPERED BLUED STEEL BARREL & FRONT BRASS BEAD SIGHT
+    // =========================================================================
+    this.shotgunBarrelGroup = new THREE.Group();
+    this.shotgunBarrelGroup.name = 'ShotgunBarrel';
+    this.shotgunGroup.add(this.shotgunBarrelGroup);
+
+    // 2.1 Tapered 12-Gauge Barrel (Spans z = -0.075 to z = -0.435, length 0.360m)
+    const sBarrelGeo = new THREE.CylinderGeometry(0.0114, 0.0134, 0.360, 32);
+    sBarrelGeo.rotateX(Math.PI / 2);
+    const sBarrelMesh = new THREE.Mesh(sBarrelGeo, this.bluedSteelMaterial);
+    sBarrelMesh.position.set(0, 0.0285, -0.255);
+    this.shotgunBarrelGroup.add(sBarrelMesh);
+
+    // Sleek low-profile top barrel sighting rib leading from receiver to front bead
+    const barrelRibGeo = new THREE.BoxGeometry(0.0055, 0.0024, 0.352);
+    const barrelRib = new THREE.Mesh(barrelRibGeo, this.darkMaterial);
+    barrelRib.position.set(0, 0.0402, -0.252);
+    this.shotgunBarrelGroup.add(barrelRib);
+
+    // 2.2 Chamfered Muzzle Crown & Pitch-Black 12-Gauge Bore at z = -0.435
+    const sCrownGeo = new THREE.CylinderGeometry(0.0110, 0.0114, 0.003, 28);
+    sCrownGeo.rotateX(Math.PI / 2);
+    const sCrown = new THREE.Mesh(sCrownGeo, this.darkMaterial);
+    sCrown.position.set(0, 0.0285, -0.4355);
+    this.shotgunBarrelGroup.add(sCrown);
+
+    const sBoreGeo = new THREE.CylinderGeometry(0.0092, 0.0092, 0.045, 24);
+    sBoreGeo.rotateX(Math.PI / 2);
+    const sBore = new THREE.Mesh(sBoreGeo, this.innerBoreMat);
+    sBore.position.set(0, 0.0285, -0.415);
+    this.shotgunBarrelGroup.add(sBore);
+
+    // Dedicated Shotgun Muzzle Socket at tip of 12-gauge bore
+    this.shotgunMuzzleSocket.position.set(0, 0.0285, -0.440);
+    this.shotgunBarrelGroup.add(this.shotgunMuzzleSocket);
+
+    // 2.3 Pedestal Front Bead Sight (Aligned to y = +0.0495 sightline)
+    const beadPedestalGeo = new THREE.BoxGeometry(0.0048, 0.0065, 0.012);
+    const beadPedestal = new THREE.Mesh(beadPedestalGeo, this.darkMaterial);
+    beadPedestal.position.set(0, 0.0435, -0.422);
+    this.shotgunBarrelGroup.add(beadPedestal);
+
+    const brassBeadGeo = new THREE.SphereGeometry(0.0024, 16, 16);
+    const brassBead = new THREE.Mesh(brassBeadGeo, this.brassMaterial);
+    brassBead.position.set(0, 0.0495, -0.422);
+    this.shotgunBarrelGroup.add(brassBead);
+
+    // High-visibility glowing front bead face facing shooter for crisp ADS & hip visibility
+    const beadGlowGeo = new THREE.SphereGeometry(0.0019, 14, 14);
+    const beadGlow = new THREE.Mesh(beadGlowGeo, this.fiberOpticMaterial);
+    beadGlow.position.set(0, 0.0495, -0.4205);
+    this.shotgunBarrelGroup.add(beadGlow);
+
+    // =========================================================================
+    // 3. TUBULAR MAGAZINE & FIGURE-8 BARREL YOKE BAND
+    // =========================================================================
+    // 3.1 Full-length 6-round Tubular Magazine (z = -0.075 to -0.352)
+    const magTubeGeo = new THREE.CylinderGeometry(0.0106, 0.0108, 0.278, 28);
+    magTubeGeo.rotateX(Math.PI / 2);
+    const magTube = new THREE.Mesh(magTubeGeo, this.bluedSteelMaterial);
+    magTube.position.set(0, 0.0065, -0.214);
+    this.shotgunBarrelGroup.add(magTube);
+
+    // Bright stainless magazine follower & inner tube sheen under pump travel zone
+    const magInnerSheenGeo = new THREE.CylinderGeometry(0.0109, 0.0109, 0.110, 24);
+    magInnerSheenGeo.rotateX(Math.PI / 2);
+    const magInnerSheen = new THREE.Mesh(magInnerSheenGeo, this.darkMaterial);
+    magInnerSheen.position.set(0, 0.0065, -0.125);
+    this.shotgunBarrelGroup.add(magInnerSheen);
+
+    // 3.2 Figure-8 Barrel / Magazine Yoke Band Clamp at z = -0.338
+    const bandUpperGeo = new THREE.CylinderGeometry(0.0132, 0.0132, 0.016, 24);
+    bandUpperGeo.rotateX(Math.PI / 2);
+    const bandUpper = new THREE.Mesh(bandUpperGeo, this.bluedSteelMaterial);
+    bandUpper.position.set(0, 0.0285, -0.338);
+    this.shotgunBarrelGroup.add(bandUpper);
+
+    const bandLowerGeo = new THREE.CylinderGeometry(0.0124, 0.0124, 0.016, 24);
+    bandLowerGeo.rotateX(Math.PI / 2);
+    const bandLower = new THREE.Mesh(bandLowerGeo, this.bluedSteelMaterial);
+    bandLower.position.set(0, 0.0065, -0.338);
+    this.shotgunBarrelGroup.add(bandLower);
+
+    const bandWebGeo = new THREE.BoxGeometry(0.016, 0.022, 0.014);
+    const bandWeb = new THREE.Mesh(bandWebGeo, this.bluedSteelMaterial);
+    bandWeb.position.set(0, 0.0175, -0.338);
+    this.shotgunBarrelGroup.add(bandWeb);
+
+    const bandScrewGeo = new THREE.CylinderGeometry(0.0024, 0.0024, 0.018, 12);
+    bandScrewGeo.rotateZ(Math.PI / 2);
+    const bandScrew = new THREE.Mesh(bandScrewGeo, this.darkMaterial);
+    bandScrew.position.set(0, 0.0175, -0.338);
+    this.shotgunBarrelGroup.add(bandScrew);
+
+    // Magazine Tube Plug End-Cap & Winchester Takedown Pin at z = -0.354
+    const magPlugGeo = new THREE.CylinderGeometry(0.0112, 0.0112, 0.010, 24);
+    magPlugGeo.rotateX(Math.PI / 2);
+    const magPlug = new THREE.Mesh(magPlugGeo, this.darkMaterial);
+    magPlug.position.set(0, 0.0065, -0.354);
+    this.shotgunBarrelGroup.add(magPlug);
+
+    const tdFrontPinGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 0.012, 14);
+    tdFrontPinGeo.rotateX(Math.PI / 2);
+    const tdFrontPin = new THREE.Mesh(tdFrontPinGeo, this.brightBoltMaterial);
+    tdFrontPin.position.set(0, 0.0065, -0.362);
+    this.shotgunBarrelGroup.add(tdFrontPin);
+
+    // =========================================================================
+    // 4. RECIPROCATING 18-RING "CORN-COB" RIBBED WALNUT PUMP FORE-END
+    // =========================================================================
+    this.shotgunPumpGroup = new THREE.Group();
+    this.shotgunPumpGroup.name = 'ShotgunPumpForeEnd';
+    this.shotgunGroup.add(this.shotgunPumpGroup);
+
+    // 4.1 Core Oiled American Walnut Fore-End Cylinder (Spans z = -0.150 to -0.296)
+    const pumpCoreGeo = new THREE.CylinderGeometry(0.0168, 0.0168, 0.132, 28);
+    pumpCoreGeo.rotateX(Math.PI / 2);
+    const pumpCore = new THREE.Mesh(pumpCoreGeo, this.walnutMaterial);
+    pumpCore.position.set(0, 0.0065, -0.223);
+    this.shotgunPumpGroup.add(pumpCore);
+
+    // Tapered Front & Rear Walnut Nose Cones
+    const pumpFrontConeGeo = new THREE.CylinderGeometry(0.0138, 0.0168, 0.012, 28);
+    pumpFrontConeGeo.rotateX(Math.PI / 2);
+    const pumpFrontCone = new THREE.Mesh(pumpFrontConeGeo, this.walnutMaterial);
+    pumpFrontCone.position.set(0, 0.0065, -0.295);
+    this.shotgunPumpGroup.add(pumpFrontCone);
+
+    const pumpRearConeGeo = new THREE.CylinderGeometry(0.0168, 0.0138, 0.012, 28);
+    pumpRearConeGeo.rotateX(Math.PI / 2);
+    const pumpRearCone = new THREE.Mesh(pumpRearConeGeo, this.walnutMaterial);
+    pumpRearCone.position.set(0, 0.0065, -0.151);
+    this.shotgunPumpGroup.add(pumpRearCone);
+
+    // 4.2 18 Deep Circumferential "Corn-Cob" Walnut Rings & 17 Recessed Dark Grooves
+    const numCobRings = 18;
+    const cobStartZ = -0.158;
+    const cobSpanZ = 0.130;
+    const cobStepZ = cobSpanZ / (numCobRings - 1);
+
+    const ringBaseGeo = new THREE.CylinderGeometry(0.0188, 0.0188, 0.0046, 24);
+    ringBaseGeo.rotateX(Math.PI / 2);
+    const grooveBaseGeo = new THREE.CylinderGeometry(0.0156, 0.0156, 0.0030, 24);
+    grooveBaseGeo.rotateX(Math.PI / 2);
+
+    const cobRingGeos = [];
+    const cobGrooveGeos = [];
+
+    for (let i = 0; i < numCobRings; i++) {
+      const rz = cobStartZ - i * cobStepZ;
+      // Slight barrel-shaped swell in the middle of the corn-cob handle
+      const arch = 1.0 + Math.sin((i / (numCobRings - 1)) * Math.PI) * 0.045;
+      const rg = ringBaseGeo.clone();
+      rg.scale(arch, arch, 1.0);
+      rg.translate(0, 0.0065, rz);
+      cobRingGeos.push(rg);
+
+      if (i < numCobRings - 1) {
+        const gz = rz - cobStepZ * 0.5;
+        const gg = grooveBaseGeo.clone();
+        gg.scale(arch, arch, 1.0);
+        gg.translate(0, 0.0065, gz);
+        cobGrooveGeos.push(gg);
+      }
+    }
+
+    const mergedCobRings = BufferGeometryUtils.mergeGeometries(cobRingGeos, false);
+    const cobRingsMesh = new THREE.Mesh(mergedCobRings, this.walnutMaterial);
+    this.shotgunPumpGroup.add(cobRingsMesh);
+
+    const mergedCobGrooves = BufferGeometryUtils.mergeGeometries(cobGrooveGeos, false);
+    const cobGroovesMesh = new THREE.Mesh(mergedCobGrooves, this.walnutGrooveMaterial);
+    this.shotgunPumpGroup.add(cobGroovesMesh);
+
+    ringBaseGeo.dispose();
+    grooveBaseGeo.dispose();
+    cobRingGeos.forEach(g => g.dispose());
+    cobGrooveGeos.forEach(g => g.dispose());
+
+    // 4.3 Steel Fore-End Ferrule Collars & Left-Side Action Slide Bar
+    const ferruleGeo = new THREE.CylinderGeometry(0.0139, 0.0139, 0.008, 24);
+    ferruleGeo.rotateX(Math.PI / 2);
+
+    const frontFerrule = new THREE.Mesh(ferruleGeo, this.bluedSteelMaterial);
+    frontFerrule.position.set(0, 0.0065, -0.303);
+    this.shotgunPumpGroup.add(frontFerrule);
+
+    const rearFerrule = new THREE.Mesh(ferruleGeo, this.bluedSteelMaterial);
+    rearFerrule.position.set(0, 0.0065, -0.143);
+    this.shotgunPumpGroup.add(rearFerrule);
+
+    // Bright Steel Action Slide Bar (Left side connecting pump to receiver breechblock)
+    const actionBarGeo = new THREE.BoxGeometry(0.0028, 0.0075, 0.115);
+    const actionBar = new THREE.Mesh(actionBarGeo, this.brightBoltMaterial);
+    actionBar.position.set(-0.0132, 0.0065, -0.092);
+    this.shotgunPumpGroup.add(actionBar);
+
+    // =========================================================================
+    // 5. TRIGGER GUARD, CURVED TRIGGER & AMERICAN WALNUT BUTTSTOCK
+    // =========================================================================
+    // 5.1 Sculpted Blued Steel Trigger Guard Bow (Spans z = +0.020 to z = +0.076)
+    const sTgShape = new THREE.Shape();
+    sTgShape.moveTo(0.020, -0.005);
+    sTgShape.lineTo(0.024, -0.028);
+    sTgShape.quadraticCurveTo(0.026, -0.035, 0.036, -0.035);
+    sTgShape.lineTo(0.058, -0.035);
+    sTgShape.quadraticCurveTo(0.070, -0.035, 0.076, -0.008);
+    sTgShape.lineTo(0.020, -0.005);
+    sTgShape.closePath();
+
+    const sTgHole = new THREE.Path();
+    sTgHole.moveTo(0.028, -0.009);
+    sTgHole.lineTo(0.030, -0.026);
+    sTgHole.quadraticCurveTo(0.032, -0.030, 0.038, -0.030);
+    sTgHole.lineTo(0.056, -0.030);
+    sTgHole.quadraticCurveTo(0.064, -0.030, 0.068, -0.009);
+    sTgHole.closePath();
+    sTgShape.holes.push(sTgHole);
+
+    const sTgGeo = new THREE.ExtrudeGeometry(sTgShape, {
+      depth: 0.011,
+      bevelEnabled: true,
+      bevelThickness: 0.0012,
+      bevelSize: 0.0012,
+      bevelSegments: 2,
+    });
+    sTgGeo.rotateY(-Math.PI / 2);
+    const sTriggerGuard = new THREE.Mesh(sTgGeo, this.bluedSteelMaterial);
+    sTriggerGuard.position.set(0.0055, 0, 0);
+    this.shotgunReceiverGroup.add(sTriggerGuard);
+
+    // Cross-bolt safety button at front of trigger guard bow
+    const safetyBtnGeo = new THREE.CylinderGeometry(0.0024, 0.0024, 0.015, 14);
+    safetyBtnGeo.rotateZ(Math.PI / 2);
+    const safetyBtn = new THREE.Mesh(safetyBtnGeo, this.fiberOpticMaterial);
+    safetyBtn.position.set(0, -0.018, 0.025);
+    this.shotgunReceiverGroup.add(safetyBtn);
+
+    // Curved Steel Shotgun Trigger
+    const sTrigShape = new THREE.Shape();
+    sTrigShape.moveTo(0.044, -0.006);
+    sTrigShape.quadraticCurveTo(0.040, -0.018, 0.048, -0.027);
+    sTrigShape.lineTo(0.052, -0.027);
+    sTrigShape.quadraticCurveTo(0.045, -0.018, 0.049, -0.006);
+    sTrigShape.closePath();
+
+    const sTrigGeo = new THREE.ExtrudeGeometry(sTrigShape, {
+      depth: 0.0048,
+      bevelEnabled: true,
+      bevelThickness: 0.0008,
+      bevelSize: 0.0008,
+      bevelSegments: 1,
+    });
+    sTrigGeo.rotateY(-Math.PI / 2);
+    const sTrigger = new THREE.Mesh(sTrigGeo, this.brightBoltMaterial);
+    sTrigger.position.set(0.0024, 0, 0);
+    this.shotgunReceiverGroup.add(sTrigger);
+    this.shotgunTriggerMesh = sTrigger;
+
+    // 5.2 Contoured Oiled American Walnut Semi-Pistol Wrist & Drop-Comb Buttstock (z = +0.072 to +0.165)
+    // Sweeps downward at a natural ergonomic angle so it stays 100% in front of camera.near in ADS
+    // and frames the lower-right corner cleanly in hip-fire
+    const stockShape = new THREE.Shape();
+    stockShape.moveTo(0.072, 0.013);   // Upper tang junction behind humpback receiver
+    stockShape.quadraticCurveTo(0.102, -0.006, 0.132, -0.024); // Smooth downward wrist sweep
+    stockShape.lineTo(0.168, -0.048);  // Sloping walnut stock comb toward shoulder
+    stockShape.lineTo(0.168, -0.115);  // Rear lower stock face
+    stockShape.lineTo(0.126, -0.078);  // Pistol-grip bottom flare
+    stockShape.quadraticCurveTo(0.098, -0.032, 0.072, -0.010); // Smooth front wrist sweep into receiver
+    stockShape.closePath();
+
+    const stockGeoRaw = new THREE.ExtrudeGeometry(stockShape, {
+      depth: 0.023,
+      curveSegments: 32,
+      bevelEnabled: true,
+      bevelThickness: 0.0055,
+      bevelSize: 0.0050,
+      bevelSegments: 5,
+    });
+    stockGeoRaw.rotateY(-Math.PI / 2);
+    stockGeoRaw.translate(0.0115, 0, 0);
+    const stockGeo = BufferGeometryUtils.mergeVertices(stockGeoRaw, 1e-4);
+    stockGeo.computeVertexNormals();
+    const stockMesh = new THREE.Mesh(stockGeo, this.walnutMaterial);
+    this.shotgunGroup.add(stockMesh);
+
+    // Black Fluted Hard-Rubber Pistol Grip Cap under wrist flare
+    const gripCapGeo = new THREE.CylinderGeometry(0.0135, 0.0145, 0.004, 20);
+    const gripCap = new THREE.Mesh(gripCapGeo, this.gripMaterial);
+    gripCap.rotation.x = 0.25;
+    gripCap.position.set(0, -0.078, 0.126);
+    this.shotgunGroup.add(gripCap);
+
+    // 5.3 Animated 3D Red 12-Gauge Reload Shell (Hidden at rest, animates into bottom loading gate)
+    this.shotgunReloadShell = new THREE.Group();
+    this.shotgunReloadShell.name = 'ShotgunReloadShell';
+    this.shotgunReloadShell.visible = false;
+    this.shotgunGroup.add(this.shotgunReloadShell);
+
+    // Red ribbed plastic/paper hull
+    const hullGeo = new THREE.CylinderGeometry(0.0096, 0.0096, 0.044, 18);
+    hullGeo.rotateX(Math.PI / 2);
+    const hullMesh = new THREE.Mesh(hullGeo, this.shellHullMaterial);
+    hullMesh.position.set(0, 0, -0.008);
+    this.shotgunReloadShell.add(hullMesh);
+
+    // High-brass metallic head base
+    const brassHeadGeo = new THREE.CylinderGeometry(0.0098, 0.0098, 0.016, 18);
+    brassHeadGeo.rotateX(Math.PI / 2);
+    const brassHeadMesh = new THREE.Mesh(brassHeadGeo, this.brassMaterial);
+    brassHeadMesh.position.set(0, 0, 0.022);
+    this.shotgunReloadShell.add(brassHeadMesh);
+
+    // Brass extractor rim
+    const brassRimGeo = new THREE.CylinderGeometry(0.0108, 0.0108, 0.0025, 18);
+    brassRimGeo.rotateX(Math.PI / 2);
+    const brassRimMesh = new THREE.Mesh(brassRimGeo, this.brassMaterial);
+    brassRimMesh.position.set(0, 0, 0.030);
+    this.shotgunReloadShell.add(brassRimMesh);
+  }
+
+  /**
+   * Switches between Weapon 1 ('pistol' - .50 AE Desert Eagle)
+   * and Weapon 2 ('shotgun' - Winchester Model 1912 12-Gauge).
+   * Cancels any active reload/pump animations and plays a crisp equip transition.
+   */
+  switchWeapon(weaponType) {
+    if (this.currentWeapon === weaponType) return;
+
+    // 1. Cancel any active reload or pump tweens/timers
+    this.reloadTimers.forEach(t => clearTimeout(t));
+    this.reloadTimers.length = 0;
+    this.reloadTweens.forEach(t => t.stop());
+    this.reloadTweens.length = 0;
+
+    this.isReloading = false;
+    this.isPumping = false;
+    this.shotgunPumpOffset = 0;
+    if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
+    if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+    if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
+    if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
+    if (this.magGroup) {
+      this.magGroup.position.set(0, 0, 0);
+      this.magGroup.visible = true;
+    }
+
+    this.currentWeapon = weaponType;
+    const isShotgun = weaponType === 'shotgun';
+
+    // 2. Toggle 3D weapon group visibility
+    if (this.gunGroup) this.gunGroup.visible = !isShotgun;
+    if (this.shotgunGroup) this.shotgunGroup.visible = isShotgun;
+
+    // 3. Update active hip/ADS target references and re-parent muzzle flash rig
+    this.hipPosition = isShotgun ? this.shotgunHipPosition : this.pistolHipPosition;
+    this.adsPosition = isShotgun ? this.shotgunAdsPosition : this.pistolAdsPosition;
+    this.hipRotation = isShotgun ? this.shotgunHipRotation : this.pistolHipRotation;
+    this.adsRotation = isShotgun ? this.shotgunAdsRotation : this.pistolAdsRotation;
+    this.muzzleAnchor = isShotgun ? this.shotgunMuzzleSocket : this.muzzleSocket;
+
+    if (this.muzzleFlashGroup && this.muzzleAnchor) {
+      this.muzzleAnchor.add(this.muzzleFlashGroup);
+      this.muzzleFlashGroup.visible = false;
+    }
+
+    // 4. Tactile equip draw animation (dip down & spring up into the player's hands)
+    this.reloadTilt.y = -0.09;
+    this.reloadTilt.pitch = -0.22;
+    this.reloadTilt.roll = isShotgun ? -0.18 : 0.18;
+    this.reloadTilt.yaw = 0;
+
+    this.posSpring.impulse(0, -0.05, 0.04);
+    this.rotSpring.impulse(-0.12, 0, isShotgun ? -0.08 : 0.08);
+
+    const equipTween = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 240)
+      .easing(TWEEN.Easing.Back.Out);
+    this.reloadTweens.push(equipTween);
+    equipTween.start();
+
+    if (this.sound && typeof this.sound.playWeaponSwitch === 'function') {
+      this.sound.playWeaponSwitch(isShotgun);
+    }
+  }
+
   setADS(enable) {
     if (this.isADS !== enable) {
       this.isADS = enable;
@@ -1235,20 +1993,34 @@ export class WeaponViewmodel {
     if (!this.muzzleFlashGroup) return;
     this.muzzleFlashGroup.visible = true;
     this.muzzleFlashGroup.rotation.z = Math.random() * Math.PI * 2;
-    const s = 0.85 + Math.random() * 0.40; // 0.85 to 1.25 scale
+    const baseScale = this.currentWeapon === 'shotgun' ? 1.22 : 0.85;
+    const s = baseScale + Math.random() * 0.42;
     this.muzzleFlashGroup.scale.set(s, s, s);
     this.muzzleFlashMaterial.opacity = 1.0;
     this.flashTimer = 0.045; // 45ms duration
   }
 
   /**
-   * Applies heavy .50 Action Express recoil impulse on gun fire:
-   * - Translates and pitches the viewmodel root spring with massive kick
-   * - Blows back the slide along Z with mechanical weight
-   * - Snaps the external hammer backward
-   * - Triggers fiery 3D muzzle flash rig
+   * Applies heavy recoil impulse on gun fire (adapts to .50 AE Pistol vs 12-Gauge Shotgun).
    */
   applyRecoil() {
+    if (this.currentWeapon === 'shotgun') {
+      const recoilKick = this.isADS ? 0.082 : 0.135;
+      const recoilPitch = this.isADS ? 0.115 : 0.235;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.014 : 0.032);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.024 : 0.052);
+
+      this.posSpring.impulse(0, recoilKick * 0.26, recoilKick);
+      this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
+
+      if (this.shotgunTriggerMesh) {
+        this.shotgunTriggerMesh.rotation.x = 0.16;
+      }
+
+      this.triggerMuzzleFlash();
+      return;
+    }
+
     const recoilKick = this.isADS ? 0.065 : 0.115;
     const recoilPitch = this.isADS ? 0.095 : 0.200;
     const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.010 : 0.025);
@@ -1266,6 +2038,74 @@ export class WeaponViewmodel {
 
     // 4. Trigger fiery muzzle flash rig
     this.triggerMuzzleFlash();
+  }
+
+  /**
+   * Plays the automatic pump-action cycling animation after a shotgun blast:
+   * - Briskly pulls the ribbed walnut corn-cob fore-end and silver breechbolt backward (+0.064m)
+   * - Ejects the spent red 12-gauge hull at peak open breech
+   * - Slams the pump fore-end and bolt back forward into battery
+   */
+  startShotgunPumpAnimation(options = {}) {
+    const { onEjectShell, onComplete } = options;
+    if (this.currentWeapon !== 'shotgun') return;
+
+    this.isPumping = true;
+    const pumpState = { z: 0 };
+
+    const delayTimer = setTimeout(() => {
+      if (this.currentWeapon !== 'shotgun') return;
+
+      if (this.sound && typeof this.sound.playShotgunPump === 'function') {
+        this.sound.playShotgunPump();
+      }
+
+      // Rearward pump stroke (0 -> +0.064m over 110ms)
+      this.posSpring.impulse(0, -0.012, 0.032);
+      this.rotSpring.impulse(0.035, 0.012, -0.035);
+
+      const pullBack = new TWEEN.Tween(pumpState, true)
+        .to({ z: 0.064 }, 110)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onUpdate(() => {
+          this.shotgunPumpOffset = pumpState.z;
+          if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpState.z;
+          if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpState.z * 0.88;
+        })
+        .onComplete(() => {
+          if (typeof onEjectShell === 'function') {
+            onEjectShell();
+          }
+
+          // Forward pump slam into battery (+0.064m -> 0 over 105ms)
+          this.posSpring.impulse(0, 0.010, -0.038);
+          this.rotSpring.impulse(-0.045, -0.010, 0.030);
+
+          const pushFwd = new TWEEN.Tween(pumpState, true)
+            .to({ z: 0 }, 105)
+            .easing(TWEEN.Easing.Back.Out)
+            .onUpdate(() => {
+              this.shotgunPumpOffset = pumpState.z;
+              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpState.z;
+              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpState.z * 0.88;
+            })
+            .onComplete(() => {
+              this.shotgunPumpOffset = 0;
+              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
+              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+              this.isPumping = false;
+              if (typeof onComplete === 'function') {
+                onComplete();
+              }
+            });
+          this.reloadTweens.push(pushFwd);
+          pushFwd.start();
+        });
+      this.reloadTweens.push(pullBack);
+      pullBack.start();
+    }, 150);
+
+    this.reloadTimers.push(delayTimer);
   }
 
   /**
@@ -1322,6 +2162,15 @@ export class WeaponViewmodel {
       }
     }
 
+    // Smoothly return shotgun trigger if depressed
+    if (this.shotgunTriggerMesh && this.shotgunTriggerMesh.rotation.x > 0.001) {
+      this.shotgunTriggerMesh.rotation.x = THREE.MathUtils.lerp(
+        this.shotgunTriggerMesh.rotation.x,
+        0,
+        Math.min(delta * 20.0, 1.0)
+      );
+    }
+
     // 4. Dynamic Muzzle Flash Rig fadeout (45ms)
     if (this.flashTimer > 0) {
       this.flashTimer -= delta;
@@ -1366,23 +2215,27 @@ export class WeaponViewmodel {
       rot.z
     );
 
-    // 8. Update muzzle & chamber ejection world positions for raycast tracers & brass shells
-    this.muzzleSocket.updateWorldMatrix(true, false);
-    this.muzzleSocket.getWorldPosition(this.muzzleWorldPos);
-    this.ejectionAnchor.updateWorldMatrix(true, false);
-    this.ejectionAnchor.getWorldPosition(this.ejectionWorldPos);
+    // 8. Update active muzzle & chamber ejection world positions for raycast tracers & shells
+    const activeMuzzle = this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : this.muzzleSocket;
+    const activeEjection = this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : this.ejectionAnchor;
+    activeMuzzle.updateWorldMatrix(true, false);
+    activeMuzzle.getWorldPosition(this.muzzleWorldPos);
+    activeEjection.updateWorldMatrix(true, false);
+    activeEjection.getWorldPosition(this.ejectionWorldPos);
   }
 
   getMuzzleWorldPosition(targetVec) {
     const out = targetVec || this.muzzleWorldPos;
-    this.muzzleSocket.updateWorldMatrix(true, false);
-    return this.muzzleSocket.getWorldPosition(out);
+    const activeMuzzle = this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : this.muzzleSocket;
+    activeMuzzle.updateWorldMatrix(true, false);
+    return activeMuzzle.getWorldPosition(out);
   }
 
   getEjectionWorldPosition(targetVec) {
     const out = targetVec || this.ejectionWorldPos;
-    this.ejectionAnchor.updateWorldMatrix(true, false);
-    return this.ejectionAnchor.getWorldPosition(out);
+    const activeEjection = this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : this.ejectionAnchor;
+    activeEjection.updateWorldMatrix(true, false);
+    return activeEjection.getWorldPosition(out);
   }
 
   /**
@@ -1399,20 +2252,21 @@ export class WeaponViewmodel {
   }
 
   /**
-   * Sharp dead-trigger micro-twitch into viewmodel spring and trigger mesh.
+   * Sharp dead-trigger micro-twitch into viewmodel spring and active trigger mesh.
    */
   playDryFireTwitch() {
     // 1. Sharp dead-trigger micro-twitch into spring (pitch: -0.015, z: +0.004)
     this.rotSpring.impulse(-0.015, 0, 0);
     this.posSpring.impulse(0, 0, 0.004);
 
-    // 2. Animate trigger mesh pulling back and releasing
-    if (this.triggerMesh) {
-      new TWEEN.Tween(this.triggerMesh.rotation, true)
+    // 2. Animate active trigger mesh pulling back and releasing
+    const activeTrigger = this.currentWeapon === 'shotgun' ? this.shotgunTriggerMesh : this.triggerMesh;
+    if (activeTrigger) {
+      new TWEEN.Tween(activeTrigger.rotation, true)
         .to({ x: 0.20 }, 35)
         .easing(TWEEN.Easing.Quadratic.Out)
         .onComplete(() => {
-          new TWEEN.Tween(this.triggerMesh.rotation, true)
+          new TWEEN.Tween(activeTrigger.rotation, true)
             .to({ x: 0 }, 65)
             .easing(TWEEN.Easing.Quadratic.In)
             .start();
@@ -1422,12 +2276,14 @@ export class WeaponViewmodel {
   }
 
   /**
-   * Snappy 1.15s 3-Stage Procedural Reload Choreography.
-   * - Stage 1 (0.00s to 0.35s): Tilt inspection pose, depress mag-release, drop magGroup along 15° grip rake, playMagOut().
-   * - Stage 2 (0.35s to 0.80s): Fresh mag insertion, punchy upward spring slap at 0.80s, playMagIn().
-   * - Stage 3 (0.80s to 1.15s): At 0.88s release slide stop to 0 with forward -Z and -pitch recoil, playSlideRelease(), return to neutral/ADS.
+   * Dispatches reload choreography for either the .50 AE Desert Eagle or the Winchester Model 1912 Shotgun.
    */
   startReloadAnimation(options = {}) {
+    if (this.currentWeapon === 'shotgun') {
+      this._startShotgunReloadAnimation(options);
+      return;
+    }
+
     const { onCameraNudge, onComplete } = options;
     this.isReloading = true;
 
@@ -1568,6 +2424,174 @@ export class WeaponViewmodel {
     this.reloadTimers.push(safetyTimer);
   }
 
+  /**
+   * Winchester Model 1912 Shell-by-Shell Bottom-Gate Reload & Final Pump Rack Choreography:
+   * - Tilts the shotgun into an angled cradle showing the receiver & bottom shell carrier
+   * - Inserts each missing red 12-gauge shell upward into the loading port with carrier lifter motion
+   * - Calls onShellInserted() on each shell so HUD pips fill sequentially in real time
+   * - Finishes with a crisp two-stroke pump rack ("CHK-CHK") to chamber a shell
+   */
+  _startShotgunReloadAnimation(options = {}) {
+    const { shellsToLoad = 6, onShellInserted, onCameraNudge, onComplete } = options;
+    this.isReloading = true;
+
+    this.reloadTweens.forEach(t => t.stop());
+    this.reloadTweens.length = 0;
+    this.reloadTimers.forEach(id => clearTimeout(id));
+    this.reloadTimers.length = 0;
+
+    const count = Math.max(1, Math.min(6, shellsToLoad));
+    const tiltInMs = 220;
+    const perShellMs = 220;
+
+    // 1. Tilt into tactical loading cradle
+    const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: 0.46, pitch: 0.20, yaw: 0.22, y: -0.015 }, tiltInMs)
+      .easing(TWEEN.Easing.Cubic.Out);
+    this.reloadTweens.push(tiltIn);
+    tiltIn.start();
+
+    // 2. Sequential 12-gauge shell insertion into bottom loading gate
+    for (let i = 0; i < count; i++) {
+      const shellStartDelay = tiltInMs + i * perShellMs;
+      const shellTimer = setTimeout(() => {
+        if (!this.isReloading || this.currentWeapon !== 'shotgun') return;
+
+        if (this.shotgunReloadShell) {
+          this.shotgunReloadShell.visible = true;
+          this.shotgunReloadShell.position.set(0.008, -0.055, 0.028);
+          this.shotgunReloadShell.rotation.set(-0.38, 0, 0);
+
+          const shellInsert = new TWEEN.Tween(this.shotgunReloadShell.position, true)
+            .to({ x: 0, y: -0.004, z: -0.032 }, 165)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .onComplete(() => {
+              if (this.shotgunReloadShell) {
+                this.shotgunReloadShell.visible = false;
+              }
+            });
+          this.reloadTweens.push(shellInsert);
+          shellInsert.start();
+
+          const shellRot = new TWEEN.Tween(this.shotgunReloadShell.rotation, true)
+            .to({ x: 0 }, 165)
+            .easing(TWEEN.Easing.Cubic.Out);
+          this.reloadTweens.push(shellRot);
+          shellRot.start();
+        }
+
+        // Pivot bright steel carrier spoon upward as shell slides into magazine tube
+        if (this.shotgunCarrierGroup) {
+          this.shotgunCarrierGroup.rotation.x = -0.26;
+          const carrierTween = new TWEEN.Tween(this.shotgunCarrierGroup.rotation, true)
+            .to({ x: 0 }, 160)
+            .easing(TWEEN.Easing.Quadratic.Out);
+          this.reloadTweens.push(carrierTween);
+          carrierTween.start();
+        }
+
+        // Tactile upward thumb-push impulse
+        this.posSpring.impulse(0, 0.032, -0.014);
+        this.rotSpring.impulse(0.032, 0, 0.026);
+
+        if (this.sound && typeof this.sound.playShotgunShellInsert === 'function') {
+          this.sound.playShotgunShellInsert();
+        }
+
+        if (typeof onShellInserted === 'function') {
+          onShellInserted(i + 1);
+        }
+      }, shellStartDelay);
+      this.reloadTimers.push(shellTimer);
+    }
+
+    // 3. Final Pump-Action Rack ("CHK-CHK") & Return to Ready
+    const rackStartDelay = tiltInMs + count * perShellMs + 40;
+    const rackTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'shotgun') return;
+
+      if (this.shotgunReloadShell) {
+        this.shotgunReloadShell.visible = false;
+      }
+
+      if (this.sound && typeof this.sound.playShotgunPump === 'function') {
+        this.sound.playShotgunPump();
+      }
+
+      const pumpObj = { z: 0 };
+      this.posSpring.impulse(0, -0.014, 0.038);
+      this.rotSpring.impulse(0.045, 0, -0.035);
+
+      const pumpBack = new TWEEN.Tween(pumpObj, true)
+        .to({ z: 0.064 }, 115)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onUpdate(() => {
+          this.shotgunPumpOffset = pumpObj.z;
+          if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpObj.z;
+          if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpObj.z * 0.88;
+        })
+        .onComplete(() => {
+          this.posSpring.impulse(0, 0.012, -0.048);
+          this.rotSpring.impulse(-0.060, 0, 0.025);
+          if (typeof onCameraNudge === 'function') {
+            onCameraNudge(-0.014);
+          }
+
+          const pumpFwd = new TWEEN.Tween(pumpObj, true)
+            .to({ z: 0 }, 110)
+            .easing(TWEEN.Easing.Back.Out)
+            .onUpdate(() => {
+              this.shotgunPumpOffset = pumpObj.z;
+              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = pumpObj.z;
+              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = pumpObj.z * 0.88;
+            })
+            .onComplete(() => {
+              this.shotgunPumpOffset = 0;
+              if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
+              if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+            });
+          this.reloadTweens.push(pumpFwd);
+          pumpFwd.start();
+        });
+      this.reloadTweens.push(pumpBack);
+      pumpBack.start();
+
+      // Smoothly return tilt to hip-fire ready
+      const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+        .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 260)
+        .easing(TWEEN.Easing.Cubic.InOut)
+        .onComplete(() => {
+          this.isReloading = false;
+          if (typeof onComplete === 'function') {
+            onComplete();
+          }
+        });
+      this.reloadTweens.push(tiltOut);
+      tiltOut.start();
+    }, rackStartDelay);
+    this.reloadTimers.push(rackTimer);
+
+    // Safety fallback timer
+    const safetyTimer = setTimeout(() => {
+      if (this.isReloading) {
+        this.isReloading = false;
+        this.shotgunPumpOffset = 0;
+        if (this.shotgunPumpGroup) this.shotgunPumpGroup.position.z = 0;
+        if (this.shotgunBoltGroup) this.shotgunBoltGroup.position.z = 0;
+        if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
+        if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
+        this.reloadTilt.roll = 0;
+        this.reloadTilt.pitch = 0;
+        this.reloadTilt.yaw = 0;
+        this.reloadTilt.y = 0;
+        if (typeof onComplete === 'function') {
+          onComplete();
+        }
+      }
+    }, rackStartDelay + 420);
+    this.reloadTimers.push(safetyTimer);
+  }
+
   reset() {
     // 1. Clear any active reload timers and tweens
     this.reloadTimers.forEach(t => clearTimeout(t));
@@ -1575,19 +2599,46 @@ export class WeaponViewmodel {
     this.reloadTweens.forEach(t => t.stop());
     this.reloadTweens = [];
 
-    // 2. Reset reload and slide states
+    // 2. Reset active weapon to Slot 1 (.50 AE Desert Eagle)
+    this.currentWeapon = 'pistol';
+    if (this.gunGroup) this.gunGroup.visible = true;
+    if (this.shotgunGroup) this.shotgunGroup.visible = false;
+    this.hipPosition = this.pistolHipPosition;
+    this.adsPosition = this.pistolAdsPosition;
+    this.hipRotation = this.pistolHipRotation;
+    this.adsRotation = this.pistolAdsRotation;
+    this.muzzleAnchor = this.muzzleSocket;
+    if (this.muzzleFlashGroup && this.muzzleAnchor) {
+      this.muzzleAnchor.add(this.muzzleFlashGroup);
+    }
+
+    // 3. Reset reload, slide, and shotgun pump states
     this.isReloading = false;
+    this.isPumping = false;
     this.isSlideLocked = false;
     this.slideBlowback = 0;
+    this.shotgunPumpOffset = 0;
     if (this.slideGroup) {
       this.slideGroup.position.set(0, 0, 0);
+    }
+    if (this.shotgunPumpGroup) {
+      this.shotgunPumpGroup.position.set(0, 0, 0);
+    }
+    if (this.shotgunBoltGroup) {
+      this.shotgunBoltGroup.position.set(0, 0, 0);
+    }
+    if (this.shotgunCarrierGroup) {
+      this.shotgunCarrierGroup.rotation.set(0, 0, 0);
+    }
+    if (this.shotgunReloadShell) {
+      this.shotgunReloadShell.visible = false;
     }
     this.hammerRecoil = 0;
     if (this.hammerGroup) {
       this.hammerGroup.rotation.x = this.hammerRestAngle;
     }
 
-    // 3. Reset procedural reload tilts and animations
+    // 4. Reset procedural reload tilts and animations
     this.reloadTilt = { roll: 0, pitch: 0, yaw: 0, y: 0 };
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
@@ -1597,11 +2648,14 @@ export class WeaponViewmodel {
     if (this.triggerMesh) {
       this.triggerMesh.rotation.x = 0;
     }
+    if (this.shotgunTriggerMesh) {
+      this.shotgunTriggerMesh.rotation.x = 0;
+    }
     if (this.magRelease) {
       this.magRelease.position.set(-0.0226, -0.015, 0.022);
     }
 
-    // 4. Reset ADS and springs to hip-fire resting position
+    // 5. Reset ADS and springs to hip-fire resting position
     this.isADS = false;
     this.adsAlpha = 0;
     this.posSpring.reset(this.hipPosition.x, this.hipPosition.y, this.hipPosition.z);
@@ -1609,13 +2663,13 @@ export class WeaponViewmodel {
     this.bobSpring.reset(0, 0, 0);
     this.bobCycle = 0;
 
-    // 5. Hide muzzle flash
+    // 6. Hide muzzle flash
     this.flashTimer = 0;
     if (this.muzzleFlashGroup) {
       this.muzzleFlashGroup.visible = false;
     }
 
-    // 6. Reset root transform to hip position & rotation
+    // 7. Reset root transform to hip position & rotation
     this.root.position.copy(this.hipPosition);
     this.root.rotation.set(this.hipRotation.x, this.hipRotation.y, this.hipRotation.z);
   }

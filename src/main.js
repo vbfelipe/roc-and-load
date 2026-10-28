@@ -330,9 +330,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Direct fail-safe KeyR reload binding (strictly blocked when not playing)
+  // Direct fail-safe KeyR reload and Digit1/Digit2 weapon slot bindings (strictly blocked when not playing)
   window.addEventListener('keydown', (e) => {
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
+    if (e.code === 'Digit1' || e.key === '1') {
+      weaponSystem.switchWeapon('pistol');
+      return;
+    }
+    if (e.code === 'Digit2' || e.key === '2') {
+      weaponSystem.switchWeapon('shotgun');
+      return;
+    }
     if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
       if (weaponSystem.currentAmmo < weaponSystem.maxAmmo && !weaponSystem.isReloading) {
         weaponSystem.startReload();
