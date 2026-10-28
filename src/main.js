@@ -32,7 +32,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const warehouse = new WarehouseBuilder(engine.scene);
   const colliderMesh = warehouse.build();
 
-  const player = new PlayerController(engine.camera, input);
+  const player = new PlayerController(engine.camera, input, sound);
   player.setCollider(warehouse.playerColliderMesh || colliderMesh);
   player.teleport(0, 0.0, -3.0);
   player.yaw = Math.PI;

@@ -948,4 +948,207 @@ export class SoundManager {
     osc.start(t);
     osc.stop(t + 0.038);
   }
+
+  /**
+   * Procedural Tactical Boot Footstep SFX (Walk vs. Sprint).
+   * Multi-layered synthesis:
+   * - Layer 1: Low-end rubber heel strike thud on solid Data Center tile floor.
+   * - Layer 2: Heel-to-toe sole tread scuff (bandpass filtered noise delayed by 6–10ms).
+   * - Layer 3: Subtle high-mid tactical gear / cloth rustle (emphasized when sprinting with Shift).
+   * Alternates slight pitch/timbre between left and right feet for organic human cadence.
+   */
+  playFootstep(isSprinting = false, isRightFoot = false) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // Subtle left/right foot alternation + organic micro-variation
+    const footPitch = (isRightFoot ? 1.04 : 0.96) * (0.97 + Math.random() * 0.06);
+
+    // 1. Heel Strike Sub-Thud (Rubber heel impact on anti-static floor tile)
+    const heelOsc = this.ctx.createOscillator();
+    const heelGain = this.ctx.createGain();
+    const heelDur = isSprinting ? 0.065 : 0.055;
+    heelOsc.type = 'triangle';
+    heelOsc.frequency.setValueAtTime((isSprinting ? 118 : 92) * footPitch, t);
+    heelOsc.frequency.exponentialRampToValueAtTime((isSprinting ? 36 : 30) * footPitch, t + heelDur);
+
+    heelGain.gain.setValueAtTime(isSprinting ? 0.48 : 0.30, t);
+    heelGain.gain.exponentialRampToValueAtTime(0.001, t + heelDur + 0.005);
+
+    heelOsc.connect(heelGain);
+    heelGain.connect(this.masterGain);
+
+    heelOsc.start(t);
+    heelOsc.stop(t + heelDur + 0.008);
+
+    // 2. Sole Tread Contact & Scuff (Heel-to-toe roll delayed by 6–10ms)
+    const soleTime = t + (isSprinting ? 0.006 : 0.010);
+    const soleDur = isSprinting ? 0.065 : 0.052;
+    const noiseBuffer = this._createNoiseBuffer(soleDur + 0.015);
+    if (noiseBuffer) {
+      const soleNoise = this.ctx.createBufferSource();
+      soleNoise.buffer = noiseBuffer;
+
+      const bpFilter = this.ctx.createBiquadFilter();
+      bpFilter.type = 'bandpass';
+      bpFilter.frequency.setValueAtTime((isSprinting ? 1050 : 780) * footPitch, soleTime);
+      bpFilter.frequency.exponentialRampToValueAtTime((isSprinting ? 520 : 420) * footPitch, soleTime + soleDur);
+      bpFilter.Q.setValueAtTime(1.8, soleTime);
+
+      const soleGain = this.ctx.createGain();
+      soleGain.gain.setValueAtTime(0.001, t);
+      soleGain.gain.setValueAtTime(isSprinting ? 0.36 : 0.20, soleTime);
+      soleGain.gain.exponentialRampToValueAtTime(0.001, soleTime + soleDur);
+
+      soleNoise.connect(bpFilter);
+      bpFilter.connect(soleGain);
+      soleGain.connect(this.masterGain);
+
+      soleNoise.start(soleTime);
+      soleNoise.stop(soleTime + soleDur + 0.005);
+
+      // 3. Tactical Cloth & Rig Micro-Rustle (Crisp upper-mid transient on sprint/walk)
+      const gearNoise = this.ctx.createBufferSource();
+      gearNoise.buffer = noiseBuffer;
+
+      const gearFilter = this.ctx.createBiquadFilter();
+      gearFilter.type = 'bandpass';
+      gearFilter.frequency.setValueAtTime((isSprinting ? 2350 : 1950) * footPitch, soleTime);
+      gearFilter.Q.setValueAtTime(2.6, soleTime);
+
+      const gearGain = this.ctx.createGain();
+      gearGain.gain.setValueAtTime(0.001, t);
+      gearGain.gain.setValueAtTime(isSprinting ? 0.16 : 0.075, soleTime);
+      gearGain.gain.exponentialRampToValueAtTime(0.001, soleTime + 0.042);
+
+      gearNoise.connect(gearFilter);
+      gearFilter.connect(gearGain);
+      gearGain.connect(this.masterGain);
+
+      gearNoise.start(soleTime);
+      gearNoise.stop(soleTime + 0.045);
+    }
+  }
+
+  /**
+   * Procedural Jump Takeoff SFX.
+   * Combines an upward muscular boot push-off impulse with a crisp sole scuff and cloth rush.
+   */
+  playJump() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // 1. Boot Push-Off Floor Impulse (75 Hz -> 135 Hz upward spring -> 38 Hz)
+    const pushOsc = this.ctx.createOscillator();
+    const pushGain = this.ctx.createGain();
+    pushOsc.type = 'triangle';
+    pushOsc.frequency.setValueAtTime(75, t);
+    pushOsc.frequency.exponentialRampToValueAtTime(135, t + 0.022);
+    pushOsc.frequency.exponentialRampToValueAtTime(38, t + 0.075);
+
+    pushGain.gain.setValueAtTime(0.45, t);
+    pushGain.gain.exponentialRampToValueAtTime(0.001, t + 0.078);
+
+    pushOsc.connect(pushGain);
+    pushGain.connect(this.masterGain);
+
+    pushOsc.start(t);
+    pushOsc.stop(t + 0.080);
+
+    // 2. Sole Push Scuff & Upward Tactical Cloth Whoosh
+    const noiseBuffer = this._createNoiseBuffer(0.11);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(420, t);
+      filter.frequency.exponentialRampToValueAtTime(1450, t + 0.095);
+      filter.Q.setValueAtTime(1.6, t);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.32, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      noise.start(t);
+      noise.stop(t + 0.105);
+    }
+  }
+
+  /**
+   * Procedural Jump / Fall Landing Impact SFX.
+   * Features a heavy primary boot thud, a natural 26ms-staggered second boot touchdown,
+   * and rubber sole compression scuff scaled by impact intensity.
+   */
+  playLand(impactIntensity = 1.0) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const scale = Math.max(0.45, Math.min(1.35, impactIntensity));
+
+    // 1. Primary Boot Touchdown Thud (t = 0ms)
+    const thud1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    thud1.type = 'triangle';
+    thud1.frequency.setValueAtTime(128, t);
+    thud1.frequency.exponentialRampToValueAtTime(28, t + 0.095);
+
+    gain1.gain.setValueAtTime(0.58 * scale, t);
+    gain1.gain.exponentialRampToValueAtTime(0.001, t + 0.10);
+
+    thud1.connect(gain1);
+    gain1.connect(this.masterGain);
+
+    thud1.start(t);
+    thud1.stop(t + 0.105);
+
+    // 2. Staggered Second Boot Touchdown (t + 26ms for realistic dual-foot landing)
+    const t2 = t + 0.026;
+    const thud2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    thud2.type = 'triangle';
+    thud2.frequency.setValueAtTime(108, t2);
+    thud2.frequency.exponentialRampToValueAtTime(32, t2 + 0.080);
+
+    gain2.gain.setValueAtTime(0.001, t);
+    gain2.gain.setValueAtTime(0.42 * scale, t2);
+    gain2.gain.exponentialRampToValueAtTime(0.001, t2 + 0.085);
+
+    thud2.connect(gain2);
+    gain2.connect(this.masterGain);
+
+    thud2.start(t2);
+    thud2.stop(t2 + 0.090);
+
+    // 3. Rubber Sole Compression Scuff & Tactical Gear Settle
+    const scuffBuffer = this._createNoiseBuffer(0.11);
+    if (scuffBuffer) {
+      const scuff = this.ctx.createBufferSource();
+      scuff.buffer = scuffBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(980, t);
+      filter.frequency.exponentialRampToValueAtTime(360, t + 0.090);
+      filter.Q.setValueAtTime(1.8, t);
+
+      const scuffGain = this.ctx.createGain();
+      scuffGain.gain.setValueAtTime(0.38 * scale, t);
+      scuffGain.gain.exponentialRampToValueAtTime(0.001, t + 0.095);
+
+      scuff.connect(filter);
+      filter.connect(scuffGain);
+      scuffGain.connect(this.masterGain);
+
+      scuff.start(t);
+      scuff.stop(t + 0.10);
+    }
+  }
 }

@@ -16,9 +16,10 @@ const _tempTri = new ExtendedTriangle();
 
 // FPS player capsule movement and collision resolution
 export class PlayerController {
-  constructor(camera, inputManager) {
+  constructor(camera, inputManager, soundManager = null) {
     this.camera = camera;
     this.input = inputManager;
+    this.sound = soundManager;
 
     this.radius = 0.35;
     this.height = 1.80;
@@ -44,11 +45,21 @@ export class PlayerController {
     this.bobOffset = new THREE.Vector3(0, 0, 0);
     this.landingSpring = new Spring1D({ stiffness: 220, damping: 22, mass: 1.0 });
 
+    // Movement audio state (footstep cadence, left/right foot alternation, and fall tracking)
+    this.stepTimer = 0.26;
+    this.stepFoot = false;
+    this.airborneTime = 0;
+    this.maxFallSpeed = 0;
+
     this.colliderMesh = null;
     this.gameState = 'MENU';
 
     // Initial camera placement
     this._updateCameraTransform();
+  }
+
+  setSoundManager(soundManager) {
+    this.sound = soundManager;
   }
 
   setGameState(state) {
@@ -65,6 +76,9 @@ export class PlayerController {
   teleport(x, y, z) {
     this.position.set(x, y, z);
     this.velocity.set(0, 0, 0);
+    this.stepTimer = 0.26;
+    this.airborneTime = 0;
+    this.maxFallSpeed = 0;
     this._updateCameraTransform();
   }
 
@@ -80,6 +94,10 @@ export class PlayerController {
     this.isGrounded = false;
     this.wasGrounded = false;
     this.jumpTimer = 0;
+    this.stepTimer = 0.26;
+    this.stepFoot = false;
+    this.airborneTime = 0;
+    this.maxFallSpeed = 0;
     this._updateCameraTransform();
   }
 
@@ -165,6 +183,9 @@ export class PlayerController {
         this.isGrounded = false;
         this.jumpTimer = 0.15; // 150ms buffer before re-grounding
         this.landingSpring.impulse(0.3);
+        if (this.sound) {
+          this.sound.playJump();
+        }
       }
     } else {
       // In-air movement: PRESERVE FORWARD MOMENTUM without accelerating out of control!
@@ -188,6 +209,12 @@ export class PlayerController {
     // Apply Gravity
     this.velocity.y += this.gravity * subDelta;
 
+    // Track airborne duration and peak downward velocity before collision resolution zeroes velocity.y
+    if (!this.isGrounded) {
+      this.airborneTime += subDelta;
+      this.maxFallSpeed = Math.max(this.maxFallSpeed, -this.velocity.y);
+    }
+
     // 3. Integrate position
     this.position.x += this.velocity.x * subDelta;
     this.position.y += this.velocity.y * subDelta;
@@ -196,10 +223,22 @@ export class PlayerController {
     // 4. Resolve Capsule Collisions against BVH
     this._resolveCapsuleCollisions();
 
-    // 5. Detect landing impact (subtle, clean bump without dragging downward)
+    // 5. Detect landing impact (subtle, clean bump and procedural touchdown SFX)
     if (!this.wasGrounded && this.isGrounded) {
-      const impactVelocity = Math.abs(this.velocity.y);
-      this.landingSpring.impulse(-Math.min(impactVelocity * 0.05, 0.25));
+      if (this.airborneTime > 0.08 && this.maxFallSpeed > 2.0) {
+        this.landingSpring.impulse(-Math.min(this.maxFallSpeed * 0.05, 0.25));
+        if (this.sound) {
+          const impactIntensity = Math.min(1.35, Math.max(0.45, this.maxFallSpeed / this.jumpForce));
+          this.sound.playLand(impactIntensity);
+        }
+        // Reset footstep timer so a regular footstep doesn't immediately double-trigger over the landing thud
+        this.stepTimer = 0;
+      }
+      this.airborneTime = 0;
+      this.maxFallSpeed = 0;
+    } else if (this.isGrounded) {
+      this.airborneTime = 0;
+      this.maxFallSpeed = 0;
     }
     this.wasGrounded = this.isGrounded;
   }
@@ -292,10 +331,10 @@ export class PlayerController {
   }
 
   /**
-   * Smooth, subtle modern FPS camera motion and landing recovery.
+   * Smooth, subtle modern FPS camera motion, footstep cadence, and landing recovery.
    */
   updateBobAndCamera(frameDelta) {
-    // 1. Advance subtle head bob cycle when moving on ground
+    // 1. Advance subtle head bob cycle and footstep audio timer when moving on ground
     const horizSpeed = Math.hypot(this.velocity.x, this.velocity.z);
     if (this.isGrounded && horizSpeed > 0.5) {
       const bobFreq = horizSpeed > 7.0 ? 11.0 : 8.5;
@@ -305,9 +344,31 @@ export class PlayerController {
       const bobY = Math.sin(this.bobCycle * 2) * 0.007;
       const bobX = Math.cos(this.bobCycle) * 0.004;
       this.bobOffset.set(bobX, bobY, 0);
+
+      // Procedural footstep cadence: distinct pacing and acoustics for walking vs. sprinting
+      if (horizSpeed > 1.2) {
+        const isSprinting = horizSpeed > 7.2;
+        const stepInterval = isSprinting ? 0.28 : 0.42;
+        this.stepTimer += frameDelta;
+        if (this.stepTimer >= stepInterval) {
+          this.stepTimer -= stepInterval;
+          this.stepFoot = !this.stepFoot;
+          if (this.sound) {
+            this.sound.playFootstep(isSprinting, this.stepFoot);
+          }
+        }
+      } else {
+        this.stepTimer = Math.min(this.stepTimer, 0.26);
+      }
     } else {
       // Smoothly return bob to neutral
       this.bobOffset.multiplyScalar(0.85);
+      if (!this.isGrounded) {
+        this.stepTimer = 0;
+      } else {
+        // Pre-charge step timer when standing still so the first step feels immediate upon moving
+        this.stepTimer = 0.26;
+      }
     }
 
     // 2. Smoothly settle camera recoil kick back down over ~0.35s
