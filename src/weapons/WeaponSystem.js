@@ -745,7 +745,7 @@ export class WeaponSystem {
 
   _spawnMonitorSparks(hitPoint, normal, isFirstHit) {
     const count = isFirstHit ? 14 : 6;
-    const sparkColors = [0x00e5ff, 0xffffff, 0xffcc00, 0x38bdf8];
+    const sparkColors = [0x00e5ff, 0xffffff, 0x38bdf8, 0xdbeafe];
     for (let i = 0; i < count; i++) {
       const spark = this.glassSparkPool.acquire();
       spark.visible = true;

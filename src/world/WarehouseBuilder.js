@@ -2948,305 +2948,318 @@ function createMonitorScreenAtlasTexture() {
 
 /**
  * Procedural High-Resolution Shattered Broken LCD Panel Texture (1024x576 widescreen).
- * Replicating real LCD impact rupture (image_b892f6.jpg):
- * 1. Deep dead-matrix black canvas (#030306)
- * 2. Dense neon vertical RGB & golden-yellow ribbons (short-circuited column drivers)
- * 3. Curved fracture discontinuity zones & dead blackout pockets (#020205)
- * 4. Bottom corner horizontal glitch scanline wedges (pink, magenta, orange, white)
- * 5. Electric violet/purple liquid-crystal pressure bleed node (cx ≈ 345, cy ≈ 375 in V1)
- * 6. Blinding white crushed-glass spiderweb impact starburst (cx ≈ 490, cy ≈ 305 in V1)
- * Supports variant = 1 and variant = 2 with varied impact centers and ribbons so dual-monitors look distinct!
+ * Replicating real LCD impact rupture and shattered tempered glass physics (image_62b79d.jpg):
+ * 1. Deep black void canvas (#050507) with dead column driver patches (#020204, zero static)
+ * 2. Subtle, desaturated vertical subpixel static (cyan-slate, wine-magenta, amber-brown, olive-green)
+ * 3. Gritty monochrome film grain across dark regions (matte electronic LCD texture)
+ * 4. Broad sweeping fracture arcs cutting across panel corners and borders
+ * 5. Concentric elliptical tension rings with shockwave steps and bottom-right spallation teeth
+ * 6. Branching spiderweb radial cracks with internal glass refraction double-traces
+ * 7. Dense horizontal crystalline needle feathering spreading outward to left and right
+ * 8. Brilliant pure-white pulverized crushed-glass impact core (cx ≈ 460, cy ≈ 295, radius ≈ 28px)
+ * Supports variant = 1 and variant = 2 with varied impact centers and crack layouts for dual monitors!
  */
-function createBrokenMonitorScreenTexture(variant = 1) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 576;
-  const ctx = canvas.getContext('2d');
+function createBrokenMonitorScreenTexture(variantIndex = 0) {
   const width = 1024;
   const height = 576;
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
 
-  const isV2 = variant === 2;
+  // Deterministic PRNG so every build is crisp, reproducible, and 100% original
+  let seed = (variantIndex + 1) * 987654321;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  const randRange = (min, max) => min + rand() * (max - min);
 
-  // Impact and pressure-bleed coordinates
-  const impactX = isV2 ? 565 : 490;
-  const impactY = isV2 ? 265 : 305;
-  const bleedX = isV2 ? 685 : 345;
-  const bleedY = isV2 ? 335 : 375;
-  const ribbonX = isV2 ? 655 : 312;
+  // Impact focal coordinates (slightly shifted per variant)
+  const cx = variantIndex % 2 === 0 ? 462 : 548;
+  const cy = variantIndex % 2 === 0 ? 322 : 274;
+  const dir = variantIndex % 2 === 0 ? 1 : -1;
 
-  let seed = isV2 ? 987654 : 123456;
-  const rnd = () => {
-    seed = (seed * 9301 + 49297) % 233280;
-    return seed / 233280;
+  // ============================================================================
+  // LAYER 1: PER-PIXEL IMAGEDATA SUBPIXEL INTERFERENCE CARPET & POLARIZER GRAIN
+  // ============================================================================
+  const imgData = ctx.createImageData(width, height);
+  const data = imgData.data;
+
+  // Precompute column-level LCD driver damage parameters
+  const colType = new Uint8Array(width);
+  const colAmp = new Float32Array(width);
+  const colFreq1 = new Float32Array(width);
+  const colFreq2 = new Float32Array(width);
+  const colPhase1 = new Float32Array(width);
+  const colPhase2 = new Float32Array(width);
+
+  for (let x = 0; x < width; x++) {
+    const r = rand();
+    // 0: Dead/Dark, 1: Emerald-Green subpixel, 2: Crimson-Magenta, 3: Cobalt-Cyan, 4: Muted Amber
+    colType[x] = r < 0.26 ? 0 : r < 0.50 ? 1 : r < 0.72 ? 2 : r < 0.90 ? 3 : 4;
+    // Group columns into natural vertical interference clusters
+    const clusterWave = 0.55 + 0.45 * Math.sin(x * 0.045) * Math.cos(x * 0.019);
+    colAmp[x] = randRange(0.25, 1.0) * clusterWave;
+    colFreq1[x] = randRange(0.035, 0.14);
+    colFreq2[x] = randRange(0.16, 0.42);
+    colPhase1[x] = randRange(0, Math.PI * 2);
+    colPhase2[x] = randRange(0, Math.PI * 2);
+  }
+
+  for (let y = 0; y < height; y++) {
+    const rowOffset = y * width * 4;
+    for (let x = 0; x < width; x++) {
+      const idx = rowOffset + x * 4;
+
+      // Distance from primary impact cavity & right-hand fan cavity (dead liquid crystal shadow)
+      const dx1 = (x - cx) / 145;
+      const dy1 = (y - cy) / 135;
+      const dist1 = dx1 * dx1 + dy1 * dy1;
+
+      const dx2 = (x - (cx + dir * 135)) / 155;
+      const dy2 = (y - cy) / 125;
+      const dist2 = dx2 * dx2 + dy2 * dy2;
+
+      // Ruptured crystal blackout mask (darkens the static inside the central fracture zone)
+      const cavityMask1 = Math.min(1.0, Math.max(0.12, Math.pow(Math.min(dist1, 1.5) / 1.5, 1.35)));
+      const cavityMask2 = Math.min(1.0, Math.max(0.18, Math.pow(Math.min(dist2, 1.5) / 1.5, 1.25)));
+      const shadowMask = Math.min(cavityMask1, cavityMask2);
+
+      // Vertical broken scanline packet modulation
+      const wave1 = Math.sin(y * colFreq1[x] + colPhase1[x]);
+      const wave2 = Math.cos(y * colFreq2[x] + colPhase2[x]);
+      const packet = Math.max(0, wave1 * wave2);
+      const intensity = packet * colAmp[x] * shadowMask;
+
+      // Base matte polarizer grain (#07080a to #17191f)
+      const grain = (rand() - 0.5) * 22;
+      let r = 10 + grain;
+      let g = 11 + grain;
+      let b = 13 + grain;
+
+      const t = colType[x];
+      if (t === 1) {
+        // Muted Emerald / Olive Subpixel Static
+        r += intensity * 24;
+        g += intensity * 112;
+        b += intensity * 38;
+      } else if (t === 2) {
+        // Muted Crimson / Wine Magenta Subpixel Static
+        r += intensity * 118;
+        g += intensity * 22;
+        b += intensity * 68;
+      } else if (t === 3) {
+        // Deep Cobalt / Slate Cyan Subpixel Static
+        r += intensity * 20;
+        g += intensity * 64;
+        b += intensity * 124;
+      } else if (t === 4) {
+        // Desaturated Warm Amber Static
+        r += intensity * 115;
+        g += intensity * 86;
+        b += intensity * 24;
+      }
+
+      data[idx] = Math.max(0, Math.min(255, r));
+      data[idx + 1] = Math.max(0, Math.min(255, g));
+      data[idx + 2] = Math.max(0, Math.min(255, b));
+      data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  // ============================================================================
+  // LAYER 2: FRACTAL MIDPOINT-DISPLACEMENT GLASS CRACK ENGINE (ZERO CIRCLES!)
+  // ============================================================================
+  const generateFractalPoints = (x1, y1, x2, y2, maxOffset, iterations) => {
+    let pts = [{ x: x1, y: y1 }, { x: x2, y: y2 }];
+    let offset = maxOffset;
+    for (let i = 0; i < iterations; i++) {
+      const next = [pts[0]];
+      for (let j = 0; j < pts.length - 1; j++) {
+        const p0 = pts[j];
+        const p1 = pts[j + 1];
+        const mx = (p0.x + p1.x) * 0.5;
+        const my = (p0.y + p1.y) * 0.5;
+        const segDx = p1.x - p0.x;
+        const segDy = p1.y - p0.y;
+        const len = Math.hypot(segDx, segDy) || 1;
+        const nx = -segDy / len;
+        const ny = segDx / len;
+        const disp = (rand() - 0.5) * 2 * offset;
+        next.push({ x: mx + nx * disp, y: my + ny * disp }, p1);
+      }
+      pts = next;
+      offset *= 0.52;
+    }
+    return pts;
   };
 
-  // 1. Deep Dead-Matrix Black Canvas (#030306)
-  ctx.fillStyle = '#030306';
-  ctx.fillRect(0, 0, width, height);
+  const drawCrystallineCrack = (x1, y1, x2, y2, roughness, iterations, baseWidth, baseAlpha, spawnSpalls = false) => {
+    const pts = generateFractalPoints(x1, y1, x2, y2, roughness, iterations);
+    for (let i = 0; i < pts.length - 1; i++) {
+      const t = i / (pts.length - 1);
+      // Taper crack thickness naturally and flicker with glass internal reflection
+      const taper = Math.sin(t * Math.PI) * 0.75 + 0.25;
+      const glint = rand() < 0.22 ? 1.55 : randRange(0.45, 1.05);
+      const w = Math.max(0.25, baseWidth * taper * glint);
+      const a = Math.min(1.0, baseAlpha * (0.4 + 0.6 * glint));
 
-  // 2. Dense Vertical RGB & Driver Short-Circuit Ribbons
-  const neonPalette = [
-    '#00ff2b', '#16a34a', '#00ff66', '#10b981', '#22c55e', // Neon Matrix Green
-    '#0044ff', '#00e5ff', '#38bdf8', '#0284c7', '#2563eb', // Electric Blue & Cyan
-    '#ff0022', '#ff5500', '#dc2626', '#f97316', '#ea580c', // Crimson Red & Hot Orange
-    '#ff1493', '#c026d3', '#d946ef', '#a855f7', '#7c3aed', // Magenta & Violet
-    '#ffffff', '#f1f5f9', '#ffea75',                         // White & Pale Yellow
+      ctx.beginPath();
+      ctx.moveTo(pts[i].x, pts[i].y);
+      ctx.lineTo(pts[i + 1].x, pts[i + 1].y);
+      ctx.strokeStyle = `rgba(248, 252, 255, ${a.toFixed(3)})`;
+      ctx.lineWidth = w;
+      ctx.stroke();
+
+      // Secondary parallel refraction edge on thicker ridges
+      if (w > 1.05 && rand() < 0.35) {
+        ctx.beginPath();
+        ctx.moveTo(pts[i].x + 1.2, pts[i].y + 0.8);
+        ctx.lineTo(pts[i + 1].x + 1.2, pts[i + 1].y + 0.8);
+        ctx.strokeStyle = `rgba(200, 225, 255, ${(a * 0.35).toFixed(3)})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      // Triangular white glass spall flakes at jagged vertices
+      if (spawnSpalls && i > 0 && rand() < 0.16) {
+        const p = pts[i];
+        const s = randRange(2.2, 6.8) * baseWidth;
+        const ang = randRange(0, Math.PI * 2);
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + Math.cos(ang) * s, p.y + Math.sin(ang) * s);
+        ctx.lineTo(p.x + Math.cos(ang + randRange(0.35, 0.9)) * (s * 0.75), p.y + Math.sin(ang + randRange(0.35, 0.9)) * (s * 0.75));
+        ctx.closePath();
+        ctx.fillStyle = `rgba(255, 255, 255, ${Math.min(1, a * 1.1).toFixed(3)})`;
+        ctx.fill();
+      }
+    }
+    return pts;
+  };
+
+  // ============================================================================
+  // 1. ASYMMETRIC ONE-SIDED HAIRLINE FILAMENT FAN (MATCHING REFERENCE CENTER-RIGHT)
+  // ============================================================================
+  const fanCount = 58;
+  for (let i = 0; i < fanCount; i++) {
+    const baseAngle = dir === 1
+      ? randRange(-0.68, 0.68)
+      : Math.PI + randRange(-0.68, 0.68);
+    const reach = randRange(95, 295) * (1 - 0.35 * Math.abs(Math.sin(baseAngle)));
+    const ex = cx + Math.cos(baseAngle) * reach;
+    const ey = cy + Math.sin(baseAngle) * reach + randRange(-24, 24);
+
+    const pts = drawCrystallineCrack(cx + randRange(-6, 6), cy + randRange(-10, 10), ex, ey, randRange(5, 14), 4, randRange(0.35, 0.95), randRange(0.45, 0.88), false);
+
+    // Fine cross-linking tension steps inside the fan (especially near rib zones ~145px and ~230px out)
+    if (i > 0 && rand() < 0.65) {
+      const idx = Math.floor(pts.length * randRange(0.42, 0.85));
+      const p = pts[idx];
+      const ribLen = randRange(8, 26);
+      const perpAngle = baseAngle + Math.PI * 0.5 + randRange(-0.25, 0.25);
+      drawCrystallineCrack(p.x, p.y, p.x + Math.cos(perpAngle) * ribLen, p.y + Math.sin(perpAngle) * ribLen, 2.5, 2, randRange(0.4, 1.3), randRange(0.55, 0.95), true);
+    }
+  }
+
+  // ============================================================================
+  // 2. BROKEN, STEPPED CRESCENT SHOCKWAVE ARCS (INCOMPLETE SECTORS ONLY)
+  // ============================================================================
+  const arcConfigs = [
+    { r: 105, aStart: -2.6, aSpan: 1.4, w: 1.5, spall: true },
+    { r: 138, aStart: 0.55, aSpan: 1.65, w: 1.3, spall: true },
+    { r: 162, aStart: -0.85, aSpan: 1.55, w: 1.9, spall: true },
+    { r: 195, aStart: -2.25, aSpan: 1.85, w: 1.4, spall: true },
+    { r: 228, aStart: -0.95, aSpan: 1.75, w: 1.7, spall: true },
+    { r: 248, aStart: 1.15, aSpan: 1.45, w: 1.35, spall: true },
+    { r: 272, aStart: -1.65, aSpan: 1.35, w: 1.6, spall: true }
   ];
 
-  let currentX = 0;
-  while (currentX < width) {
-    const isGap = rnd() < 0.28;
-    if (isGap) {
-      currentX += 3 + Math.floor(rnd() * 18);
-      continue;
-    }
-
-    const colW = 1 + Math.floor(rnd() * 4);
-    const colColor = neonPalette[Math.floor(rnd() * neonPalette.length)];
-    const isDotted = rnd() < 0.16;
-
-    if (isDotted) {
-      ctx.fillStyle = colColor;
-      for (let y = 0; y < height; y += 4) {
-        if (rnd() > 0.25) {
-          ctx.fillRect(currentX, y, colW, 2);
-        }
-      }
-    } else {
-      ctx.fillStyle = colColor;
-      ctx.fillRect(currentX, 0, colW, height);
-    }
-
-    currentX += colW + (rnd() < 0.4 ? 0 : 1 + Math.floor(rnd() * 3));
-  }
-
-  // Bold Golden-Yellow Ribbon (28px wide)
-  const ribW = 28;
-  const ribGrad = ctx.createLinearGradient(ribbonX, 0, ribbonX + ribW, 0);
-  ribGrad.addColorStop(0, '#f59e0b');
-  ribGrad.addColorStop(0.3, '#ffcc00');
-  ribGrad.addColorStop(0.7, '#fff04d');
-  ribGrad.addColorStop(1, '#d97706');
-  ctx.fillStyle = ribGrad;
-  ctx.fillRect(ribbonX, 0, ribW, height);
-
-  // Horizontal scanline cross-hatching inside the ribbon
-  ctx.fillStyle = 'rgba(10, 10, 15, 0.45)';
-  for (let y = 0; y < height; y += 3) {
-    ctx.fillRect(ribbonX, y, ribW, 1.2);
-  }
-
-  // Thin bright white pinstripe down ribbon
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(ribbonX + 11, 0, 2.5, height);
-
-  // 3. Curved Fracture Discontinuity Zones & Dead Blackout Pockets
-  ctx.fillStyle = '#020205';
-
-  // Shard 1: Mid-Left dead pocket
-  ctx.beginPath();
-  ctx.moveTo(110, 170);
-  ctx.quadraticCurveTo(230, 140, 270, 230);
-  ctx.quadraticCurveTo(280, 330, 190, 390);
-  ctx.quadraticCurveTo(80, 330, 110, 170);
-  ctx.closePath();
-  ctx.fill();
-
-  // Shard 2: Upper-Center above impact
-  ctx.beginPath();
-  ctx.moveTo(impactX - 90, 20);
-  ctx.quadraticCurveTo(impactX + 70, 10, impactX + 90, 150);
-  ctx.quadraticCurveTo(impactX, 170, impactX - 100, 130);
-  ctx.closePath();
-  ctx.fill();
-
-  // Shard 3: Mid-Right dead pocket
-  ctx.beginPath();
-  ctx.moveTo(690, 190);
-  ctx.quadraticCurveTo(850, 220, 830, 420);
-  ctx.quadraticCurveTo(710, 420, 670, 310);
-  ctx.closePath();
-  ctx.fill();
-
-  // Shard 4: Lower dead shard
-  ctx.beginPath();
-  ctx.moveTo(impactX - 50, impactY + 70);
-  ctx.quadraticCurveTo(impactX + 110, impactY + 50, impactX + 130, impactY + 190);
-  ctx.quadraticCurveTo(impactX + 20, impactY + 230, impactX - 60, impactY + 170);
-  ctx.closePath();
-  ctx.fill();
-
-  // Secondary offset fracture lines across dead zones
-  ctx.fillStyle = '#00ff2b';
-  for (let x = 120; x < 260; x += 14) {
-    if (rnd() > 0.4) {
-      ctx.fillRect(x, 190 + rnd() * 30, 2, 70 + rnd() * 80);
+  for (const cfg of arcConfigs) {
+    const steps = 7;
+    let curR = cfg.r + randRange(-8, 8);
+    const arcCx = cx + dir * 32;
+    const arcCy = cy - 8;
+    for (let s = 0; s < steps; s++) {
+      if (rand() < 0.15) continue; // Natural broken gaps in the crescent
+      const a0 = cfg.aStart + (s / steps) * cfg.aSpan;
+      const a1 = cfg.aStart + ((s + 1) / steps) * cfg.aSpan;
+      // Step radius slightly at radial boundaries so it NEVER looks like a smooth compass circle
+      const nextR = curR + randRange(-9, 9);
+      const x1 = arcCx + Math.cos(a0) * curR;
+      const y1 = arcCy + Math.sin(a0) * (curR * 0.92);
+      const x2 = arcCx + Math.cos(a1) * nextR;
+      const y2 = arcCy + Math.sin(a1) * (nextR * 0.92);
+      drawCrystallineCrack(x1, y1, x2, y2, randRange(3.5, 8.5), 3, cfg.w * randRange(0.7, 1.35), randRange(0.65, 0.98), cfg.spall);
+      curR = nextR;
     }
   }
 
-  // 4. Bottom Corner Glitch Scanline Wedges
-  // Bottom-Left Wedge: horizontal pink/magenta/white scanlines
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(0, 460);
-  ctx.lineTo(240, 520);
-  ctx.lineTo(190, height);
-  ctx.lineTo(0, height);
-  ctx.closePath();
-  ctx.clip();
+  // ============================================================================
+  // 3. LONG WANDERING PRIMARY SHEAR CRACKS & BIFURCATING FORKS
+  // ============================================================================
+  const primaryTargets = [
+    { x: 0, y: randRange(75, 145), w: 1.35 },
+    { x: randRange(120, 260), y: randRange(330, 420), w: 1.65 },
+    { x: randRange(680, 830), y: randRange(25, 90), w: 1.25 },
+    { x: randRange(780, 940), y: randRange(470, 565), w: 1.85 },
+    { x: randRange(310, 440), y: randRange(500, 570), w: 1.15 }
+  ];
 
-  const cornerPaletteL = ['#ff1493', '#ff66cc', '#ffffff', '#ff0055', '#c026d3', '#38bdf8'];
-  for (let y = 460; y < height; y += 2) {
-    const barH = 1 + Math.floor(rnd() * 3);
-    ctx.fillStyle = cornerPaletteL[Math.floor(rnd() * cornerPaletteL.length)];
-    ctx.fillRect(0, y, 260, barH);
+  for (const tgt of primaryTargets) {
+    const mainPts = drawCrystallineCrack(cx, cy, tgt.x, tgt.y, randRange(18, 34), 5, tgt.w, 0.92, true);
+    // Spawn 2 to 3 secondary forks branching off the main crack at acute glass-cleavage angles
+    for (let f = 0; f < 3; f++) {
+      const branchIdx = Math.floor(mainPts.length * randRange(0.25, 0.78));
+      const bp = mainPts[branchIdx];
+      const forkAngle = Math.atan2(tgt.y - cy, tgt.x - cx) + (rand() < 0.5 ? 1 : -1) * randRange(0.32, 0.78);
+      const forkLen = randRange(55, 165);
+      drawCrystallineCrack(bp.x, bp.y, bp.x + Math.cos(forkAngle) * forkLen, bp.y + Math.sin(forkAngle) * forkLen, randRange(8, 16), 4, tgt.w * 0.65, 0.78, true);
+    }
   }
-  ctx.restore();
 
-  // Bottom-Right Wedge: horizontal magenta/hot orange/white scanlines
-  ctx.save();
-  ctx.beginPath();
-  ctx.moveTo(860, 460);
-  ctx.lineTo(width, 430);
-  ctx.lineTo(width, height);
-  ctx.lineTo(810, height);
-  ctx.closePath();
-  ctx.clip();
+  // ============================================================================
+  // 4. CRUSHED CRYSTALLINE IMPACT SPALL NUCLEUS (IRREGULAR SHARD CLUSTER, NO CIRCLE)
+  // ============================================================================
+  // Draw 115 overlapping micro-shards and needle splinters concentrated in a vertical/angled spall ridge
+  for (let i = 0; i < 115; i++) {
+    const spreadAngle = randRange(0, Math.PI * 2);
+    const dist = Math.pow(rand(), 1.8) * 34;
+    // Vertically elongated and jagged nucleus shape matching reference
+    const sx = cx + Math.cos(spreadAngle) * (dist * 0.65) + randRange(-4, 4);
+    const sy = cy + Math.sin(spreadAngle) * (dist * 1.25) + randRange(-6, 6);
+    const shardLen = randRange(3.5, 16) * (1 - dist / 42);
+    const shardWidth = randRange(1.2, 4.8);
+    const shardAngle = spreadAngle + randRange(-0.5, 0.5);
 
-  const cornerPaletteR = ['#ff1493', '#ff5500', '#ffffff', '#ff0022', '#ff66cc', '#ffea75'];
-  for (let y = 430; y < height; y += 2) {
-    const barH = 1 + Math.floor(rnd() * 3);
-    ctx.fillStyle = cornerPaletteR[Math.floor(rnd() * cornerPaletteR.length)];
-    ctx.fillRect(800, y, width - 800, barH);
-  }
-  ctx.restore();
-
-  // 5. Electric Violet/Purple Liquid-Crystal Pressure Bleed
-  const bleedGrad = ctx.createRadialGradient(bleedX, bleedY, 0, bleedX, bleedY, 95);
-  bleedGrad.addColorStop(0.0, 'rgba(124, 58, 237, 0.95)');   // #7c3aed
-  bleedGrad.addColorStop(0.25, 'rgba(192, 38, 211, 0.90)');  // #c026d3
-  bleedGrad.addColorStop(0.55, 'rgba(56, 189, 248, 0.75)');  // #38bdf8
-  bleedGrad.addColorStop(0.80, 'rgba(76, 29, 149, 0.35)');
-  bleedGrad.addColorStop(1.0, 'rgba(3, 3, 6, 0.0)');
-  ctx.fillStyle = bleedGrad;
-  ctx.beginPath();
-  ctx.arc(bleedX, bleedY, 95, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Radial ink-bleed spikes
-  const numSpokes = 24;
-  for (let i = 0; i < numSpokes; i++) {
-    const angle = (i / numSpokes) * Math.PI * 2 + (rnd() - 0.5) * 0.15;
-    const spokeLen = 45 + rnd() * 65;
-    const spokeWidth = 0.06 + rnd() * 0.08;
-
-    ctx.fillStyle = i % 2 === 0 ? 'rgba(192, 38, 211, 0.85)' : 'rgba(56, 189, 248, 0.75)';
     ctx.beginPath();
-    ctx.moveTo(bleedX, bleedY);
-    ctx.lineTo(bleedX + Math.cos(angle - spokeWidth) * spokeLen, bleedY + Math.sin(angle - spokeWidth) * spokeLen);
-    ctx.lineTo(bleedX + Math.cos(angle + spokeWidth) * spokeLen, bleedY + Math.sin(angle + spokeWidth) * spokeLen);
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx + Math.cos(shardAngle) * shardLen, sy + Math.sin(shardAngle) * shardLen);
+    ctx.lineTo(sx + Math.cos(shardAngle + 0.45) * shardWidth, sy + Math.sin(shardAngle + 0.45) * shardWidth);
     ctx.closePath();
+    const alpha = randRange(0.55, 1.0);
+    ctx.fillStyle = `rgba(255, 255, 255, ${alpha.toFixed(3)})`;
     ctx.fill();
   }
 
-  // 6. Blinding White Crushed-Glass Spiderweb Impact Starburst
-  // Radial glow around core
-  const coreGlow = ctx.createRadialGradient(impactX, impactY, 0, impactX, impactY, 68);
-  coreGlow.addColorStop(0.0, '#ffffff');
-  coreGlow.addColorStop(0.35, 'rgba(255, 255, 255, 0.96)');
-  coreGlow.addColorStop(0.70, 'rgba(230, 245, 255, 0.75)');
-  coreGlow.addColorStop(1.0, 'rgba(200, 230, 255, 0.0)');
-  ctx.fillStyle = coreGlow;
-  ctx.beginPath();
-  ctx.arc(impactX, impactY, 68, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Dense jagged pulverized glass center (36-vertex starburst)
-  ctx.fillStyle = '#ffffff';
-  ctx.beginPath();
-  const corePts = 36;
-  for (let i = 0; i < corePts; i++) {
-    const a = (i / corePts) * Math.PI * 2;
-    const r = 26 + (i % 2 === 0 ? 18 + rnd() * 12 : 6 + rnd() * 8);
-    const px = impactX + Math.cos(a) * r;
-    const py = impactY + Math.sin(a) * r;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-  ctx.fill();
-
-  // Concentric spiderweb tension rings (9 irregular rings)
-  const ringRadii = [38, 62, 92, 130, 175, 230, 290, 360, 440];
-  for (let rIdx = 0; rIdx < ringRadii.length; rIdx++) {
-    const baseR = ringRadii[rIdx];
-    const steps = 32;
-    ctx.strokeStyle = rIdx < 4 ? 'rgba(255, 255, 255, 0.88)' : 'rgba(235, 245, 255, 0.65)';
-    ctx.lineWidth = rIdx < 3 ? 1.6 : 1.1;
-    ctx.beginPath();
-    for (let s = 0; s <= steps; s++) {
-      const a = (s / steps) * Math.PI * 2;
-      const jitter = (rnd() - 0.5) * (baseR * 0.12);
-      const px = impactX + Math.cos(a) * (baseR + jitter);
-      const py = impactY + Math.sin(a) * ((baseR + jitter) * 0.85); // slight elliptical tension
-      if (s === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.stroke();
-  }
-
-  // 100 Razor-sharp jagged white glass fracture rays radiating across entire screen
-  const numRays = 105;
-  for (let i = 0; i < numRays; i++) {
-    let currentAngle = (i / numRays) * Math.PI * 2 + (rnd() - 0.5) * 0.05;
-    const totalDist = 180 + rnd() * 650;
-    const numSegments = 6 + Math.floor(rnd() * 4);
-    const segLen = totalDist / numSegments;
-
-    // Line weight: 15% heavy fissure (2.2px), 45% medium (1.4px), 40% hairline (0.85px)
-    const rayType = rnd();
-    ctx.lineWidth = rayType < 0.15 ? 2.2 : (rayType < 0.60 ? 1.4 : 0.85);
-    ctx.strokeStyle = rayType < 0.60 ? '#ffffff' : 'rgba(235, 245, 255, 0.85)';
-
-    ctx.beginPath();
-    let curX = impactX + Math.cos(currentAngle) * (15 + rnd() * 12);
-    let curY = impactY + Math.sin(currentAngle) * (15 + rnd() * 12);
-    ctx.moveTo(curX, curY);
-
-    for (let seg = 0; seg < numSegments; seg++) {
-      currentAngle += (rnd() - 0.5) * 0.14;
-      curX += Math.cos(currentAngle) * segLen;
-      curY += Math.sin(currentAngle) * segLen;
-      ctx.lineTo(curX, curY);
-
-      // Branching micro-cracks
-      if (seg === Math.floor(numSegments / 2) && rnd() < 0.55) {
-        const branchAngle = currentAngle + (rnd() > 0.5 ? 0.65 : -0.65);
-        const branchLen = 22 + rnd() * 42;
-        ctx.moveTo(curX, curY);
-        ctx.lineTo(curX + Math.cos(branchAngle) * branchLen, curY + Math.sin(branchAngle) * branchLen);
-        ctx.moveTo(curX, curY); // Resume main ray
-      }
-    }
-    ctx.stroke();
-  }
-
-  // Glass splinter micro-needles near core
-  const numSplinters = 60;
-  ctx.lineWidth = 0.9;
-  ctx.strokeStyle = '#ffffff';
-  for (let i = 0; i < numSplinters; i++) {
-    const a = rnd() * Math.PI * 2;
-    const startR = 30 + rnd() * 45;
-    const len = 12 + rnd() * 22;
-    const x1 = impactX + Math.cos(a) * startR;
-    const y1 = impactY + Math.sin(a) * startR;
-    const x2 = x1 + Math.cos(a + (rnd() - 0.5) * 0.3) * len;
-    const y2 = y1 + Math.sin(a + (rnd() - 0.5) * 0.3) * len;
-    ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
-    ctx.stroke();
+  // Short razor-sharp radiating micro-needles around the crushed nucleus
+  for (let i = 0; i < 75; i++) {
+    const a = randRange(0, Math.PI * 2);
+    const r0 = randRange(2, 14);
+    const r1 = r0 + randRange(12, 48);
+    drawCrystallineCrack(
+      cx + Math.cos(a) * r0 * 0.7,
+      cy + Math.sin(a) * r0 * 1.15,
+      cx + Math.cos(a) * r1,
+      cy + Math.sin(a) * r1,
+      randRange(2.5, 6.0),
+      3,
+      randRange(0.45, 1.35),
+      randRange(0.65, 0.98),
+      false
+    );
   }
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -8494,8 +8507,8 @@ export class WarehouseBuilder {
     this.screenDTexture = createWindows11MultiWindowTexture();
     this.screenETexture = createITServicePortalTexture();
     this.screenFTexture = createMusicAppTexture();
-    this.brokenScreenTexture1 = createBrokenMonitorScreenTexture(1);
-    this.brokenScreenTexture2 = createBrokenMonitorScreenTexture(2);
+    this.brokenScreenTexture1 = createBrokenMonitorScreenTexture(0);
+    this.brokenScreenTexture2 = createBrokenMonitorScreenTexture(1);
     this.chairMeshTexture = createChairMeshTexture();
     this.outletTexture = createBrazilianITFaceplateTexture();
     this.stanchionBeltTexture = createStanchionBeltTexture();
@@ -8836,22 +8849,41 @@ float rackHash(vec2 p) {
       map: this.screenFTexture,
     });
     // Destructible Broken LCD Monitor Materials (Emissive backlit cracked LCD)
+    // Shader hook strictly zeroes out direct diffuse & specular light reflections, eliminating
+    // any orange/yellow muzzle flash reflection, rim-light highlight, or bullet impact spark flare
+    const suppressScreenFlashShader = (shader) => {
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <lights_fragment_end>',
+        `#include <lights_fragment_end>
+        // Completely strip direct & specular flash reflections (eliminates muzzle flash & impact spark glare on screen surface)
+        reflectedLight.directSpecular = vec3(0.0);
+        reflectedLight.directDiffuse = vec3(0.0);
+        reflectedLight.indirectSpecular = vec3(0.0);
+        `
+      );
+    };
+
     this.brokenScreenMaterial1 = new THREE.MeshStandardMaterial({
       map: this.brokenScreenTexture1,
       emissiveMap: this.brokenScreenTexture1,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.75,
-      roughness: 0.25,
-      metalness: 0.10,
+      emissiveIntensity: 0.22,
+      roughness: 0.36,
+      metalness: 0.15,
     });
+    this.brokenScreenMaterial1.onBeforeCompile = suppressScreenFlashShader;
+    this.brokenScreenMaterial1.customProgramCacheKey = () => 'BrokenScreenNoFlash1';
+
     this.brokenScreenMaterial2 = new THREE.MeshStandardMaterial({
       map: this.brokenScreenTexture2,
       emissiveMap: this.brokenScreenTexture2,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.75,
-      roughness: 0.25,
-      metalness: 0.10,
+      emissiveIntensity: 0.22,
+      roughness: 0.36,
+      metalness: 0.15,
     });
+    this.brokenScreenMaterial2.onBeforeCompile = suppressScreenFlashShader;
+    this.brokenScreenMaterial2.customProgramCacheKey = () => 'BrokenScreenNoFlash2';
 
     this.monitorScreens = [];
     // Dell P2425H Monitor Materials
