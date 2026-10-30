@@ -24,6 +24,8 @@ window.addEventListener('DOMContentLoaded', () => {
   let lastPosTime = 0;
 
   const engine = new Engine(canvas);
+  engine.camera.near = 0.015;
+  engine.camera.updateProjectionMatrix();
 
   const input = new InputManager(canvas);
   const sound = new SoundManager();
@@ -311,7 +313,14 @@ window.addEventListener('DOMContentLoaded', () => {
     setGameState('PLAYING');
   });
 
+  // Global flag for F8 viewmodel tuner to prevent pause menu interference
+  window.isViewmodelTunerOpen = false;
+
   input.onUnlock(() => {
+    if (window.isViewmodelTunerOpen) {
+      // Tuner is open: DO NOT pause the game, keep playing state and live viewmodel rendering!
+      return;
+    }
     if (gameState === 'PLAYING') {
       setGameState('PAUSED');
     }
@@ -320,6 +329,14 @@ window.addEventListener('DOMContentLoaded', () => {
   // Handle ESC or KeyP to guarantee pause triggering even in headless/synthetic event environments
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.key === 'Escape' || e.code === 'KeyP') {
+      if (window.isViewmodelTunerOpen) {
+        const overlay = document.getElementById('hand-tuner-overlay');
+        if (overlay) overlay.style.display = 'none';
+        window.isViewmodelTunerOpen = false;
+        if (viewmodel) viewmodel.tunerForceADS = null;
+        input.requestLock();
+        return;
+      }
       if (gameState === 'PLAYING') {
         if (document.pointerLockElement) {
           document.exitPointerLock();

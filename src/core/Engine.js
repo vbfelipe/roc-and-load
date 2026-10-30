@@ -22,7 +22,7 @@ export class Engine {
     this.scene.fog = new THREE.FogExp2(0x0a0c10, 0.006);
 
     // 2. Camera
-    this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.05, 100);
+    this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.015, 100);
     this.scene.add(this.camera);
 
     // 3. Renderer with high performance settings - strictly 1.0 pixel ratio to eliminate fullscreen fill-rate bottleneck

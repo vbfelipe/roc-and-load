@@ -271,8 +271,11 @@ export class WeaponSystem {
    * Switches between Slot 1 ('pistol' - .50 AE Desert Eagle)
    * and Slot 2 ('shotgun' - Winchester Model 1912 12-Gauge).
    */
-  switchWeapon(weaponType) {
-    if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null) return;
+  switchWeapon(weaponType, force = false) {
+    const canSwitch = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
+    if (!canSwitch) return;
+    if (weaponType === 1 || weaponType === '1') weaponType = 'pistol';
+    if (weaponType === 2 || weaponType === '2') weaponType = 'shotgun';
     if (weaponType !== 'pistol' && weaponType !== 'shotgun') return;
     if (this.currentWeapon === weaponType) return;
 
@@ -295,7 +298,9 @@ export class WeaponSystem {
 
     // 3. Switch 3D viewmodel & ADS state
     if (this.viewmodel) {
-      this.viewmodel.setADS(false);
+      if (!window.isViewmodelTunerOpen) {
+        this.viewmodel.setADS(false);
+      }
       this.viewmodel.switchWeapon(weaponType);
       if (weaponType === 'pistol') {
         this.viewmodel.setSlideLocked(this.isSlideLocked);
@@ -312,12 +317,15 @@ export class WeaponSystem {
     }
   }
 
-  startReload() {
-    if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null) return;
+  startReload(force = false) {
+    const canReload = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
+    if (!canReload) return;
     if (this.currentAmmo >= this.maxAmmo || this.isReloading) return;
 
     this.isReloading = true;
-    this.viewmodel.setADS(false);
+    if (!window.isViewmodelTunerOpen) {
+      this.viewmodel.setADS(false);
+    }
 
     if (this.hud) {
       this.hud.onReloadStart();
@@ -500,7 +508,9 @@ export class WeaponSystem {
 
     if (!isArmed) {
       this.wasMouseDown0 = true; // Prevents click-bleed
-      this.viewmodel.setADS(false);
+      if (!window.isViewmodelTunerOpen) {
+        this.viewmodel.setADS(false);
+      }
       return;
     }
 
