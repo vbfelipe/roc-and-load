@@ -131,8 +131,8 @@ export class WeaponViewmodel {
     this.adsRotation = this.pistolAdsRotation;
 
     // Second-order harmonic springs for natural weight, inertia and snappy recovery
-    this.posSpring = new Spring3D({ stiffness: 220, damping: 20 });
-    this.rotSpring = new Spring3D({ stiffness: 210, damping: 19 });
+    this.posSpring = new Spring3D({ stiffness: 220, damping: 20, initial: this.pistolHipPosition });
+    this.rotSpring = new Spring3D({ stiffness: 210, damping: 19, initial: this.pistolHipRotation });
 
     // Procedural weapon sway and bobbing
     this.bobSpring = new Spring3D({ stiffness: 120, damping: 14 });
@@ -1378,18 +1378,24 @@ export class WeaponViewmodel {
       this.muzzleFlashGroup.visible = false;
     }
 
-    // Equip transition spring impulse
-    this.reloadTilt.y = -0.09;
-    this.reloadTilt.pitch = -0.22;
-    this.reloadTilt.roll = isShotgun ? -0.18 : 0.18;
+    // 1. Immediately sync spring state to active weapon rest pose so it doesn't cross-contaminate
+    // from the previous weapon's coordinate origin (e.g. pistol's -0.42 vs shotgun's -0.042)
+    const targetPos = this.isADS ? this.adsPosition : this.hipPosition;
+    const targetRot = this.isADS ? this.adsRotation : this.hipRotation;
+    this.posSpring.reset(targetPos.x, targetPos.y, targetPos.z);
+    this.rotSpring.reset(targetRot.x, targetRot.y, targetRot.z);
+
+    // 2. Smooth, subtle low-ready equip transition (no forward Z impulse, no overshooting)
+    this.reloadTilt.x = 0;
+    this.reloadTilt.y = isShotgun ? -0.030 : -0.040;
+    this.reloadTilt.z = 0;
+    this.reloadTilt.pitch = isShotgun ? -0.045 : -0.07;
+    this.reloadTilt.roll = isShotgun ? -0.03 : 0.04;
     this.reloadTilt.yaw = 0;
 
-    this.posSpring.impulse(0, -0.05, 0.04);
-    this.rotSpring.impulse(-0.12, 0, isShotgun ? -0.08 : 0.08);
-
     const equipTween = new TWEEN.Tween(this.reloadTilt, true)
-      .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 240)
-      .easing(TWEEN.Easing.Back.Out);
+      .to({ roll: 0, pitch: 0, yaw: 0, y: 0, x: 0, z: 0 }, 190)
+      .easing(TWEEN.Easing.Cubic.Out);
     this.reloadTweens.push(equipTween);
     equipTween.start();
 
@@ -2028,8 +2034,10 @@ export class WeaponViewmodel {
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
 
-    this.posSpring.reset();
-    this.rotSpring.reset();
+    const targetPos = this.isADS ? this.adsPosition : this.hipPosition;
+    const targetRot = this.isADS ? this.adsRotation : this.hipRotation;
+    this.posSpring.reset(targetPos.x, targetPos.y, targetPos.z);
+    this.rotSpring.reset(targetRot.x, targetRot.y, targetRot.z);
     this.reloadTilt.x = 0;
     this.reloadTilt.y = 0;
     this.reloadTilt.z = 0;
