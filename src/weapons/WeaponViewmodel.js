@@ -119,10 +119,10 @@ export class WeaponViewmodel {
     this.pistolAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 2 (Remington 870 12-Gauge Shotgun) Hip & ADS Transforms
-    this.shotgunHipPosition = new THREE.Vector3(0.106, -0.122, -0.182);
-    this.shotgunAdsPosition = new THREE.Vector3(0, -0.072, -0.116);
+    this.shotgunHipPosition = new THREE.Vector3(0.1, -0.13, -0.042);
+    this.shotgunAdsPosition = new THREE.Vector3(0, -0.075, -0.09);
     this.shotgunHipRotation = new THREE.Euler(0.1, 0, 0);
-    this.shotgunAdsRotation = new THREE.Euler(0.015, 0.005, 0);
+    this.shotgunAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Dynamic targets pointing to current active weapon transforms
     this.hipPosition = this.pistolHipPosition;
@@ -170,6 +170,8 @@ export class WeaponViewmodel {
     this.pistolSlideMesh = null;
     this.deSlideRestZ = 0;
     this.magGroup = null;
+    this.deMagMeshes = [];
+    this.deMagRestY = [];
     this.hammerGroup = null;
     this.triggerMesh = null;
 
@@ -180,6 +182,15 @@ export class WeaponViewmodel {
     this.shotgunCarrierGroup = null;
     this.shotgunReloadShell = null;
     this.shotgunTriggerMesh = null;
+
+    this.shotgunPumpMesh = null;
+    this.shotgunPumpRodsMesh = null;
+    this.shotgunSlideLRodsMesh = null;
+    this.shotgunBoltMesh = null;
+    this.shotgunPumpRestX = 0;
+    this.shotgunPumpRodsRestX = 0;
+    this.shotgunSlideLRodsRestX = 0;
+    this.shotgunBoltRestX = 0;
 
     // Hand references
     this.rawHandsScene = null;
@@ -375,12 +386,12 @@ export class WeaponViewmodel {
         this.hammerRestAngle = this.hammerGroup.rotation.x;
         this.triggerMesh = deScene.getObjectByName('Trigger_low');
 
-        const magNode = deScene.getObjectByName('Magazine_low');
-        const magBaseNode = deScene.getObjectByName('MagazineBase_low');
-        const baseInsideNode = deScene.getObjectByName('BaseInside_low');
-        [magNode, magBaseNode, baseInsideNode].forEach((node) => {
-          if (node) this.magGroup.attach(node);
-        });
+        this.deMagMeshes = [
+          deScene.getObjectByName('Magazine_low'),
+          deScene.getObjectByName('MagazineBase_low'),
+          deScene.getObjectByName('BaseInside_low'),
+        ].filter(Boolean);
+        this.deMagRestY = this.deMagMeshes.map((m) => m.position.y);
 
         this.pistolModelGroup.add(deScene);
       },
@@ -410,15 +421,15 @@ export class WeaponViewmodel {
         remScene.rotation.y = Math.PI / 2;
         remScene.position.set(0, 0.045, -0.178);
 
-        const pump = remScene.getObjectByName('Pump_low');
-        const pumpRods = remScene.getObjectByName('PumpRods_low');
-        const slideLRods = remScene.getObjectByName('SlideLRods_low');
-        [pump, pumpRods, slideLRods].forEach((node) => {
-          if (node) this.shotgunPumpGroup.attach(node);
-        });
+        this.shotgunPumpMesh = remScene.getObjectByName('Pump_low');
+        this.shotgunPumpRodsMesh = remScene.getObjectByName('PumpRods_low');
+        this.shotgunSlideLRodsMesh = remScene.getObjectByName('SlideLRods_low');
+        this.shotgunBoltMesh = remScene.getObjectByName('Slide_low');
 
-        const boltSlide = remScene.getObjectByName('Slide_low');
-        if (boltSlide) this.shotgunBoltGroup.attach(boltSlide);
+        if (this.shotgunPumpMesh) this.shotgunPumpRestX = this.shotgunPumpMesh.position.x;
+        if (this.shotgunPumpRodsMesh) this.shotgunPumpRodsRestX = this.shotgunPumpRodsMesh.position.x;
+        if (this.shotgunSlideLRodsMesh) this.shotgunSlideLRodsRestX = this.shotgunSlideLRodsMesh.position.x;
+        if (this.shotgunBoltMesh) this.shotgunBoltRestX = this.shotgunBoltMesh.position.x;
 
         const carrierPlate = remScene.getObjectByName('LoadingPlate_low');
         if (carrierPlate) this.shotgunCarrierGroup = carrierPlate;
@@ -651,25 +662,25 @@ export class WeaponViewmodel {
     this.shotgunElbowBone = handData.elbowBone;
 
     // User-tuned Remington 870 pump grip anchor and orientation
-    this.shotgunHandPivot.position.set(-0.084, -0.122, 0.174);
-    this.shotgunHandPivot.rotation.set(2.88, 0.92, 2.14);
+    this.shotgunHandPivot.position.set(-0.088, -0.134, 0.194);
+    this.shotgunHandPivot.rotation.set(2.88, 1.14, 2.1);
     this.shotgunHandPivot.scale.setScalar(0.92);
 
-    // Initial bone delta rotations (wristPitch: -0.18, wristRoll: 0.20, elbowBend: -0.56)
+    // Initial bone delta rotations (wristPitch: -0.08, wristRoll: -0.1, elbowBend: -0.22)
     if (this.shotgunWristBone) {
-      this.shotgunWristBone.userData.pitch = -0.18;
-      this.shotgunWristBone.userData.roll = 0.20;
+      this.shotgunWristBone.userData.pitch = -0.08;
+      this.shotgunWristBone.userData.roll = -0.1;
       this.shotgunWristBone.quaternion.copy(this.shotgunWristBone.userData.restQuat);
       const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-0.18, 0, 0.20, 'XYZ')
+        new THREE.Euler(-0.08, 0, -0.1, 'XYZ')
       );
       this.shotgunWristBone.quaternion.multiply(qDelta);
     }
     if (this.shotgunElbowBone) {
-      this.shotgunElbowBone.userData.bend = -0.56;
+      this.shotgunElbowBone.userData.bend = -0.22;
       this.shotgunElbowBone.quaternion.copy(this.shotgunElbowBone.userData.restQuat);
       const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-0.56, 0, 0, 'XYZ')
+        new THREE.Euler(-0.22, 0, 0, 'XYZ')
       );
       this.shotgunElbowBone.quaternion.multiply(qDelta);
     }
@@ -703,8 +714,8 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
     if (wrist && wrist.userData.restQuat) {
-      const defaultPitch = isPistol ? -0.02 : -0.18;
-      const defaultRoll = isPistol ? -0.02 : 0.20;
+      const defaultPitch = isPistol ? -0.02 : -0.08;
+      const defaultRoll = isPistol ? -0.02 : -0.1;
       wrist.userData.pitch = defaultPitch;
       wrist.userData.roll = defaultRoll;
       wrist.quaternion.copy(wrist.userData.restQuat);
@@ -716,7 +727,7 @@ export class WeaponViewmodel {
       }
     }
     if (elbow && elbow.userData.restQuat) {
-      const defaultBend = isPistol ? -0.02 : -0.56;
+      const defaultBend = isPistol ? -0.02 : -0.22;
       elbow.userData.bend = defaultBend;
       elbow.quaternion.copy(elbow.userData.restQuat);
       if (defaultBend !== 0) {
@@ -726,6 +737,33 @@ export class WeaponViewmodel {
         elbow.quaternion.multiply(qDelta);
       }
     }
+
+    if (this.tunerMode === 'GUN (HIP)') {
+      if (isPistol) {
+        this.pistolHipPosition.set(0.1, -0.1, -0.42);
+        this.pistolHipRotation.set(0.15, 0.04, 0.1);
+      } else {
+        this.shotgunHipPosition.set(0.1, -0.13, -0.042);
+        this.shotgunHipRotation.set(0.1, 0, 0);
+      }
+      const posTarget = isPistol ? this.pistolHipPosition : this.shotgunHipPosition;
+      const rotTarget = isPistol ? this.pistolHipRotation : this.shotgunHipRotation;
+      this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
+      this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
+    } else if (this.tunerMode === 'GUN (ADS)') {
+      if (isPistol) {
+        this.pistolAdsPosition.set(0.000, -0.0973, -0.345);
+        this.pistolAdsRotation.set(0, 0, 0);
+      } else {
+        this.shotgunAdsPosition.set(0, -0.075, -0.09);
+        this.shotgunAdsRotation.set(0, 0, 0);
+      }
+      const posTarget = isPistol ? this.pistolAdsPosition : this.shotgunAdsPosition;
+      const rotTarget = isPistol ? this.pistolAdsRotation : this.shotgunAdsRotation;
+      this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
+      this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
+    }
+
     this._updateHandTunerSliders();
   }
 
@@ -1317,6 +1355,7 @@ export class WeaponViewmodel {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
     }
+    this._updateDesertEagleMagVisuals(0, true);
 
     this.currentWeapon = weaponType;
     const isShotgun = weaponType === 'shotgun';
@@ -1450,6 +1489,15 @@ export class WeaponViewmodel {
     this.triggerMuzzleFlash();
   }
 
+  _updateDesertEagleMagVisuals(dropY, isVisible = true) {
+    if (this.deMagMeshes && this.deMagRestY) {
+      this.deMagMeshes.forEach((mesh, idx) => {
+        mesh.visible = isVisible;
+        mesh.position.y = this.deMagRestY[idx] + dropY * 100;
+      });
+    }
+  }
+
   _updateShotgunPumpVisuals(pumpZ) {
     this.shotgunPumpOffset = pumpZ;
     if (this.shotgunPumpGroup) {
@@ -1457,6 +1505,23 @@ export class WeaponViewmodel {
     }
     if (this.shotgunBoltGroup) {
       this.shotgunBoltGroup.position.z = pumpZ;
+    }
+
+    // In RootNode, pump and rods translate along -X when pumped backward.
+    // Scale conversion: 1 meter = 1 / (0.89 * 0.01) = 112.35955 units in RootNode.
+    const deltaX = pumpZ * 112.35955;
+    const boltDeltaX = deltaX * 0.45;
+    if (this.shotgunPumpMesh && this.shotgunPumpRestX !== undefined) {
+      this.shotgunPumpMesh.position.x = this.shotgunPumpRestX - deltaX;
+    }
+    if (this.shotgunPumpRodsMesh && this.shotgunPumpRodsRestX !== undefined) {
+      this.shotgunPumpRodsMesh.position.x = this.shotgunPumpRodsRestX - deltaX;
+    }
+    if (this.shotgunSlideLRodsMesh && this.shotgunSlideLRodsRestX !== undefined) {
+      this.shotgunSlideLRodsMesh.position.x = this.shotgunSlideLRodsRestX - boltDeltaX;
+    }
+    if (this.shotgunBoltMesh && this.shotgunBoltRestX !== undefined) {
+      this.shotgunBoltMesh.position.x = this.shotgunBoltRestX - boltDeltaX;
     }
   }
 
@@ -1474,12 +1539,12 @@ export class WeaponViewmodel {
         this.sound.playShotgunPump();
       }
 
-      // Rearward stroke: 0 -> 0.064m over 110ms
+      // Rearward stroke: 0 -> 0.038m over 110ms
       this.posSpring.impulse(0, -0.012, 0.032);
       this.rotSpring.impulse(0.035, 0.012, -0.035);
 
       const pullBack = new TWEEN.Tween(pumpState, true)
-        .to({ z: 0.064 }, 110)
+        .to({ z: 0.038 }, 110)
         .easing(TWEEN.Easing.Cubic.Out)
         .onUpdate(() => {
           this._updateShotgunPumpVisuals(pumpState.z);
@@ -1487,7 +1552,7 @@ export class WeaponViewmodel {
         .onComplete(() => {
           if (typeof onEjectShell === 'function') onEjectShell();
 
-          // Forward stroke: 0.064m -> 0 over 105ms
+          // Forward stroke: 0.038m -> 0 over 105ms
           this.posSpring.impulse(0, 0.010, -0.038);
           this.rotSpring.impulse(-0.045, -0.010, 0.030);
 
@@ -1680,6 +1745,7 @@ export class WeaponViewmodel {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
     }
+    this._updateDesertEagleMagVisuals(0, true);
 
     // STAGE 1 — Tilt & Mag Eject (0.00s to 0.35s)
     const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
@@ -1694,8 +1760,12 @@ export class WeaponViewmodel {
       const magDrop = new TWEEN.Tween(this.magGroup.position, true)
         .to({ y: -0.22 }, 320)
         .easing(TWEEN.Easing.Quadratic.In)
+        .onUpdate(() => {
+          this._updateDesertEagleMagVisuals(this.magGroup.position.y, true);
+        })
         .onComplete(() => {
           this.magGroup.visible = false;
+          this._updateDesertEagleMagVisuals(this.magGroup.position.y, false);
         });
       this.reloadTweens.push(magDrop);
       magDrop.start();
@@ -1708,12 +1778,17 @@ export class WeaponViewmodel {
       if (this.magGroup) {
         this.magGroup.position.set(0, -0.22, 0);
         this.magGroup.visible = true;
+        this._updateDesertEagleMagVisuals(-0.22, true);
 
         const magInsert = new TWEEN.Tween(this.magGroup.position, true)
           .to({ y: 0 }, 450)
           .easing(TWEEN.Easing.Back.Out)
+          .onUpdate(() => {
+            this._updateDesertEagleMagVisuals(this.magGroup.position.y, true);
+          })
           .onComplete(() => {
             this.magGroup.position.set(0, 0, 0);
+            this._updateDesertEagleMagVisuals(0, true);
             this.posSpring.impulse(0, 0.065, 0);
             this.rotSpring.impulse(0.020, 0, 0.040);
             if (this.sound) this.sound.playMagIn();
@@ -1875,7 +1950,7 @@ export class WeaponViewmodel {
 
       const pumpObj = { z: 0 };
       const pumpStroke = new TWEEN.Tween(pumpObj, true)
-        .to({ z: 0.064 }, 110)
+        .to({ z: 0.038 }, 110)
         .easing(TWEEN.Easing.Cubic.Out)
         .onUpdate(() => {
           this._updateShotgunPumpVisuals(pumpObj.z);
@@ -1943,6 +2018,7 @@ export class WeaponViewmodel {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
     }
+    this._updateDesertEagleMagVisuals(0, true);
     this._updateShotgunPumpVisuals(0);
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
     if (this.shotgunLeftHandGroup) {
