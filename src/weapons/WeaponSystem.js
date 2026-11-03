@@ -145,8 +145,14 @@ export class WeaponSystem {
     this.sound = soundManager;
     this.player = player;
 
-    this.currentWeapon = 'pistol';
+    this.currentWeapon = 'cz_p10s';
     this.weapons = {
+      cz_p10s: {
+        currentAmmo: 12,
+        maxAmmo: 12,
+        fireRate: 0.18,
+        isSlideLocked: false,
+      },
       pistol: {
         currentAmmo: 7,
         maxAmmo: 7,
@@ -161,15 +167,16 @@ export class WeaponSystem {
       },
     };
 
-    this.fireRate = 0.45;
+    this.fireRate = 0.18;
     this.fireTimer = 0;
     this.wasMouseDown0 = false;
 
-    this.maxAmmo = 7;
-    this.currentAmmo = 7;
+    this.maxAmmo = 12;
+    this.currentAmmo = 12;
     this.isReloading = false;
     this.isSlideLocked = false;
     this.hud = null;
+    if (typeof window !== 'undefined') window.__rocWeaponSystem = this;
 
     this.colliderMesh = null;
     this.boxManager = null;
@@ -268,15 +275,17 @@ export class WeaponSystem {
   }
 
   /**
-   * Switches between Slot 1 ('pistol' - .50 AE Desert Eagle)
-   * and Slot 2 ('shotgun' - Winchester Model 1912 12-Gauge).
+   * Switches between Slot 1 ('cz_p10s' - 9mm CZ P-10S),
+   * Slot 2 ('pistol' - .50 AE Desert Eagle),
+   * and Slot 3 ('shotgun' - Remington 870 12-Gauge).
    */
   switchWeapon(weaponType, force = false) {
     const canSwitch = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
     if (!canSwitch) return;
-    if (weaponType === 1 || weaponType === '1') weaponType = 'pistol';
-    if (weaponType === 2 || weaponType === '2') weaponType = 'shotgun';
-    if (weaponType !== 'pistol' && weaponType !== 'shotgun') return;
+    if (weaponType === 1 || weaponType === '1') weaponType = 'cz_p10s';
+    if (weaponType === 2 || weaponType === '2') weaponType = 'pistol';
+    if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
+    if (weaponType !== 'cz_p10s' && weaponType !== 'pistol' && weaponType !== 'shotgun') return;
     if (this.currentWeapon === weaponType) return;
 
     // 1. Persist current weapon state
@@ -288,13 +297,16 @@ export class WeaponSystem {
 
     // 2. Cancel any active reload and load target weapon state
     this.isReloading = false;
+    if (this.sound && typeof this.sound.stopActionSounds === 'function') {
+      this.sound.stopActionSounds();
+    }
     this.currentWeapon = weaponType;
     const nextState = this.weapons[weaponType];
     this.currentAmmo = nextState.currentAmmo;
     this.maxAmmo = nextState.maxAmmo;
     this.fireRate = nextState.fireRate;
     this.isSlideLocked = nextState.isSlideLocked;
-    this.fireTimer = 0.22; // Brief equip readiness delay
+    this.fireTimer = 0.18; // Brief equip readiness delay
 
     // 3. Switch 3D viewmodel & ADS state
     if (this.viewmodel) {
@@ -302,7 +314,7 @@ export class WeaponSystem {
         this.viewmodel.setADS(false);
       }
       this.viewmodel.switchWeapon(weaponType);
-      if (weaponType === 'pistol') {
+      if (weaponType === 'cz_p10s' || weaponType === 'pistol') {
         this.viewmodel.setSlideLocked(this.isSlideLocked);
       }
     }
@@ -360,14 +372,14 @@ export class WeaponSystem {
         this.isReloading = false;
         this.weapons[this.currentWeapon].currentAmmo = this.maxAmmo;
         this.weapons[this.currentWeapon].isSlideLocked = false;
-        if (this.currentWeapon === 'pistol') {
+        if (this.currentWeapon === 'cz_p10s' || this.currentWeapon === 'pistol') {
           this.viewmodel.setSlideLocked(false);
         }
 
         if (this.hud) {
           this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
           this.hud.setEmptyState(false);
-          if (this.currentWeapon === 'pistol') {
+          if (this.currentWeapon === 'pistol' || this.currentWeapon === 'cz_p10s') {
             this.hud.onReloadComplete(ammoBeforeReload);
           }
         }
@@ -444,6 +456,19 @@ export class WeaponSystem {
       return mesh;
     }, 15);
 
+    // 3a. Pooled 9mm Luger Brass Shell Casings (24 items)
+    const casing9mmGeo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.019, 10);
+    this.casing9mmPool = new ObjectPool(() => {
+      const mesh = new THREE.Mesh(casing9mmGeo, this.casingMaterial);
+      mesh.name = 'ShellCasing9mm';
+      mesh._velocity = new THREE.Vector3();
+      mesh._rotVelocity = new THREE.Vector3();
+      mesh._life = 0;
+      mesh.visible = false;
+      this.scene.add(mesh);
+      return mesh;
+    }, 24);
+
     // 3b. Pooled Red 12-Gauge Shotgun Shells with Brass Base (15 items)
     const shellHullGeo = new THREE.CylinderGeometry(0.0095, 0.0095, 0.042, 12);
     const shellBrassGeo = new THREE.CylinderGeometry(0.0098, 0.0098, 0.015, 12);
@@ -519,14 +544,34 @@ export class WeaponSystem {
       this.fireTimer -= delta;
     }
 
-    // 3b. Weapon Slot Switching (Key 1 = .50 AE Pistol, Key 2 = Winchester Model 1912 Shotgun)
+    // 3b. Weapon Slot Switching (Key 1 = 9mm CZ P-10S, Key 2 = .50 AE Desert Eagle, Key 3 = Remington 870 Shotgun)
     if (this.input.consumeKeyJustPressed('Digit1') || this.input.consumeKeyJustPressed('1')) {
-      this.switchWeapon('pistol');
+      this.switchWeapon('cz_p10s');
       return;
     }
     if (this.input.consumeKeyJustPressed('Digit2') || this.input.consumeKeyJustPressed('2')) {
+      this.switchWeapon('pistol');
+      return;
+    }
+    if (this.input.consumeKeyJustPressed('Digit3') || this.input.consumeKeyJustPressed('3')) {
       this.switchWeapon('shotgun');
       return;
+    }
+
+    // 3c. Mouse Wheel Cycling
+    if (typeof this.input.consumeWheelDelta === 'function') {
+      const wheelDelta = this.input.consumeWheelDelta();
+      if (wheelDelta !== 0) {
+        const order = ['cz_p10s', 'pistol', 'shotgun'];
+        const curIdx = order.indexOf(this.currentWeapon);
+        if (curIdx !== -1) {
+          const nextIdx = wheelDelta > 0
+            ? (curIdx + 1) % order.length
+            : (curIdx - 1 + order.length) % order.length;
+          this.switchWeapon(order[nextIdx]);
+          return;
+        }
+      }
     }
 
     // 4. Manual KeyR Reload check
@@ -621,6 +666,33 @@ export class WeaponSystem {
         casing._rotVelocity.multiplyScalar(0.60);
       }
     });
+
+    // 3a. Update Pooled Brass 9mm Shell Casings
+    if (this.casing9mmPool) {
+      this.casing9mmPool.forEachActive((casing) => {
+        casing._life -= delta;
+        if (casing._life <= 0) {
+          casing.visible = false;
+          this.casing9mmPool.release(casing);
+          return;
+        }
+
+        casing._velocity.y -= 14.0 * delta;
+        casing.position.addScaledVector(casing._velocity, delta);
+
+        casing.rotation.x += casing._rotVelocity.x * delta;
+        casing.rotation.y += casing._rotVelocity.y * delta;
+        casing.rotation.z += casing._rotVelocity.z * delta;
+
+        if (casing.position.y < 0.012) {
+          casing.position.y = 0.012;
+          casing._velocity.y = -casing._velocity.y * 0.38;
+          casing._velocity.x *= 0.65;
+          casing._velocity.z *= 0.65;
+          casing._rotVelocity.multiplyScalar(0.62);
+        }
+      });
+    }
 
     // 3b. Update Pooled Red 12-Gauge Shotgun Hulls (Gravity + tumbling + bounce)
     if (this.shotgunShellPool) {
@@ -720,7 +792,7 @@ export class WeaponSystem {
     if (this.currentAmmo === 0) {
       this.fireTimer = 0.22; // Cadence for dead trigger click
       if (this.sound) {
-        this.sound.playDryFireClick();
+        this.sound.playDryFireClick(this.currentWeapon);
       }
       if (this.viewmodel) {
         this.viewmodel.playDryFireTwitch();
@@ -736,9 +808,12 @@ export class WeaponSystem {
     this.fireTimer = this.fireRate;
 
     const isShotgun = this.currentWeapon === 'shotgun';
+    const isCZ = this.currentWeapon === 'cz_p10s';
 
     if (this.sound) {
-      if (isShotgun && typeof this.sound.playShotgunBlast === 'function') {
+      if (isCZ && typeof this.sound.play9mmGunshot === 'function') {
+        this.sound.play9mmGunshot();
+      } else if (isShotgun && typeof this.sound.playShotgunBlast === 'function') {
         this.sound.playShotgunBlast();
       } else {
         this.sound.playGunshot();
@@ -750,13 +825,15 @@ export class WeaponSystem {
     if (this.player && typeof this.player.applyCameraRecoil === 'function') {
       const pitchKick = isShotgun
         ? (this.viewmodel && this.viewmodel.isADS ? 0.036 : 0.062)
-        : (this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042);
+        : (isCZ
+          ? (this.viewmodel && this.viewmodel.isADS ? 0.012 : 0.022)
+          : (this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042));
       this.player.applyCameraRecoil(pitchKick);
     }
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this.muzzleLight.intensity = isShotgun ? 8.5 : 6.0;
+    this.muzzleLight.intensity = isShotgun ? 8.5 : (isCZ ? 4.5 : 6.0);
     this.muzzleLight.visible = true;
     this.flashDuration = 0.045;
 
@@ -775,12 +852,12 @@ export class WeaponSystem {
         this.hud.setEmptyState(true);
       }
     } else {
-      this._ejectShellCasing('pistol');
+      this._ejectShellCasing(this.currentWeapon);
       this._performHitscan();
 
       if (this.currentAmmo === 0) {
         this.isSlideLocked = true;
-        this.weapons.pistol.isSlideLocked = true;
+        this.weapons[this.currentWeapon].isSlideLocked = true;
         if (this.viewmodel) {
           this.viewmodel.setSlideLocked(true);
         }
@@ -807,7 +884,12 @@ export class WeaponSystem {
       ejectPos.copy(this.camera.position);
     }
 
-    const pool = weaponType === 'shotgun' && this.shotgunShellPool ? this.shotgunShellPool : this.casingPool;
+    let pool = this.casingPool;
+    if (weaponType === 'shotgun' && this.shotgunShellPool) {
+      pool = this.shotgunShellPool;
+    } else if (weaponType === 'cz_p10s' && this.casing9mmPool) {
+      pool = this.casing9mmPool;
+    }
     const casing = pool.acquire();
     casing.visible = true;
     casing.position.copy(ejectPos);
@@ -1148,15 +1230,17 @@ export class WeaponSystem {
   reset() {
     TWEEN.removeAll();
 
-    this.currentWeapon = 'pistol';
+    this.currentWeapon = 'cz_p10s';
+    this.weapons.cz_p10s.currentAmmo = 12;
+    this.weapons.cz_p10s.isSlideLocked = false;
     this.weapons.pistol.currentAmmo = 7;
     this.weapons.pistol.isSlideLocked = false;
     this.weapons.shotgun.currentAmmo = 6;
     this.weapons.shotgun.isSlideLocked = false;
 
-    this.maxAmmo = 7;
-    this.currentAmmo = 7;
-    this.fireRate = 0.45;
+    this.maxAmmo = 12;
+    this.currentAmmo = 12;
+    this.fireRate = 0.18;
     this.isReloading = false;
     this.isSlideLocked = false;
     this.fireTimer = 0;
@@ -1202,6 +1286,13 @@ export class WeaponSystem {
       casing.visible = false;
     });
     this.casingPool.releaseAll();
+
+    if (this.casing9mmPool) {
+      this.casing9mmPool.forEachActive((casing) => {
+        casing.visible = false;
+      });
+      this.casing9mmPool.releaseAll();
+    }
 
     if (this.shotgunShellPool) {
       this.shotgunShellPool.forEachActive((shell) => {

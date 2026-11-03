@@ -12,6 +12,11 @@ export class SoundManager {
     this.menuMusicTargetVolume = 0.40;
     this._fadeRaf = null;
 
+    this.audioBuffers = new Map();
+    this.activeActionSources = new Set();
+    this.isSampleReloadActive = false;
+    this.lastDryFireTime = 0;
+
     this._initAudio();
     this._initMenuMusic();
   }
@@ -120,6 +125,9 @@ export class SoundManager {
     this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
     this.masterGain.connect(this.ctx.destination);
 
+    // Preload & decode authentic weapon audio samples into AudioBuffers
+    this._preloadAudioBuffers();
+
     // Auto-resume audio on first user gesture
     const resumeOnGesture = () => {
       if (this.ctx && this.ctx.state === 'suspended') {
@@ -130,6 +138,114 @@ export class SoundManager {
     };
     window.addEventListener('click', resumeOnGesture);
     window.addEventListener('keydown', resumeOnGesture);
+  }
+
+  /**
+   * Preload and decode authentic weapon audio samples (9mm, .50 AE, 12-gauge).
+   */
+  async _preloadAudioBuffers() {
+    if (!this.ctx) return;
+    const soundFiles = {
+      '9mm_fire': './sounds/9mm_fire.mp3',
+      '9mm_reload': './sounds/9mm_reload.mp3',
+      '9mm_dryfire': './sounds/9mm_dryfire.mp3',
+      'desert_eagle_fire': './sounds/desert_eagle_fire.mp3',
+      'remington_870_fire': './sounds/remington_870_fire.mp3',
+      'remington_870_pump': './sounds/remington_870_pump.mp3',
+    };
+
+    for (const [key, url] of Object.entries(soundFiles)) {
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) continue;
+        const arrayBuffer = await resp.arrayBuffer();
+        const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+        this.audioBuffers.set(key, audioBuffer);
+      } catch (err) {
+        console.warn(`[SoundManager] Could not load sample ${url}, using procedural synth fallback:`, err);
+      }
+    }
+  }
+
+  /**
+   * Helper to play an AudioBuffer with pitch randomization and gain staging.
+   * If isAction = true, tracked so it can be interrupted/cancelled on weapon switch.
+   */
+  _playSoundBuffer(bufferKey, options = {}) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return null;
+    this.resume();
+
+    const buffer = this.audioBuffers.get(bufferKey);
+    if (!buffer) return null;
+
+    const {
+      volume = 1.0,
+      playbackRate = 1.0,
+      isAction = false,
+    } = options;
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.setValueAtTime(playbackRate, this.ctx.currentTime);
+
+    const gainNode = this.ctx.createGain();
+    gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+
+    source.connect(gainNode);
+    gainNode.connect(this.masterGain);
+
+    if (isAction) {
+      this.activeActionSources.add(source);
+      source.onended = () => {
+        this.activeActionSources.delete(source);
+      };
+    }
+
+    source.start(0);
+    return source;
+  }
+
+  /**
+   * Cancel and immediately stop any active reload or pump action sounds.
+   * Called on weapon switch or viewmodel reset to avoid audio ghosting.
+   */
+  stopActionSounds() {
+    this.isSampleReloadActive = false;
+    for (const source of this.activeActionSources) {
+      try {
+        source.stop();
+        source.disconnect();
+      } catch (e) {}
+    }
+    this.activeActionSources.clear();
+  }
+
+  /**
+   * Authentic Reload Audio Sequence (9mm_reload.mp3).
+   * Synchronized for CZ P-10S (~0.75s cycle at 2.13x) or Desert Eagle (.50 AE at 0.90x).
+   */
+  playReloadSound(weaponType = 'cz_p10s') {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return false;
+    this.resume();
+
+    if (this.audioBuffers.has('9mm_reload')) {
+      const isPistol = weaponType === 'pistol';
+      const playbackRate = isPistol ? 0.90 : 2.13;
+      const volume = isPistol ? 1.05 : 0.95;
+
+      this.stopActionSounds();
+      this.isSampleReloadActive = true;
+      const src = this._playSoundBuffer('9mm_reload', { volume, playbackRate, isAction: true });
+      if (src) {
+        src.onended = () => {
+          this.activeActionSources.delete(src);
+          this.isSampleReloadActive = false;
+        };
+        return true;
+      }
+    }
+    this.isSampleReloadActive = false;
+    return false;
   }
 
   resume() {
@@ -164,6 +280,14 @@ export class SoundManager {
   playGunshot() {
     if (!this.ctx || this.isMuted) return;
     this.resume();
+
+    // Authentic sample playback (.50 AE Desert Eagle)
+    if (this.audioBuffers.has('desert_eagle_fire')) {
+      const playbackRate = 0.95 + Math.random() * 0.08; // 0.95 to 1.03
+      this._playSoundBuffer('desert_eagle_fire', { volume: 1.18, playbackRate });
+      return;
+    }
+
     const t = this.ctx.currentTime;
 
     // 1. LAYER 1: Low-End Sub Punch (150Hz -> 28Hz over 0.12s, high gain)
@@ -230,6 +354,122 @@ export class SoundManager {
 
       clack.start(clackTime);
       clack.stop(clackTime + 0.05);
+    }
+  }
+
+  /**
+   * Tactical 9mm Pistol Gunshot (CZ P-10S - Slot 1).
+   * Snappy supersonic crack, lighter transient sub-thump, and crisp slide cycle.
+   */
+  play9mmGunshot() {
+    if (!this.ctx || this.isMuted) return;
+    this.resume();
+
+    // Authentic sample playback (9mm CZ P-10S)
+    if (this.audioBuffers.has('9mm_fire')) {
+      const playbackRate = 0.96 + Math.random() * 0.08; // 0.96 to 1.04
+      this._playSoundBuffer('9mm_fire', { volume: 0.95, playbackRate });
+      return;
+    }
+
+    const t = this.ctx.currentTime;
+
+    // 1. LAYER 1: Punchy Sub Thump (220Hz -> 45Hz over 0.08s)
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(220, t);
+    subOsc.frequency.exponentialRampToValueAtTime(45, t + 0.08);
+
+    subGain.gain.setValueAtTime(0.85, t);
+    subGain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+
+    subOsc.start(t);
+    subOsc.stop(t + 0.095);
+
+    // 2. LAYER 2: Crisp 9mm Supersonic Crack & Muzzle Bark (4800Hz -> 850Hz over 0.24s)
+    const noiseBuffer = this._createNoiseBuffer(0.26);
+    if (noiseBuffer) {
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(4800, t);
+      filter.frequency.exponentialRampToValueAtTime(850, t + 0.22);
+      filter.Q.setValueAtTime(2.8, t);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.80, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+
+      noise.connect(filter);
+      filter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noise.start(t);
+      noise.stop(t + 0.25);
+    }
+
+    // 3. LAYER 3: Snappy Mechanical Slide Reciprocation (2400Hz bandpass burst at 55ms)
+    const clackDelay = 0.055;
+    const clackTime = t + clackDelay;
+    const clackBuffer = this._createNoiseBuffer(0.04);
+    if (clackBuffer) {
+      const clack = this.ctx.createBufferSource();
+      clack.buffer = clackBuffer;
+
+      const clackFilter = this.ctx.createBiquadFilter();
+      clackFilter.type = 'bandpass';
+      clackFilter.frequency.setValueAtTime(2400, clackTime);
+      clackFilter.Q.setValueAtTime(5.0, clackTime);
+
+      const clackGain = this.ctx.createGain();
+      clackGain.gain.setValueAtTime(0.0, t);
+      clackGain.gain.setValueAtTime(0.48, clackTime);
+      clackGain.gain.exponentialRampToValueAtTime(0.001, clackTime + 0.038);
+
+      clack.connect(clackFilter);
+      clackFilter.connect(clackGain);
+      clackGain.connect(this.masterGain);
+
+      clack.start(clackTime);
+      clack.stop(clackTime + 0.04);
+    }
+  }
+
+  /**
+   * Crisp 9mm Slide Rack / Battery Lock sound
+   */
+  play9mmSlideRack() {
+    if (this.isSampleReloadActive) return;
+    if (!this.ctx || this.isMuted) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const noiseBuffer = this._createNoiseBuffer(0.08);
+    if (noiseBuffer) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(2200, t);
+      filter.Q.setValueAtTime(4.0, t);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.42, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
+
+      src.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      src.start(t);
+      src.stop(t + 0.075);
     }
   }
 
@@ -350,12 +590,30 @@ export class SoundManager {
   }
 
   /**
-   * 1. Crisp 25ms high-pass filtered impulse at 2400Hz paired with short 650Hz metallic pin tick.
-   * Instantly recognizable as an empty chamber click.
+   * 1. Authentic or Procedural Dry-Fire Empty Chamber Click.
+   * Cooldown (~150ms) prevents distorted phasing on rapid spam.
+   * Distinct pitch for 9mm (1.0), .50 AE (0.90), and 12-gauge (0.85).
    */
-  playDryFireClick() {
+  playDryFireClick(weaponType = 'cz_p10s') {
     if (!this.ctx || this.isMuted) return;
     this.resume();
+
+    const now = performance.now();
+    if (now - this.lastDryFireTime < 150) return;
+    this.lastDryFireTime = now;
+
+    // Authentic sample playback (9mm_dryfire.mp3)
+    if (this.audioBuffers.has('9mm_dryfire')) {
+      let playbackRate = 1.0;
+      if (weaponType === 'shotgun') {
+        playbackRate = 0.85;
+      } else if (weaponType === 'pistol') {
+        playbackRate = 0.90;
+      }
+      this._playSoundBuffer('9mm_dryfire', { volume: 0.85, playbackRate });
+      return;
+    }
+
     const t = this.ctx.currentTime;
 
     // High-pass filtered impulse (25ms)
@@ -403,6 +661,7 @@ export class SoundManager {
    * 2. 1700Hz metallic mag-catch click followed by 110ms bandpass friction slide (900Hz -> 400Hz).
    */
   playMagOut() {
+    if (this.isSampleReloadActive) return;
     if (!this.ctx || this.isMuted) return;
     this.resume();
     const t = this.ctx.currentTime;
@@ -452,6 +711,7 @@ export class SoundManager {
    * 3. Friction slide up (400Hz to 800Hz) ending in heavy 160Hz low-end palm slap and sharp 2200Hz steel latch click.
    */
   playMagIn() {
+    if (this.isSampleReloadActive) return;
     if (!this.ctx || this.isMuted) return;
     this.resume();
     const t = this.ctx.currentTime;
@@ -520,6 +780,7 @@ export class SoundManager {
    * and 2800Hz high-metallic chamber lock snap.
    */
   playSlideRelease() {
+    if (this.isSampleReloadActive) return;
     if (!this.ctx || this.isMuted) return;
     this.resume();
     const t = this.ctx.currentTime;
@@ -1162,6 +1423,14 @@ export class SoundManager {
   playShotgunBlast() {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
+
+    // Authentic sample playback (Remington 870 12-gauge blast)
+    if (this.audioBuffers.has('remington_870_fire')) {
+      const playbackRate = 0.96 + Math.random() * 0.08; // 0.96 to 1.04
+      this._playSoundBuffer('remington_870_fire', { volume: 1.10, playbackRate });
+      return;
+    }
+
     const t = this.ctx.currentTime;
 
     // 1. Deep 12-Gauge Sub-Bass Concussion Boom
@@ -1230,6 +1499,13 @@ export class SoundManager {
   playShotgunPump() {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
+
+    // Authentic sample playback (Remington 870 mechanical pump-action cycle)
+    if (this.audioBuffers.has('remington_870_pump')) {
+      this._playSoundBuffer('remington_870_pump', { volume: 1.05, playbackRate: 1.0, isAction: true });
+      return;
+    }
+
     const t = this.ctx.currentTime;
 
     const noiseBuffer = this._createNoiseBuffer(0.28);
@@ -1355,12 +1631,15 @@ export class SoundManager {
   }
 
   /**
-   * Tactical Weapon Equip / Switch SFX (Keys 1 & 2).
+   * Tactical Weapon Equip / Switch SFX (Keys 1, 2, & 3).
    */
-  playWeaponSwitch(toShotgun = false) {
+  playWeaponSwitch(weaponType = 'cz_p10s') {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
     const t = this.ctx.currentTime;
+
+    const isShotgun = weaponType === 'shotgun' || weaponType === true || weaponType === 3 || weaponType === '3';
+    const is9mm = weaponType === 'cz_p10s' || weaponType === 1 || weaponType === '1';
 
     const noiseBuffer = this._createNoiseBuffer(0.14);
     if (noiseBuffer) {
@@ -1369,8 +1648,10 @@ export class SoundManager {
 
       const filter = this.ctx.createBiquadFilter();
       filter.type = 'bandpass';
-      filter.frequency.setValueAtTime(toShotgun ? 480 : 650, t);
-      filter.frequency.exponentialRampToValueAtTime(toShotgun ? 1150 : 1550, t + 0.11);
+      const startFreq = isShotgun ? 480 : (is9mm ? 820 : 650);
+      const endFreq = isShotgun ? 1150 : (is9mm ? 1850 : 1550);
+      filter.frequency.setValueAtTime(startFreq, t);
+      filter.frequency.exponentialRampToValueAtTime(endFreq, t + 0.11);
       filter.Q.setValueAtTime(1.8, t);
 
       const gain = this.ctx.createGain();
@@ -1389,8 +1670,10 @@ export class SoundManager {
     const clinkOsc = this.ctx.createOscillator();
     const clinkGain = this.ctx.createGain();
     clinkOsc.type = 'triangle';
-    clinkOsc.frequency.setValueAtTime(toShotgun ? 920 : 1380, clinkTime);
-    clinkOsc.frequency.exponentialRampToValueAtTime(toShotgun ? 310 : 520, clinkTime + 0.035);
+    const clickStart = isShotgun ? 920 : (is9mm ? 1650 : 1380);
+    const clickEnd = isShotgun ? 310 : (is9mm ? 650 : 520);
+    clinkOsc.frequency.setValueAtTime(clickStart, clinkTime);
+    clinkOsc.frequency.exponentialRampToValueAtTime(clickEnd, clinkTime + 0.035);
 
     clinkGain.gain.setValueAtTime(0.001, t);
     clinkGain.gain.setValueAtTime(0.24, clinkTime);

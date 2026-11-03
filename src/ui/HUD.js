@@ -12,9 +12,9 @@ export class HUD {
     this.reloadPromptEl = null;
     this.bulletPips = [];
 
-    this.currentWeapon = 'pistol';
-    this.currentAmmo = 7;
-    this.maxAmmo = 7;
+    this.currentWeapon = 'cz_p10s';
+    this.currentAmmo = 12;
+    this.maxAmmo = 12;
     this._lastReportedAmmo = null;
     this._lastReportedMax = null;
     this.isPulsing = false;
@@ -47,7 +47,7 @@ export class HUD {
     });
     uiLayer.appendChild(this.reloadPromptEl);
 
-    // 2. Bottom-Right Tactical Weapon & Ammo Panel (.50 AE / 12 GAUGE)
+    // 2. Bottom-Right Tactical Weapon & Ammo Panel (9MM / .50 AE / 12 GAUGE)
     this.ammoPanelEl = document.createElement('div');
     this.ammoPanelEl.id = 'hud-ammo-panel';
     this.ammoPanelEl.className = 'hud-ammo-panel';
@@ -55,14 +55,14 @@ export class HUD {
       <div class="panel-header">
         <div class="caliber-tag">
           <span class="status-led"></span>
-          <span id="hud-caliber-text">.50 AE</span>
+          <span id="hud-caliber-text">9MM</span>
         </div>
         <div id="hud-mode-tag" class="mode-tag">SEMI-AUTO</div>
       </div>
 
       <div class="panel-body">
         <div class="numeric-readout">
-          <span id="hud-ammo-current" class="ammo-num">7</span>
+          <span id="hud-ammo-current" class="ammo-num">12</span>
           <span class="ammo-divider">/</span>
           <span class="ammo-reserve">∞</span>
         </div>
@@ -82,8 +82,10 @@ export class HUD {
   }
 
   /**
-   * Switches the HUD between Weapon 1 ('pistol' - .50 AE, 7 brass cartridges)
-   * and Weapon 2 ('shotgun' - 12 GAUGE, 6 red shotshells).
+   * Switches the HUD between:
+   * - Slot 1: 'cz_p10s' (9MM - 12 compact cartridges)
+   * - Slot 2: 'pistol' (.50 AE - 7 heavy brass cartridges)
+   * - Slot 3: 'shotgun' (12 GAUGE - 6 red shotshells)
    */
   setWeapon(weaponType, currentAmmo, maxAmmo) {
     this.currentWeapon = weaponType;
@@ -92,12 +94,17 @@ export class HUD {
     this._lastReportedAmmo = null;
     this._lastReportedMax = null;
 
-    const isShotgun = weaponType === 'shotgun';
     if (this.caliberTextEl) {
-      this.caliberTextEl.textContent = isShotgun ? '12 GAUGE' : '.50 AE';
+      if (weaponType === 'cz_p10s') {
+        this.caliberTextEl.textContent = '9MM';
+      } else if (weaponType === 'shotgun') {
+        this.caliberTextEl.textContent = '12 GAUGE';
+      } else {
+        this.caliberTextEl.textContent = '.50 AE';
+      }
     }
     if (this.modeTagEl) {
-      this.modeTagEl.textContent = isShotgun ? 'PUMP-ACTION' : 'SEMI-AUTO';
+      this.modeTagEl.textContent = weaponType === 'shotgun' ? 'PUMP-ACTION' : 'SEMI-AUTO';
     }
 
     this._buildBulletPips();
@@ -109,23 +116,34 @@ export class HUD {
     this.pipsContainerEl.innerHTML = '';
 
     const isShotgun = this.currentWeapon === 'shotgun';
+    const is9mm = this.currentWeapon === 'cz_p10s';
 
     for (let i = 0; i < this.maxAmmo; i++) {
       const pip = document.createElement('div');
-      pip.className = isShotgun ? 'bullet-pip shotshell-pip' : 'bullet-pip';
-      pip.dataset.index = i;
-      pip.innerHTML = isShotgun
-        ? `
+      if (isShotgun) {
+        pip.className = 'bullet-pip shotshell-pip';
+        pip.innerHTML = `
           <div class="shell-crimp"></div>
           <div class="shell-hull"></div>
           <div class="shell-brass"></div>
           <div class="shell-rim"></div>
-        `
-        : `
+        `;
+      } else if (is9mm) {
+        pip.className = 'bullet-pip pip-9mm';
+        pip.innerHTML = `
+          <div class="pip-9mm-ogive"></div>
+          <div class="pip-9mm-casing"></div>
+          <div class="pip-9mm-rim"></div>
+        `;
+      } else {
+        pip.className = 'bullet-pip';
+        pip.innerHTML = `
           <div class="pip-ogive"></div>
           <div class="pip-casing"></div>
           <div class="pip-rim"></div>
         `;
+      }
+      pip.dataset.index = i;
       this.pipsContainerEl.appendChild(pip);
       this.bulletPips.push(pip);
     }
@@ -310,7 +328,7 @@ export class HUD {
   }
 
   reset() {
-    this.setWeapon('pistol', 7, 7);
+    this.setWeapon('cz_p10s', 12, 12);
 
     if (this.reloadPromptEl) {
       this.reloadPromptEl.classList.add('hidden');
@@ -323,7 +341,7 @@ export class HUD {
     }
 
     if (this.ammoCountEl) {
-      this.ammoCountEl.textContent = '7';
+      this.ammoCountEl.textContent = '12';
       this.ammoCountEl.style.transform = '';
     }
 

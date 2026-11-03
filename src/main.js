@@ -351,10 +351,14 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', (e) => {
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
     if (e.code === 'Digit1' || e.key === '1') {
-      weaponSystem.switchWeapon('pistol');
+      weaponSystem.switchWeapon('cz_p10s');
       return;
     }
     if (e.code === 'Digit2' || e.key === '2') {
+      weaponSystem.switchWeapon('pistol');
+      return;
+    }
+    if (e.code === 'Digit3' || e.key === '3') {
       weaponSystem.switchWeapon('shotgun');
       return;
     }

@@ -18,6 +18,9 @@ export class InputManager {
     // Mouse buttons (0 = LMB, 2 = RMB)
     this.mouseButtons = {};
 
+    // Mouse wheel delta
+    this.wheelDelta = 0;
+
     // Reusable delta object to avoid GC
     this._deltaOutput = { x: 0, y: 0 };
 
@@ -82,6 +85,12 @@ export class InputManager {
       this.mouseDeltaY += e.movementY || 0;
     });
 
+    // Mouse scroll wheel for weapon switching
+    window.addEventListener('wheel', (e) => {
+      if (!this.isLocked) return;
+      this.wheelDelta += e.deltaY;
+    }, { passive: true });
+
     // Pointer Lock change events
     document.addEventListener('pointerlockchange', () => {
       const locked = document.pointerLockElement === this.canvas;
@@ -107,6 +116,7 @@ export class InputManager {
     this.mouseButtons = {};
     this.mouseDeltaX = 0;
     this.mouseDeltaY = 0;
+    this.wheelDelta = 0;
   }
 
   requestLock() {
@@ -151,6 +161,15 @@ export class InputManager {
 
   isMouseDown(button) {
     return !!this.mouseButtons[button];
+  }
+
+  /**
+   * Consumes accumulated mouse wheel delta and resets internal value.
+   */
+  consumeWheelDelta() {
+    const d = this.wheelDelta;
+    this.wheelDelta = 0;
+    return d;
   }
 
   /**

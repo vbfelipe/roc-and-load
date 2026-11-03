@@ -875,7 +875,7 @@
     /* 7 Bullet Visual Pips */
     .bullet-pips-row {
       display: flex;
-      gap: 3.5px;
+      gap: 2.5px;
       align-items: flex-end;
       height: 25px;
       padding-bottom: 2px;
@@ -913,6 +913,37 @@
       height: 3px;
       background: #92400e;
       border-radius: 1px;
+      transition: all 0.16s ease-out;
+    }
+
+    /* 12 Compact 9mm Luger Bullet Pips (CZ P-10S - Slot 1) */
+    .bullet-pip.pip-9mm {
+      width: 5.5px;
+      height: 20px;
+    }
+
+    .pip-9mm-ogive {
+      width: 4.0px;
+      height: 5.5px;
+      background: linear-gradient(180deg, #fdba74 0%, #ea580c 55%, #9a3412 100%);
+      border-radius: 2px 2px 0 0;
+      box-shadow: 0 0 3px rgba(234, 88, 12, 0.45);
+      transition: all 0.16s ease-out;
+    }
+
+    .pip-9mm-casing {
+      width: 4.8px;
+      height: 11.5px;
+      background: linear-gradient(90deg, #b45309 0%, #fde047 40%, #eab308 75%, #78350f 100%);
+      border-radius: 0.5px;
+      transition: all 0.16s ease-out;
+    }
+
+    .pip-9mm-rim {
+      width: 5.5px;
+      height: 2.2px;
+      background: #78350f;
+      border-radius: 0.5px;
       transition: all 0.16s ease-out;
     }
 
