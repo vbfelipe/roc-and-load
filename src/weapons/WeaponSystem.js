@@ -247,7 +247,7 @@ export class WeaponSystem {
 
     // Muzzle Flash PointLight (Warm fiery pulse 0xff6600, 6.0 intensity, 3.5m range)
     this.muzzleLight = new THREE.PointLight(0xff6600, 0, 3.5, 2.0);
-    this.muzzleLight.visible = false; // Strictly hidden when not firing to bypass Three.js PBR shader loops!
+    this.muzzleLight.visible = true; // Kept permanently visible to eliminate Three.js shader re-compilation freezes!
     this.scene.add(this.muzzleLight);
     this.flashDuration = 0;
     this._lastCrosshairHidden = null;
@@ -636,7 +636,6 @@ export class WeaponSystem {
       this.flashDuration -= delta;
       if (this.flashDuration <= 0) {
         this.muzzleLight.intensity = 0;
-        this.muzzleLight.visible = false;
       } else {
         this.muzzleLight.intensity = (this.flashDuration / 0.045) * 6.0;
       }
@@ -857,7 +856,6 @@ export class WeaponSystem {
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
     this.muzzleLight.intensity = isShotgun ? 8.5 : (isUSP ? 4.5 : (isMP5 ? 4.2 : 6.0));
-    this.muzzleLight.visible = true;
     this.flashDuration = isMP5 ? 0.035 : 0.045;
 
     if (isShotgun) {
@@ -1276,7 +1274,6 @@ export class WeaponSystem {
 
     if (this.muzzleLight) {
       this.muzzleLight.intensity = 0;
-      this.muzzleLight.visible = false;
     }
 
     if (this.camera && this.camera.fov !== 75) {
@@ -1350,6 +1347,71 @@ export class WeaponSystem {
     // Reset HUD
     if (this.hud && typeof this.hud.reset === 'function') {
       this.hud.reset();
+    }
+  }
+
+  /**
+   * Pre-uploads weapon effect textures and pre-compiles effect shaders (decals, embers,
+   * tracers, shell casings, sparks, and muzzle flash point light).
+   */
+  warmUpGPU(renderer, camera) {
+    if (!renderer) return;
+
+    // 1. Upload effect textures to GPU
+    if (this.decalTexture) {
+      try { renderer.initTexture(this.decalTexture); } catch (e) {}
+    }
+    if (this.emberTexture) {
+      try { renderer.initTexture(this.emberTexture); } catch (e) {}
+    }
+
+    // 2. Temporarily acquire 1 sample from each effect pool and make visible for shader compilation
+    const samples = [];
+    const pools = [
+      this.decalPool,
+      this.tracerPool,
+      this.casingPool,
+      this.casing9mmPool,
+      this.shotgunShellPool,
+      this.sparkPool,
+      this.glassSparkPool,
+    ];
+
+    for (const pool of pools) {
+      if (pool && typeof pool.acquire === 'function') {
+        const item = pool.acquire();
+        if (item) {
+          item.visible = true;
+          samples.push({ pool, item });
+        }
+      }
+    }
+
+    // 3. Temporarily set muzzle light intensity > 0 to guarantee shaders with active point lights compile
+    const prevIntensity = this.muzzleLight ? this.muzzleLight.intensity : 0;
+    if (this.muzzleLight) {
+      this.muzzleLight.intensity = 1.0;
+    }
+
+    // 4. Compile shaders with scene & camera
+    if (this.scene && camera) {
+      try {
+        renderer.compile(this.scene, camera);
+        // Force 1 render frame to warm the GPU pipeline
+        renderer.render(this.scene, camera);
+      } catch (err) {
+        console.warn('[WeaponSystem] warmUpGPU compile warning:', err);
+      }
+    }
+
+    // 5. Restore muzzle light intensity and release pool items
+    if (this.muzzleLight) {
+      this.muzzleLight.intensity = prevIntensity;
+    }
+
+    for (const { pool, item } of samples) {
+      item.visible = false;
+      pool.release(item);
     }
   }
 }

@@ -126,7 +126,7 @@ export class SoundManager {
     this.masterGain.connect(this.ctx.destination);
 
     // Preload & decode authentic weapon audio samples into AudioBuffers
-    this._preloadAudioBuffers();
+    this._preloadPromise = this.preloadAllAudio();
 
     // Auto-resume audio on first user gesture
     const resumeOnGesture = () => {
@@ -159,8 +159,9 @@ export class SoundManager {
 
   /**
    * Preload and decode authentic weapon audio samples (9mm, .50 AE, 12-gauge).
+   * Supports progress reporting and returns a Promise that resolves when all are decoded.
    */
-  async _preloadAudioBuffers() {
+  async preloadAllAudio(onProgress) {
     if (!this.ctx) return;
     const soundFiles = {
       '9mm_fire': './sounds/9mm_fire.mp3',
@@ -171,17 +172,32 @@ export class SoundManager {
       'remington_870_pump': './sounds/remington_870_pump.mp3',
     };
 
-    for (const [key, url] of Object.entries(soundFiles)) {
-      try {
-        const resp = await fetch(url);
-        if (!resp.ok) continue;
-        const arrayBuffer = await resp.arrayBuffer();
-        const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-        this.audioBuffers.set(key, audioBuffer);
-      } catch (err) {
-        console.warn(`[SoundManager] Could not load sample ${url}, using procedural synth fallback:`, err);
-      }
-    }
+    const entries = Object.entries(soundFiles);
+    let completed = 0;
+    const total = entries.length;
+    const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+    await Promise.all(
+      entries.map(async ([key, url]) => {
+        try {
+          const resp = await fetch(url);
+          if (resp.ok) {
+            const arrayBuffer = await resp.arrayBuffer();
+            const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+            this.audioBuffers.set(key, audioBuffer);
+          }
+        } catch (err) {
+          console.warn(`[SoundManager] Could not load sample ${url}, using procedural synth fallback:`, err);
+        }
+        completed++;
+        if (onProgress) onProgress(completed / total, key);
+        await yieldToBrowser();
+      })
+    );
+  }
+
+  async _preloadAudioBuffers() {
+    return this.preloadAllAudio();
   }
 
   /**

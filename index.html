@@ -1135,11 +1135,241 @@
         box-shadow: 0 0 28px rgba(239, 68, 68, 0.85);
       }
     }
+
+    /* Tactical Boot / Preloader Screen */
+    #loading-screen {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      z-index: 100;
+      background-color: #08090c;
+      background-image: 
+        radial-gradient(ellipse at 50% 40%, rgba(24, 30, 42, 0.85) 0%, rgba(8, 9, 12, 0.98) 75%),
+        linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      background-size: 100% 100%, 32px 32px, 32px 32px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: clamp(16px, 4vmin, 40px);
+      box-sizing: border-box;
+      overflow: hidden;
+      transition: opacity 0.45s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.45s ease;
+      color: #e2e8f0;
+    }
+
+    #loading-screen.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .loading-container {
+      width: min(520px, 90vw);
+      max-height: 92dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      position: relative;
+      text-align: center;
+    }
+
+    .loading-title-cluster {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: clamp(28px, 8vh, 80px);
+    }
+
+    .loading-logo {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(1.8rem, 6vw, 3.6rem);
+      font-weight: 900;
+      font-style: italic;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      margin: 0 0 clamp(4px, 1vh, 8px) 0;
+      line-height: 1.05;
+      color: #ffffff;
+      white-space: nowrap;
+      filter: drop-shadow(0 0 24px rgba(255, 255, 255, 0.2));
+    }
+
+    .loading-tagline {
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.75rem, 2vw, 1.05rem);
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      color: #ffb870;
+      text-transform: uppercase;
+      margin: 0;
+      text-shadow: 0 2px 0 #06080c, 0 4px 12px rgba(0, 0, 0, 0.95), 0 0 14px rgba(255, 115, 36, 0.35);
+    }
+
+    .loading-plain-text {
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(0.85rem, 2vw, 1.1rem);
+      font-weight: 700;
+      letter-spacing: 4px;
+      color: #cbd5e1;
+      text-transform: uppercase;
+      margin-bottom: clamp(12px, 2.2vh, 20px);
+      line-height: 1;
+      opacity: 0.88;
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      white-space: nowrap;
+    }
+
+    /* Invisible left balance spacer matching the right dots width to lock LOADING dead-center */
+    .loading-plain-text::before {
+      content: '';
+      display: inline-block;
+      width: 3ch;
+    }
+
+    /* Fixed-width dots container to prevent horizontal text jitter */
+    .loading-dots {
+      display: inline-block;
+      width: 3ch;
+      text-align: left;
+      white-space: nowrap;
+    }
+
+    .loading-dots .dot {
+      display: inline-block;
+      will-change: opacity;
+    }
+
+    .loading-dots .dot-1 {
+      opacity: 1;
+    }
+
+    .loading-dots .dot-2 {
+      animation: dot-2-anim 1.2s infinite steps(1);
+    }
+
+    .loading-dots .dot-3 {
+      animation: dot-3-anim 1.2s infinite steps(1);
+    }
+
+    @keyframes dot-2-anim {
+      0%, 24.9% {
+        opacity: 0;
+      }
+      25%, 79.9% {
+        opacity: 1;
+      }
+      80%, 100% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes dot-3-anim {
+      0%, 49.9% {
+        opacity: 0;
+      }
+      50%, 79.9% {
+        opacity: 1;
+      }
+      80%, 100% {
+        opacity: 0;
+      }
+    }
+
+    .loading-progress-box {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+    }
+
+    .loading-status-row {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(0.70rem, 1.6vw, 0.78rem);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .loading-status-text {
+      color: #94a3b8;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+      flex: 1 1 auto;
+      text-align: left;
+    }
+
+    .loading-pct-text {
+      color: #fbbf24;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+      text-align: right;
+    }
+
+    .loading-bar-track {
+      width: 100%;
+      height: 6px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.6);
+      position: relative;
+    }
+
+    .loading-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #d97706 0%, #f59e0b 50%, #fef08a 100%);
+      border-radius: 2px;
+      box-shadow: 0 0 12px rgba(245, 158, 11, 0.75);
+      transition: width 0.12s ease-out;
+    }
   </style>
 </head>
 
 <body>
   <canvas id="game-canvas"></canvas>
+
+  <!-- Tactical Boot / Preloader Screen -->
+  <div id="loading-screen">
+    <div class="loading-container">
+      <div class="loading-title-cluster">
+        <h1 class="loading-logo">
+          <span class="logo-main">ROC AND LOAD!</span>
+        </h1>
+        <div class="loading-tagline">SHOOT 'EM UP</div>
+      </div>
+
+      <div class="loading-progress-box">
+        <div class="loading-plain-text">
+          <span>LOADING</span><span class="loading-dots"><span class="dot dot-1">.</span><span class="dot dot-2">.</span><span class="dot dot-3">.</span></span>
+        </div>
+        <div class="loading-status-row">
+          <span id="loading-status-text" class="loading-status-text">INITIALIZING SYSTEMS...</span>
+          <span id="loading-pct-text" class="loading-pct-text">0%</span>
+        </div>
+        <div class="loading-bar-track">
+          <div id="loading-bar-fill" class="loading-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <div id="ui-layer" class="menu-hidden">
     <!-- Crosshair -->

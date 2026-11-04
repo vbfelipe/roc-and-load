@@ -23,6 +23,31 @@ window.addEventListener('DOMContentLoaded', () => {
   const posEl = document.getElementById('stat-pos');
   let lastPosTime = 0;
 
+  // Preloader UI elements
+  const loadingScreen = document.getElementById('loading-screen');
+  const loadingBarFill = document.getElementById('loading-bar-fill');
+  const loadingStatusText = document.getElementById('loading-status-text');
+  const loadingPctText = document.getElementById('loading-pct-text');
+
+  let currentBootProgress = 0;
+  function updateBootProgress(targetPct, statusMsg) {
+    if (targetPct > currentBootProgress) currentBootProgress = targetPct;
+    const clamped = Math.min(100, Math.max(0, currentBootProgress));
+    if (loadingBarFill) loadingBarFill.style.width = `${clamped}%`;
+    if (loadingPctText) loadingPctText.textContent = `${Math.round(clamped)}%`;
+    if (statusMsg && loadingStatusText) loadingStatusText.textContent = statusMsg;
+  }
+
+  // Lock start button while preloading
+  if (startBtn) {
+    startBtn.disabled = true;
+    startBtn.style.opacity = '0.5';
+    startBtn.style.cursor = 'wait';
+  }
+  if (statusVal) {
+    statusVal.textContent = 'LOADING';
+  }
+
   const engine = new Engine(canvas);
   engine.camera.near = 0.015;
   engine.camera.updateProjectionMatrix();
@@ -101,7 +126,7 @@ window.addEventListener('DOMContentLoaded', () => {
         exitBtn.style.display = 'none';
       }
       if (statusVal) {
-        statusVal.textContent = 'READY';
+        statusVal.textContent = (startBtn && startBtn.disabled) ? 'LOADING' : 'READY';
         statusVal.classList.remove('paused');
         statusVal.style.color = '';
       }
@@ -115,6 +140,81 @@ window.addEventListener('DOMContentLoaded', () => {
 
   // Initial menu state: hide HUD and gun viewmodel
   setGameState('MAIN_MENU');
+
+  const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+  async function runBootPipeline() {
+    updateBootProgress(5, 'INITIALIZING GAME SUBSYSTEMS...');
+    await yieldToBrowser();
+
+    // 1. Parallel loading of authentic weapon audio samples (0% -> 25%)
+    const audioPromise = sound.preloadAllAudio(async (fraction, key) => {
+      const pct = 5 + fraction * 20;
+      updateBootProgress(pct, `DECODING AUDIO: ${key.toUpperCase()}...`);
+      await yieldToBrowser();
+    });
+
+    // 2. Parallel loading of 3D weapon models & rigged FPS hands (25% -> 75%)
+    const modelsPromise = viewmodel.loadAllModels(async (fraction, key) => {
+      const pct = 25 + fraction * 50;
+      updateBootProgress(pct, `STREAMING ARSENAL: ${key.toUpperCase()}...`);
+      await yieldToBrowser();
+    });
+
+    // 3. Preload UI hero art (75% -> 85%)
+    const heroImagePromise = new Promise((resolve) => {
+      const img = new Image();
+      img.src = './roc_hero.png';
+      if (img.decode) {
+        img.decode().then(resolve).catch(resolve);
+      } else {
+        img.onload = () => resolve();
+        img.onerror = () => resolve();
+      }
+    }).then(async () => {
+      updateBootProgress(85, 'INTERFACE ARTWORK LOADED');
+      await yieldToBrowser();
+    });
+
+    // Await all parallel asset pipelines
+    await Promise.all([audioPromise, modelsPromise, heroImagePromise]);
+    await yieldToBrowser();
+
+    // 4. WebGL GPU Texture & Shader Compilation Warm-Up (85% -> 100%)
+    updateBootProgress(88, 'COMPILING GPU SHADERS & TEXTURES...');
+    await yieldToBrowser();
+
+    try {
+      await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera);
+      weaponSystem.warmUpGPU(engine.renderer, engine.camera);
+    } catch (err) {
+      console.warn('GPU warm-up warning:', err);
+    }
+
+    await yieldToBrowser();
+    updateBootProgress(100, 'SYSTEMS NOMINAL - ARSENAL READY');
+
+    // Smooth transition from loading screen to main menu
+    await new Promise((r) => setTimeout(r, 260));
+
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+      setTimeout(() => {
+        loadingScreen.style.display = 'none';
+      }, 500);
+    }
+
+    if (startBtn) {
+      startBtn.disabled = false;
+      startBtn.style.opacity = '1';
+      startBtn.style.cursor = 'pointer';
+    }
+    if (statusVal) {
+      statusVal.textContent = 'READY';
+    }
+  }
+
+  runBootPipeline();
 
   // Attempt autoplay immediately on initial load (MAIN_MENU)
   sound.startMenuMusic().catch(() => {

@@ -442,7 +442,9 @@ export class WeaponViewmodel {
     this._buildMuzzleFlashRig();
 
     // Load 3D GLTF models asynchronously
-    this._loadWeaponModels();
+    this._loadModelsPromise = null;
+    this._isLoaded = false;
+    this.loadAllModels();
     this._setupHandTuner();
   }
 
@@ -622,403 +624,527 @@ export class WeaponViewmodel {
   // 3D GLTF ASSET PIPELINE LOADER
   // ===========================================================================
 
-  _loadWeaponModels() {
+  loadAllModels(onProgress) {
+    if (onProgress) {
+      this._progressCallbacks = this._progressCallbacks || [];
+      this._progressCallbacks.push(onProgress);
+    }
+
+    if (this._isLoaded) {
+      if (onProgress) onProgress(1.0, 'complete');
+      return Promise.resolve();
+    }
+
+    if (this._loadModelsPromise) {
+      return this._loadModelsPromise;
+    }
+
+    const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     const loader = new GLTFLoader();
+    const modelDefs = [
+      { key: 'hk_usp', url: './models/hk_usp.glb', setup: (gltf) => this._setupUSPModel(gltf) },
+      { key: 'desert_eagle', url: './models/desert_eagle.glb', setup: (gltf) => this._setupPistolModel(gltf) },
+      { key: 'remington_870', url: './models/remington_870.glb', setup: (gltf) => this._setupShotgunModel(gltf) },
+      { key: 'hk_mp5', url: './models/hk_mp5.glb', setup: (gltf) => this._setupMP5Model(gltf) },
+      { key: 'fps_hands', url: './models/fps_hands.glb', setup: (gltf) => this._setupHandsModel(gltf) },
+    ];
 
-    // 0. Heckler & Koch USP 9mm Pistol ("USP 9mm [reworked]")
-    loader.load(
-      './models/hk_usp.glb',
-      (gltf) => {
-        const uspScene = gltf.scene;
-        uspScene.name = 'HK_USP_GLTF';
+    let loadedCount = 0;
+    const total = modelDefs.length;
 
-        uspScene.traverse((child) => {
-          const nameLower = (child.name || '').toLowerCase();
-          if (
-            nameLower.includes('bullet') ||
-            nameLower.includes('casing') ||
-            nameLower.includes('shell') ||
-            nameLower.includes('showcase') ||
-            nameLower.includes('stand') ||
-            nameLower.includes('floor') ||
-            nameLower.includes('studio')
-          ) {
-            child.visible = false;
-          }
-          if (child.isMesh) {
-            child.frustumCulled = false;
-            child.castShadow = false;
-            child.receiveShadow = true;
-            if (child.material && child.material.map) {
-              child.material.map.colorSpace = THREE.SRGBColorSpace;
+    const notifyProgress = (key) => {
+      const fraction = loadedCount / total;
+      if (this._progressCallbacks) {
+        for (const cb of this._progressCallbacks) {
+          try { cb(fraction, key); } catch (e) { console.error(e); }
+        }
+      }
+    };
+
+    const loadSingle = async (def) => {
+      return new Promise((resolve) => {
+        loader.load(
+          def.url,
+          async (gltf) => {
+            await yieldToBrowser();
+            try {
+              def.setup(gltf);
+            } catch (err) {
+              console.error(`Error configuring model ${def.key}:`, err);
             }
+            loadedCount++;
+            notifyProgress(def.key);
+            await yieldToBrowser();
+            resolve(gltf);
+          },
+          undefined,
+          async (err) => {
+            console.error(`Failed to load ${def.url}:`, err);
+            loadedCount++;
+            notifyProgress(def.key);
+            await yieldToBrowser();
+            resolve(null);
+          }
+        );
+      });
+    };
+
+    this._loadModelsPromise = Promise.all(modelDefs.map(loadSingle)).then(async () => {
+      this._isLoaded = true;
+      this.selectWeapon('hk_usp');
+      await yieldToBrowser();
+    });
+
+    return this._loadModelsPromise;
+  }
+
+  _loadWeaponModels() {
+    return this.loadAllModels();
+  }
+
+  _setupUSPModel(gltf) {
+    const uspScene = gltf.scene;
+    uspScene.name = 'HK_USP_GLTF';
+
+    uspScene.traverse((child) => {
+      const nameLower = (child.name || '').toLowerCase();
+      if (
+        nameLower.includes('bullet') ||
+        nameLower.includes('casing') ||
+        nameLower.includes('shell') ||
+        nameLower.includes('showcase') ||
+        nameLower.includes('stand') ||
+        nameLower.includes('floor') ||
+        nameLower.includes('studio')
+      ) {
+        child.visible = false;
+      }
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        if (child.material && child.material.map) {
+          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      }
+    });
+
+    // Helper to locate nodes across hierarchy
+    const findNode = (name) => {
+      let found = uspScene.getObjectByName(name);
+      if (!found) {
+        uspScene.traverse((c) => {
+          if (!found && (c.name === name || (c.name || '').toLowerCase().includes(name.toLowerCase()))) {
+            found = c;
           }
         });
+      }
+      return found;
+    };
 
-        // Helper to locate nodes across hierarchy
-        const findNode = (name) => {
-          let found = uspScene.getObjectByName(name);
-          if (!found) {
-            uspScene.traverse((c) => {
-              if (!found && (c.name === name || (c.name || '').toLowerCase().includes(name.toLowerCase()))) {
-                found = c;
-              }
-            });
-          }
-          return found;
-        };
+    const nodeSlide = findNode('slide_lowpoly');
+    const nodeSights = findNode('sights_lowpoly');
+    const nodeSlideInsert = findNode('slide_insert_lowpoly');
+    const nodeFrame = findNode('lower_frame_lowpoly');
+    const nodeBarrel = findNode('barrel_lowpoly');
+    const nodeStabilizer = findNode('slide_stabilizer_lowpoly');
+    const nodeMag = findNode('magazine_lowpoly');
+    const nodeMechanics = findNode('mechanics_lowpoly');
 
-        const nodeSlide = findNode('slide_lowpoly');
-        const nodeSights = findNode('sights_lowpoly');
-        const nodeSlideInsert = findNode('slide_insert_lowpoly');
-        const nodeFrame = findNode('lower_frame_lowpoly');
-        const nodeBarrel = findNode('barrel_lowpoly');
-        const nodeStabilizer = findNode('slide_stabilizer_lowpoly');
-        const nodeMag = findNode('magazine_lowpoly');
-        const nodeMechanics = findNode('mechanics_lowpoly');
+    // USP Model scale & vertical centering:
+    // Length in RootNode = 67.067 units. 0.194 / 67.067 = 0.00289263 (~19.4cm).
+    // Sightline top is at Y = 0.1455 m. Setting yOffset = -0.0686 puts sightline
+    // at Y = +0.0769 m, aligning with uspAdsPosition (0, -0.0769, -0.150).
+    const uspScale = 0.0028926297583014003;
+    const uspYOffset = -0.0686;
 
-        // USP Model scale & vertical centering:
-        // Length in RootNode = 67.067 units. 0.194 / 67.067 = 0.00289263 (~19.4cm).
-        // Sightline top is at Y = 0.1455 m. Setting yOffset = -0.0686 puts sightline
-        // at Y = +0.0769 m, aligning with uspAdsPosition (0, -0.0769, -0.150).
-        const uspScale = 0.0028926297583014003;
-        const uspYOffset = -0.0686;
+    // Helper to create an oriented/scaled RootNode wrapper for a sub-assembly
+    const createAssemblyInner = (name) => {
+      const inner = new THREE.Group();
+      inner.name = `${name}_Orient`;
+      inner.rotation.y = -Math.PI / 2;
+      inner.scale.setScalar(uspScale);
+      inner.position.y = uspYOffset;
+      return inner;
+    };
 
-        // Helper to create an oriented/scaled RootNode wrapper for a sub-assembly
-        const createAssemblyInner = (name) => {
-          const inner = new THREE.Group();
-          inner.name = `${name}_Orient`;
-          inner.rotation.y = -Math.PI / 2;
-          inner.scale.setScalar(uspScale);
-          inner.position.y = uspYOffset;
-          return inner;
-        };
+    // 1. Slide Group (Slide + Sights + Extractor Slide Insert)
+    const slideInner = createAssemblyInner('USPSlide');
+    if (nodeSlide) slideInner.add(nodeSlide);
+    if (nodeSights) slideInner.add(nodeSights);
+    if (nodeSlideInsert) slideInner.add(nodeSlideInsert);
+    this.uspSlideGroup.add(slideInner);
 
-        // 1. Slide Group (Slide + Sights + Extractor Slide Insert)
-        const slideInner = createAssemblyInner('USPSlide');
-        if (nodeSlide) slideInner.add(nodeSlide);
-        if (nodeSights) slideInner.add(nodeSights);
-        if (nodeSlideInsert) slideInner.add(nodeSlideInsert);
-        this.uspSlideGroup.add(slideInner);
+    // 2. Fixed Frame Group (Polymer Lower Frame + Barrel + Guide Rod + Frame Controls)
+    const uspFrameGroup = new THREE.Group();
+    uspFrameGroup.name = 'USPFrameGroup';
+    this.uspModelGroup.add(uspFrameGroup);
 
-        // 2. Fixed Frame Group (Polymer Lower Frame + Barrel + Guide Rod + Frame Controls)
-        const uspFrameGroup = new THREE.Group();
-        uspFrameGroup.name = 'USPFrameGroup';
-        this.uspModelGroup.add(uspFrameGroup);
+    const frameInner = createAssemblyInner('USPFrame');
+    if (nodeFrame) frameInner.add(nodeFrame);
+    if (nodeBarrel) frameInner.add(nodeBarrel);
+    if (nodeStabilizer) frameInner.add(nodeStabilizer);
+    uspFrameGroup.add(frameInner);
 
-        const frameInner = createAssemblyInner('USPFrame');
-        if (nodeFrame) frameInner.add(nodeFrame);
-        if (nodeBarrel) frameInner.add(nodeBarrel);
-        if (nodeStabilizer) frameInner.add(nodeStabilizer);
-        uspFrameGroup.add(frameInner);
+    // 3. Detachable Magazine Group
+    const magInner = createAssemblyInner('USPMag');
+    if (nodeMag) magInner.add(nodeMag);
+    this.uspMagGroup.add(magInner);
 
-        // 3. Detachable Magazine Group
-        const magInner = createAssemblyInner('USPMag');
-        if (nodeMag) magInner.add(nodeMag);
-        this.uspMagGroup.add(magInner);
+    // 4. Mechanics separation (Hammer, Trigger, and Frame Controls)
+    if (nodeMechanics) {
+      let mechMesh = null;
+      nodeMechanics.traverse((c) => {
+        if (!mechMesh && c.isMesh) mechMesh = c;
+      });
 
-        // 4. Mechanics separation (Hammer, Trigger, and Frame Controls)
-        if (nodeMechanics) {
-          let mechMesh = null;
-          nodeMechanics.traverse((c) => {
-            if (!mechMesh && c.isMesh) mechMesh = c;
-          });
+      if (mechMesh) {
+        const mechGeo = mechMesh.geometry;
+        const mechMat = mechMesh.material;
+        const islands = decomposeMeshIslands(mechGeo);
 
-          if (mechMesh) {
-            const mechGeo = mechMesh.geometry;
-            const mechMat = mechMesh.material;
-            const islands = decomposeMeshIslands(mechGeo);
+        const hammerTris = [];
+        const triggerTris = [];
+        const frameCtrlTris = [];
 
-            const hammerTris = [];
-            const triggerTris = [];
-            const frameCtrlTris = [];
-
-            for (const isl of islands) {
-              if (isl.center.y < 5.0) {
-                hammerTris.push(...isl.triList);
-              } else if (isl.center.y > 20.0 && isl.center.x < -18.0) {
-                triggerTris.push(...isl.triList);
-              } else {
-                frameCtrlTris.push(...isl.triList);
-              }
-            }
-
-            // Compute matrix from mesh up to RootNode (node 10 matrix * node 11 matrix)
-            nodeMechanics.updateMatrix();
-            if (mechMesh.parent) mechMesh.parent.updateMatrix();
-            mechMesh.updateMatrix();
-
-            const mMechToRoot = new THREE.Matrix4();
-            if (mechMesh.parent && mechMesh.parent !== nodeMechanics) {
-              mMechToRoot.multiplyMatrices(nodeMechanics.matrix, mechMesh.parent.matrix).multiply(mechMesh.matrix);
-            } else {
-              mMechToRoot.multiplyMatrices(nodeMechanics.matrix, mechMesh.matrix);
-            }
-
-            // Frame Controls (Safety, slide release, pin, mag release paddle)
-            if (frameCtrlTris.length > 0) {
-              const frameCtrlGeo = buildSubGeometryFromTriangles(mechGeo, frameCtrlTris);
-              frameCtrlGeo.applyMatrix4(mMechToRoot);
-              const frameCtrlMesh = new THREE.Mesh(frameCtrlGeo, mechMat);
-              frameCtrlMesh.frustumCulled = false;
-              frameCtrlMesh.receiveShadow = true;
-              frameInner.add(frameCtrlMesh);
-            }
-
-            // Hammer Group (cock & drop around hinge pin at [27.5, 38.0, 0.0] in RootNode)
-            if (hammerTris.length > 0) {
-              const hammerGeo = buildSubGeometryFromTriangles(mechGeo, hammerTris);
-              hammerGeo.applyMatrix4(mMechToRoot);
-
-              const hx = 27.5, hy = 38.0, hz = 0.0;
-              const hGame = new THREE.Vector3(0, hy * uspScale + uspYOffset, hx * uspScale);
-              this.uspHammerGroup.position.copy(hGame);
-              this.uspHammerGroup.rotation.set(0, 0, 0);
-
-              const hammerInner = new THREE.Group();
-              hammerInner.rotation.y = -Math.PI / 2;
-              hammerInner.scale.setScalar(uspScale);
-              hammerInner.position.set(0, 0, 0);
-
-              const hammerMesh = new THREE.Mesh(hammerGeo, mechMat);
-              hammerMesh.position.set(-hx, -hy, -hz);
-              hammerMesh.rotation.set(0, 0, 0);
-              hammerMesh.frustumCulled = false;
-              hammerMesh.receiveShadow = true;
-
-              hammerInner.add(hammerMesh);
-              this.uspHammerGroup.add(hammerInner);
-            }
-
-            // Trigger Group (pull & return around hinge pin at [2.0, 34.5, 0.0] in RootNode)
-            if (triggerTris.length > 0) {
-              const triggerGeo = buildSubGeometryFromTriangles(mechGeo, triggerTris);
-              triggerGeo.applyMatrix4(mMechToRoot);
-
-              const tx = 2.0, ty = 34.5, tz = 0.0;
-              const tGame = new THREE.Vector3(0, ty * uspScale + uspYOffset, tx * uspScale);
-              this.uspTriggerGroup.position.copy(tGame);
-              this.uspTriggerGroup.rotation.set(0, 0, 0);
-
-              const triggerInner = new THREE.Group();
-              triggerInner.rotation.y = -Math.PI / 2;
-              triggerInner.scale.setScalar(uspScale);
-              triggerInner.position.set(0, 0, 0);
-
-              const triggerMesh = new THREE.Mesh(triggerGeo, mechMat);
-              triggerMesh.position.set(-tx, -ty, -tz);
-              triggerMesh.rotation.set(0, 0, 0);
-              triggerMesh.frustumCulled = false;
-              triggerMesh.receiveShadow = true;
-
-              triggerInner.add(triggerMesh);
-              this.uspTriggerGroup.add(triggerInner);
-            }
+        for (const isl of islands) {
+          if (isl.center.y < 5.0) {
+            hammerTris.push(...isl.triList);
+          } else if (isl.center.y > 20.0 && isl.center.x < -18.0) {
+            triggerTris.push(...isl.triList);
+          } else {
+            frameCtrlTris.push(...isl.triList);
           }
         }
-      },
-      undefined,
-      (err) => console.error('Failed to load ./models/hk_usp.glb:', err)
-    );
 
-    // 1. Desert Eagle (.50 AE)
-    loader.load(
-      './models/desert_eagle.glb',
-      (gltf) => {
-        const deScene = gltf.scene;
-        deScene.name = 'DesertEagleGLTF';
+        // Compute matrix from mesh up to RootNode (node 10 matrix * node 11 matrix)
+        nodeMechanics.updateMatrix();
+        if (mechMesh.parent) mechMesh.parent.updateMatrix();
+        mechMesh.updateMatrix();
 
-        deScene.traverse((child) => {
-          if (child.name.toLowerCase().includes('bullet') && !child.name.includes('BulletThrow')) {
-            child.visible = false;
-          }
-          if (child.isMesh) {
-            child.frustumCulled = false;
-            child.castShadow = false;
-            child.receiveShadow = true;
-            if (child.material && child.material.map) {
-              child.material.map.colorSpace = THREE.SRGBColorSpace;
-            }
-          }
-        });
-
-        // Normalize scale & orientation: Length ~27cm along Z in GLTF.
-        deScene.scale.setScalar(0.01);
-        deScene.rotation.y = Math.PI;
-        deScene.position.set(0, -0.165, 0.10);
-
-        this.pistolSlideMesh = deScene.getObjectByName('Group001');
-        if (this.pistolSlideMesh) {
-          this.deSlideRestZ = this.pistolSlideMesh.position.z;
+        const mMechToRoot = new THREE.Matrix4();
+        if (mechMesh.parent && mechMesh.parent !== nodeMechanics) {
+          mMechToRoot.multiplyMatrices(nodeMechanics.matrix, mechMesh.parent.matrix).multiply(mechMesh.matrix);
+        } else {
+          mMechToRoot.multiplyMatrices(nodeMechanics.matrix, mechMesh.matrix);
         }
 
-        this.hammerGroup = deScene.getObjectByName('Hammer_low') || new THREE.Group();
-        this.hammerRestAngle = this.hammerGroup.rotation.x;
-        this.triggerMesh = deScene.getObjectByName('Trigger_low');
-
-        this.deMagMeshes = [
-          deScene.getObjectByName('Magazine_low'),
-          deScene.getObjectByName('MagazineBase_low'),
-          deScene.getObjectByName('BaseInside_low'),
-        ].filter(Boolean);
-        this.deMagRestY = this.deMagMeshes.map((m) => m.position.y);
-
-        this.pistolModelGroup.add(deScene);
-      },
-      undefined,
-      (err) => console.error('Failed to load ./models/desert_eagle.glb:', err)
-    );
-
-    // 2. Remington 870 12-Gauge Pump Shotgun
-    loader.load(
-      './models/remington_870.glb',
-      (gltf) => {
-        const remScene = gltf.scene;
-        remScene.name = 'Remington870GLTF';
-
-        remScene.traverse((child) => {
-          if (child.isMesh) {
-            child.frustumCulled = false;
-            child.castShadow = false;
-            child.receiveShadow = true;
-            if (child.material && child.material.map) {
-              child.material.map.colorSpace = THREE.SRGBColorSpace;
-            }
-          }
-        });
-
-        remScene.scale.setScalar(0.89);
-        remScene.rotation.y = Math.PI / 2;
-        remScene.position.set(0, 0.045, -0.178);
-
-        this.shotgunPumpMesh = remScene.getObjectByName('Pump_low');
-        this.shotgunPumpRodsMesh = remScene.getObjectByName('PumpRods_low');
-        this.shotgunSlideLRodsMesh = remScene.getObjectByName('SlideLRods_low');
-        this.shotgunBoltMesh = remScene.getObjectByName('Slide_low');
-
-        if (this.shotgunPumpMesh) this.shotgunPumpRestX = this.shotgunPumpMesh.position.x;
-        if (this.shotgunPumpRodsMesh) this.shotgunPumpRodsRestX = this.shotgunPumpRodsMesh.position.x;
-        if (this.shotgunSlideLRodsMesh) this.shotgunSlideLRodsRestX = this.shotgunSlideLRodsMesh.position.x;
-        if (this.shotgunBoltMesh) this.shotgunBoltRestX = this.shotgunBoltMesh.position.x;
-
-        const carrierPlate = remScene.getObjectByName('LoadingPlate_low');
-        if (carrierPlate) this.shotgunCarrierGroup = carrierPlate;
-
-        this.shotgunTriggerMesh = remScene.getObjectByName('Trigger_low');
-
-        this.shotgunModelGroup.add(remScene);
-      },
-      undefined,
-      (err) => console.error('Failed to load ./models/remington_870.glb:', err)
-    );
-
-    // 3. H&K MP5 Submachine Gun (9mm Full-Auto)
-    loader.load(
-      './models/hk_mp5.glb',
-      (gltf) => {
-        const mp5Scene = gltf.scene;
-        mp5Scene.name = 'HKMP5GLTF';
-
-        mp5Scene.traverse((child) => {
-          const nameLower = (child.name || '').toLowerCase();
-          if (
-            nameLower.includes('bullet') ||
-            nameLower.includes('casing') ||
-            nameLower.includes('shell') ||
-            nameLower.includes('showcase') ||
-            nameLower.includes('stand') ||
-            nameLower.includes('floor') ||
-            nameLower.includes('studio')
-          ) {
-            child.visible = false;
-          }
-          if (child.isMesh) {
-            child.frustumCulled = false;
-            child.castShadow = false;
-            child.receiveShadow = true;
-            if (child.material && child.material.map) {
-              child.material.map.colorSpace = THREE.SRGBColorSpace;
-            }
-          }
-        });
-
-        // 1 unit in hk_mp5.glb = 1mm. 0.001 scale converts to real-world meters (~58.4cm length)
-        mp5Scene.scale.setScalar(0.001);
-        mp5Scene.rotation.set(0, 0, 0);
-        mp5Scene.position.set(0, 0, 0);
-
-        this.mp5BoltMesh =
-          mp5Scene.getObjectByName('MP5005') ||
-          mp5Scene.getObjectByName('MP5.005') ||
-          mp5Scene.getObjectByName('MP5005_Case_0') ||
-          mp5Scene.getObjectByName('MP5.005_Case_0');
-        if (this.mp5BoltMesh) {
-          this.mp5BoltRestZ = this.mp5BoltMesh.position.z;
+        // Frame Controls (Safety, slide release, pin, mag release paddle)
+        if (frameCtrlTris.length > 0) {
+          const frameCtrlGeo = buildSubGeometryFromTriangles(mechGeo, frameCtrlTris);
+          frameCtrlGeo.applyMatrix4(mMechToRoot);
+          const frameCtrlMesh = new THREE.Mesh(frameCtrlGeo, mechMat);
+          frameCtrlMesh.frustumCulled = false;
+          frameCtrlMesh.receiveShadow = true;
+          frameInner.add(frameCtrlMesh);
         }
 
-        this.mp5MagMesh =
-          mp5Scene.getObjectByName('MP5003') ||
-          mp5Scene.getObjectByName('MP5.003') ||
-          mp5Scene.getObjectByName('MP5003_Case_0') ||
-          mp5Scene.getObjectByName('MP5.003_Case_0');
-        if (this.mp5MagMesh) {
-          this.mp5MagRestY = this.mp5MagMesh.position.y;
-          this.mp5MagRestZ = this.mp5MagMesh.position.z;
+        // Hammer Group (cock & drop around hinge pin at [27.5, 38.0, 0.0] in RootNode)
+        if (hammerTris.length > 0) {
+          const hammerGeo = buildSubGeometryFromTriangles(mechGeo, hammerTris);
+          hammerGeo.applyMatrix4(mMechToRoot);
+
+          const hx = 27.5, hy = 38.0, hz = 0.0;
+          const hGame = new THREE.Vector3(0, hy * uspScale + uspYOffset, hx * uspScale);
+          this.uspHammerGroup.position.copy(hGame);
+          this.uspHammerGroup.rotation.set(0, 0, 0);
+
+          const hammerInner = new THREE.Group();
+          hammerInner.rotation.y = -Math.PI / 2;
+          hammerInner.scale.setScalar(uspScale);
+          hammerInner.position.set(0, 0, 0);
+
+          const hammerMesh = new THREE.Mesh(hammerGeo, mechMat);
+          hammerMesh.position.set(-hx, -hy, -hz);
+          hammerMesh.rotation.set(0, 0, 0);
+          hammerMesh.frustumCulled = false;
+          hammerMesh.receiveShadow = true;
+
+          hammerInner.add(hammerMesh);
+          this.uspHammerGroup.add(hammerInner);
         }
 
-        this.mp5TriggerMesh =
-          mp5Scene.getObjectByName('MP5001') ||
-          mp5Scene.getObjectByName('MP5.001') ||
-          mp5Scene.getObjectByName('MP5001_Case_0') ||
-          mp5Scene.getObjectByName('MP5.001_Case_0');
+        // Trigger Group (pull & return around hinge pin at [2.0, 34.5, 0.0] in RootNode)
+        if (triggerTris.length > 0) {
+          const triggerGeo = buildSubGeometryFromTriangles(mechGeo, triggerTris);
+          triggerGeo.applyMatrix4(mMechToRoot);
 
-        this.mp5SelectorMesh =
-          mp5Scene.getObjectByName('MP5010') ||
-          mp5Scene.getObjectByName('MP5.010') ||
-          mp5Scene.getObjectByName('MP5010_Case_0') ||
-          mp5Scene.getObjectByName('MP5.010_Case_0');
+          const tx = 2.0, ty = 34.5, tz = 0.0;
+          const tGame = new THREE.Vector3(0, ty * uspScale + uspYOffset, tx * uspScale);
+          this.uspTriggerGroup.position.copy(tGame);
+          this.uspTriggerGroup.rotation.set(0, 0, 0);
 
-        this.mp5ModelGroup.add(mp5Scene);
-      },
-      undefined,
-      (err) => console.error('Failed to load ./models/hk_mp5.glb:', err)
-    );
-    // 3. Rigged FPS Hands by EvolveGames
-    loader.load(
-      './models/fps_hands.glb',
-      (gltf) => {
-        gltf.scene.traverse((child) => {
-          if (child.isMesh || child.isSkinnedMesh) {
-            child.frustumCulled = false;
-            child.castShadow = false;
-            child.receiveShadow = true;
-            if (child.material) {
-              if (child.material.map) {
-                child.material.map.colorSpace = THREE.SRGBColorSpace;
-              }
-              child.material.roughness = 0.65;
-              child.material.metalness = 0.0;
-            }
+          const triggerInner = new THREE.Group();
+          triggerInner.rotation.y = -Math.PI / 2;
+          triggerInner.scale.setScalar(uspScale);
+          triggerInner.position.set(0, 0, 0);
+
+          const triggerMesh = new THREE.Mesh(triggerGeo, mechMat);
+          triggerMesh.position.set(-tx, -ty, -tz);
+          triggerMesh.rotation.set(0, 0, 0);
+          triggerMesh.frustumCulled = false;
+          triggerMesh.receiveShadow = true;
+
+          triggerInner.add(triggerMesh);
+          this.uspTriggerGroup.add(triggerInner);
+        }
+      }
+    }
+  }
+
+  _setupPistolModel(gltf) {
+    const deScene = gltf.scene;
+    deScene.name = 'DesertEagleGLTF';
+
+    deScene.traverse((child) => {
+      if (child.name.toLowerCase().includes('bullet') && !child.name.includes('BulletThrow')) {
+        child.visible = false;
+      }
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        if (child.material && child.material.map) {
+          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      }
+    });
+
+    // Normalize scale & orientation: Length ~27cm along Z in GLTF.
+    deScene.scale.setScalar(0.01);
+    deScene.rotation.y = Math.PI;
+    deScene.position.set(0, -0.165, 0.10);
+
+    this.pistolSlideMesh = deScene.getObjectByName('Group001');
+    if (this.pistolSlideMesh) {
+      this.deSlideRestZ = this.pistolSlideMesh.position.z;
+    }
+
+    this.hammerGroup = deScene.getObjectByName('Hammer_low') || new THREE.Group();
+    this.hammerRestAngle = this.hammerGroup.rotation.x;
+    this.triggerMesh = deScene.getObjectByName('Trigger_low');
+
+    this.deMagMeshes = [
+      deScene.getObjectByName('Magazine_low'),
+      deScene.getObjectByName('MagazineBase_low'),
+      deScene.getObjectByName('BaseInside_low'),
+    ].filter(Boolean);
+    this.deMagRestY = this.deMagMeshes.map((m) => m.position.y);
+
+    this.pistolModelGroup.add(deScene);
+  }
+
+  _setupShotgunModel(gltf) {
+    const remScene = gltf.scene;
+    remScene.name = 'Remington870GLTF';
+
+    remScene.traverse((child) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        if (child.material && child.material.map) {
+          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      }
+    });
+
+    remScene.scale.setScalar(0.89);
+    remScene.rotation.y = Math.PI / 2;
+    remScene.position.set(0, 0.045, -0.178);
+
+    this.shotgunPumpMesh = remScene.getObjectByName('Pump_low');
+    this.shotgunPumpRodsMesh = remScene.getObjectByName('PumpRods_low');
+    this.shotgunSlideLRodsMesh = remScene.getObjectByName('SlideLRods_low');
+    this.shotgunBoltMesh = remScene.getObjectByName('Slide_low');
+
+    if (this.shotgunPumpMesh) this.shotgunPumpRestX = this.shotgunPumpMesh.position.x;
+    if (this.shotgunPumpRodsMesh) this.shotgunPumpRodsRestX = this.shotgunPumpRodsMesh.position.x;
+    if (this.shotgunSlideLRodsMesh) this.shotgunSlideLRodsRestX = this.shotgunSlideLRodsMesh.position.x;
+    if (this.shotgunBoltMesh) this.shotgunBoltRestX = this.shotgunBoltMesh.position.x;
+
+    const carrierPlate = remScene.getObjectByName('LoadingPlate_low');
+    if (carrierPlate) this.shotgunCarrierGroup = carrierPlate;
+
+    this.shotgunTriggerMesh = remScene.getObjectByName('Trigger_low');
+
+    this.shotgunModelGroup.add(remScene);
+  }
+
+  _setupMP5Model(gltf) {
+    const mp5Scene = gltf.scene;
+    mp5Scene.name = 'HKMP5GLTF';
+
+    mp5Scene.traverse((child) => {
+      const nameLower = (child.name || '').toLowerCase();
+      if (
+        nameLower.includes('bullet') ||
+        nameLower.includes('casing') ||
+        nameLower.includes('shell') ||
+        nameLower.includes('showcase') ||
+        nameLower.includes('stand') ||
+        nameLower.includes('floor') ||
+        nameLower.includes('studio')
+      ) {
+        child.visible = false;
+      }
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        if (child.material && child.material.map) {
+          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      }
+    });
+
+    // 1 unit in hk_mp5.glb = 1mm. 0.001 scale converts to real-world meters (~58.4cm length)
+    mp5Scene.scale.setScalar(0.001);
+    mp5Scene.rotation.set(0, 0, 0);
+    mp5Scene.position.set(0, 0, 0);
+
+    this.mp5BoltMesh =
+      mp5Scene.getObjectByName('MP5005') ||
+      mp5Scene.getObjectByName('MP5.005') ||
+      mp5Scene.getObjectByName('MP5005_Case_0') ||
+      mp5Scene.getObjectByName('MP5.005_Case_0');
+    if (this.mp5BoltMesh) {
+      this.mp5BoltRestZ = this.mp5BoltMesh.position.z;
+    }
+
+    this.mp5MagMesh =
+      mp5Scene.getObjectByName('MP5003') ||
+      mp5Scene.getObjectByName('MP5.003') ||
+      mp5Scene.getObjectByName('MP5003_Case_0') ||
+      mp5Scene.getObjectByName('MP5.003_Case_0');
+    if (this.mp5MagMesh) {
+      this.mp5MagRestY = this.mp5MagMesh.position.y;
+      this.mp5MagRestZ = this.mp5MagMesh.position.z;
+    }
+
+    this.mp5TriggerMesh =
+      mp5Scene.getObjectByName('MP5001') ||
+      mp5Scene.getObjectByName('MP5.001') ||
+      mp5Scene.getObjectByName('MP5001_Case_0') ||
+      mp5Scene.getObjectByName('MP5.001_Case_0');
+
+    this.mp5SelectorMesh =
+      mp5Scene.getObjectByName('MP5010') ||
+      mp5Scene.getObjectByName('MP5.010') ||
+      mp5Scene.getObjectByName('MP5010_Case_0') ||
+      mp5Scene.getObjectByName('MP5.010_Case_0');
+
+    this.mp5ModelGroup.add(mp5Scene);
+  }
+
+  _setupHandsModel(gltf) {
+    gltf.scene.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        if (child.material) {
+          if (child.material.map) {
+            child.material.map.colorSpace = THREE.SRGBColorSpace;
           }
-        });
-
-        const cam = gltf.scene.getObjectByName('Camera');
-        if (cam && cam.parent) cam.parent.remove(cam);
-
-        this.rawHandsScene = gltf.scene;
-
-        this._buildUSPHand();
-        this._buildPistolHand();
-        this._buildShotgunHands();
-        this._buildMP5Hand();
-
-        if (this.handTunerOverlay && this.handTunerOverlay.style.display !== 'none') {
-          this._updateHandTunerSliders();
+          child.material.roughness = 0.65;
+          child.material.metalness = 0.0;
         }
-      },
-      undefined,
-      (err) => console.error('Failed to load ./models/fps_hands.glb:', err)
-    );
+      }
+    });
+
+    const cam = gltf.scene.getObjectByName('Camera');
+    if (cam && cam.parent) cam.parent.remove(cam);
+
+    this.rawHandsScene = gltf.scene;
+
+    this._buildUSPHand();
+    this._buildPistolHand();
+    this._buildShotgunHands();
+    this._buildMP5Hand();
+
+    if (this.handTunerOverlay && this.handTunerOverlay.style.display !== 'none') {
+      this._updateHandTunerSliders();
+    }
+  }
+
+  /**
+   * Performs an ahead-of-time WebGL GPU Texture and Shader pre-compilation pass.
+   * Eliminates runtime frame drops when switching weapons or drawing hands for the first time.
+   */
+  async warmUpGPU(renderer, scene, camera) {
+    if (!renderer) return;
+    const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+
+    // 1. Pre-upload all viewmodel texture maps to the GPU
+    const uploadedTextures = new Set();
+    const initTex = (tex) => {
+      if (tex && tex.isTexture && !uploadedTextures.has(tex)) {
+        uploadedTextures.add(tex);
+        try {
+          renderer.initTexture(tex);
+        } catch (e) {}
+      }
+    };
+
+    if (this.flameTexture) initTex(this.flameTexture);
+
+    this.root.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
+        const mat = child.material;
+        if (mat) {
+          const mats = Array.isArray(mat) ? mat : [mat];
+          for (const m of mats) {
+            if (m.map) initTex(m.map);
+            if (m.normalMap) initTex(m.normalMap);
+            if (m.roughnessMap) initTex(m.roughnessMap);
+            if (m.metalnessMap) initTex(m.metalnessMap);
+            if (m.aoMap) initTex(m.aoMap);
+            if (m.emissiveMap) initTex(m.emissiveMap);
+          }
+        }
+      }
+    });
+
+    await yieldToBrowser();
+
+    // 2. Temporarily set all weapon models & rigged hands visible for shader compilation
+    const prevUspVis = this.uspGroup ? this.uspGroup.visible : false;
+    const prevGunVis = this.gunGroup ? this.gunGroup.visible : false;
+    const prevShotgunVis = this.shotgunGroup ? this.shotgunGroup.visible : false;
+    const prevMp5Vis = this.mp5Group ? this.mp5Group.visible : false;
+    const prevMuzzleVis = this.muzzleFlashGroup ? this.muzzleFlashGroup.visible : false;
+    const prevRootVis = this.root.visible;
+
+    this.root.visible = true;
+    if (this.uspGroup) this.uspGroup.visible = true;
+    if (this.gunGroup) this.gunGroup.visible = true;
+    if (this.shotgunGroup) this.shotgunGroup.visible = true;
+    if (this.mp5Group) this.mp5Group.visible = true;
+    if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = true;
+
+    if (scene && camera) {
+      try {
+        renderer.compile(scene, camera);
+      } catch (err) {
+        console.warn('[WeaponViewmodel] warmUpGPU compile warning:', err);
+      }
+    }
+
+    await yieldToBrowser();
+
+    // 3. Restore visibility states to their designated defaults
+    if (this.uspGroup) this.uspGroup.visible = prevUspVis;
+    if (this.gunGroup) this.gunGroup.visible = prevGunVis;
+    if (this.shotgunGroup) this.shotgunGroup.visible = prevShotgunVis;
+    if (this.mp5Group) this.mp5Group.visible = prevMp5Vis;
+    if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = prevMuzzleVis;
+    this.root.visible = prevRootVis;
+  }
+
+  selectWeapon(weaponType) {
+    this.currentWeapon = null;
+    this.switchWeapon(weaponType);
   }
 
   /**
