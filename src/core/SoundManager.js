@@ -239,9 +239,9 @@ export class SoundManager {
 
   /**
    * Authentic Reload Audio Sequence (9mm_reload.mp3).
-   * Synchronized for CZ P-10S (~0.75s cycle at 2.13x) or Desert Eagle (.50 AE at 0.90x).
+   * Synchronized for H&K USP (~0.75s cycle at 2.13x) or Desert Eagle (.50 AE at 0.90x).
    */
-  playReloadSound(weaponType = 'cz_p10s') {
+  playReloadSound(weaponType = 'hk_usp') {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return false;
     this.resume();
 
@@ -376,14 +376,14 @@ export class SoundManager {
   }
 
   /**
-   * Tactical 9mm Pistol Gunshot (CZ P-10S - Slot 1).
+   * Tactical 9mm Pistol Gunshot (H&K USP - Slot 1).
    * Snappy supersonic crack, lighter transient sub-thump, and crisp slide cycle.
    */
   play9mmGunshot() {
     if (!this.ctx || this.isMuted) return;
     this.resume();
 
-    // Authentic sample playback (9mm CZ P-10S)
+    // Authentic sample playback (9mm H&K USP)
     if (this.audioBuffers.has('9mm_fire')) {
       const playbackRate = 0.96 + Math.random() * 0.08; // 0.96 to 1.04
       this._playSoundBuffer('9mm_fire', { volume: 0.95, playbackRate });
@@ -612,7 +612,7 @@ export class SoundManager {
    * Cooldown (~150ms) prevents distorted phasing on rapid spam.
    * Distinct pitch for 9mm (1.0), .50 AE (0.90), and 12-gauge (0.85).
    */
-  playDryFireClick(weaponType = 'cz_p10s') {
+  playDryFireClick(weaponType = 'hk_usp') {
     if (!this.ctx || this.isMuted) return;
     this.resume();
 
@@ -1653,14 +1653,14 @@ export class SoundManager {
   /**
    * Tactical Weapon Equip / Switch SFX (Keys 1, 2, & 3).
    */
-  playWeaponSwitch(weaponType = 'cz_p10s') {
+  playWeaponSwitch(weaponType = 'hk_usp') {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
     const t = this.ctx.currentTime;
 
     const isShotgun = weaponType === 'shotgun' || weaponType === true || weaponType === 3 || weaponType === '3';
     const isMP5 = weaponType === 'hk_mp5' || weaponType === 4 || weaponType === '4';
-    const is9mm = weaponType === 'cz_p10s' || weaponType === 1 || weaponType === '1' || isMP5;
+    const is9mm = weaponType === 'hk_usp' || weaponType === 1 || weaponType === '1' || isMP5;
 
     const noiseBuffer = this._createNoiseBuffer(0.14);
     if (noiseBuffer) {

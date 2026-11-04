@@ -12,7 +12,7 @@ export class HUD {
     this.reloadPromptEl = null;
     this.bulletPips = [];
 
-    this.currentWeapon = 'cz_p10s';
+    this.currentWeapon = 'hk_usp';
     this.currentAmmo = 12;
     this.maxAmmo = 12;
     this._lastReportedAmmo = null;
@@ -83,9 +83,10 @@ export class HUD {
 
   /**
    * Switches the HUD between:
-   * - Slot 1: 'cz_p10s' (9MM - 12 compact cartridges)
+   * - Slot 1: 'hk_usp' (9MM - 12 compact cartridges)
    * - Slot 2: 'pistol' (.50 AE - 7 heavy brass cartridges)
    * - Slot 3: 'shotgun' (12 GAUGE - 6 red shotshells)
+   * - Slot 4: 'hk_mp5' (9MM - 30 submachine gun cartridges)
    */
   setWeapon(weaponType, currentAmmo, maxAmmo) {
     this.currentWeapon = weaponType;
@@ -95,7 +96,7 @@ export class HUD {
     this._lastReportedMax = null;
 
     if (this.caliberTextEl) {
-      if (weaponType === 'cz_p10s' || weaponType === 'hk_mp5') {
+      if (weaponType === 'hk_usp' || weaponType === 'hk_mp5') {
         this.caliberTextEl.textContent = '9MM';
       } else if (weaponType === 'shotgun') {
         this.caliberTextEl.textContent = '12 GAUGE';
@@ -123,7 +124,7 @@ export class HUD {
 
     const isShotgun = this.currentWeapon === 'shotgun';
     const isMP5 = this.currentWeapon === 'hk_mp5';
-    const is9mm = this.currentWeapon === 'cz_p10s' || isMP5;
+    const is9mm = this.currentWeapon === 'hk_usp' || isMP5;
 
     if (isMP5) {
       this.pipsContainerEl.classList.add('rack-mp5');
@@ -345,7 +346,7 @@ export class HUD {
   }
 
   reset() {
-    this.setWeapon('cz_p10s', 12, 12);
+    this.setWeapon('hk_usp', 12, 12);
 
     if (this.reloadPromptEl) {
       this.reloadPromptEl.classList.add('hidden');

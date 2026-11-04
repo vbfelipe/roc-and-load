@@ -91,8 +91,169 @@ function createMuzzleFlashTexture() {
 }
 
 /**
- * 100% 3D GLTF Asset Pipeline Viewmodel for Slot 1 (.50 AE Desert Eagle),
- * Slot 2 (Remington 870 12-Gauge Pump Shotgun), and Rigged First-Person Hands.
+ * Union-Find data structure for connected-components graph clustering.
+ */
+class UnionFind {
+  constructor(size) {
+    this.parent = new Int32Array(size);
+    for (let i = 0; i < size; i++) this.parent[i] = i;
+  }
+  find(i) {
+    let root = i;
+    while (root !== this.parent[root]) root = this.parent[root];
+    let curr = i;
+    while (curr !== root) {
+      const next = this.parent[curr];
+      this.parent[curr] = root;
+      curr = next;
+    }
+    return root;
+  }
+  union(i, j) {
+    const rootI = this.find(i);
+    const rootJ = this.find(j);
+    if (rootI !== rootJ) this.parent[rootI] = rootJ;
+  }
+}
+
+/**
+ * Decomposes an indexed Three.js BufferGeometry into topological connected components (islands).
+ * Triangles that share vertex indices OR coincident 3D vertex positions (tolerance 1e-4 for UV seams)
+ * are grouped together into whole, watertight islands.
+ */
+function decomposeMeshIslands(geometry) {
+  const posAttr = geometry.attributes.position;
+  const index = geometry.index;
+  const triCount = index ? index.count / 3 : posAttr.count / 3;
+  const uf = new UnionFind(triCount);
+
+  // Quantize position to 0.0001 precision to connect coincident vertices across UV seams
+  const scale = 10000;
+  const posKeyToTris = new Map();
+
+  for (let t = 0; t < triCount; t++) {
+    for (let v = 0; v < 3; v++) {
+      const idx = index ? index.getX(t * 3 + v) : t * 3 + v;
+      const px = posAttr.getX(idx);
+      const py = posAttr.getY(idx);
+      const pz = posAttr.getZ(idx);
+
+      const qx = Math.round(px * scale);
+      const qy = Math.round(py * scale);
+      const qz = Math.round(pz * scale);
+      const key = `${qx}_${qy}_${qz}`;
+
+      if (!posKeyToTris.has(key)) {
+        posKeyToTris.set(key, [t]);
+      } else {
+        const list = posKeyToTris.get(key);
+        for (const otherT of list) {
+          uf.union(t, otherT);
+        }
+        list.push(t);
+      }
+    }
+  }
+
+  const islandMap = new Map();
+  for (let t = 0; t < triCount; t++) {
+    const root = uf.find(t);
+    if (!islandMap.has(root)) islandMap.set(root, []);
+    islandMap.get(root).push(t);
+  }
+
+  const islands = [];
+  const v = new THREE.Vector3();
+  for (const triList of islandMap.values()) {
+    const box = new THREE.Box3();
+    for (const t of triList) {
+      for (let j = 0; j < 3; j++) {
+        const idx = index ? index.getX(t * 3 + j) : t * 3 + j;
+        v.set(posAttr.getX(idx), posAttr.getY(idx), posAttr.getZ(idx));
+        box.expandByPoint(v);
+      }
+    }
+    const center = new THREE.Vector3();
+    box.getCenter(center);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    islands.push({ triList, box, center, size });
+  }
+
+  return islands;
+}
+
+/**
+ * Builds a new sub-BufferGeometry from a list of triangle indices, preserving 100% of the
+ * original geometry's position, normal, uv, and tangent vertex attributes.
+ * Never recomputes or alters normals/tangents.
+ */
+function buildSubGeometryFromTriangles(origGeo, triangleIndices) {
+  const posAttr = origGeo.attributes.position;
+  const normAttr = origGeo.attributes.normal;
+  const uvAttr = origGeo.attributes.uv;
+  const tangAttr = origGeo.attributes.tangent;
+  const origIndex = origGeo.index;
+
+  const newPositions = [];
+  const newNormals = [];
+  const newUvs = [];
+  const newTangents = [];
+  const newIndices = [];
+  const oldToNew = new Map();
+
+  for (const tri of triangleIndices) {
+    for (let j = 0; j < 3; j++) {
+      const oldIdx = origIndex ? origIndex.getX(tri * 3 + j) : tri * 3 + j;
+      let newIdx;
+      if (oldToNew.has(oldIdx)) {
+        newIdx = oldToNew.get(oldIdx);
+      } else {
+        newIdx = newPositions.length / 3;
+        oldToNew.set(oldIdx, newIdx);
+
+        newPositions.push(posAttr.getX(oldIdx), posAttr.getY(oldIdx), posAttr.getZ(oldIdx));
+        if (normAttr) {
+          newNormals.push(normAttr.getX(oldIdx), normAttr.getY(oldIdx), normAttr.getZ(oldIdx));
+        }
+        if (uvAttr) {
+          newUvs.push(uvAttr.getX(oldIdx), uvAttr.getY(oldIdx));
+        }
+        if (tangAttr) {
+          newTangents.push(
+            tangAttr.getX(oldIdx),
+            tangAttr.getY(oldIdx),
+            tangAttr.getZ(oldIdx),
+            tangAttr.getW(oldIdx)
+          );
+        }
+      }
+      newIndices.push(newIdx);
+    }
+  }
+
+  const subGeo = new THREE.BufferGeometry();
+  subGeo.setAttribute('position', new THREE.Float32BufferAttribute(newPositions, 3));
+  if (normAttr) {
+    subGeo.setAttribute('normal', new THREE.Float32BufferAttribute(newNormals, 3));
+  }
+  if (uvAttr) {
+    subGeo.setAttribute('uv', new THREE.Float32BufferAttribute(newUvs, 2));
+  }
+  if (tangAttr) {
+    subGeo.setAttribute('tangent', new THREE.Float32BufferAttribute(newTangents, 4));
+  }
+  const IndexConstructor = newPositions.length / 3 > 65535 ? Uint32Array : Uint16Array;
+  subGeo.setIndex(new THREE.BufferAttribute(new IndexConstructor(newIndices), 1));
+  subGeo.computeBoundingBox();
+  subGeo.computeBoundingSphere();
+  return subGeo;
+}
+
+/**
+ * 100% 3D GLTF Asset Pipeline Viewmodel for Slot 1 (H&K USP 9mm Pistol),
+ * Slot 2 (.50 AE Desert Eagle), Slot 3 (Remington 870 12-Gauge Shotgun),
+ * Slot 4 (H&K MP5 Submachine Gun), and Rigged First-Person Hands.
  */
 export class WeaponViewmodel {
   constructor(camera, soundManager) {
@@ -104,19 +265,19 @@ export class WeaponViewmodel {
     this.camera.add(this.root);
     if (typeof window !== 'undefined') window.__rocViewmodel = this;
 
-    // Active weapon type ('cz_p10s' = Slot 1 9mm Pistol, 'pistol' = Slot 2 Desert Eagle .50 AE, 'shotgun' = Slot 3 Remington 870)
-    this.currentWeapon = 'cz_p10s';
+    // Active weapon type ('hk_usp' = Slot 1 9mm Pistol, 'pistol' = Slot 2 Desert Eagle .50 AE, 'shotgun' = Slot 3 Remington 870, 'hk_mp5' = Slot 4)
+    this.currentWeapon = 'hk_usp';
 
     // ADS interpolation flag
     this.isADS = false;
     this.tunerForceADS = null;
     this.tunerMode = 'HAND RIG';
 
-    // Slot 1 (CZ P-10S 9mm Pistol) Hip & ADS Transforms
-    this.czHipPosition = new THREE.Vector3(0.09, -0.1, -0.2);
-    this.czAdsPosition = new THREE.Vector3(0.000, -0.0595, -0.115);
-    this.czHipRotation = new THREE.Euler(0.1, 0, 0.1);
-    this.czAdsRotation = new THREE.Euler(0.0035, 0, 0);
+    // Slot 1 (H&K USP 9mm Pistol) Hip & ADS Transforms
+    this.uspHipPosition = new THREE.Vector3(0.1, -0.1, -0.22);
+    this.uspAdsPosition = new THREE.Vector3(0, -0.077, -0.16);
+    this.uspHipRotation = new THREE.Euler(0.1, 0, 0.1);
+    this.uspAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 2 (.50 AE Desert Eagle) Hip & ADS Transforms
     this.pistolHipPosition = new THREE.Vector3(0.1, -0.1, -0.42);
@@ -137,32 +298,32 @@ export class WeaponViewmodel {
     this.mp5AdsRotation = new THREE.Euler(0, 0, 0);
 
     // Dynamic targets pointing to current active weapon transforms
-    this.hipPosition = this.czHipPosition;
-    this.adsPosition = this.czAdsPosition;
-    this.hipRotation = this.czHipRotation;
-    this.adsRotation = this.czAdsRotation;
+    this.hipPosition = this.uspHipPosition;
+    this.adsPosition = this.uspAdsPosition;
+    this.hipRotation = this.uspHipRotation;
+    this.adsRotation = this.uspAdsRotation;
 
     // Second-order harmonic springs for natural weight, inertia and snappy recovery
-    this.posSpring = new Spring3D({ stiffness: 220, damping: 20, initial: this.czHipPosition });
-    this.rotSpring = new Spring3D({ stiffness: 210, damping: 19, initial: this.czHipRotation });
+    this.posSpring = new Spring3D({ stiffness: 220, damping: 20, initial: this.uspHipPosition });
+    this.rotSpring = new Spring3D({ stiffness: 210, damping: 19, initial: this.uspHipRotation });
 
     // Procedural weapon sway and bobbing
     this.bobSpring = new Spring3D({ stiffness: 120, damping: 14 });
     this.bobCycle = 0;
 
     // Sockets & anchors
-    this.czMuzzleSocket = new THREE.Object3D();
-    this.czMuzzleSocket.name = 'CZMuzzleSocket';
+    this.uspMuzzleSocket = new THREE.Object3D();
+    this.uspMuzzleSocket.name = 'USPMuzzleSocket';
     this.muzzleSocket = new THREE.Object3D();
     this.muzzleSocket.name = 'PistolMuzzleSocket';
     this.shotgunMuzzleSocket = new THREE.Object3D();
     this.shotgunMuzzleSocket.name = 'ShotgunMuzzleSocket';
     this.mp5MuzzleSocket = new THREE.Object3D();
     this.mp5MuzzleSocket.name = 'MP5MuzzleSocket';
-    this.muzzleAnchor = this.czMuzzleSocket;
+    this.muzzleAnchor = this.uspMuzzleSocket;
 
-    this.czEjectionAnchor = new THREE.Group();
-    this.czEjectionAnchor.name = 'CZEjectionAnchor';
+    this.uspEjectionAnchor = new THREE.Group();
+    this.uspEjectionAnchor.name = 'USPEjectionAnchor';
     this.ejectionAnchor = new THREE.Group();
     this.ejectionAnchor.name = 'PistolEjectionAnchor';
     this.shotgunEjectionAnchor = new THREE.Group();
@@ -174,9 +335,8 @@ export class WeaponViewmodel {
     this.ejectionWorldPos = new THREE.Vector3();
 
     // Slide Blowback, Hammer Action, Pump Action & Reload state
-    this.czSlideBlowback = 0;
-    this.czSlideMesh = null;
-    this.czSlideRestY = 0;
+    this.uspSlideBlowback = 0;
+    this.uspHammerRecoil = 0;
     this.slideBlowback = 0;
     this.hammerRecoil = 0;
     this.hammerRestAngle = 0;
@@ -187,14 +347,18 @@ export class WeaponViewmodel {
     this.reloadTilt = { roll: 0, pitch: 0, yaw: 0, y: 0, x: 0, z: 0 };
 
     // Sub-assemblies & references
-    this.czGroup = null;
-    this.czModelGroup = null;
-    this.czHandGroup = null;
-    this.czHandsClone = null;
-    this.czHandPivot = null;
-    this.czWristBone = null;
-    this.czElbowBone = null;
-    this.czTriggerFingerGroup = null;
+    this.uspGroup = null;
+    this.uspModelGroup = null;
+    this.uspSlideGroup = null;
+    this.uspHammerGroup = null;
+    this.uspTriggerGroup = null;
+    this.uspMagGroup = null;
+    this.uspHandGroup = null;
+    this.uspHandsClone = null;
+    this.uspHandPivot = null;
+    this.uspWristBone = null;
+    this.uspElbowBone = null;
+    this.uspTriggerFingerGroup = null;
 
     this.gunGroup = null;
     this.pistolGroup = null;
@@ -271,7 +435,7 @@ export class WeaponViewmodel {
     this.tunerMode = 'HAND RIG'; // 'HAND RIG' | 'GUN (HIP)' | 'GUN (ADS)'
 
     this._buildMaterials();
-    this._buildCZMesh();
+    this._buildUSPMesh();
     this._buildGunMesh();
     this._buildShotgunMesh();
     this._buildMP5Mesh();
@@ -312,25 +476,41 @@ export class WeaponViewmodel {
     });
   }
 
-  _buildCZMesh() {
-    this.czGroup = new THREE.Group();
-    this.czGroup.name = 'CZP10S';
-    this.czGroup.visible = true;
-    this.root.add(this.czGroup);
+  _buildUSPMesh() {
+    this.uspGroup = new THREE.Group();
+    this.uspGroup.name = 'HK_USP';
+    this.uspGroup.visible = true;
+    this.root.add(this.uspGroup);
 
-    this.czModelGroup = new THREE.Group();
-    this.czModelGroup.name = 'CZModelContainer';
-    this.czGroup.add(this.czModelGroup);
+    this.uspModelGroup = new THREE.Group();
+    this.uspModelGroup.name = 'USPModelContainer';
+    this.uspGroup.add(this.uspModelGroup);
 
-    this.czHandGroup = new THREE.Group();
-    this.czHandGroup.name = 'CZHandContainer';
-    this.czGroup.add(this.czHandGroup);
+    this.uspSlideGroup = new THREE.Group();
+    this.uspSlideGroup.name = 'USPSlideGroup';
+    this.uspModelGroup.add(this.uspSlideGroup);
 
-    this.czMuzzleSocket.position.set(0, 0.043, -0.120);
-    this.czGroup.add(this.czMuzzleSocket);
+    this.uspHammerGroup = new THREE.Group();
+    this.uspHammerGroup.name = 'USPHammerGroup';
+    this.uspModelGroup.add(this.uspHammerGroup);
 
-    this.czEjectionAnchor.position.set(0.012, 0.040, -0.010);
-    this.czGroup.add(this.czEjectionAnchor);
+    this.uspTriggerGroup = new THREE.Group();
+    this.uspTriggerGroup.name = 'USPTriggerGroup';
+    this.uspModelGroup.add(this.uspTriggerGroup);
+
+    this.uspMagGroup = new THREE.Group();
+    this.uspMagGroup.name = 'USPMagGroup';
+    this.uspModelGroup.add(this.uspMagGroup);
+
+    this.uspHandGroup = new THREE.Group();
+    this.uspHandGroup.name = 'USPHandContainer';
+    this.uspGroup.add(this.uspHandGroup);
+
+    this.uspMuzzleSocket.position.set(0, 0.0594, -0.095);
+    this.uspGroup.add(this.uspMuzzleSocket);
+
+    this.uspEjectionAnchor.position.set(0.012, 0.060, 0.027);
+    this.uspGroup.add(this.uspEjectionAnchor);
   }
 
   _buildGunMesh() {
@@ -445,14 +625,26 @@ export class WeaponViewmodel {
   _loadWeaponModels() {
     const loader = new GLTFLoader();
 
-    // 0. CZ P-10S (9mm)
+    // 0. Heckler & Koch USP 9mm Pistol ("USP 9mm [reworked]")
     loader.load(
-      './models/cz_p10s.glb',
+      './models/hk_usp.glb',
       (gltf) => {
-        const czScene = gltf.scene;
-        czScene.name = 'CZP10SGLTF';
+        const uspScene = gltf.scene;
+        uspScene.name = 'HK_USP_GLTF';
 
-        czScene.traverse((child) => {
+        uspScene.traverse((child) => {
+          const nameLower = (child.name || '').toLowerCase();
+          if (
+            nameLower.includes('bullet') ||
+            nameLower.includes('casing') ||
+            nameLower.includes('shell') ||
+            nameLower.includes('showcase') ||
+            nameLower.includes('stand') ||
+            nameLower.includes('floor') ||
+            nameLower.includes('studio')
+          ) {
+            child.visible = false;
+          }
           if (child.isMesh) {
             child.frustumCulled = false;
             child.castShadow = false;
@@ -463,23 +655,170 @@ export class WeaponViewmodel {
           }
         });
 
-        // Subcompact 9mm: ~17.5cm length along Y, rotated so +Z faces camera/forward
-        czScene.scale.setScalar(0.08);
-        czScene.rotation.y = Math.PI;
-        czScene.position.set(0, 0, 0);
+        // Helper to locate nodes across hierarchy
+        const findNode = (name) => {
+          let found = uspScene.getObjectByName(name);
+          if (!found) {
+            uspScene.traverse((c) => {
+              if (!found && (c.name === name || (c.name || '').toLowerCase().includes(name.toLowerCase()))) {
+                found = c;
+              }
+            });
+          }
+          return found;
+        };
 
-        this.czSlideMesh =
-          czScene.getObjectByName('Cylinder.003_P-1_0') ||
-          czScene.getObjectByName('Cylinder003_1') ||
-          czScene.getObjectByName('Cylinder.003');
-        if (this.czSlideMesh) {
-          this.czSlideRestY = this.czSlideMesh.position.y;
+        const nodeSlide = findNode('slide_lowpoly');
+        const nodeSights = findNode('sights_lowpoly');
+        const nodeSlideInsert = findNode('slide_insert_lowpoly');
+        const nodeFrame = findNode('lower_frame_lowpoly');
+        const nodeBarrel = findNode('barrel_lowpoly');
+        const nodeStabilizer = findNode('slide_stabilizer_lowpoly');
+        const nodeMag = findNode('magazine_lowpoly');
+        const nodeMechanics = findNode('mechanics_lowpoly');
+
+        // USP Model scale & vertical centering:
+        // Length in RootNode = 67.067 units. 0.194 / 67.067 = 0.00289263 (~19.4cm).
+        // Sightline top is at Y = 0.1455 m. Setting yOffset = -0.0686 puts sightline
+        // at Y = +0.0769 m, aligning with uspAdsPosition (0, -0.0769, -0.150).
+        const uspScale = 0.0028926297583014003;
+        const uspYOffset = -0.0686;
+
+        // Helper to create an oriented/scaled RootNode wrapper for a sub-assembly
+        const createAssemblyInner = (name) => {
+          const inner = new THREE.Group();
+          inner.name = `${name}_Orient`;
+          inner.rotation.y = -Math.PI / 2;
+          inner.scale.setScalar(uspScale);
+          inner.position.y = uspYOffset;
+          return inner;
+        };
+
+        // 1. Slide Group (Slide + Sights + Extractor Slide Insert)
+        const slideInner = createAssemblyInner('USPSlide');
+        if (nodeSlide) slideInner.add(nodeSlide);
+        if (nodeSights) slideInner.add(nodeSights);
+        if (nodeSlideInsert) slideInner.add(nodeSlideInsert);
+        this.uspSlideGroup.add(slideInner);
+
+        // 2. Fixed Frame Group (Polymer Lower Frame + Barrel + Guide Rod + Frame Controls)
+        const uspFrameGroup = new THREE.Group();
+        uspFrameGroup.name = 'USPFrameGroup';
+        this.uspModelGroup.add(uspFrameGroup);
+
+        const frameInner = createAssemblyInner('USPFrame');
+        if (nodeFrame) frameInner.add(nodeFrame);
+        if (nodeBarrel) frameInner.add(nodeBarrel);
+        if (nodeStabilizer) frameInner.add(nodeStabilizer);
+        uspFrameGroup.add(frameInner);
+
+        // 3. Detachable Magazine Group
+        const magInner = createAssemblyInner('USPMag');
+        if (nodeMag) magInner.add(nodeMag);
+        this.uspMagGroup.add(magInner);
+
+        // 4. Mechanics separation (Hammer, Trigger, and Frame Controls)
+        if (nodeMechanics) {
+          let mechMesh = null;
+          nodeMechanics.traverse((c) => {
+            if (!mechMesh && c.isMesh) mechMesh = c;
+          });
+
+          if (mechMesh) {
+            const mechGeo = mechMesh.geometry;
+            const mechMat = mechMesh.material;
+            const islands = decomposeMeshIslands(mechGeo);
+
+            const hammerTris = [];
+            const triggerTris = [];
+            const frameCtrlTris = [];
+
+            for (const isl of islands) {
+              if (isl.center.y < 5.0) {
+                hammerTris.push(...isl.triList);
+              } else if (isl.center.y > 20.0 && isl.center.x < -18.0) {
+                triggerTris.push(...isl.triList);
+              } else {
+                frameCtrlTris.push(...isl.triList);
+              }
+            }
+
+            // Compute matrix from mesh up to RootNode (node 10 matrix * node 11 matrix)
+            nodeMechanics.updateMatrix();
+            if (mechMesh.parent) mechMesh.parent.updateMatrix();
+            mechMesh.updateMatrix();
+
+            const mMechToRoot = new THREE.Matrix4();
+            if (mechMesh.parent && mechMesh.parent !== nodeMechanics) {
+              mMechToRoot.multiplyMatrices(nodeMechanics.matrix, mechMesh.parent.matrix).multiply(mechMesh.matrix);
+            } else {
+              mMechToRoot.multiplyMatrices(nodeMechanics.matrix, mechMesh.matrix);
+            }
+
+            // Frame Controls (Safety, slide release, pin, mag release paddle)
+            if (frameCtrlTris.length > 0) {
+              const frameCtrlGeo = buildSubGeometryFromTriangles(mechGeo, frameCtrlTris);
+              frameCtrlGeo.applyMatrix4(mMechToRoot);
+              const frameCtrlMesh = new THREE.Mesh(frameCtrlGeo, mechMat);
+              frameCtrlMesh.frustumCulled = false;
+              frameCtrlMesh.receiveShadow = true;
+              frameInner.add(frameCtrlMesh);
+            }
+
+            // Hammer Group (cock & drop around hinge pin at [27.5, 38.0, 0.0] in RootNode)
+            if (hammerTris.length > 0) {
+              const hammerGeo = buildSubGeometryFromTriangles(mechGeo, hammerTris);
+              hammerGeo.applyMatrix4(mMechToRoot);
+
+              const hx = 27.5, hy = 38.0, hz = 0.0;
+              const hGame = new THREE.Vector3(0, hy * uspScale + uspYOffset, hx * uspScale);
+              this.uspHammerGroup.position.copy(hGame);
+              this.uspHammerGroup.rotation.set(0, 0, 0);
+
+              const hammerInner = new THREE.Group();
+              hammerInner.rotation.y = -Math.PI / 2;
+              hammerInner.scale.setScalar(uspScale);
+              hammerInner.position.set(0, 0, 0);
+
+              const hammerMesh = new THREE.Mesh(hammerGeo, mechMat);
+              hammerMesh.position.set(-hx, -hy, -hz);
+              hammerMesh.rotation.set(0, 0, 0);
+              hammerMesh.frustumCulled = false;
+              hammerMesh.receiveShadow = true;
+
+              hammerInner.add(hammerMesh);
+              this.uspHammerGroup.add(hammerInner);
+            }
+
+            // Trigger Group (pull & return around hinge pin at [2.0, 34.5, 0.0] in RootNode)
+            if (triggerTris.length > 0) {
+              const triggerGeo = buildSubGeometryFromTriangles(mechGeo, triggerTris);
+              triggerGeo.applyMatrix4(mMechToRoot);
+
+              const tx = 2.0, ty = 34.5, tz = 0.0;
+              const tGame = new THREE.Vector3(0, ty * uspScale + uspYOffset, tx * uspScale);
+              this.uspTriggerGroup.position.copy(tGame);
+              this.uspTriggerGroup.rotation.set(0, 0, 0);
+
+              const triggerInner = new THREE.Group();
+              triggerInner.rotation.y = -Math.PI / 2;
+              triggerInner.scale.setScalar(uspScale);
+              triggerInner.position.set(0, 0, 0);
+
+              const triggerMesh = new THREE.Mesh(triggerGeo, mechMat);
+              triggerMesh.position.set(-tx, -ty, -tz);
+              triggerMesh.rotation.set(0, 0, 0);
+              triggerMesh.frustumCulled = false;
+              triggerMesh.receiveShadow = true;
+
+              triggerInner.add(triggerMesh);
+              this.uspTriggerGroup.add(triggerInner);
+            }
+          }
         }
-
-        this.czModelGroup.add(czScene);
       },
       undefined,
-      (err) => console.error('Failed to load ./models/cz_p10s.glb:', err)
+      (err) => console.error('Failed to load ./models/hk_usp.glb:', err)
     );
 
     // 1. Desert Eagle (.50 AE)
@@ -668,7 +1007,7 @@ export class WeaponViewmodel {
 
         this.rawHandsScene = gltf.scene;
 
-        this._buildCZHand();
+        this._buildUSPHand();
         this._buildPistolHand();
         this._buildShotgunHands();
         this._buildMP5Hand();
@@ -793,58 +1132,54 @@ export class WeaponViewmodel {
   }
 
   /**
-   * Builds Slot 1 (CZ P-10S 9mm) Single Right Rigged Hand
-   * Centered on subcompact pistol grip under beavertail/trigger guard with forearm exiting bottom-right.
+   * Builds Slot 1 (H&K USP 9mm) Single Right Rigged Hand
+   * Centered on pistol grip under beavertail/trigger guard with forearm exiting bottom-right.
    */
-  _buildCZHand() {
-    if (!this.czHandGroup) return;
-    while (this.czHandGroup.children.length > 0) {
-      this.czHandGroup.remove(this.czHandGroup.children[0]);
+  _buildUSPHand() {
+    if (!this.uspHandGroup) return;
+    while (this.uspHandGroup.children.length > 0) {
+      this.uspHandGroup.remove(this.uspHandGroup.children[0]);
     }
 
     const handData = this._createPalmCenteredHandClone('R');
     if (!handData) return;
 
-    this.czHandPivot = handData.pivotGroup;
-    this.czHandsClone = handData.clone;
-    this.czWristBone = handData.wristBone;
-    this.czElbowBone = handData.elbowBone;
+    this.uspHandPivot = handData.pivotGroup;
+    this.uspHandsClone = handData.clone;
+    this.uspWristBone = handData.wristBone;
+    this.uspElbowBone = handData.elbowBone;
 
-    // Baseline tuned CZ P-10S grip anchor and orientation
-    this.czHandPivot.position.set(0.016, -0.01, 0.056);
-    this.czHandPivot.rotation.set(0.22, -3.14, 0.18);
-    this.czHandPivot.scale.setScalar(1.0);
+    // Baseline tuned H&K USP grip anchor and orientation
+    this.uspHandPivot.position.set(0.02, -0.014, 0.11);
+    this.uspHandPivot.rotation.set(0.52, -3, 0.22);
+    this.uspHandPivot.scale.setScalar(1.0);
 
-    // Initial bone delta rotations (wristPitch: 0.26, wristRoll: 0.06, elbowBend: -0.04)
-    if (this.czWristBone) {
-      this.czWristBone.userData.pitch = 0.26;
-      this.czWristBone.userData.roll = 0.06;
-      this.czWristBone.quaternion.copy(this.czWristBone.userData.restQuat);
+    // Initial bone delta rotations (wristPitch: 0.24, wristRoll: 0.02, elbowBend: 0)
+    if (this.uspWristBone) {
+      this.uspWristBone.userData.pitch = 0.24;
+      this.uspWristBone.userData.roll = 0.02;
+      this.uspWristBone.quaternion.copy(this.uspWristBone.userData.restQuat);
       const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(0.26, 0, 0.06, 'XYZ')
+        new THREE.Euler(0.24, 0, 0.02, 'XYZ')
       );
-      this.czWristBone.quaternion.multiply(qDelta);
+      this.uspWristBone.quaternion.multiply(qDelta);
     }
-    if (this.czElbowBone) {
-      this.czElbowBone.userData.bend = -0.04;
-      this.czElbowBone.quaternion.copy(this.czElbowBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-0.04, 0, 0, 'XYZ')
-      );
-      this.czElbowBone.quaternion.multiply(qDelta);
+    if (this.uspElbowBone) {
+      this.uspElbowBone.userData.bend = 0;
+      this.uspElbowBone.quaternion.copy(this.uspElbowBone.userData.restQuat);
     }
 
     // Cache default transforms for Reset Hand Pose
-    this.czHandPivot.userData.defaultPos = this.czHandPivot.position.clone();
-    this.czHandPivot.userData.defaultRot = this.czHandPivot.rotation.clone();
-    this.czHandPivot.userData.defaultScale = this.czHandPivot.scale.clone();
+    this.uspHandPivot.userData.defaultPos = this.uspHandPivot.position.clone();
+    this.uspHandPivot.userData.defaultRot = this.uspHandPivot.rotation.clone();
+    this.uspHandPivot.userData.defaultScale = this.uspHandPivot.scale.clone();
 
     // Link trigger finger
-    this.czTriggerFingerGroup =
+    this.uspTriggerFingerGroup =
       handData.clone.getObjectByName('index0_R_035') ||
       handData.clone.getObjectByName('index1_R_036');
 
-    this.czHandGroup.add(this.czHandPivot);
+    this.uspHandGroup.add(this.uspHandPivot);
   }
 
   /**
@@ -1013,12 +1348,12 @@ export class WeaponViewmodel {
    * Restores pristine default hand and bone pose for the active weapon in the F8 tuner.
    */
   resetHandPose() {
-    const isCZ = this.currentWeapon === 'cz_p10s';
+    const isUSP = this.currentWeapon === 'hk_usp';
     const isShotgun = this.currentWeapon === 'shotgun';
     const isMP5 = this.currentWeapon === 'hk_mp5';
-    const target = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
-    const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
-    const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
+    const target = isUSP ? this.uspHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
+    const wrist = isUSP ? this.uspWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
+    const elbow = isUSP ? this.uspElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
 
     if (target && target.userData.defaultPos) {
       target.position.copy(target.userData.defaultPos);
@@ -1026,8 +1361,8 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
     if (wrist && wrist.userData.restQuat) {
-      const defaultPitch = isCZ ? 0.26 : (isShotgun ? -0.08 : (isMP5 ? 0.24 : -0.02));
-      const defaultRoll = isCZ ? 0.06 : (isShotgun ? -0.1 : (isMP5 ? 0.04 : -0.02));
+      const defaultPitch = isUSP ? 0.24 : (isShotgun ? -0.08 : (isMP5 ? 0.24 : -0.02));
+      const defaultRoll = isUSP ? 0.02 : (isShotgun ? -0.1 : (isMP5 ? 0.04 : -0.02));
       wrist.userData.pitch = defaultPitch;
       wrist.userData.roll = defaultRoll;
       wrist.quaternion.copy(wrist.userData.restQuat);
@@ -1039,7 +1374,7 @@ export class WeaponViewmodel {
       }
     }
     if (elbow && elbow.userData.restQuat) {
-      const defaultBend = isCZ ? -0.04 : (isShotgun ? -0.22 : (isMP5 ? -0.04 : -0.02));
+      const defaultBend = isUSP ? 0 : (isShotgun ? -0.22 : (isMP5 ? -0.04 : -0.02));
       elbow.userData.bend = defaultBend;
       elbow.quaternion.copy(elbow.userData.restQuat);
       if (defaultBend !== 0) {
@@ -1051,9 +1386,9 @@ export class WeaponViewmodel {
     }
 
     if (this.tunerMode === 'GUN (HIP)') {
-      if (isCZ) {
-        this.czHipPosition.set(0.09, -0.1, -0.2);
-        this.czHipRotation.set(0.1, 0, 0.1);
+      if (isUSP) {
+        this.uspHipPosition.set(0.1, -0.1, -0.22);
+        this.uspHipRotation.set(0.1, 0, 0.1);
       } else if (isShotgun) {
         this.shotgunHipPosition.set(0.1, -0.13, -0.042);
         this.shotgunHipRotation.set(0.1, 0, 0);
@@ -1064,14 +1399,14 @@ export class WeaponViewmodel {
         this.pistolHipPosition.set(0.1, -0.1, -0.42);
         this.pistolHipRotation.set(0.15, 0.04, 0.1);
       }
-      const posTarget = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
-      const rotTarget = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
+      const posTarget = isUSP ? this.uspHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
+      const rotTarget = isUSP ? this.uspHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
       this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
       this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
     } else if (this.tunerMode === 'GUN (ADS)') {
-      if (isCZ) {
-        this.czAdsPosition.set(0.000, -0.0595, -0.115);
-        this.czAdsRotation.set(0.0035, 0, 0);
+      if (isUSP) {
+        this.uspAdsPosition.set(0, -0.077, -0.16);
+        this.uspAdsRotation.set(0, 0, 0);
       } else if (isShotgun) {
         this.shotgunAdsPosition.set(0, -0.075, -0.09);
         this.shotgunAdsRotation.set(0, 0, 0);
@@ -1082,8 +1417,8 @@ export class WeaponViewmodel {
         this.pistolAdsPosition.set(0.000, -0.104, -0.345);
         this.pistolAdsRotation.set(-0.017, 0, 0);
       }
-      const posTarget = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
-      const rotTarget = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
+      const posTarget = isUSP ? this.uspAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
+      const rotTarget = isUSP ? this.uspAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
       this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
       this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
     }
@@ -1128,10 +1463,10 @@ export class WeaponViewmodel {
       overlay.innerHTML = `
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; border-bottom:1px solid #2d3748; padding-bottom:6px;">
           <strong style="color:#63b3ed; font-size:12px;">Viewmodel Tuner (F8)</strong>
-          <span id="ht-weapon-badge" style="color:#f6ad55; font-weight:bold; font-size:11px; text-transform:uppercase;">CZ P-10S (9MM)</span>
+          <span id="ht-weapon-badge" style="color:#f6ad55; font-weight:bold; font-size:11px; text-transform:uppercase;">H&K USP (9MM)</span>
         </div>
         <div style="display:flex; gap:4px; margin-bottom:6px;">
-          <button id="ht-slot1-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">1: 9mm</button>
+          <button id="ht-slot1-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">1: USP</button>
           <button id="ht-slot2-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">2: .50 AE</button>
           <button id="ht-slot3-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">3: 12G</button>
           <button id="ht-slot4-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">4: MP5</button>
@@ -1186,11 +1521,11 @@ export class WeaponViewmodel {
       if (slot1Btn) {
         slot1Btn.onclick = () => {
           if (window.__rocWeaponSystem) {
-            window.__rocWeaponSystem.switchWeapon('cz_p10s', true);
+            window.__rocWeaponSystem.switchWeapon('hk_usp', true);
           } else if (window.weaponSystem) {
-            window.weaponSystem.switchWeapon('cz_p10s', true);
+            window.weaponSystem.switchWeapon('hk_usp', true);
           } else {
-            this.switchWeapon('cz_p10s');
+            this.switchWeapon('hk_usp');
           }
           this._updateHandTunerSliders();
         };
@@ -1257,7 +1592,7 @@ export class WeaponViewmodel {
             this.startShotgunPumpAnimation();
           }
           if (this.sound) {
-            if (this.currentWeapon === 'cz_p10s' && typeof this.sound.play9mmGunshot === 'function') {
+            if (this.currentWeapon === 'hk_usp' && typeof this.sound.play9mmGunshot === 'function') {
               this.sound.play9mmGunshot();
             } else if (this.currentWeapon === 'shotgun' && typeof this.sound.playShotgunBlast === 'function') {
               this.sound.playShotgunBlast();
@@ -1329,16 +1664,16 @@ export class WeaponViewmodel {
       const copyBtn = document.getElementById('ht-copy-btn');
       if (copyBtn) {
         copyBtn.onclick = () => {
-          const isCZ = this.currentWeapon === 'cz_p10s';
+          const isUSP = this.currentWeapon === 'hk_usp';
           const isShotgun = this.currentWeapon === 'shotgun';
           const isMP5 = this.currentWeapon === 'hk_mp5';
-          const handPivot = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
-          const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
-          const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
-          const hipPos = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
-          const hipRot = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
-          const adsPos = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
-          const adsRot = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
+          const handPivot = isUSP ? this.uspHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
+          const wrist = isUSP ? this.uspWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
+          const elbow = isUSP ? this.uspElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
+          const hipPos = isUSP ? this.uspHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
+          const hipRot = isUSP ? this.uspHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
+          const adsPos = isUSP ? this.uspAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
+          const adsRot = isUSP ? this.uspAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
 
           const config = {
             weapon: this.currentWeapon,
@@ -1408,14 +1743,14 @@ export class WeaponViewmodel {
   _updateHandTunerSliders() {
     if (!this.handTunerOverlay) return;
 
-    const isCZ = this.currentWeapon === 'cz_p10s';
+    const isUSP = this.currentWeapon === 'hk_usp';
     const isShotgun = this.currentWeapon === 'shotgun';
     const isMP5 = this.currentWeapon === 'hk_mp5';
     const isPistol = this.currentWeapon === 'pistol';
 
     const badge = document.getElementById('ht-weapon-badge');
     if (badge) {
-      if (isCZ) badge.textContent = 'CZ P-10S (9MM)';
+      if (isUSP) badge.textContent = 'H&K USP (9MM)';
       else if (isShotgun) badge.textContent = 'REMINGTON 870 (12G)';
       else if (isMP5) badge.textContent = 'H&K MP5 (9MM)';
       else badge.textContent = 'DESERT EAGLE (.50 AE)';
@@ -1451,9 +1786,9 @@ export class WeaponViewmodel {
     };
 
     if (this.tunerMode === 'HAND RIG') {
-      const target = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
-      const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
-      const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
+      const target = isUSP ? this.uspHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
+      const wrist = isUSP ? this.uspWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
+      const elbow = isUSP ? this.uspElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
 
       if (!target) {
         container.innerHTML = '<div style="color:#a0aec0; padding:10px 0;">Loading hands 3D model...</div>';
@@ -1527,8 +1862,8 @@ export class WeaponViewmodel {
 
       fields.forEach(createSliderRow);
     } else if (this.tunerMode === 'GUN (HIP)') {
-      const posTarget = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
-      const rotTarget = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
+      const posTarget = isUSP ? this.uspHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
+      const rotTarget = isUSP ? this.uspHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
 
       const fields = [
         {
@@ -1618,8 +1953,8 @@ export class WeaponViewmodel {
       ];
       fields.forEach(createSliderRow);
     } else {
-      const posTarget = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
-      const rotTarget = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
+      const posTarget = isUSP ? this.uspAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
+      const rotTarget = isUSP ? this.uspAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
 
       const fields = [
         {
@@ -1736,7 +2071,7 @@ export class WeaponViewmodel {
       this.shotgunLeftHandGroup.rotation.set(0, 0, 0);
     }
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
-    if (this.czTriggerFingerGroup) this.czTriggerFingerGroup.rotation.x = 0;
+    if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
     this.mp5BoltBlowback = 0;
     if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
       this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
@@ -1754,7 +2089,7 @@ export class WeaponViewmodel {
     this._updateDesertEagleMagVisuals(0, true);
 
     this.currentWeapon = weaponType;
-    const isCZ = weaponType === 'cz_p10s';
+    const isUSP = weaponType === 'hk_usp';
     const isShotgun = weaponType === 'shotgun';
     const isMP5 = weaponType === 'hk_mp5';
     const isPistol = weaponType === 'pistol';
@@ -1763,17 +2098,17 @@ export class WeaponViewmodel {
       this._updateHandTunerSliders();
     }
 
-    if (this.czGroup) this.czGroup.visible = isCZ;
+    if (this.uspGroup) this.uspGroup.visible = isUSP;
     if (this.gunGroup) this.gunGroup.visible = isPistol;
     if (this.shotgunGroup) this.shotgunGroup.visible = isShotgun;
     if (this.mp5Group) this.mp5Group.visible = isMP5;
 
-    if (isCZ) {
-      this.hipPosition = this.czHipPosition;
-      this.adsPosition = this.czAdsPosition;
-      this.hipRotation = this.czHipRotation;
-      this.adsRotation = this.czAdsRotation;
-      this.muzzleAnchor = this.czMuzzleSocket;
+    if (isUSP) {
+      this.hipPosition = this.uspHipPosition;
+      this.adsPosition = this.uspAdsPosition;
+      this.hipRotation = this.uspHipRotation;
+      this.adsRotation = this.uspAdsRotation;
+      this.muzzleAnchor = this.uspMuzzleSocket;
     } else if (isMP5) {
       this.hipPosition = this.mp5HipPosition;
       this.adsPosition = this.mp5AdsPosition;
@@ -1807,10 +2142,10 @@ export class WeaponViewmodel {
 
     // 2. Smooth, subtle low-ready equip transition (no forward Z impulse, no overshooting)
     this.reloadTilt.x = 0;
-    this.reloadTilt.y = isCZ ? -0.035 : (isShotgun ? -0.030 : (isMP5 ? -0.032 : -0.040));
+    this.reloadTilt.y = isUSP ? -0.035 : (isShotgun ? -0.030 : (isMP5 ? -0.032 : -0.040));
     this.reloadTilt.z = 0;
-    this.reloadTilt.pitch = isCZ ? -0.05 : (isShotgun ? -0.045 : (isMP5 ? -0.048 : -0.07));
-    this.reloadTilt.roll = isCZ ? 0.03 : (isShotgun ? -0.03 : (isMP5 ? 0.025 : 0.04));
+    this.reloadTilt.pitch = isUSP ? -0.05 : (isShotgun ? -0.045 : (isMP5 ? -0.048 : -0.07));
+    this.reloadTilt.roll = isUSP ? 0.03 : (isShotgun ? -0.03 : (isMP5 ? 0.025 : 0.04));
     this.reloadTilt.yaw = 0;
 
     const equipTween = new TWEEN.Tween(this.reloadTilt, true)
@@ -1870,7 +2205,7 @@ export class WeaponViewmodel {
     if (!this.muzzleFlashGroup) return;
     this.muzzleFlashGroup.visible = true;
     this.muzzleFlashGroup.rotation.z = Math.random() * Math.PI * 2;
-    const baseScale = this.currentWeapon === 'shotgun' ? 1.25 : (this.currentWeapon === 'cz_p10s' ? 0.65 : (this.currentWeapon === 'hk_mp5' ? 0.70 : 0.88));
+    const baseScale = this.currentWeapon === 'shotgun' ? 1.25 : (this.currentWeapon === 'hk_usp' ? 0.65 : (this.currentWeapon === 'hk_mp5' ? 0.70 : 0.88));
     const s = baseScale + Math.random() * 0.40;
     this.muzzleFlashGroup.scale.set(s, s, s);
     this.muzzleFlashMaterial.opacity = 1.0;
@@ -1896,7 +2231,7 @@ export class WeaponViewmodel {
       return;
     }
 
-    if (this.currentWeapon === 'cz_p10s') {
+    if (this.currentWeapon === 'hk_usp') {
       const recoilKick = this.isADS ? 0.040 : 0.075;
       const recoilZ = this.isADS ? 0.008 : 0.075;
       const recoilPitch = this.isADS ? 0.060 : 0.125;
@@ -1906,8 +2241,10 @@ export class WeaponViewmodel {
       this.posSpring.impulse(0, recoilKick * 0.25, recoilZ);
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
-      this.czSlideBlowback = 0.22;
-      if (this.czTriggerFingerGroup) this.czTriggerFingerGroup.rotation.x = 0.18;
+      this.uspSlideBlowback = 0.024;
+      this.uspHammerRecoil = 0.40;
+      if (this.uspTriggerGroup) this.uspTriggerGroup.rotation.x = -0.18;
+      if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0.18;
 
       this.triggerMuzzleFlash();
       return;
@@ -2079,19 +2416,31 @@ export class WeaponViewmodel {
           this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
         }
       }
-    } else if (this.currentWeapon === 'cz_p10s') {
+    } else if (this.currentWeapon === 'hk_usp') {
       if (this.isSlideLocked) {
-        if (this.czSlideMesh && this.czSlideRestY !== undefined) {
-          this.czSlideMesh.position.y = this.czSlideRestY + 0.22;
+        if (this.uspSlideGroup) {
+          this.uspSlideGroup.position.z = 0.024;
+        }
+        if (this.uspHammerGroup) {
+          this.uspHammerGroup.rotation.x = 0.40;
         }
       } else {
-        if (this.czSlideBlowback > 0.001) {
-          this.czSlideBlowback = THREE.MathUtils.lerp(this.czSlideBlowback, 0, Math.min(delta * 28.0, 1.0));
-          if (this.czSlideMesh && this.czSlideRestY !== undefined) {
-            this.czSlideMesh.position.y = this.czSlideRestY + this.czSlideBlowback;
+        if (this.uspSlideBlowback > 0.0005) {
+          this.uspSlideBlowback = THREE.MathUtils.lerp(this.uspSlideBlowback, 0, Math.min(delta * 28.0, 1.0));
+          if (this.uspSlideGroup) {
+            this.uspSlideGroup.position.z = this.uspSlideBlowback;
           }
-        } else if (this.czSlideMesh && this.czSlideRestY !== undefined && this.czSlideMesh.position.y !== this.czSlideRestY) {
-          this.czSlideMesh.position.y = this.czSlideRestY;
+        } else if (this.uspSlideGroup && this.uspSlideGroup.position.z !== 0) {
+          this.uspSlideGroup.position.z = 0;
+        }
+
+        if (this.uspHammerRecoil > 0.001) {
+          this.uspHammerRecoil = THREE.MathUtils.lerp(this.uspHammerRecoil, 0, Math.min(delta * 24.0, 1.0));
+          if (this.uspHammerGroup) {
+            this.uspHammerGroup.rotation.x = this.uspHammerRecoil;
+          }
+        } else if (this.uspHammerGroup && this.uspHammerGroup.rotation.x !== 0) {
+          this.uspHammerGroup.rotation.x = 0;
         }
       }
     } else if (this.isSlideLocked) {
@@ -2132,8 +2481,11 @@ export class WeaponViewmodel {
     if (this.pistolTriggerFingerGroup && this.pistolTriggerFingerGroup.rotation.x > 0.001) {
       this.pistolTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.pistolTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
     }
-    if (this.czTriggerFingerGroup && this.czTriggerFingerGroup.rotation.x > 0.001) {
-      this.czTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.czTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
+    if (this.uspTriggerGroup && this.uspTriggerGroup.rotation.x < -0.001) {
+      this.uspTriggerGroup.rotation.x = THREE.MathUtils.lerp(this.uspTriggerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
+    }
+    if (this.uspTriggerFingerGroup && this.uspTriggerFingerGroup.rotation.x > 0.001) {
+      this.uspTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.uspTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
     }
     if (this.mp5TriggerMesh && this.mp5TriggerMesh.rotation.x > 0.001) {
       this.mp5TriggerMesh.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerMesh.rotation.x, 0, Math.min(delta * 22.0, 1.0));
@@ -2174,8 +2526,8 @@ export class WeaponViewmodel {
     this.root.rotation.set(rot.x, rot.y, rot.z);
 
     // 7. Update sockets
-    const activeMuzzle = this.currentWeapon === 'cz_p10s' ? this.czMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
-    const activeEjection = this.currentWeapon === 'cz_p10s' ? this.czEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
+    const activeMuzzle = this.currentWeapon === 'hk_usp' ? this.uspMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
+    const activeEjection = this.currentWeapon === 'hk_usp' ? this.uspEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
     activeMuzzle.updateWorldMatrix(true, false);
     activeMuzzle.getWorldPosition(this.muzzleWorldPos);
     activeEjection.updateWorldMatrix(true, false);
@@ -2184,23 +2536,26 @@ export class WeaponViewmodel {
 
   getMuzzleWorldPosition(targetVec) {
     const out = targetVec || this.muzzleWorldPos;
-    const activeMuzzle = this.currentWeapon === 'cz_p10s' ? this.czMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
+    const activeMuzzle = this.currentWeapon === 'hk_usp' ? this.uspMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
     activeMuzzle.updateWorldMatrix(true, false);
     return activeMuzzle.getWorldPosition(out);
   }
 
   getEjectionWorldPosition(targetVec) {
     const out = targetVec || this.ejectionWorldPos;
-    const activeEjection = this.currentWeapon === 'cz_p10s' ? this.czEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
+    const activeEjection = this.currentWeapon === 'hk_usp' ? this.uspEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
     activeEjection.updateWorldMatrix(true, false);
     return activeEjection.getWorldPosition(out);
   }
 
   setSlideLocked(locked) {
     this.isSlideLocked = locked;
-    if (this.currentWeapon === 'cz_p10s') {
-      if (this.czSlideMesh && this.czSlideRestY !== undefined) {
-        this.czSlideMesh.position.y = locked ? (this.czSlideRestY + 0.22) : this.czSlideRestY;
+    if (this.currentWeapon === 'hk_usp') {
+      if (this.uspSlideGroup) {
+        this.uspSlideGroup.position.z = locked ? 0.024 : 0;
+      }
+      if (this.uspHammerGroup) {
+        this.uspHammerGroup.rotation.x = locked ? 0.40 : 0;
       }
       return;
     }
@@ -2240,8 +2595,8 @@ export class WeaponViewmodel {
 
     this.isReloading = true;
 
-    if (this.currentWeapon === 'cz_p10s') {
-      this._startCZReloadAnimation(onComplete);
+    if (this.currentWeapon === 'hk_usp') {
+      this._startUSPReloadAnimation(onComplete);
       return;
     }
 
@@ -2515,54 +2870,92 @@ export class WeaponViewmodel {
     this.reloadTimers.push(finishTimer);
   }
 
-  _startCZReloadAnimation(onComplete) {
-    // Fast, snappy subcompact pistol tactical reload (~0.75s slide release)
+  _startUSPReloadAnimation(onComplete) {
+    // Fast, snappy H&K USP tactical reload (~0.85s slide release)
     if (this.sound && typeof this.sound.playReloadSound === 'function') {
-      this.sound.playReloadSound('cz_p10s');
+      this.sound.playReloadSound('hk_usp');
     } else if (this.sound) {
       this.sound.playMagOut();
     }
 
+    if (this.uspMagGroup) {
+      this.uspMagGroup.visible = true;
+      this.uspMagGroup.position.set(0, 0, 0);
+    }
+
+    // STAGE 1: Tilt weapon inward and down slightly (0 to 220ms)
     const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
-      .to({ roll: 0.32, pitch: 0.12, yaw: 0.08, y: -0.015 }, 260)
+      .to({ roll: 0.32, pitch: 0.12, yaw: 0.08, y: -0.015 }, 220)
       .easing(TWEEN.Easing.Cubic.Out);
     this.reloadTweens.push(tiltIn);
     tiltIn.start();
 
-    // Stage 2: Mag click in at 280ms (matches 0.60s / 2.13 = 0.28s)
-    const magInTimer = setTimeout(() => {
-      if (!this.isReloading || this.currentWeapon !== 'cz_p10s') return;
-      this.posSpring.impulse(0, 0.045, 0);
-      this.rotSpring.impulse(0.015, 0, 0.030);
-      if (this.sound) this.sound.playMagIn();
+    // STAGE 2: Magazine slides out along grip angle at 220ms
+    const magDropTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'hk_usp') return;
+      if (this.uspMagGroup) {
+        const drop = new TWEEN.Tween(this.uspMagGroup.position, true)
+          .to({ y: -0.14, z: 0.035 }, 180)
+          .easing(TWEEN.Easing.Quadratic.In)
+          .onComplete(() => {
+            if (this.uspMagGroup) this.uspMagGroup.visible = false;
+          });
+        this.reloadTweens.push(drop);
+        drop.start();
+      }
 
-      // Stage 3: Slide rack / release at 750ms (matches 1.60s / 2.13 = 0.75s)
-      const rackTimer = setTimeout(() => {
-        if (!this.isReloading || this.currentWeapon !== 'cz_p10s') return;
-        this.setSlideLocked(false);
-        this.posSpring.impulse(0, -0.010, -0.030);
-        this.rotSpring.impulse(-0.045, 0, -0.020);
-        if (this.sound && typeof this.sound.play9mmSlideRack === 'function') {
-          this.sound.play9mmSlideRack();
-        } else if (this.sound) {
-          this.sound.playSlideRelease();
+      // STAGE 3: Fresh magazine inserted at 440ms
+      const magInTimer = setTimeout(() => {
+        if (!this.isReloading || this.currentWeapon !== 'hk_usp') return;
+        if (this.uspMagGroup) {
+          this.uspMagGroup.visible = true;
+          this.uspMagGroup.position.set(0, -0.14, 0.035);
+          const insert = new TWEEN.Tween(this.uspMagGroup.position, true)
+            .to({ y: 0, z: 0 }, 180)
+            .easing(TWEEN.Easing.Back.Out)
+            .onComplete(() => {
+              this.posSpring.impulse(0, 0.045, 0);
+              this.rotSpring.impulse(0.015, 0, 0.030);
+              if (this.sound) this.sound.playMagIn();
+            });
+          this.reloadTweens.push(insert);
+          insert.start();
         }
 
-        // Return to ready
-        const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
-          .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 180)
-          .easing(TWEEN.Easing.Cubic.Out)
-          .onComplete(() => {
-            this.isReloading = false;
-            this.setSlideLocked(false);
-            if (typeof onComplete === 'function') onComplete();
-          });
-        this.reloadTweens.push(tiltOut);
-        tiltOut.start();
-      }, 470);
-      this.reloadTimers.push(rackTimer);
-    }, 280);
-    this.reloadTimers.push(magInTimer);
+        // STAGE 4: Slide release snapping forward into battery at 720ms
+        const rackTimer = setTimeout(() => {
+          if (!this.isReloading || this.currentWeapon !== 'hk_usp') return;
+          this.setSlideLocked(false);
+          if (this.uspSlideGroup) this.uspSlideGroup.position.z = 0;
+          this.posSpring.impulse(0, -0.010, -0.030);
+          this.rotSpring.impulse(-0.045, 0, -0.020);
+          if (this.sound && typeof this.sound.play9mmSlideRack === 'function') {
+            this.sound.play9mmSlideRack();
+          } else if (this.sound) {
+            this.sound.playSlideRelease();
+          }
+
+          // STAGE 5: Return to ready pose
+          const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+            .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 180)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .onComplete(() => {
+              this.isReloading = false;
+              this.setSlideLocked(false);
+              if (this.uspMagGroup) {
+                this.uspMagGroup.visible = true;
+                this.uspMagGroup.position.set(0, 0, 0);
+              }
+              if (typeof onComplete === 'function') onComplete();
+            });
+          this.reloadTweens.push(tiltOut);
+          tiltOut.start();
+        }, 280);
+        this.reloadTimers.push(rackTimer);
+      }, 220);
+      this.reloadTimers.push(magInTimer);
+    }, 220);
+    this.reloadTimers.push(magDropTimer);
   }
   _startMP5ReloadAnimation(onComplete) {
     // Fast, snappy submachine gun tactical reload (~1.38s total cycle)
@@ -2677,10 +3070,15 @@ export class WeaponViewmodel {
     this.isPumping = false;
     this.isSlideLocked = false;
     this.slideBlowback = 0;
-    this.czSlideBlowback = 0;
+    this.uspSlideBlowback = 0;
+    this.uspHammerRecoil = 0;
 
-    if (this.czSlideMesh && this.czSlideRestY !== undefined) {
-      this.czSlideMesh.position.y = this.czSlideRestY;
+    if (this.uspSlideGroup) this.uspSlideGroup.position.set(0, 0, 0);
+    if (this.uspHammerGroup) this.uspHammerGroup.rotation.x = 0;
+    if (this.uspTriggerGroup) this.uspTriggerGroup.rotation.x = 0;
+    if (this.uspMagGroup) {
+      this.uspMagGroup.position.set(0, 0, 0);
+      this.uspMagGroup.visible = true;
     }
     if (this.slideGroup) this.slideGroup.position.set(0, 0, 0);
     if (this.pistolSlideMesh && this.deSlideRestZ !== undefined) {
@@ -2698,7 +3096,7 @@ export class WeaponViewmodel {
       this.shotgunLeftHandGroup.rotation.set(0, 0, 0);
     }
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
-    if (this.czTriggerFingerGroup) this.czTriggerFingerGroup.rotation.x = 0;
+    if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
 
     const targetPos = this.isADS ? this.adsPosition : this.hipPosition;

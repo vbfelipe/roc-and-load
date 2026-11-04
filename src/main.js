@@ -351,7 +351,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', (e) => {
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
     if (e.code === 'Digit1' || e.key === '1') {
-      weaponSystem.switchWeapon('cz_p10s');
+      weaponSystem.switchWeapon('hk_usp');
       return;
     }
     if (e.code === 'Digit2' || e.key === '2') {

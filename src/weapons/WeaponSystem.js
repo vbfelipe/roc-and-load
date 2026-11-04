@@ -145,9 +145,9 @@ export class WeaponSystem {
     this.sound = soundManager;
     this.player = player;
 
-    this.currentWeapon = 'cz_p10s';
+    this.currentWeapon = 'hk_usp';
     this.weapons = {
-      cz_p10s: {
+      hk_usp: {
         currentAmmo: 12,
         maxAmmo: 12,
         fireRate: 0.18,
@@ -281,18 +281,19 @@ export class WeaponSystem {
   }
 
   /**
-   * Switches between Slot 1 ('cz_p10s' - 9mm CZ P-10S),
+   * Switches between Slot 1 ('hk_usp' - 9mm H&K USP),
    * Slot 2 ('pistol' - .50 AE Desert Eagle),
-   * and Slot 3 ('shotgun' - Remington 870 12-Gauge).
+   * Slot 3 ('shotgun' - Remington 870 12-Gauge),
+   * and Slot 4 ('hk_mp5' - 9mm H&K MP5 Submachine Gun).
    */
   switchWeapon(weaponType, force = false) {
     const canSwitch = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
     if (!canSwitch) return;
-    if (weaponType === 1 || weaponType === '1') weaponType = 'cz_p10s';
+    if (weaponType === 1 || weaponType === '1') weaponType = 'hk_usp';
     if (weaponType === 2 || weaponType === '2') weaponType = 'pistol';
     if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
     if (weaponType === 4 || weaponType === '4') weaponType = 'hk_mp5';
-    if (weaponType !== 'cz_p10s' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
+    if (weaponType !== 'hk_usp' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
     if (this.currentWeapon === weaponType) return;
 
     // 1. Persist current weapon state
@@ -321,7 +322,7 @@ export class WeaponSystem {
         this.viewmodel.setADS(false);
       }
       this.viewmodel.switchWeapon(weaponType);
-      if (weaponType === 'cz_p10s' || weaponType === 'pistol') {
+      if (weaponType === 'hk_usp' || weaponType === 'pistol') {
         this.viewmodel.setSlideLocked(this.isSlideLocked);
       }
     }
@@ -379,14 +380,14 @@ export class WeaponSystem {
         this.isReloading = false;
         this.weapons[this.currentWeapon].currentAmmo = this.maxAmmo;
         this.weapons[this.currentWeapon].isSlideLocked = false;
-        if (this.currentWeapon === 'cz_p10s' || this.currentWeapon === 'pistol') {
+        if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'pistol') {
           this.viewmodel.setSlideLocked(false);
         }
 
         if (this.hud) {
           this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
           this.hud.setEmptyState(false);
-          if (this.currentWeapon === 'pistol' || this.currentWeapon === 'cz_p10s' || this.currentWeapon === 'hk_mp5') {
+          if (this.currentWeapon === 'pistol' || this.currentWeapon === 'hk_usp' || this.currentWeapon === 'hk_mp5') {
             this.hud.onReloadComplete(ammoBeforeReload);
           }
         }
@@ -552,9 +553,9 @@ export class WeaponSystem {
       this.fireTimer -= delta;
     }
 
-    // 3b. Weapon Slot Switching (Key 1 = 9mm CZ P-10S, Key 2 = .50 AE Desert Eagle, Key 3 = Remington 870 Shotgun)
+    // 3b. Weapon Slot Switching (Key 1 = 9mm H&K USP, Key 2 = .50 AE Desert Eagle, Key 3 = Remington 870 Shotgun, Key 4 = H&K MP5)
     if (this.input.consumeKeyJustPressed('Digit1') || this.input.consumeKeyJustPressed('1')) {
-      this.switchWeapon('cz_p10s');
+      this.switchWeapon('hk_usp');
       return;
     }
     if (this.input.consumeKeyJustPressed('Digit2') || this.input.consumeKeyJustPressed('2')) {
@@ -574,7 +575,7 @@ export class WeaponSystem {
     if (typeof this.input.consumeWheelDelta === 'function') {
       const wheelDelta = this.input.consumeWheelDelta();
       if (wheelDelta !== 0) {
-        const order = ['cz_p10s', 'pistol', 'shotgun', 'hk_mp5'];
+        const order = ['hk_usp', 'pistol', 'shotgun', 'hk_mp5'];
         const curIdx = order.indexOf(this.currentWeapon);
         if (curIdx !== -1) {
           const nextIdx = wheelDelta > 0
@@ -614,7 +615,7 @@ export class WeaponSystem {
       this.camera.updateProjectionMatrix();
     }
 
-    // 6. Trigger handling: Full-Auto for MP5, Semi-Auto for CZ, Pistol, Shotgun
+    // 6. Trigger handling: Full-Auto for MP5, Semi-Auto for USP, Pistol, Shotgun
     const isLeftDown = this.input.isMouseDown(0);
     const justClicked = isLeftDown && !this.wasMouseDown0;
     this.wasMouseDown0 = isLeftDown;
@@ -825,13 +826,13 @@ export class WeaponSystem {
     this.fireTimer = this.fireRate;
 
     const isShotgun = this.currentWeapon === 'shotgun';
-    const isCZ = this.currentWeapon === 'cz_p10s';
+    const isUSP = this.currentWeapon === 'hk_usp';
     const isMP5 = this.currentWeapon === 'hk_mp5';
 
     if (this.sound) {
       if (isMP5 && typeof this.sound.playMP5Gunshot === 'function') {
         this.sound.playMP5Gunshot();
-      } else if (isCZ && typeof this.sound.play9mmGunshot === 'function') {
+      } else if (isUSP && typeof this.sound.play9mmGunshot === 'function') {
         this.sound.play9mmGunshot();
       } else if (isShotgun && typeof this.sound.playShotgunBlast === 'function') {
         this.sound.playShotgunBlast();
@@ -845,7 +846,7 @@ export class WeaponSystem {
     if (this.player && typeof this.player.applyCameraRecoil === 'function') {
       const pitchKick = isShotgun
         ? (this.viewmodel && this.viewmodel.isADS ? 0.036 : 0.062)
-        : (isCZ
+        : (isUSP
           ? (this.viewmodel && this.viewmodel.isADS ? 0.012 : 0.022)
           : (isMP5
             ? (this.viewmodel && this.viewmodel.isADS ? 0.007 : 0.013)
@@ -855,7 +856,7 @@ export class WeaponSystem {
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this.muzzleLight.intensity = isShotgun ? 8.5 : (isCZ ? 4.5 : (isMP5 ? 4.2 : 6.0));
+    this.muzzleLight.intensity = isShotgun ? 8.5 : (isUSP ? 4.5 : (isMP5 ? 4.2 : 6.0));
     this.muzzleLight.visible = true;
     this.flashDuration = isMP5 ? 0.035 : 0.045;
 
@@ -878,7 +879,7 @@ export class WeaponSystem {
       this._performHitscan();
 
       if (this.currentAmmo === 0) {
-        if (this.currentWeapon === 'cz_p10s' || this.currentWeapon === 'pistol') {
+        if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'pistol') {
           this.isSlideLocked = true;
           this.weapons[this.currentWeapon].isSlideLocked = true;
           if (this.viewmodel) {
@@ -911,7 +912,7 @@ export class WeaponSystem {
     let pool = this.casingPool;
     if (weaponType === 'shotgun' && this.shotgunShellPool) {
       pool = this.shotgunShellPool;
-    } else if ((weaponType === 'cz_p10s' || weaponType === 'hk_mp5') && this.casing9mmPool) {
+    } else if ((weaponType === 'hk_usp' || weaponType === 'hk_mp5') && this.casing9mmPool) {
       pool = this.casing9mmPool;
     }
     const casing = pool.acquire();
@@ -1254,9 +1255,9 @@ export class WeaponSystem {
   reset() {
     TWEEN.removeAll();
 
-    this.currentWeapon = 'cz_p10s';
-    this.weapons.cz_p10s.currentAmmo = 12;
-    this.weapons.cz_p10s.isSlideLocked = false;
+    this.currentWeapon = 'hk_usp';
+    this.weapons.hk_usp.currentAmmo = 12;
+    this.weapons.hk_usp.isSlideLocked = false;
     this.weapons.pistol.currentAmmo = 7;
     this.weapons.pistol.isSlideLocked = false;
     this.weapons.shotgun.currentAmmo = 6;
