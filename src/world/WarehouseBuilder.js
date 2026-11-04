@@ -2043,6 +2043,712 @@ function createWallBoxGeometry(w, h, d, isZAxis = false, reverseU = false) {
 }
 
 /**
+ * Removes hidden faces from a BoxGeometry based on face normal direction
+ * so adjacent wall segments never have internal coplanar or perpendicular seam faces.
+ */
+function filterBoxFaces(geo, hideFaces) {
+  if (!hideFaces) return geo;
+  const nonIndexed = geo.index ? geo.toNonIndexed() : geo;
+  const pos = nonIndexed.attributes.position;
+  const norm = nonIndexed.attributes.normal;
+  const uv = nonIndexed.attributes.uv;
+
+  const newPos = [];
+  const newNorm = [];
+  const newUv = [];
+
+  for (let i = 0; i < pos.count; i += 3) {
+    const nx = norm.getX(i);
+    const ny = norm.getY(i);
+    const nz = norm.getZ(i);
+
+    if (hideFaces.px && nx > 0.5) continue;
+    if (hideFaces.nx && nx < -0.5) continue;
+    if (hideFaces.py && ny > 0.5) continue;
+    if (hideFaces.ny && ny < -0.5) continue;
+    if (hideFaces.pz && nz > 0.5) continue;
+    if (hideFaces.nz && nz < -0.5) continue;
+
+    for (let v = 0; v < 3; v++) {
+      const idx = i + v;
+      newPos.push(pos.getX(idx), pos.getY(idx), pos.getZ(idx));
+      newNorm.push(norm.getX(idx), norm.getY(idx), norm.getZ(idx));
+      newUv.push(uv.getX(idx), uv.getY(idx));
+    }
+  }
+
+  if (nonIndexed !== geo) nonIndexed.dispose();
+  geo.dispose();
+  const filtered = new THREE.BufferGeometry();
+  filtered.setAttribute('position', new THREE.Float32BufferAttribute(newPos, 3));
+  filtered.setAttribute('normal', new THREE.Float32BufferAttribute(newNorm, 3));
+  filtered.setAttribute('uv', new THREE.Float32BufferAttribute(newUv, 2));
+  return filtered;
+}
+
+/**
+ * Creates a BoxGeometry for a sub-segment of a 3.8m tall wall while preserving
+ * 100% seamless world-space UV continuity with createWallBoxGeometry, and optionally
+ * strips internal/back faces to guarantee zero seam artifacts.
+ */
+function createWallSegmentGeometry(
+  w,
+  h,
+  d,
+  isZAxis = false,
+  reverseU = false,
+  yBottom = 0,
+  horizStart = 0,
+  fullLength = 23.5,
+  hideFaces = null
+) {
+  const geo = new THREE.BoxGeometry(w, h, d).toNonIndexed();
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const y = pos.getY(i);
+    const z = pos.getZ(i);
+
+    const worldY = yBottom + (y + h / 2);
+    const v = worldY / 3.8;
+
+    let horiz = horizStart + (isZAxis ? (z + d / 2) : (x + w / 2));
+    if (reverseU) {
+      horiz = fullLength - horiz;
+    }
+    const u = horiz / 4.0;
+
+    uv.setXY(i, u, v);
+  }
+  uv.needsUpdate = true;
+  return filterBoxFaces(geo, hideFaces);
+}
+
+/**
+ * Creates a BoxGeometry with world-space planar UV coordinates on top/side faces
+ * so tiled black marble slabs align seamlessly across adjacent floor segments and stairs.
+ */
+function createMarbleFloorBoxGeometry(w, h, d, worldXCenter = 0, worldZCenter = 0, tileScale = 2.4) {
+  const geo = new THREE.BoxGeometry(w, h, d).toNonIndexed();
+  const pos = geo.attributes.position;
+  const norm = geo.attributes.normal;
+  const uv = geo.attributes.uv;
+
+  for (let i = 0; i < pos.count; i++) {
+    const wx = worldXCenter + pos.getX(i);
+    const wy = pos.getY(i) + h / 2;
+    const wz = worldZCenter + pos.getZ(i);
+    const ny = Math.abs(norm.getY(i));
+
+    if (ny > 0.5) {
+      uv.setXY(i, wx / tileScale, wz / tileScale);
+    } else {
+      uv.setXY(i, (wx + wz) / tileScale, wy / tileScale);
+    }
+  }
+  uv.needsUpdate = true;
+  return geo;
+}
+
+/**
+ * Creates a cylinder geometry oriented along the 3D segment from p1 to p2.
+ */
+function createCylinderBetweenPoints(p1, p2, radius, radialSegments = 12) {
+  const dir = new THREE.Vector3().subVectors(p2, p1);
+  const len = dir.length();
+  const geo = new THREE.CylinderGeometry(radius, radius, len, radialSegments).toNonIndexed();
+  const mid = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+  const quat = new THREE.Quaternion().setFromUnitVectors(
+    new THREE.Vector3(0, 1, 0),
+    dir.clone().normalize()
+  );
+  const mat = new THREE.Matrix4().compose(mid, quat, new THREE.Vector3(1, 1, 1));
+  geo.applyMatrix4(mat);
+  return geo;
+}
+
+/**
+ * High-Resolution Procedural Nero Marquina Polished Black Marble Textures (2048x2048).
+ * Generates Diffuse, Bump, and Roughness maps featuring:
+ * - Large-format rectangular stone slabs (2x4 running-bond grid) where each slab is clipped
+ *   to its own unique stone block cut (veins terminate authentically at grout joints).
+ * - Deep obsidian/charcoal limestone matrix with directional mineral strata & smokey quartz clouds.
+ * - Pinch-and-swell crystalline white calcite veins with soft mineral halo bleed, jagged tectonic
+ *   micro-faults, and delicate secondary hairline cross-fractures.
+ * - Warm golden-taupe & silver-grey sheared metamorphic mineral ribbon on accent slabs.
+ */
+function createBlackMarbleTextures() {
+  const size = 2048;
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = size;
+  diffCanvas.height = size;
+  const ctx = diffCanvas.getContext('2d');
+
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = size;
+  bumpCanvas.height = size;
+  const bCtx = bumpCanvas.getContext('2d');
+
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = size;
+  roughCanvas.height = size;
+  const rCtx = roughCanvas.getContext('2d');
+
+  // Base fills
+  ctx.fillStyle = '#080a0e';
+  ctx.fillRect(0, 0, size, size);
+
+  bCtx.fillStyle = '#808080';
+  bCtx.fillRect(0, 0, size, size);
+
+  // Polished stone base roughness (~0.13 -> rgb 33)
+  rCtx.fillStyle = '#212121';
+  rCtx.fillRect(0, 0, size, size);
+
+  let seed = 104729;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  // Helper: Renders a natural pinch-and-swell geological calcite vein inside the active slab clip
+  const renderGeologicalVein = (x0, y0, baseAngle, length, maxThickness, intensity, isWarm = false, depth = 0) => {
+    const steps = Math.max(24, Math.floor(length / 7));
+    const stepLen = length / steps;
+    const pts = [];
+    let x = x0;
+    let y = y0;
+    let ang = baseAngle;
+    const phase1 = rand() * Math.PI * 2;
+    const phase2 = rand() * Math.PI * 2;
+    const freq1 = 1.5 + rand() * 2.5;
+    const freq2 = 5.0 + rand() * 6.0;
+
+    for (let i = 0; i <= steps; i++) {
+      const t = i / steps;
+      // Smooth tectonic meandering + sharp crystalline micro-jags
+      ang += (rand() - 0.5) * 0.28 + Math.sin(t * Math.PI * freq1 + phase1) * 0.04;
+      if (rand() < 0.08) {
+        // Sudden micro-fault jog
+        ang += (rand() > 0.5 ? 1 : -1) * (0.35 + rand() * 0.35);
+      }
+
+      // Pinch-and-swell width envelope (swells at crystalline nodes, pinches to hairline)
+      const endTaper = Math.sin(t * Math.PI);
+      const swell = Math.max(
+        0.08,
+        0.48 + 0.38 * Math.sin(t * Math.PI * freq1 + phase1) + 0.28 * Math.cos(t * Math.PI * freq2 + phase2)
+      );
+      const w = maxThickness * swell * (0.25 + 0.75 * endTaper);
+
+      pts.push({ x, y, w, ang });
+      x += Math.cos(ang) * stepLen;
+      y += Math.sin(ang) * stepLen;
+    }
+
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    // Pass 1: Soft translucent mineral halo / bleed into surrounding dark limestone
+    if (maxThickness > 1.6 && depth === 0) {
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i];
+        const p1 = pts[i + 1];
+        const haloAlpha = intensity * 0.085 * (p0.w / maxThickness);
+        ctx.strokeStyle = isWarm
+          ? `rgba(145, 134, 102, ${haloAlpha.toFixed(4)})`
+          : `rgba(140, 152, 168, ${haloAlpha.toFixed(4)})`;
+        ctx.lineWidth = p0.w * 4.2 + 2.0;
+        ctx.beginPath();
+        ctx.moveTo(p0.x, p0.y);
+        ctx.lineTo(p1.x, p1.y);
+        ctx.stroke();
+      }
+    }
+
+    // Pass 2: Medium pearl-silver calcite body
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i];
+      const p1 = pts[i + 1];
+      const bodyAlpha = intensity * (0.32 + 0.35 * (p0.w / maxThickness));
+      ctx.strokeStyle = isWarm
+        ? `rgba(182, 170, 136, ${bodyAlpha.toFixed(4)})`
+        : `rgba(198, 206, 218, ${bodyAlpha.toFixed(4)})`;
+      ctx.lineWidth = Math.max(0.5, p0.w * 1.45);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.stroke();
+    }
+
+    // Pass 3: Crisp bright crystalline calcite core + roughness/bump signature
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i];
+      const p1 = pts[i + 1];
+      const coreAlpha = Math.min(0.95, intensity * (0.55 + 0.42 * (p0.w / maxThickness)));
+      ctx.strokeStyle = isWarm
+        ? `rgba(224, 215, 188, ${coreAlpha.toFixed(4)})`
+        : `rgba(246, 249, 255, ${coreAlpha.toFixed(4)})`;
+      ctx.lineWidth = Math.max(0.35, p0.w * 0.62);
+      ctx.beginPath();
+      ctx.moveTo(p0.x, p0.y);
+      ctx.lineTo(p1.x, p1.y);
+      ctx.stroke();
+
+      // Subtle crystalline roughness & bump along primary veins
+      if (p0.w > 1.2) {
+        rCtx.strokeStyle = 'rgba(58, 58, 58, 0.35)';
+        rCtx.lineWidth = p0.w * 1.2;
+        rCtx.beginPath();
+        rCtx.moveTo(p0.x, p0.y);
+        rCtx.lineTo(p1.x, p1.y);
+        rCtx.stroke();
+
+        bCtx.strokeStyle = 'rgba(142, 142, 142, 0.30)';
+        bCtx.lineWidth = p0.w;
+        bCtx.beginPath();
+        bCtx.moveTo(p0.x, p0.y);
+        bCtx.lineTo(p1.x, p1.y);
+        bCtx.stroke();
+      }
+
+      // Spawn secondary conjugate hairline fractures at crystalline nodes
+      if (depth < 2 && i > 3 && i < pts.length - 4) {
+        const branchChance = depth === 0 ? 0.085 : 0.045;
+        if (rand() < branchChance) {
+          const branchSign = rand() > 0.5 ? 1 : -1;
+          const branchAngle = p0.ang + branchSign * (0.45 + rand() * 0.65);
+          const branchLen = length * (0.22 + rand() * 0.32);
+          const branchThick = Math.max(0.55, p0.w * (0.38 + rand() * 0.25));
+          renderGeologicalVein(
+            p0.x,
+            p0.y,
+            branchAngle,
+            branchLen,
+            branchThick,
+            intensity * 0.78,
+            isWarm,
+            depth + 1
+          );
+        }
+      }
+    }
+  };
+
+  // 4 Rows of Rectangular Architectural Stone Slabs (Running-bond staggered layout)
+  const numRows = 4;
+  const slabH = size / numRows; // 512px
+  const slabW = size / 2;       // 1024px (2:1 rectangular stone slab aspect ratio!)
+
+  for (let row = 0; row < numRows; row++) {
+    const yMin = row * slabH;
+    const staggerX = (row % 2 === 1) ? slabW * 0.5 : 0;
+
+    // Render slabs across row (including wrap-around slab when staggered)
+    const numCols = staggerX > 0 ? 3 : 2;
+    for (let col = 0; col < numCols; col++) {
+      const rawXMin = col * slabW - staggerX;
+      const xMin = Math.max(0, rawXMin);
+      const xMax = Math.min(size, rawXMin + slabW);
+      const curW = xMax - xMin;
+      if (curW <= 0) continue;
+
+      ctx.save();
+      bCtx.save();
+      rCtx.save();
+
+      ctx.beginPath();
+      ctx.rect(xMin, yMin, curW, slabH);
+      ctx.clip();
+
+      bCtx.beginPath();
+      bCtx.rect(xMin, yMin, curW, slabH);
+      bCtx.clip();
+
+      rCtx.beginPath();
+      rCtx.rect(xMin, yMin, curW, slabH);
+      rCtx.clip();
+
+      // 1. Per-slab deep obsidian/charcoal tonal gradient
+      const baseTone = 7 + Math.floor(rand() * 5);
+      const slabGrad = ctx.createLinearGradient(xMin, yMin, xMax, yMin + slabH);
+      slabGrad.addColorStop(0, `rgb(${baseTone}, ${baseTone + 2}, ${baseTone + 5})`);
+      slabGrad.addColorStop(0.5, `rgb(${baseTone + 3}, ${baseTone + 5}, ${baseTone + 9})`);
+      slabGrad.addColorStop(1, `rgb(${baseTone - 1}, ${baseTone + 1}, ${baseTone + 4})`);
+      ctx.fillStyle = slabGrad;
+      ctx.fillRect(xMin, yMin, curW, slabH);
+
+      // Slight per-slab base roughness variation (11% to 15%)
+      const rVal = 28 + Math.floor(rand() * 10);
+      rCtx.fillStyle = `rgb(${rVal}, ${rVal}, ${rVal})`;
+      rCtx.fillRect(xMin, yMin, curW, slabH);
+
+      // 2. Natural bedding plane angle for this stone block
+      const beddingAngle = -0.38 + (rand() - 0.5) * 0.48;
+      const cosB = Math.cos(beddingAngle);
+      const sinB = Math.sin(beddingAngle);
+
+      // Directional mineral strata & smokey graphite clouds stretched along beddingAngle
+      for (let m = 0; m < 28; m++) {
+        const mx = xMin + rand() * curW;
+        const my = yMin + rand() * slabH;
+        const len = 180 + rand() * 420;
+        const wid = 24 + rand() * 68;
+        const isDark = rand() > 0.55;
+
+        ctx.save();
+        ctx.translate(mx, my);
+        ctx.rotate(beddingAngle + (rand() - 0.5) * 0.18);
+        ctx.scale(1.0, wid / len);
+        const mGrad = ctx.createRadialGradient(0, 0, 2, 0, 0, len * 0.5);
+        if (isDark) {
+          mGrad.addColorStop(0, 'rgba(2, 3, 5, 0.16)');
+          mGrad.addColorStop(1, 'rgba(8, 10, 14, 0)');
+        } else {
+          mGrad.addColorStop(0, 'rgba(34, 40, 50, 0.075)');
+          mGrad.addColorStop(1, 'rgba(8, 10, 14, 0)');
+        }
+        ctx.fillStyle = mGrad;
+        ctx.fillRect(-len * 0.5, -len * 0.5, len, len);
+        ctx.restore();
+      }
+
+      // 3. Sheared warm golden-ochre / silver-grey metamorphic mineral ribbon on select slabs
+      // (Matches the dramatic sheared mineral band seen in the real vestibule floor photo!)
+      if ((row === 3 && col === 0) || (row === 1 && col === 1)) {
+        const ribX = xMin + curW * 0.15;
+        const ribY = yMin + slabH * 0.82;
+        for (let b = 0; b < 5; b++) {
+          renderGeologicalVein(
+            ribX + b * 18,
+            ribY - b * 8,
+            -0.32 + (rand() - 0.5) * 0.08,
+            curW * 0.95,
+            4.5 + rand() * 3.5,
+            0.55 + rand() * 0.25,
+            true,
+            0
+          );
+        }
+      }
+
+      // 4. Primary Crystalline White Calcite Veins (2 to 4 major veins per slab)
+      const numPrimary = 2 + Math.floor(rand() * 3);
+      for (let p = 0; p < numPrimary; p++) {
+        const vx = xMin - 40 + rand() * (curW + 80);
+        const vy = yMin - 30 + rand() * (slabH + 60);
+        const vLen = 320 + rand() * 680;
+        const vThick = 1.8 + rand() * 3.2;
+        const vInt = 0.58 + rand() * 0.36;
+        renderGeologicalVein(
+          vx,
+          vy,
+          beddingAngle + (rand() - 0.5) * 0.32,
+          vLen,
+          vThick,
+          vInt,
+          false,
+          0
+        );
+      }
+
+      // 5. Fine Crystalline Hairline Fissures & Breccia Webbing
+      const numHairlines = 7 + Math.floor(rand() * 6);
+      for (let h = 0; h < numHairlines; h++) {
+        const hx = xMin + rand() * curW;
+        const hy = yMin + rand() * slabH;
+        const hLen = 90 + rand() * 240;
+        const hThick = 0.45 + rand() * 0.85;
+        const hAng = beddingAngle + (rand() - 0.5) * 1.15;
+        renderGeologicalVein(hx, hy, hAng, hLen, hThick, 0.30 + rand() * 0.35, false, 1);
+      }
+
+      // 6. Subtle internal slab edge bevel & razor-sharp dark grout seam
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(xMin + 2, yMin + 2, curW - 4, slabH - 4);
+
+      ctx.strokeStyle = '#030406';
+      ctx.lineWidth = 3.5;
+      ctx.strokeRect(xMin, yMin, curW, slabH);
+
+      bCtx.strokeStyle = '#242424';
+      bCtx.lineWidth = 4.5;
+      bCtx.strokeRect(xMin, yMin, curW, slabH);
+
+      rCtx.strokeStyle = '#c0c0c0';
+      rCtx.lineWidth = 4.5;
+      rCtx.strokeRect(xMin, yMin, curW, slabH);
+
+      ctx.restore();
+      bCtx.restore();
+      rCtx.restore();
+    }
+  }
+
+  const diffuse = new THREE.CanvasTexture(diffCanvas);
+  diffuse.wrapS = THREE.RepeatWrapping;
+  diffuse.wrapT = THREE.RepeatWrapping;
+  diffuse.colorSpace = THREE.SRGBColorSpace;
+  diffuse.anisotropy = 16;
+
+  const bump = new THREE.CanvasTexture(bumpCanvas);
+  bump.wrapS = THREE.RepeatWrapping;
+  bump.wrapT = THREE.RepeatWrapping;
+  bump.anisotropy = 8;
+
+  const roughness = new THREE.CanvasTexture(roughCanvas);
+  roughness.wrapS = THREE.RepeatWrapping;
+  roughness.wrapT = THREE.RepeatWrapping;
+  roughness.anisotropy = 8;
+
+  return { diffuse, bump, roughness };
+}
+
+/**
+ * Procedural Matte Architectural Off-White Plaster Texture (512x512)
+ * Calibrated to #98a0aa so under PBR RoomEnvironment IBL + DirectionalLight + ACES tone mapping
+ * it renders as a crisp, natural corporate off-white without triggering post-processing bloom.
+ */
+function createVestibulePlasterTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#98a0aa';
+  ctx.fillRect(0, 0, size, size);
+
+  const imgData = ctx.getImageData(0, 0, size, size);
+  const data = imgData.data;
+  let seed = 55123;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  for (let i = 0; i < data.length; i += 4) {
+    const grain = Math.round((rand() - 0.5) * 6);
+    data[i] = Math.min(255, Math.max(0, data[i] + grain));
+    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
+    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
+  }
+  ctx.putImageData(imgData, 0, 0);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * Procedural Grey Architectural Stone/Concrete Cladding Texture (1024x512)
+ * for the vestibule side of the lower half-wall below the glass partition.
+ */
+function createVestibuleHalfWallTexture() {
+  const w = 1024;
+  const h = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#676c74';
+  ctx.fillRect(0, 0, w, h);
+
+  let seed = 41299;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  // Mottled concrete/plaster tonal variation
+  for (let i = 0; i < 240; i++) {
+    const cx = rand() * w;
+    const cy = rand() * h;
+    const r = 20 + rand() * 85;
+    const shade = rand() > 0.5 ? 128 : 78;
+    const alpha = 0.04 + rand() * 0.05;
+    const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, r);
+    grad.addColorStop(0, `rgba(${shade}, ${shade + 2}, ${shade + 5}, ${alpha})`);
+    grad.addColorStop(1, 'rgba(103, 108, 116, 0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+  }
+
+  // 4 vertical architectural panel joints matching the 4 glass panes above
+  const panelW = w / 4;
+  for (let i = 1; i < 4; i++) {
+    const px = i * panelW;
+    ctx.fillStyle = 'rgba(42, 45, 50, 0.75)';
+    ctx.fillRect(px - 2, 0, 3, h);
+    ctx.fillStyle = 'rgba(145, 150, 158, 0.35)';
+    ctx.fillRect(px + 1, 0, 2, h);
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/**
+ * Procedural Brushed Stainless Steel Texture (512x512)
+ * for the double elevator doors, call button plate, and cylindrical office trash bin.
+ */
+function createBrushedStainlessTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  const grad = ctx.createLinearGradient(0, 0, size, size);
+  grad.addColorStop(0, '#c8cfd8');
+  grad.addColorStop(0.5, '#e2e7ee');
+  grad.addColorStop(1, '#bcc4ce');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  let seed = 91823;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  for (let i = 0; i < 1600; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const len = 18 + rand() * 70;
+    const bright = rand() > 0.5 ? 250 : 165;
+    ctx.strokeStyle = `rgba(${bright}, ${bright}, ${bright + 4}, 0.08)`;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y + len);
+    ctx.stroke();
+  }
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/**
+ * Procedural Elevator Digital Floor Indicator Textures (256x128).
+ */
+function createElevatorDisplayTextures() {
+  const w = 256;
+  const h = 128;
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = w;
+  diffCanvas.height = h;
+  const ctx = diffCanvas.getContext('2d');
+
+  const emCanvas = document.createElement('canvas');
+  emCanvas.width = w;
+  emCanvas.height = h;
+  const eCtx = emCanvas.getContext('2d');
+
+  ctx.fillStyle = '#090b0f';
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#333942';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, w - 6, h - 6);
+
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, w, h);
+
+  const drawDisplayGlyphs = (targetCtx, color) => {
+    targetCtx.fillStyle = color;
+    // Down arrow on left (shaft on top y=36..62, arrowhead at bottom y=60..88 pointing down)
+    targetCtx.fillRect(82, 36, 12, 26);
+
+    targetCtx.beginPath();
+    targetCtx.moveTo(70, 60);
+    targetCtx.lineTo(106, 60);
+    targetCtx.lineTo(88, 88);
+    targetCtx.closePath();
+    targetCtx.fill();
+
+    // Digital floor readout '3'
+    targetCtx.font = 'bold 62px monospace';
+    targetCtx.textAlign = 'center';
+    targetCtx.textBaseline = 'middle';
+    targetCtx.fillText('3', 162, 65);
+  };
+
+  drawDisplayGlyphs(ctx, '#ff5522');
+  drawDisplayGlyphs(eCtx, '#ff4510');
+
+  const diffuse = new THREE.CanvasTexture(diffCanvas);
+  diffuse.colorSpace = THREE.SRGBColorSpace;
+  const emissive = new THREE.CanvasTexture(emCanvas);
+  emissive.colorSpace = THREE.SRGBColorSpace;
+  return { diffuse, emissive };
+}
+
+/**
+ * Procedural Illuminated Green Emergency EXIT Sign Textures (256x128).
+ */
+function createExitSignTextures() {
+  const w = 256;
+  const h = 128;
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = w;
+  diffCanvas.height = h;
+  const ctx = diffCanvas.getContext('2d');
+
+  const emCanvas = document.createElement('canvas');
+  emCanvas.width = w;
+  emCanvas.height = h;
+  const eCtx = emCanvas.getContext('2d');
+
+  const drawSign = (c, isEmissive) => {
+    c.fillStyle = isEmissive ? '#0b6e36' : '#e8f5ee';
+    c.fillRect(0, 0, w, h);
+
+    c.fillStyle = isEmissive ? '#18c964' : '#109848';
+    c.fillRect(10, 10, w - 20, h - 20);
+
+    c.fillStyle = '#ffffff';
+    c.font = 'bold 46px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('EXIT', 112, 66);
+
+    // Directional arrow pointing toward stairs
+    c.beginPath();
+    c.moveTo(192, 64);
+    c.lineTo(218, 44);
+    c.lineTo(218, 56);
+    c.lineTo(234, 56);
+    c.lineTo(234, 72);
+    c.lineTo(218, 72);
+    c.lineTo(218, 84);
+    c.closePath();
+    c.fill();
+  };
+
+  drawSign(ctx, false);
+  drawSign(eCtx, true);
+
+  const diffuse = new THREE.CanvasTexture(diffCanvas);
+  diffuse.colorSpace = THREE.SRGBColorSpace;
+  const emissive = new THREE.CanvasTexture(emCanvas);
+  emissive.colorSpace = THREE.SRGBColorSpace;
+  return { diffuse, emissive };
+}
+
+/**
  * Procedural Enterprise 42U Server Cabinet Textures (1024x2048).
  * Generates high-resolution Diffuse Map and Emissive Map inspired by Dell PowerEdge and Cisco Nexus racks.
  * Precision enterprise-scale SMD LED light guides with clean, harmonized illumination.
@@ -9116,6 +9822,133 @@ float rackHash(vec2 p) {
       roughness: 0.25,
       metalness: 0.40,
     });
+
+    // Corporate Access Vestibule (Stairwell, Glass Partition & Elevator Room) Materials
+    const marbleTextures = createBlackMarbleTextures();
+    this.vestibulePlasterTex = createVestibulePlasterTexture();
+    this.vestibuleHalfWallTex = createVestibuleHalfWallTexture();
+    this.brushedStainlessTex = createBrushedStainlessTexture();
+    const elevDisplayTex = createElevatorDisplayTextures();
+    const exitSignTex = createExitSignTextures();
+
+    this.vestibuleGlassMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcbd5e1,
+      transparent: true,
+      opacity: 0.20,
+      roughness: 0.12,
+      metalness: 0.08,
+      envMapIntensity: 0.50,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.vestibuleGlassSeamMaterial = new THREE.MeshStandardMaterial({
+      color: 0x64748b,
+      transparent: true,
+      opacity: 0.50,
+      roughness: 0.22,
+      metalness: 0.30,
+      envMapIntensity: 0.45,
+      depthWrite: false,
+    });
+
+    this.vestibuleSillMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb2aca0,
+      roughness: 0.55,
+      metalness: 0.04,
+      envMapIntensity: 0.45,
+    });
+
+    this.vestibuleAlumFrameMaterial = new THREE.MeshStandardMaterial({
+      color: 0xaab3be,
+      roughness: 0.32,
+      metalness: 0.72,
+      envMapIntensity: 0.55,
+    });
+
+    this.vestibuleChromeMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcbd5e1,
+      roughness: 0.18,
+      metalness: 0.88,
+      envMapIntensity: 0.60,
+    });
+
+    this.vestibuleBlackMarbleMaterial = new THREE.MeshStandardMaterial({
+      map: marbleTextures.diffuse,
+      bumpMap: marbleTextures.bump,
+      bumpScale: 0.0018,
+      roughnessMap: marbleTextures.roughness,
+      roughness: 1.0,
+      metalness: 0.08,
+      envMapIntensity: 0.72,
+    });
+
+    this.vestibuleWhiteWallMaterial = new THREE.MeshStandardMaterial({
+      map: this.vestibulePlasterTex,
+      color: 0xffffff,
+      roughness: 0.86,
+      metalness: 0.02,
+      envMapIntensity: 0.42,
+    });
+
+    this.vestibuleHalfWallMaterial = new THREE.MeshStandardMaterial({
+      map: this.vestibuleHalfWallTex,
+      roughness: 0.72,
+      metalness: 0.04,
+      envMapIntensity: 0.45,
+    });
+
+    this.vestibuleVoidMaterial = new THREE.MeshBasicMaterial({
+      color: 0x000000,
+    });
+
+    this.vestibuleDarkShadowMaterial = new THREE.MeshStandardMaterial({
+      color: 0x050608,
+      roughness: 0.95,
+      metalness: 0.05,
+      envMapIntensity: 0.20,
+    });
+
+    this.elevatorStainlessMaterial = new THREE.MeshStandardMaterial({
+      map: this.brushedStainlessTex,
+      color: 0xb8c0ca,
+      roughness: 0.28,
+      metalness: 0.78,
+      envMapIntensity: 0.55,
+    });
+
+    this.elevatorPortalMaterial = new THREE.MeshStandardMaterial({
+      color: 0x262a32,
+      roughness: 0.40,
+      metalness: 0.60,
+      envMapIntensity: 0.50,
+    });
+
+    this.elevatorDisplayMaterial = new THREE.MeshStandardMaterial({
+      map: elevDisplayTex.diffuse,
+      emissiveMap: elevDisplayTex.emissive,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 1.15,
+      roughness: 0.22,
+      metalness: 0.30,
+    });
+
+    this.exitSignMaterial = new THREE.MeshStandardMaterial({
+      map: exitSignTex.diffuse,
+      emissiveMap: exitSignTex.emissive,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 1.05,
+      roughness: 0.25,
+      metalness: 0.15,
+    });
+
+    this.vestibuleCeilingLightMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcbd5e1,
+      emissive: new THREE.Color(0x94a3b8),
+      emissiveIntensity: 0.45,
+      roughness: 0.30,
+      metalness: 0.10,
+    });
   }
 
   /**
@@ -9142,6 +9975,7 @@ float rackHash(vec2 p) {
     this.scene.add(group);
 
     const colliderGeometries = [];
+    const playerOnlyColliderGeometries = [];
 
     // Pre-allocated scratch matrices for zero-GC geometry transformations
     const _m = new THREE.Matrix4();
@@ -9217,6 +10051,21 @@ float rackHash(vec2 p) {
       splitAcBody: [],
       splitAcFront: [],
       splitAcLouver: [],
+      vestibuleGlass: [],
+      vestibuleGlassSeam: [],
+      vestibuleSill: [],
+      vestibuleAlumFrame: [],
+      vestibuleChrome: [],
+      vestibuleBlackMarble: [],
+      vestibuleWhiteWall: [],
+      vestibuleHalfWall: [],
+      vestibuleVoid: [],
+      vestibuleDarkShadow: [],
+      elevatorStainless: [],
+      elevatorPortal: [],
+      elevatorDisplay: [],
+      exitSign: [],
+      vestibuleCeilingLight: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -9230,6 +10079,20 @@ float rackHash(vec2 p) {
       const cleanGeo = new THREE.BufferGeometry();
       cleanGeo.setAttribute('position', nonIndexed.getAttribute('position'));
       colliderGeometries.push(cleanGeo);
+      nonIndexed.dispose();
+    };
+
+    const registerPlayerOnlyCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
+      _p.set(posX, posY, posZ);
+      _e.set(rotX, rotY, rotZ);
+      _q.setFromEuler(_e);
+      _m.compose(_p, _q, _s);
+
+      const nonIndexed = geo.index ? geo.toNonIndexed() : geo.clone();
+      nonIndexed.applyMatrix4(_m);
+      const cleanGeo = new THREE.BufferGeometry();
+      cleanGeo.setAttribute('position', nonIndexed.getAttribute('position'));
+      playerOnlyColliderGeometries.push(cleanGeo);
       nonIndexed.dispose();
     };
 
@@ -9371,9 +10234,49 @@ float rackHash(vec2 p) {
     frontWallGeo.dispose();
 
     // Left Wall (X = -10.0, Room-facing side at X = -10.0)
-    const leftWallGeo = createWallBoxGeometry(1.0, H, L, true, false);
-    addPart(visualBuckets.wall, leftWallGeo, -10.5, H / 2, zCenter);
-    leftWallGeo.dispose();
+    // Doorway top and Glass Partition Window top are BOTH aligned at Y = 2.65m, allowing the entire
+    // upper wall header (Y = 2.65m to 3.80m) across Z = -10.00 to +13.50 to be 1 single uncut span
+    // with internal/back faces stripped for zero seam artifacts!
+    const leftWallSegs = [
+      // 1. Continuous full-length upper header across the entire room (Z = -10.00 to +13.50, Y = 2.65 to 3.80m)
+      {
+        w: 0.18, h: 1.15, d: 23.50, x: -10.09, yBottom: 2.65, z: 1.75, horizStart: 0.00,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+      // 2. Lower solid front-left wall up to right window jamb (Z = -10.00 to +1.703, Y = 0.00 to 2.65m)
+      {
+        w: 0.18, h: 2.65, d: 11.703, x: -10.09, yBottom: 0.00, z: -4.1485, horizStart: 0.00,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+      // 3. Lower half-wall below glass partition (Z = +1.703 to +9.497, Y = 0.00 to 1.08m)
+      {
+        w: 0.18, h: 1.08, d: 7.794, x: -10.09, yBottom: 0.00, z: 5.60, horizStart: 11.703,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+      // 4. Narrow pillar mullion between window & doorway (Z = +9.497 to +9.752, Y = 0.00 to 2.65m)
+      {
+        w: 0.18, h: 2.65, d: 0.255, x: -10.09, yBottom: 0.00, z: 9.6245, horizStart: 19.497,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+      // 5. Lower solid back-left wall from doorway left jamb to server racks wall (Z = +10.848 to +13.50, Y = 0.00 to 2.65m)
+      {
+        w: 0.18, h: 2.65, d: 2.652, x: -10.09, yBottom: 0.00, z: 12.174, horizStart: 20.848,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+    ];
+    for (const seg of leftWallSegs) {
+      const segGeo = createWallSegmentGeometry(
+        seg.w, seg.h, seg.d, true, false, seg.yBottom, seg.horizStart, L, seg.hide
+      );
+      addVisual(visualBuckets.wall, segGeo, seg.x, seg.yBottom + seg.h / 2, seg.z);
+      segGeo.dispose();
+
+      // Span collider across full 0.210m partition wall thickness (-10.000 office face to -10.210 vestibule face)
+      // so bullet decals land flush on BOTH the main office side and the vestibule side!
+      const colGeo = new THREE.BoxGeometry(0.210, seg.h, seg.d);
+      registerCollider(colGeo, -10.105, seg.yBottom + seg.h / 2, seg.z);
+      colGeo.dispose();
+    }
 
     // Right Wall (X = +10.0, Room-facing side at X = +10.0)
     const rightWallGeo = createWallBoxGeometry(1.0, H, L, true, true);
@@ -9387,8 +10290,10 @@ float rackHash(vec2 p) {
     const outletY = 1.49;
 
     for (const oz of outletZPositions) {
-      // Left Wall (X = -10.0, faces +X into room, rotY = Math.PI / 2)
-      addVisual(visualBuckets.wallOutlets, outletGeo, -9.995, outletY, oz, 0, Math.PI / 2, 0);
+      // Left Wall (X = -10.0, faces +X into room): only place on intact solid front-left wall (Z < 1.0)
+      if (oz < 1.0) {
+        addVisual(visualBuckets.wallOutlets, outletGeo, -9.995, outletY, oz, 0, Math.PI / 2, 0);
+      }
       // Right Wall (X = +10.0, faces -X into room, rotY = -Math.PI / 2)
       addVisual(visualBuckets.wallOutlets, outletGeo, 9.995, outletY, oz, 0, -Math.PI / 2, 0);
     }
@@ -9519,6 +10424,16 @@ float rackHash(vec2 p) {
     // Row 3: Far Distance (Z = 9.2m, Elevated on +0.35m platform!)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 9.2, platH, 'far', addPartMatrix);
 
+    // Zone D: Corporate Access Vestibule (Glass Partition Wall, Open Glass Door, Stairwell & Elevator Room)
+    this._buildCorporateAccessVestibule(
+      addPart,
+      addVisual,
+      registerCollider,
+      registerPlayerOnlyCollider,
+      visualBuckets,
+      group
+    );
+
     // Batch Merge Geometry Buckets
     const bucketDefs = [
       { bucket: visualBuckets.wall, material: this.wallMaterial, name: 'DC_Walls' },
@@ -9584,6 +10499,21 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.splitAcBody, material: this.splitAcBodyMaterial, name: 'DC_SplitAcBody' },
       { bucket: visualBuckets.splitAcFront, material: this.splitAcFrontMaterial, name: 'DC_SplitAcFront' },
       { bucket: visualBuckets.splitAcLouver, material: this.splitAcLouverMaterial, name: 'DC_SplitAcLouver' },
+      { bucket: visualBuckets.vestibuleSill, material: this.vestibuleSillMaterial, name: 'DC_VestibuleSill' },
+      { bucket: visualBuckets.vestibuleAlumFrame, material: this.vestibuleAlumFrameMaterial, name: 'DC_VestibuleAlumFrame' },
+      { bucket: visualBuckets.vestibuleChrome, material: this.vestibuleChromeMaterial, name: 'DC_VestibuleChrome' },
+      { bucket: visualBuckets.vestibuleBlackMarble, material: this.vestibuleBlackMarbleMaterial, name: 'DC_VestibuleBlackMarble' },
+      { bucket: visualBuckets.vestibuleWhiteWall, material: this.vestibuleWhiteWallMaterial, name: 'DC_VestibuleWhiteWall' },
+      { bucket: visualBuckets.vestibuleHalfWall, material: this.vestibuleHalfWallMaterial, name: 'DC_VestibuleHalfWall' },
+      { bucket: visualBuckets.vestibuleVoid, material: this.vestibuleVoidMaterial, name: 'DC_VestibuleVoid' },
+      { bucket: visualBuckets.vestibuleDarkShadow, material: this.vestibuleDarkShadowMaterial, name: 'DC_VestibuleDarkShadow' },
+      { bucket: visualBuckets.elevatorStainless, material: this.elevatorStainlessMaterial, name: 'DC_ElevatorStainless' },
+      { bucket: visualBuckets.elevatorPortal, material: this.elevatorPortalMaterial, name: 'DC_ElevatorPortal' },
+      { bucket: visualBuckets.elevatorDisplay, material: this.elevatorDisplayMaterial, name: 'DC_ElevatorDisplay' },
+      { bucket: visualBuckets.exitSign, material: this.exitSignMaterial, name: 'DC_ExitSign' },
+      { bucket: visualBuckets.vestibuleCeilingLight, material: this.vestibuleCeilingLightMaterial, name: 'DC_VestibuleCeilingLight' },
+      { bucket: visualBuckets.vestibuleGlassSeam, material: this.vestibuleGlassSeamMaterial, name: 'DC_VestibuleGlassSeam', renderOrder: 2 },
+      { bucket: visualBuckets.vestibuleGlass, material: this.vestibuleGlassMaterial, name: 'DC_VestibuleGlass', renderOrder: 2 },
     ];
 
     for (const def of bucketDefs) {
@@ -9611,8 +10541,17 @@ float rackHash(vec2 p) {
         if (mergedGeo) {
           mergedGeo.computeBoundingBox();
           mergedGeo.computeBoundingSphere();
+          if (def.name === 'DC_VestibuleGlass' && typeof mergedGeo.computeBoundsTree === 'function') {
+            mergedGeo.computeBoundsTree({ maxLeafTris: 5, strategy: 0 });
+          }
           const mesh = new THREE.Mesh(mergedGeo, def.material);
           mesh.name = def.name;
+          if (def.name === 'DC_VestibuleGlass') {
+            this.glassMesh = mesh;
+          }
+          if (def.renderOrder !== undefined) {
+            mesh.renderOrder = def.renderOrder;
+          }
           if (def.name === 'DC_ServerBlades') {
             mesh.onBeforeRender = () => {
               this.serverRackBladeUniforms.uTime.value = performance.now() * 0.001;
@@ -9649,8 +10588,33 @@ float rackHash(vec2 p) {
     this.scene.add(this.weaponColliderMesh);
     this.colliderMesh = this.weaponColliderMesh;
 
-    // 2. Player Movement Capsule Collider (Uses unified room collision without artificial invisible walls)
-    this.playerColliderMesh = this.weaponColliderMesh;
+    // 2. Player Movement Capsule Collider (Includes invisible safety barrier around stairwell opening)
+    if (playerOnlyColliderGeometries.length > 0) {
+      const playerColliderGeo = BufferGeometryUtils.mergeGeometries(
+        [...colliderGeometries, ...playerOnlyColliderGeometries],
+        false
+      );
+      playerColliderGeo.computeVertexNormals();
+      playerColliderGeo.computeBoundsTree({
+        maxLeafTris: 5,
+        strategy: 0
+      });
+      this.playerColliderMesh = new THREE.Mesh(
+        playerColliderGeo,
+        new THREE.MeshBasicMaterial({ visible: false, side: THREE.DoubleSide })
+      );
+      this.playerColliderMesh.name = 'DataCenterPlayerCollider';
+      this.scene.add(this.playerColliderMesh);
+    } else {
+      this.playerColliderMesh = this.weaponColliderMesh;
+    }
+
+    for (let i = 0; i < colliderGeometries.length; i++) {
+      colliderGeometries[i].dispose();
+    }
+    for (let i = 0; i < playerOnlyColliderGeometries.length; i++) {
+      playerOnlyColliderGeometries[i].dispose();
+    }
 
     return this.weaponColliderMesh;
   }
@@ -10844,37 +11808,50 @@ float rackHash(vec2 p) {
    * 16 clustered golden-green cane stems with node rings,
    * and 24 arching 3D feathered palm fronds across 3 natural tiers reaching Y ~ 2.45m!
    */
-  _buildArecaPalm(addVisual, registerCollider, visualBuckets, px = 9.2, py = 0.0, pz = -8.8) {
-    // 1. Tapered White Ceramic Planter Pot (Y = 0.0 to 0.60m)
-    const potGeo = new THREE.CylinderGeometry(0.34, 0.26, 0.60, 24, 1, false);
-    addVisual(visualBuckets.palmPot, potGeo, px, 0.30, pz);
+  _buildArecaPalm(
+    addVisual,
+    registerCollider,
+    visualBuckets,
+    px = 9.2,
+    py = 0.0,
+    pz = -8.8,
+    scale = 1.0,
+    frondSpreadScale = 1.0
+  ) {
+    const reachScale = scale * frondSpreadScale;
+    const isCompactCorner = frondSpreadScale < 0.85;
+
+    // 1. Tapered White Ceramic Planter Pot (Y = 0.0 to 0.60m * scale)
+    const potH = 0.60 * scale;
+    const potGeo = new THREE.CylinderGeometry(0.34 * scale, 0.26 * scale, potH, 24, 1, false);
+    addVisual(visualBuckets.palmPot, potGeo, px, py + potH * 0.5, pz);
     potGeo.dispose();
 
-    // Stepped Top Rim Collar (radius 0.36m, height 0.06m)
-    const collarGeo = new THREE.CylinderGeometry(0.36, 0.36, 0.06, 24, 1, false);
-    addVisual(visualBuckets.palmPot, collarGeo, px, 0.57, pz);
+    // Stepped Top Rim Collar (radius 0.36m * scale, height 0.06m * scale)
+    const collarGeo = new THREE.CylinderGeometry(0.36 * scale, 0.36 * scale, 0.06 * scale, 24, 1, false);
+    addVisual(visualBuckets.palmPot, collarGeo, px, py + 0.57 * scale, pz);
     collarGeo.dispose();
 
-    // Dark Potting Soil Disc (Y = 0.56m)
-    const soilGeo = new THREE.CylinderGeometry(0.33, 0.33, 0.02, 24);
-    addVisual(visualBuckets.palmSoil, soilGeo, px, 0.56, pz);
+    // Dark Potting Soil Disc (Y = 0.56m * scale)
+    const soilGeo = new THREE.CylinderGeometry(0.33 * scale, 0.33 * scale, 0.02 * scale, 24);
+    addVisual(visualBuckets.palmSoil, soilGeo, px, py + 0.56 * scale, pz);
     soilGeo.dispose();
 
     // 2. Clustered Golden-Green Cane Stems (16 stems)
-    const stemRingGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.008, 8);
+    const stemRingGeo = new THREE.CylinderGeometry(0.012 * scale, 0.012 * scale, 0.008 * scale, 8);
     for (let i = 0; i < 16; i++) {
       const az = (i / 16) * Math.PI * 2 + 0.08 * Math.sin(i * 1.5);
-      const r0 = 0.045 + 0.045 * ((i % 3) / 2);
-      const r1 = 0.16 + 0.12 * (((i * 5) % 4) / 3);
-      const hStem = 0.85 + 0.35 * (((i * 7) % 10) / 10);
+      const r0 = (0.045 + 0.045 * ((i % 3) / 2)) * reachScale;
+      const r1 = (0.16 + 0.12 * (((i * 5) % 4) / 3)) * reachScale;
+      const hStem = (0.85 + 0.35 * (((i * 7) % 10) / 10)) * scale;
 
-      const stemGeo = new THREE.CylinderGeometry(0.008, 0.015, hStem, 8);
+      const stemGeo = new THREE.CylinderGeometry(0.008 * scale, 0.015 * scale, hStem, 8);
       const midR = (r0 + r1) / 2;
       const stemX = px + midR * Math.cos(az);
       const stemZ = pz + midR * Math.sin(az);
-      const stemY = 0.56 + hStem / 2;
+      const stemY = py + 0.56 * scale + hStem / 2;
 
-      const tilt = 0.14;
+      const tilt = 0.14 * frondSpreadScale;
       const rotX = Math.sin(az) * tilt;
       const rotZ = -Math.cos(az) * tilt;
 
@@ -10887,7 +11864,7 @@ float rackHash(vec2 p) {
     }
     stemRingGeo.dispose();
 
-    // 3. Arching 3D Feathered Palm Fronds (24 fronds across 3 natural tiers, reaching Y ~ 2.45m)
+    // 3. Arching 3D Feathered Palm Fronds (24 fronds across 3 natural tiers)
     const _p = new THREE.Vector3();
     const _q = new THREE.Quaternion();
     const _s = new THREE.Vector3(1, 1, 1);
@@ -10897,18 +11874,18 @@ float rackHash(vec2 p) {
     // Tier 1: Lower Drooping Fronds (8 fronds, droop low and spread wide)
     for (let j = 0; j < 8; j++) {
       const az = (j / 8) * Math.PI * 2 + 0.15;
-      const len = 1.35 + 0.08 * (j % 3);
-      const w = 0.48;
-      const archRise = 0.25;
-      const droop = 0.65;
-      const elev = -0.22;
+      const len = (1.35 + 0.08 * (j % 3)) * reachScale;
+      const w = 0.48 * scale;
+      const archRise = 0.25 * scale;
+      const droop = 0.65 * reachScale;
+      const elev = isCompactCorner ? 0.16 : -0.22;
 
-      const startR = 0.24;
+      const startR = 0.24 * reachScale;
       const fx = px + startR * Math.cos(az);
-      const fy = 0.92 + 0.05 * (j % 3);
+      const fy = py + (0.92 + 0.05 * (j % 3)) * scale;
       const fz = pz + startR * Math.sin(az);
 
-      const fGeo = createCurvedPalmFrondGeometry(len, w, archRise, droop, 0.026);
+      const fGeo = createCurvedPalmFrondGeometry(len, w, archRise, droop, 0.026 * scale);
       _p.set(fx, fy, fz);
       _e.set(-elev, -az, 0, 'YXZ');
       _q.setFromEuler(_e);
@@ -10920,18 +11897,18 @@ float rackHash(vec2 p) {
     // Tier 2: Mid Spreading Fronds (9 fronds, elegant balanced arc)
     for (let j = 0; j < 9; j++) {
       const az = (j / 9) * Math.PI * 2 + 0.42;
-      const len = 1.55 + 0.10 * (j % 3);
-      const w = 0.50;
-      const archRise = 0.36;
-      const droop = 0.48;
-      const elev = 0.48;
+      const len = (1.55 + 0.10 * (j % 3)) * reachScale;
+      const w = 0.50 * scale;
+      const archRise = 0.36 * scale;
+      const droop = 0.48 * reachScale;
+      const elev = isCompactCorner ? 0.58 : 0.48;
 
-      const startR = 0.18;
+      const startR = 0.18 * reachScale;
       const fx = px + startR * Math.cos(az);
-      const fy = 1.20 + 0.06 * (j % 3);
+      const fy = py + (1.20 + 0.06 * (j % 3)) * scale;
       const fz = pz + startR * Math.sin(az);
 
-      const fGeo = createCurvedPalmFrondGeometry(len, w, archRise, droop, 0.030);
+      const fGeo = createCurvedPalmFrondGeometry(len, w, archRise, droop, 0.030 * scale);
       _p.set(fx, fy, fz);
       _e.set(-elev, -az, 0, 'YXZ');
       _q.setFromEuler(_e);
@@ -10940,21 +11917,21 @@ float rackHash(vec2 p) {
       visualBuckets.palmFronds.push(fGeo);
     }
 
-    // Tier 3: Tall Upright Center Fronds (7 fronds, reaching Y ~ 2.45m!)
+    // Tier 3: Tall Upright Center Fronds (7 fronds)
     for (let j = 0; j < 7; j++) {
       const az = (j / 7) * Math.PI * 2 + 0.08;
-      const len = 1.70 + 0.12 * (j % 3);
-      const w = 0.48;
-      const archRise = 0.45;
-      const droop = 0.34;
-      const elev = 1.02;
+      const len = (1.70 + 0.12 * (j % 3)) * (isCompactCorner ? scale * 0.62 : reachScale);
+      const w = 0.48 * scale;
+      const archRise = 0.45 * scale;
+      const droop = 0.34 * reachScale;
+      const elev = isCompactCorner ? 1.08 : 1.02;
 
-      const startR = 0.11;
+      const startR = 0.11 * reachScale;
       const fx = px + startR * Math.cos(az);
-      const fy = 1.45 + 0.08 * (j % 3);
+      const fy = py + (1.45 + 0.08 * (j % 3)) * scale;
       const fz = pz + startR * Math.sin(az);
 
-      const fGeo = createCurvedPalmFrondGeometry(len, w, archRise, droop, 0.032);
+      const fGeo = createCurvedPalmFrondGeometry(len, w, archRise, droop, 0.032 * scale);
       _p.set(fx, fy, fz);
       _e.set(-elev, -az, 0, 'YXZ');
       _q.setFromEuler(_e);
@@ -10964,8 +11941,8 @@ float rackHash(vec2 p) {
     }
 
     // 4. Planter Pot Physics & Hitscan Collider
-    const potCollider = new THREE.CylinderGeometry(0.36, 0.36, 0.60, 12);
-    registerCollider(potCollider, px, 0.30, pz);
+    const potCollider = new THREE.CylinderGeometry(0.36 * scale, 0.36 * scale, potH, 12);
+    registerCollider(potCollider, px, py + potH * 0.5, pz);
     potCollider.dispose();
   }
 
@@ -11156,6 +12133,653 @@ float rackHash(vec2 p) {
     const colliderGeo = new THREE.BoxGeometry(d + 0.03, h + 0.03, w + 0.03);
     registerCollider(colliderGeo, x, y, z);
     colliderGeo.dispose();
+  }
+
+  /**
+   * Builds the Corporate Access Vestibule (Glass Partition Window, Open Aluminum-Framed Glass Door,
+   * Glossy Nero Marquina Black Marble Landing, Descending Stairwell with Chrome Guardrails & Dark Void,
+   * Brushed Stainless Double Elevator Doors, Illuminated EXIT Sign, and Cylindrical Office Trash Bin)
+   * along the Left Wall (X = -10.0m, opposite the AC/coffee/stanchions wall).
+   */
+  _buildCorporateAccessVestibule(
+    addPart,
+    addVisual,
+    registerCollider,
+    registerPlayerOnlyCollider,
+    visualBuckets,
+    group
+  ) {
+    // =========================================================================
+    // 1. GLASS PARTITION WINDOW & STONE WINDOWSILL (Z = +1.70 to +9.50, Y = 1.08 to 2.65m)
+    // =========================================================================
+    const winZStart = 1.703;
+    const winZEnd = 9.497;
+    const winLen = winZEnd - winZStart; // 7.794m (3mm inset from jambs to prevent Z-fighting)
+    const winZCenter = (winZStart + winZEnd) * 0.5; // 5.60m
+    const wallX = -10.105; // Center of partition wall + vestibule cladding (X = -10.00 to -10.21)
+
+    // A. Beige / Light-Gray Stone Windowsill Cap Ledge (Y = 1.081m to 1.125m, overhanging slightly)
+    const sillH = 0.044;
+    const sillW = 0.27; // Overhangs cleanly on both office (-9.970) and vestibule (-10.240) sides
+    const sillY = 1.081 + sillH * 0.5;
+    const sillGeo = new THREE.BoxGeometry(sillW, sillH, winLen);
+    addPart(visualBuckets.vestibuleSill, sillGeo, wallX, sillY, winZCenter, 0, 0, 0, true);
+    sillGeo.dispose();
+
+    // B. Slim Anodized Silver Aluminum Window Perimeter Frame Channels
+    const winBottomY = 1.126;
+    const winTopY = 2.649;
+    const winClearH = winTopY - winBottomY;
+    const winMidY = (winBottomY + winTopY) * 0.5;
+    const frameThick = 0.032;
+    const frameDepthX = 0.216; // Spans full 21cm wall opening thickness (-9.997 to -10.213) to seal window reveals
+
+    const horizChannelGeo = new THREE.BoxGeometry(frameDepthX, frameThick, winLen);
+    // Bottom U-channel sitting on stone sill
+    addPart(visualBuckets.vestibuleAlumFrame, horizChannelGeo, wallX, winBottomY + frameThick * 0.5, winZCenter);
+    // Top U-channel under upper wall header
+    addPart(visualBuckets.vestibuleAlumFrame, horizChannelGeo, wallX, winTopY - frameThick * 0.5, winZCenter);
+    horizChannelGeo.dispose();
+
+    const vertChannelH = winClearH - frameThick * 2 - 0.002;
+    const vertChannelGeo = new THREE.BoxGeometry(frameDepthX, vertChannelH, frameThick);
+    // Right jamb channel (Z = +1.703)
+    addPart(visualBuckets.vestibuleAlumFrame, vertChannelGeo, wallX, winMidY, winZStart + frameThick * 0.5);
+    // Left jamb channel (Z = +9.497)
+    addPart(visualBuckets.vestibuleAlumFrame, vertChannelGeo, wallX, winMidY, winZEnd - frameThick * 0.5);
+    vertChannelGeo.dispose();
+
+    // C. 4 Large Clear Architectural Glass Panes & 3 Thin Vertical Butt-Joint Seams
+    const innerZSpan = winLen - frameThick * 2 - 0.002;
+    const numPanes = 4;
+    const seamWidthZ = 0.010;
+    const paneSpanZ = (innerZSpan - seamWidthZ * (numPanes - 1)) / numPanes;
+    const paneGeo = new THREE.BoxGeometry(0.012, vertChannelH - 0.002, paneSpanZ);
+    const seamGeo = new THREE.BoxGeometry(0.018, vertChannelH - 0.002, seamWidthZ - 0.002);
+
+    for (let p = 0; p < numPanes; p++) {
+      const pz = (winZStart + frameThick + 0.001) + paneSpanZ * 0.5 + p * (paneSpanZ + seamWidthZ);
+      addVisual(visualBuckets.vestibuleGlass, paneGeo, wallX, winMidY, pz);
+      if (p < numPanes - 1) {
+        const sz = pz + paneSpanZ * 0.5 + seamWidthZ * 0.5;
+        addVisual(visualBuckets.vestibuleGlassSeam, seamGeo, wallX, winMidY, sz);
+      }
+    }
+    paneGeo.dispose();
+    seamGeo.dispose();
+
+    // Player-only barrier for the glass window opening (weapon raycasts hit DC_VestibuleGlass directly for glass decals!)
+    const windowColliderGeo = new THREE.BoxGeometry(0.16, winClearH, winLen);
+    registerPlayerOnlyCollider(windowColliderGeo, wallX, winMidY, winZCenter);
+    windowColliderGeo.dispose();
+
+    // =========================================================================
+    // 2. OPEN ALUMINUM-FRAMED GLASS DOOR (Z = +9.75 to +10.85, Y = 0.0 to 2.65m — ALIGNED WITH GLASS WALL)
+    // =========================================================================
+    const doorZMin = 9.752;
+    const doorZMax = 10.848;
+    const doorZMid = (doorZMin + doorZMax) * 0.5; // 10.30m
+    const doorOpenH = 2.649; // Top-aligned with winTopY (2.649m)
+    const jambThickZ = 0.040;
+    const jambDepthX = 0.222; // Proud by 6mm on both office (-9.994) and vestibule (-10.216) sides
+
+    // A. Outer Silver/White Aluminum Door Frame Lining the Opening (Zero overlap between jambs & header)
+    const jambVertH = doorOpenH - jambThickZ - 0.005;
+    const doorJambGeo = new THREE.BoxGeometry(jambDepthX, jambVertH, jambThickZ);
+    // Left Jamb (Z = 10.828, near server racks corner)
+    addPart(visualBuckets.vestibuleAlumFrame, doorJambGeo, wallX, 0.004 + jambVertH * 0.5, doorZMax - jambThickZ * 0.5);
+    // Right Jamb (Z = 9.772, next to center pillar)
+    addPart(visualBuckets.vestibuleAlumFrame, doorJambGeo, wallX, 0.004 + jambVertH * 0.5, doorZMin + jambThickZ * 0.5);
+    doorJambGeo.dispose();
+
+    const doorHeaderFullZ = doorZMax - doorZMin;
+    const doorHeaderGeo = new THREE.BoxGeometry(jambDepthX, jambThickZ, doorHeaderFullZ);
+    addPart(visualBuckets.vestibuleAlumFrame, doorHeaderGeo, wallX, doorOpenH - jambThickZ * 0.5, doorZMid);
+    doorHeaderGeo.dispose();
+
+    // Flush Brushed Stainless Doorway Threshold Strip at Y = 0.001m to 0.004m
+    const doorClearZ = doorHeaderFullZ - jambThickZ * 2 - 0.004;
+    const thresholdGeo = new THREE.BoxGeometry(0.210, 0.003, doorClearZ);
+    addVisual(visualBuckets.elevatorStainless, thresholdGeo, wallX, 0.0025, doorZMid);
+    thresholdGeo.dispose();
+
+    // B. Swung-Open Aluminum-Framed Glass Door Leaf (Swung Open INTO the Main Office Room!)
+    // Hinged on the main-office-side left jamb at (X = -9.985, Z = 10.805)
+    const hingeX = -9.985;
+    const hingeZ = 10.805;
+    const doorLeafW = 0.96;
+    const doorLeafH = 2.55; // Taller leaf matching the 2.65m top-aligned door frame
+    const doorLeafBottomY = 0.015;
+    const doorLeafMidY = doorLeafBottomY + doorLeafH * 0.5;
+    // In Three.js right-handed Y-rotation: local +Z maps to (+sin(rotY), 0, +cos(rotY))
+    // For rotY = +Math.PI * 0.42 (+75.6 deg): sin = +0.969 (into +X main office!), cos = +0.249 (toward +Z corner wall!)
+    const doorYaw = Math.PI * 0.42;
+    const dirX = Math.sin(doorYaw);
+    const dirZ = Math.cos(doorYaw);
+    const normX = Math.cos(doorYaw);
+    const normZ = -Math.sin(doorYaw);
+
+    const addDoorLeafPart = (bucket, lenU, lenY, lenW, uCenter, yCenter, wOffset = 0, collidable = false) => {
+      const wx = hingeX + dirX * uCenter + normX * wOffset;
+      const wz = hingeZ + dirZ * uCenter + normZ * wOffset;
+      const box = new THREE.BoxGeometry(lenW, lenY, lenU);
+      addPart(bucket, box, wx, yCenter, wz, 0, doorYaw, 0, collidable);
+      box.dispose();
+    };
+
+    const stileW = 0.075;
+    const railH = 0.085;
+    const leafThick = 0.042;
+
+    // Hinge stile (u = 0 to 0.075)
+    addDoorLeafPart(visualBuckets.vestibuleAlumFrame, stileW, doorLeafH, leafThick, stileW * 0.5, doorLeafMidY, 0, true);
+    // Lock stile (u = 0.885 to 0.96)
+    addDoorLeafPart(visualBuckets.vestibuleAlumFrame, stileW, doorLeafH, leafThick, doorLeafW - stileW * 0.5, doorLeafMidY, 0, true);
+    // Bottom & Top rails (strictly between the two stiles with 1mm clearance)
+    const innerGlassW = doorLeafW - stileW * 2 - 0.002;
+    addDoorLeafPart(visualBuckets.vestibuleAlumFrame, innerGlassW, railH, leafThick, doorLeafW * 0.5, doorLeafBottomY + railH * 0.5, 0, true);
+    addDoorLeafPart(visualBuckets.vestibuleAlumFrame, innerGlassW, railH, leafThick, doorLeafW * 0.5, doorLeafBottomY + doorLeafH - railH * 0.5, 0, true);
+
+    // Clear glass insert inside door leaf (weapon raycasts hit DC_VestibuleGlass directly for glass decals!)
+    const innerGlassH = doorLeafH - railH * 2 - 0.002;
+    addDoorLeafPart(visualBuckets.vestibuleGlass, innerGlassW, innerGlassH, 0.010, doorLeafW * 0.5, doorLeafMidY, 0, false);
+    const doorGlassPlayerCol = new THREE.BoxGeometry(0.06, innerGlassH, innerGlassW);
+    registerPlayerOnlyCollider(
+      doorGlassPlayerCol,
+      hingeX + dirX * (doorLeafW * 0.5),
+      doorLeafMidY,
+      hingeZ + dirZ * (doorLeafW * 0.5),
+      0,
+      doorYaw,
+      0
+    );
+    doorGlassPlayerCol.dispose();
+
+    // 3 Chrome Barrel Hinges along the hinge axis (u = 0)
+    const barrelHingeGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.095, 12);
+    for (const hy of [0.42, 1.29, 2.16]) {
+      addVisual(visualBuckets.vestibuleChrome, barrelHingeGeo, hingeX, hy, hingeZ);
+    }
+    barrelHingeGeo.dispose();
+
+    // Keyhole cylinder lock escutcheon on lock stile (u = doorLeafW - stileW * 0.5, Y = 1.00m)
+    addDoorLeafPart(visualBuckets.vestibuleChrome, 0.034, 0.065, leafThick + 0.010, doorLeafW - stileW * 0.5, 1.00, 0, false);
+
+    // Long Vertical Polished Chrome Pull Bar Handle (on both sides of the door leaf, u = doorLeafW - 0.13m, Y = 0.65m to 1.51m)
+    const handleU = doorLeafW - 0.13;
+    const handleYMin = 0.65;
+    const handleYMax = 1.51;
+    const handleYMid = (handleYMin + handleYMax) * 0.5;
+    const handleLen = handleYMax - handleYMin;
+
+    const pullBarGeo = new THREE.CylinderGeometry(0.014, 0.014, handleLen, 14);
+    const standoffGeo = new THREE.BoxGeometry(0.036, 0.022, 0.022);
+    for (const sideSign of [-1, 1]) {
+      const wOff = sideSign * (leafThick * 0.5 + 0.038);
+      const bx = hingeX + dirX * handleU + normX * wOff;
+      const bz = hingeZ + dirZ * handleU + normZ * wOff;
+      addVisual(visualBuckets.vestibuleChrome, pullBarGeo, bx, handleYMid, bz);
+
+      const sOff = sideSign * (leafThick * 0.5 + 0.019);
+      const sx = hingeX + dirX * handleU + normX * sOff;
+      const sz = hingeZ + dirZ * handleU + normZ * sOff;
+      addVisual(visualBuckets.vestibuleChrome, standoffGeo, sx, handleYMin + 0.06, sz, 0, doorYaw, 0);
+      addVisual(visualBuckets.vestibuleChrome, standoffGeo, sx, handleYMax - 0.06, sz, 0, doorYaw, 0);
+    }
+    pullBarGeo.dispose();
+    standoffGeo.dispose();
+
+    // =========================================================================
+    // 3. CORPORATE ACCESS VESTIBULE ROOM (X = -10.21 to -14.20, Z = +1.20 to +11.30)
+    // =========================================================================
+    // Note: Main office Left Wall occupies X = -10.000 to -10.180 (with -X back face stripped).
+    // Vestibule cladding occupies X = -10.185 to -10.210 (5mm internal air gap -> ZERO Z-fighting!).
+    const vestXEast = -10.210;
+    const vestXWest = -14.200;
+    const vestZSouth = 1.200;
+    const vestZNorth = 11.300;
+    const vestW = vestXEast - vestXWest; // 3.99m
+    const vestL = vestZNorth - vestZSouth; // 10.10m
+    const vestXMid = (vestXEast + vestXWest) * 0.5; // -12.205m
+    const vestZMid = (vestZSouth + vestZNorth) * 0.5; // 6.25m
+    const vestH = 3.80;
+
+    // A. Perimeter Matte Off-White Plaster Walls & Ceiling (Strictly X <= -10.182, zero overlap with office wall!)
+    // West Wall (X = -14.450 to -14.200, Z = 0.950 to 11.550)
+    const westWallGeo = new THREE.BoxGeometry(0.25, vestH, vestL + 0.50);
+    addPart(visualBuckets.vestibuleWhiteWall, westWallGeo, vestXWest - 0.125, vestH * 0.5, vestZMid);
+    westWallGeo.dispose();
+
+    // South End Wall (Z = 0.950 to 1.200, X = -14.198 to -10.182 -> 18.2cm away from office wall face X = -10.00!)
+    const endWallSpanX = (-10.182) - (-14.198);
+    const endWallMidX = (-10.182 + -14.198) * 0.5;
+    const southWallGeo = new THREE.BoxGeometry(endWallSpanX, vestH, 0.25);
+    addPart(visualBuckets.vestibuleWhiteWall, southWallGeo, endWallMidX, vestH * 0.5, vestZSouth - 0.125);
+    southWallGeo.dispose();
+
+    // North Elevator Wall (Z = 11.300 to 11.550, X = -14.198 to -10.182 -> 18.2cm away from office wall face X = -10.00!)
+    const northWallGeo = new THREE.BoxGeometry(endWallSpanX, vestH, 0.25);
+    addPart(visualBuckets.vestibuleWhiteWall, northWallGeo, endWallMidX, vestH * 0.5, vestZNorth + 0.125);
+    northWallGeo.dispose();
+
+    // Vestibule Ceiling Slab (Y = 3.802m to 3.962m, strictly above walls)
+    const vestCeilingGeo = new THREE.BoxGeometry(vestW, 0.16, vestL);
+    addVisual(visualBuckets.vestibuleWhiteWall, vestCeilingGeo, vestXMid, vestH + 0.082, vestZMid);
+    vestCeilingGeo.dispose();
+
+    // 6 Recessed Circular LED Downlight Fixtures in Vestibule Ceiling
+    const downlightRingGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.010, 20);
+    const downlightDiskGeo = new THREE.CylinderGeometry(0.102, 0.102, 0.012, 20);
+    for (const lx of [-11.00, -12.90]) {
+      for (const lz of [2.80, 6.25, 9.70]) {
+        addVisual(visualBuckets.vestibuleAlumFrame, downlightRingGeo, lx, vestH - 0.004, lz);
+        addVisual(visualBuckets.vestibuleCeilingLight, downlightDiskGeo, lx, vestH - 0.008, lz);
+      }
+    }
+    downlightRingGeo.dispose();
+    downlightDiskGeo.dispose();
+
+    // 1 Subtle Static Fill PointLight (Calibrated to 1.4 intensity so the vestibule is naturally lit without blooming)
+    const vestFillLight = new THREE.PointLight(0xe2e8f0, 1.4, 9.5, 1.8);
+    vestFillLight.position.set(-12.0, 3.30, 8.20);
+    group.add(vestFillLight);
+
+    // B. Vestibule-Side Cladding of the Partition Wall (Occupies X = -10.185 to -10.210, 5mm clear of office wall X = -10.180)
+    // Uniform matte off-white plaster cladding across ALL vestibule partition wall segments (including lower half-wall!)
+    const cladThickX = 0.025;
+    const cladCenterX = -10.1975;
+
+    const whiteCladSegs = [
+      // 1. Single continuous upper header spanning the entire vestibule length above window & door (Z = 1.202 to 11.298, Y = 2.650 to 3.798m)
+      { yMin: 2.650, yMax: 3.798, zMin: 1.202, zMax: 11.298 },
+      // 2. Lower half-wall below glass partition window (Z = 1.702 to 9.498, Y = 0.110 to 1.081m)
+      { yMin: 0.110, yMax: 1.081, zMin: 1.702, zMax: 9.498 },
+      // 3. Right jamb beside window (Z = 1.202 to 1.702, Y = 0.110 to 2.650m)
+      { yMin: 0.110, yMax: 2.650, zMin: 1.202, zMax: 1.702 },
+      // 4. Center pillar between window & door (Z = 9.498 to 9.752, Y = 0.110 to 2.650m)
+      { yMin: 0.110, yMax: 2.650, zMin: 9.498, zMax: 9.752 },
+      // 5. Left jamb beside door near elevator wall (Z = 10.848 to 11.298, Y = 0.110 to 2.650m)
+      { yMin: 0.110, yMax: 2.650, zMin: 10.848, zMax: 11.298 },
+    ];
+    for (const cs of whiteCladSegs) {
+      const ch = cs.yMax - cs.yMin;
+      const cd = cs.zMax - cs.zMin;
+      const cy = (cs.yMin + cs.yMax) * 0.5;
+      const cz = (cs.zMin + cs.zMax) * 0.5;
+      const cg = filterBoxFaces(
+        new THREE.BoxGeometry(cladThickX, ch, cd),
+        { px: true, py: true, ny: true, pz: true, nz: true }
+      );
+      addVisual(visualBuckets.vestibuleWhiteWall, cg, cladCenterX, cy, cz);
+      cg.dispose();
+    }
+
+    // C. Glossy Nero Marquina Black Marble Floor Landing (Y = -0.160m to 0.000m, strictly non-overlapping!)
+    const stairXEast = -11.450;
+    const stairXWest = -13.950;
+    const stairZSouth = 2.200;
+    const stairZNorth = 7.400;
+    const floorThick = 0.160;
+    const floorY = -floorThick * 0.5; // Top surface at Y = 0.000m, bottom at Y = -0.160m
+
+    const marbleSlabs = [
+      // 1. North Elevator & Doorway Landing (X = -14.198 to -10.212, Z = +7.401 to +11.298)
+      { xMin: -14.198, xMax: -10.212, zMin: 7.401, zMax: 11.298 },
+      // 2. East Walkway Strip along glass partition half-wall (X = -11.450 to -10.212, Z = +2.200 to +7.399)
+      { xMin: stairXEast, xMax: -10.212, zMin: stairZSouth, zMax: 7.399 },
+      // 3. South End Landing (X = -14.198 to -10.212, Z = +1.202 to +2.199)
+      { xMin: -14.198, xMax: -10.212, zMin: 1.202, zMax: 2.199 },
+      // 4. West Wall Marble Ledge (X = -14.198 to -13.950, Z = +2.200 to +7.399)
+      { xMin: -14.198, xMax: stairXWest, zMin: stairZSouth, zMax: 7.399 },
+      // 5. Doorway Threshold Slab (Strictly inside doorway opening Z = 9.794 to 10.806, X = -10.210 to -10.002)
+      { xMin: -10.210, xMax: -10.002, zMin: 9.794, zMax: 10.806 },
+    ];
+
+    for (const slab of marbleSlabs) {
+      const sw = slab.xMax - slab.xMin;
+      const sd = slab.zMax - slab.zMin;
+      const sx = (slab.xMin + slab.xMax) * 0.5;
+      const sz = (slab.zMin + slab.zMax) * 0.5;
+      const sGeo = createMarbleFloorBoxGeometry(sw, floorThick, sd, sx, sz, 2.4);
+      addPart(visualBuckets.vestibuleBlackMarble, sGeo, sx, floorY, sz, 0, 0, 0, true);
+      sGeo.dispose();
+    }
+
+    // D. Glossy Black Marble Baseboards (Y = 0.002m to 0.110m, non-overlapping at corners)
+    const bbH = 0.108;
+    const bbY = 0.002 + bbH * 0.5;
+    const bbT = 0.016;
+    const baseboards = [
+      // Along partition wall right of doorway (Z = 1.220 to 9.748, X = -10.211 to -10.227)
+      { w: bbT, d: 9.748 - 1.220, x: vestXEast - bbT * 0.5 - 0.001, z: (1.220 + 9.748) * 0.5 },
+      // Along partition left jamb (Z = 10.852 to 11.280)
+      { w: bbT, d: 11.280 - 10.852, x: vestXEast - bbT * 0.5 - 0.001, z: (10.852 + 11.280) * 0.5 },
+      // Along south wall (X = -14.180 to -10.230)
+      { w: (-10.230) - (-14.180), d: bbT, x: (-10.230 + -14.180) * 0.5, z: vestZSouth + bbT * 0.5 + 0.001 },
+      // Along west wall (Z = 1.220 to 11.280)
+      { w: bbT, d: 11.280 - 1.220, x: vestXWest + bbT * 0.5 + 0.001, z: vestZMid },
+      // Along north wall right of elevator (X = -11.620 to -10.230)
+      { w: (-10.230) - (-11.620), d: bbT, x: (-10.230 + -11.620) * 0.5, z: vestZNorth - bbT * 0.5 - 0.001 },
+      // Along north wall left of elevator (X = -14.180 to -13.280)
+      { w: (-13.280) - (-14.180), d: bbT, x: (-13.280 + -14.180) * 0.5, z: vestZNorth - bbT * 0.5 - 0.001 },
+    ];
+    for (const bb of baseboards) {
+      const bbGeo = new THREE.BoxGeometry(bb.w, bbH, bb.d);
+      addVisual(visualBuckets.vestibuleBlackMarble, bbGeo, bb.x, bbY, bb.z);
+      bbGeo.dispose();
+    }
+
+    // =========================================================================
+    // 4. DESCENDING STAIRWELL, CHROME GUARDRAILS & DARK VOID
+    // =========================================================================
+    const stairW = stairXEast - stairXWest; // 2.50m
+    const stairL = stairZNorth - stairZSouth; // 5.20m
+    const stairXMid = (stairXEast + stairXWest) * 0.5; // -12.70m
+    const stairZMid = (stairZSouth + stairZNorth) * 0.5; // 4.80m
+
+    // A. Stairwell Pit Enclosure Walls
+    // Start strictly at Y = -0.162m (2mm BELOW the -0.160m bottom of the marble floor slabs -> ZERO Z-fighting!)
+    const pitTopY = -0.162;
+    const upperPitH = 1.25;
+    const upperPitY = pitTopY - upperPitH * 0.5;
+    const lowerPitH = 1.60;
+    const lowerPitY = pitTopY - upperPitH - lowerPitH * 0.5;
+
+    const pitWallDefs = [
+      // East pit wall (X = -11.450 to -11.290, Z = 2.201 to 7.399)
+      { w: 0.16, d: stairL - 0.002, x: stairXEast + 0.08, z: stairZMid },
+      // West pit wall (X = -14.110 to -13.950, Z = 2.201 to 7.399)
+      { w: 0.16, d: stairL - 0.002, x: stairXWest - 0.08, z: stairZMid },
+      // South pit wall (Z = 2.040 to 2.200, X = -14.110 to -11.290)
+      { w: stairW + 0.32, d: 0.16, x: stairXMid, z: stairZSouth - 0.08 },
+      // North pit under-slab wall (Z = 7.400 to 7.560, X = -14.110 to -11.290)
+      { w: stairW + 0.32, d: 0.16, x: stairXMid, z: stairZNorth + 0.08 },
+    ];
+    for (const pw of pitWallDefs) {
+      const upGeo = new THREE.BoxGeometry(pw.w, upperPitH, pw.d);
+      addPart(visualBuckets.vestibuleWhiteWall, upGeo, pw.x, upperPitY, pw.z);
+      upGeo.dispose();
+
+      const lowGeo = new THREE.BoxGeometry(pw.w, lowerPitH, pw.d);
+      addPart(visualBuckets.vestibuleDarkShadow, lowGeo, pw.x, lowerPitY, pw.z);
+      lowGeo.dispose();
+    }
+
+    // Pitch-Black Unlit Void Box at the bottom of the stairwell so players cannot see out of the map
+    const voidBoxGeo = new THREE.BoxGeometry(stairW - 0.01, 0.85, stairL - 0.01);
+    addVisual(visualBuckets.vestibuleVoid, voidBoxGeo, stairXMid, -2.55, stairZMid);
+    voidBoxGeo.dispose();
+
+    // B. 12 Descending Glossy Black Marble Steps with Chrome Nosing Strips (Strictly non-overlapping!)
+    const numSteps = 12;
+    const stepRise = 0.185;
+    const stepRun = 0.31;
+    const stepSpanW = stairW - 0.02; // 2.48m (1cm clear of East & West pit walls)
+    const stepNosingGeo = new THREE.BoxGeometry(stepSpanW - 0.004, 0.016, 0.020);
+
+    for (let s = 0; s < numSteps; s++) {
+      const topY = -(s + 1) * stepRise;
+      const stepH = stepRise - 0.001;
+      const stepD = stepRun - 0.002;
+      const stepZCenter = stairZNorth - (s + 0.5) * stepRun;
+      const stepGeo = createMarbleFloorBoxGeometry(stepSpanW, stepH, stepD, stairXMid, stepZCenter, 2.4);
+      addPart(
+        visualBuckets.vestibuleBlackMarble,
+        stepGeo,
+        stairXMid,
+        topY - stepH * 0.5,
+        stepZCenter,
+        0,
+        0,
+        0,
+        true
+      );
+      stepGeo.dispose();
+
+      // Chrome nosing strip sitting proud along leading (-Z) top edge of each step
+      const nosingZ = stairZNorth - (s + 1) * stepRun + 0.009;
+      addVisual(visualBuckets.vestibuleChrome, stepNosingGeo, stairXMid, topY + 0.001, nosingZ);
+    }
+    stepNosingGeo.dispose();
+
+    // C. Polished Chrome Tubular Guardrail System
+    const railX = -11.36; // 9cm onto the east marble walkway from the stairwell edge (-11.45)
+    const railZSouth = 2.12; // 8cm onto the south marble landing from the stairwell edge (2.20)
+    const railZNorth = 7.36;
+    const railTopY = 0.98;
+    const midRailHeights = [0.18, 0.37, 0.56, 0.75];
+
+    const postGeo = new THREE.CylinderGeometry(0.020, 0.020, railTopY, 14);
+    const flangeGeo = new THREE.CylinderGeometry(0.052, 0.056, 0.014, 16);
+    const capBallGeo = new THREE.SphereGeometry(0.025, 12, 12);
+
+    // 1. Level Guardrail Posts along East Walkway (X = -11.36, Z = 7.36 down to 2.12)
+    const eastPostZ = [7.36, 6.05, 4.74, 3.43, 2.12];
+    for (const pz of eastPostZ) {
+      addVisual(visualBuckets.vestibuleChrome, postGeo, railX, railTopY * 0.5, pz);
+      addVisual(visualBuckets.vestibuleChrome, flangeGeo, railX, 0.008, pz);
+      addVisual(visualBuckets.vestibuleChrome, capBallGeo, railX, railTopY, pz);
+    }
+
+    // 2. Level Guardrail Posts along South Landing (Z = 2.12, X = -12.64 and -13.92)
+    const southPostX = [-12.64, -13.92];
+    for (const px of southPostX) {
+      addVisual(visualBuckets.vestibuleChrome, postGeo, px, railTopY * 0.5, railZSouth);
+      addVisual(visualBuckets.vestibuleChrome, flangeGeo, px, 0.008, railZSouth);
+      addVisual(visualBuckets.vestibuleChrome, capBallGeo, px, railTopY, railZSouth);
+    }
+
+    // Top Handrail & 4 Horizontal Mid-Rails along East Walkway (Z = 7.36 to 2.12)
+    const eastSpanLen = railZNorth - railZSouth;
+    const eastSpanMidZ = (railZNorth + railZSouth) * 0.5;
+    const eastTopRailGeo = new THREE.CylinderGeometry(0.022, 0.022, eastSpanLen, 14);
+    eastTopRailGeo.rotateX(Math.PI * 0.5);
+    addPart(visualBuckets.vestibuleChrome, eastTopRailGeo, railX, railTopY, eastSpanMidZ, 0, 0, 0, true);
+    eastTopRailGeo.dispose();
+
+    const eastMidRailGeo = new THREE.CylinderGeometry(0.0085, 0.0085, eastSpanLen, 10);
+    eastMidRailGeo.rotateX(Math.PI * 0.5);
+    for (const my of midRailHeights) {
+      addVisual(visualBuckets.vestibuleChrome, eastMidRailGeo, railX, my, eastSpanMidZ);
+    }
+    eastMidRailGeo.dispose();
+
+    // Top Handrail & 4 Horizontal Mid-Rails along South Landing (X = -11.36 to -13.92)
+    const southSpanLen = Math.abs(-13.92 - railX);
+    const southSpanMidX = (-13.92 + railX) * 0.5;
+    const southTopRailGeo = new THREE.CylinderGeometry(0.022, 0.022, southSpanLen, 14);
+    southTopRailGeo.rotateZ(Math.PI * 0.5);
+    addPart(visualBuckets.vestibuleChrome, southTopRailGeo, southSpanMidX, railTopY, railZSouth, 0, 0, 0, true);
+    southTopRailGeo.dispose();
+
+    const southMidRailGeo = new THREE.CylinderGeometry(0.0085, 0.0085, southSpanLen, 10);
+    southMidRailGeo.rotateZ(Math.PI * 0.5);
+    for (const my of midRailHeights) {
+      addVisual(visualBuckets.vestibuleChrome, southMidRailGeo, southSpanMidX, my, railZSouth);
+    }
+    southMidRailGeo.dispose();
+
+    // 3. Sloped Descending Stairwell Guardrail along Inner Step Edge (X = -11.55)
+    const stairRailX = -11.55;
+    const stairPostIndices = [0, 3, 6, 9, 11];
+    for (const sIdx of stairPostIndices) {
+      const stepTopY = -(sIdx + 1) * stepRise;
+      const stepZ = stairZNorth - (sIdx + 0.5) * stepRun;
+      addVisual(visualBuckets.vestibuleChrome, postGeo, stairRailX, stepTopY + railTopY * 0.5, stepZ);
+      addVisual(visualBuckets.vestibuleChrome, flangeGeo, stairRailX, stepTopY + 0.008, stepZ);
+      addVisual(visualBuckets.vestibuleChrome, capBallGeo, stairRailX, stepTopY + railTopY, stepZ);
+    }
+
+    const pStartTop = new THREE.Vector3(stairRailX, -stepRise + railTopY, stairZNorth - 0.5 * stepRun);
+    const pEndTop = new THREE.Vector3(stairRailX, -numSteps * stepRise + railTopY, stairZNorth - (numSteps - 0.5) * stepRun);
+    const slopedTopGeo = createCylinderBetweenPoints(pStartTop, pEndTop, 0.021, 14);
+    addVisual(visualBuckets.vestibuleChrome, slopedTopGeo, 0, 0, 0);
+    slopedTopGeo.dispose();
+
+    for (const my of midRailHeights) {
+      const pStartMid = new THREE.Vector3(stairRailX, -stepRise + my, stairZNorth - 0.5 * stepRun);
+      const pEndMid = new THREE.Vector3(stairRailX, -numSteps * stepRise + my, stairZNorth - (numSteps - 0.5) * stepRun);
+      const slopedMidGeo = createCylinderBetweenPoints(pStartMid, pEndMid, 0.008, 10);
+      addVisual(visualBuckets.vestibuleChrome, slopedMidGeo, 0, 0, 0);
+      slopedMidGeo.dispose();
+    }
+
+    postGeo.dispose();
+    flangeGeo.dispose();
+    capBallGeo.dispose();
+
+    // D. Full-Height Invisible Player Safety Barriers Around Stairwell Opening
+    const barrierH = 3.80;
+    const eastBarrierGeo = new THREE.BoxGeometry(0.12, barrierH, eastSpanLen + 0.20);
+    registerPlayerOnlyCollider(eastBarrierGeo, railX, barrierH * 0.5, eastSpanMidZ);
+    eastBarrierGeo.dispose();
+
+    const northStairBarrierGeo = new THREE.BoxGeometry(stairW + 0.30, barrierH, 0.12);
+    registerPlayerOnlyCollider(northStairBarrierGeo, stairXMid, barrierH * 0.5, stairZNorth + 0.04);
+    northStairBarrierGeo.dispose();
+
+    const southStairBarrierGeo = new THREE.BoxGeometry(stairW + 0.30, barrierH, 0.12);
+    registerPlayerOnlyCollider(southStairBarrierGeo, stairXMid, barrierH * 0.5, railZSouth);
+    southStairBarrierGeo.dispose();
+
+    // =========================================================================
+    // 5. ELEVATOR DOOR, ILLUMINATED EXIT SIGN & CYLINDRICAL OFFICE TRASH BIN
+    // =========================================================================
+    // A. Recessed Brushed Stainless-Steel Double Elevator Door on North Vestibule Wall (Z = +11.30, facing -Z)
+    const elevCenterX = -12.45;
+    const elevWallZ = vestZNorth; // 11.300m
+    const elevDoorW = 1.38;
+    const elevDoorH = 2.22;
+    const portalFrameW = 0.12;
+    const portalDepthZ = 0.070;
+
+    // Dark-gray metallic elevator portal jambs & header surround (Z = 11.225 to 11.295, 5mm in front of northWall Z = 11.300)
+    const portalZCenter = elevWallZ - 0.005 - portalDepthZ * 0.5;
+    const portalJambGeo = new THREE.BoxGeometry(portalFrameW, elevDoorH, portalDepthZ);
+    addPart(
+      visualBuckets.elevatorPortal,
+      portalJambGeo,
+      elevCenterX - elevDoorW * 0.5 - portalFrameW * 0.5,
+      elevDoorH * 0.5 + 0.002,
+      portalZCenter
+    );
+    addPart(
+      visualBuckets.elevatorPortal,
+      portalJambGeo,
+      elevCenterX + elevDoorW * 0.5 + portalFrameW * 0.5,
+      elevDoorH * 0.5 + 0.002,
+      portalZCenter
+    );
+    portalJambGeo.dispose();
+
+    const portalHeaderGeo = new THREE.BoxGeometry(elevDoorW + portalFrameW * 2, portalFrameW, portalDepthZ);
+    addPart(
+      visualBuckets.elevatorPortal,
+      portalHeaderGeo,
+      elevCenterX,
+      elevDoorH + 0.004 + portalFrameW * 0.5,
+      portalZCenter
+    );
+    portalHeaderGeo.dispose();
+
+    // Left & Right Brushed Stainless-Steel Sliding Door Panels (Z = 11.255 to 11.295)
+    const panelW = (elevDoorW - 0.018) * 0.5;
+    const panelGeo = new THREE.BoxGeometry(panelW, elevDoorH, 0.040);
+    addPart(
+      visualBuckets.elevatorStainless,
+      panelGeo,
+      elevCenterX - panelW * 0.5 - 0.009,
+      elevDoorH * 0.5 + 0.002,
+      elevWallZ - 0.025
+    );
+    addPart(
+      visualBuckets.elevatorStainless,
+      panelGeo,
+      elevCenterX + panelW * 0.5 + 0.009,
+      elevDoorH * 0.5 + 0.002,
+      elevWallZ - 0.025
+    );
+    panelGeo.dispose();
+
+    // Dark vertical center seam between the double elevator doors (Non-overlapping between left & right panels)
+    const centerSeamGeo = new THREE.BoxGeometry(0.014, elevDoorH, 0.036);
+    addVisual(visualBuckets.vestibuleVoid, centerSeamGeo, elevCenterX, elevDoorH * 0.5 + 0.002, elevWallZ - 0.025);
+    centerSeamGeo.dispose();
+
+    // Top Digital Floor Indicator Display ('▼ 3') above the elevator frame (Housed in dark metallic bezel)
+    const displayY = elevDoorH + portalFrameW + 0.15;
+    const displayBezelGeo = new THREE.BoxGeometry(0.336, 0.148, 0.026);
+    addVisual(visualBuckets.elevatorPortal, displayBezelGeo, elevCenterX, displayY, elevWallZ - 0.015);
+    displayBezelGeo.dispose();
+
+    const displayScreenGeo = filterBoxFaces(
+      new THREE.BoxGeometry(0.312, 0.126, 0.008),
+      { px: true, nx: true, py: true, ny: true, pz: true }
+    );
+    addVisual(visualBuckets.elevatorDisplay, displayScreenGeo, elevCenterX, displayY, elevWallZ - 0.026);
+    displayScreenGeo.dispose();
+
+    // Right-side Brushed Metal Call-Button Faceplate & Glowing Button (Proud of northWall at Z = 11.288)
+    const callPlateX = elevCenterX + elevDoorW * 0.5 + portalFrameW + 0.14;
+    const callPlateY = 1.12;
+    const callPlateGeo = new THREE.BoxGeometry(0.085, 0.21, 0.014);
+    addVisual(visualBuckets.elevatorStainless, callPlateGeo, callPlateX, callPlateY, elevWallZ - 0.010);
+    callPlateGeo.dispose();
+
+    const callBtnGeo = new THREE.CylinderGeometry(0.013, 0.013, 0.010, 12);
+    callBtnGeo.rotateX(Math.PI * 0.5);
+    addVisual(visualBuckets.vestibuleChrome, callBtnGeo, callPlateX, callPlateY + 0.028, elevWallZ - 0.020);
+    addVisual(visualBuckets.elevatorDisplay, callBtnGeo, callPlateX, callPlateY - 0.028, elevWallZ - 0.020);
+    callBtnGeo.dispose();
+
+    // B. Illuminated Green Emergency EXIT Sign on Vestibule Wall (Proud of westWall X = -14.200)
+    const exitY = 3.05;
+    const exitZ = 9.05;
+    const exitHousingGeo = new THREE.BoxGeometry(0.024, 0.185, 0.39);
+    addVisual(visualBuckets.vestibuleAlumFrame, exitHousingGeo, vestXWest + 0.015, exitY, exitZ);
+    exitHousingGeo.dispose();
+
+    const exitFaceGeo = new THREE.BoxGeometry(0.012, 0.162, 0.366);
+    addVisual(visualBuckets.exitSign, exitFaceGeo, vestXWest + 0.034, exitY, exitZ);
+    exitFaceGeo.dispose();
+
+    // C. Cylindrical Brushed Stainless-Steel Office Trash Bin (Inside Main Office under Glass Window)
+    // Positioned at X = -9.72m, Z = +6.80m against the lower half-wall below the glass partition
+    const binX = -9.72;
+    const binZ = 6.80;
+    const binR = 0.21;
+    const binH = 0.68;
+
+    // 1. Black Rubber Floor Base Ring
+    const binBaseGeo = new THREE.CylinderGeometry(binR + 0.004, binR + 0.006, 0.025, 24);
+    addVisual(visualBuckets.elevatorPortal, binBaseGeo, binX, 0.013, binZ);
+    binBaseGeo.dispose();
+
+    // 2. Brushed Stainless-Steel Cylindrical Body
+    const binBodyGeo = new THREE.CylinderGeometry(binR, binR, binH - 0.056, 28);
+    addVisual(visualBuckets.elevatorStainless, binBodyGeo, binX, 0.026 + (binH - 0.056) * 0.5, binZ);
+    binBodyGeo.dispose();
+
+    // 3. Polished Chrome Upper Rim Collar
+    const binRimGeo = new THREE.CylinderGeometry(binR + 0.005, binR + 0.005, 0.030, 28);
+    addVisual(visualBuckets.vestibuleChrome, binRimGeo, binX, binH - 0.015, binZ);
+    binRimGeo.dispose();
+
+    // 4. Recessed Black Swing-Top Dome Lid
+    const binSwingFlapGeo = new THREE.SphereGeometry(binR * 0.86, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.38);
+    binSwingFlapGeo.scale(1, 0.42, 1);
+    addVisual(visualBuckets.elevatorPortal, binSwingFlapGeo, binX, binH - 0.018, binZ);
+    binSwingFlapGeo.dispose();
+
+    // 5. Trash Bin Collider
+    const binColliderGeo = new THREE.CylinderGeometry(binR + 0.01, binR + 0.01, binH, 16);
+    registerCollider(binColliderGeo, binX, binH * 0.5, binZ);
+    binColliderGeo.dispose();
+
+    // D. Potted Areca Palm Plant in the North-West Vestibule Corner (next to the Elevator Portal)
+    // Scaled (scale = 0.64, frondSpreadScale = 0.50) to harmonize cleanly with the 0.94m corner niche
+    // between the elevator left portal jamb (X = -13.26) and the west wall (X = -14.20) at Z = 10.83.
+    this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -13.73, 0.0, 10.83, 0.64, 0.50);
   }
 }
 

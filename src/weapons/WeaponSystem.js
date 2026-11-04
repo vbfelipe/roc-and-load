@@ -111,6 +111,181 @@ function createBulletDecalTexture() {
   return texture;
 }
 
+// Procedural laminated/tempered architectural glass bullet impact decal texture (256x256)
+function createGlassBulletDecalTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size * 0.5;
+  const cy = size * 0.5;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // 1. Subtle frosted glass delamination cloud around impact zone
+  const frostGrad = ctx.createRadialGradient(cx, cy, 10, cx, cy, 86);
+  frostGrad.addColorStop(0.0, 'rgba(235, 246, 255, 0.58)');
+  frostGrad.addColorStop(0.32, 'rgba(210, 232, 252, 0.28)');
+  frostGrad.addColorStop(0.68, 'rgba(185, 215, 245, 0.08)');
+  frostGrad.addColorStop(1.0, 'rgba(185, 215, 245, 0.0)');
+  ctx.fillStyle = frostGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 86, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 2. Concentric conchoidal spiderweb fracture rings (3 irregular stress rings)
+  const ringRadii = [23, 41, 64];
+  const ringSegs = 18;
+  for (let rIdx = 0; rIdx < ringRadii.length; rIdx++) {
+    const baseR = ringRadii[rIdx];
+    const alpha = 0.82 - rIdx * 0.22;
+
+    // Dark refractive shadow offset
+    ctx.strokeStyle = `rgba(22, 34, 48, ${alpha * 0.62})`;
+    ctx.lineWidth = 1.6 - rIdx * 0.25;
+    ctx.beginPath();
+    for (let s = 0; s <= ringSegs; s++) {
+      const idx = s % ringSegs;
+      const a = (idx / ringSegs) * Math.PI * 2;
+      const jitter = Math.sin(idx * 5.3 + rIdx * 2.1) * (2.5 + rIdx * 1.4);
+      const rr = baseR + jitter;
+      const px = cx + 1.0 + Math.cos(a) * rr;
+      const py = cy + 1.0 + Math.sin(a) * rr;
+      if (s === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+
+    // Crisp white specular fracture line
+    ctx.strokeStyle = `rgba(245, 252, 255, ${alpha})`;
+    ctx.lineWidth = 1.25 - rIdx * 0.2;
+    ctx.beginPath();
+    for (let s = 0; s <= ringSegs; s++) {
+      const idx = s % ringSegs;
+      const a = (idx / ringSegs) * Math.PI * 2;
+      const jitter = Math.sin(idx * 5.3 + rIdx * 2.1) * (2.5 + rIdx * 1.4);
+      const rr = baseR + jitter;
+      const px = cx + Math.cos(a) * rr;
+      const py = cy + Math.sin(a) * rr;
+      if (s === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+  }
+
+  // 3. 18 Razor-sharp radial spiderweb cracks with forked secondary branches
+  const numRays = 18;
+  for (let i = 0; i < numRays; i++) {
+    const baseAngle = (i / numRays) * Math.PI * 2 + Math.sin(i * 4.1) * 0.11;
+    const startR = 11 + (i % 3) * 1.5;
+    const maxLen = 46 + ((i * 19 + 7) % 66); // reaches 58px to 122px
+    const steps = 4;
+
+    const pts = [];
+    let curA = baseAngle;
+    for (let k = 0; k <= steps; k++) {
+      const t = k / steps;
+      const r = startR + maxLen * t;
+      if (k > 0) {
+        curA += Math.sin(i * 7.3 + k * 3.9) * 0.055;
+      }
+      pts.push({
+        x: cx + Math.cos(curA) * r,
+        y: cy + Math.sin(curA) * r,
+        r,
+        a: curA,
+      });
+    }
+
+    // Dark refractive edge
+    ctx.strokeStyle = 'rgba(18, 28, 42, 0.65)';
+    ctx.lineWidth = i % 2 === 0 ? 1.85 : 1.35;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x + 0.9, pts[0].y + 0.9);
+    for (let k = 1; k < pts.length; k++) {
+      ctx.lineTo(pts[k].x + 0.9, pts[k].y + 0.9);
+    }
+    ctx.stroke();
+
+    // Bright crystalline white crack highlight
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(250, 254, 255, 0.95)' : 'rgba(225, 242, 255, 0.82)';
+    ctx.lineWidth = i % 2 === 0 ? 1.35 : 0.95;
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    for (let k = 1; k < pts.length; k++) {
+      ctx.lineTo(pts[k].x, pts[k].y);
+    }
+    ctx.stroke();
+
+    // Secondary forked branch on alternating rays
+    if (i % 2 === 0 && pts.length >= 3) {
+      const forkOrigin = pts[2];
+      const forkSign = i % 4 === 0 ? 1 : -1;
+      const forkAngle = forkOrigin.a + forkSign * 0.34;
+      const forkLen = 20 + (i % 5) * 5;
+      const fx = forkOrigin.x + Math.cos(forkAngle) * forkLen;
+      const fy = forkOrigin.y + Math.sin(forkAngle) * forkLen;
+
+      ctx.strokeStyle = 'rgba(20, 32, 48, 0.48)';
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.moveTo(forkOrigin.x + 0.7, forkOrigin.y + 0.7);
+      ctx.lineTo(fx + 0.7, fy + 0.7);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(240, 250, 255, 0.80)';
+      ctx.lineWidth = 0.85;
+      ctx.beginPath();
+      ctx.moveTo(forkOrigin.x, forkOrigin.y);
+      ctx.lineTo(fx, fy);
+      ctx.stroke();
+    }
+  }
+
+  // 4. Pulverized white crushed-glass impact collar around bullet hole
+  ctx.fillStyle = 'rgba(238, 248, 255, 0.94)';
+  ctx.beginPath();
+  const collarPts = 20;
+  for (let i = 0; i < collarPts; i++) {
+    const a = (i / collarPts) * Math.PI * 2;
+    const r = 16 + ((i * 7 + 3) % 7); // 16px to 22px
+    const px = cx + Math.cos(a) * r;
+    const py = cy + Math.sin(a) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Scattered crystalline micro-shard flecks around the crushed collar
+  for (let i = 0; i < 28; i++) {
+    const a = (i / 28) * Math.PI * 2 + (i % 3) * 0.14;
+    const r = 20 + ((i * 11) % 34);
+    const sx = cx + Math.cos(a) * r;
+    const sy = cy + Math.sin(a) * r;
+    ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 255, 255, 0.92)' : 'rgba(205, 232, 255, 0.75)';
+    ctx.fillRect(sx - 1.2, sy - 1.2, 2.4, 2.4);
+  }
+
+  // 5. Central bullet puncture core & bright white crushed-glass inner rim
+  ctx.fillStyle = 'rgba(14, 22, 32, 0.86)';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 9.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.98)';
+  ctx.lineWidth = 2.4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, 10.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 // Procedural hot-metal ember glow texture
 function createEmberGlowTexture() {
   const canvas = document.createElement('canvas');
@@ -185,12 +360,14 @@ export class WeaponSystem {
     if (typeof window !== 'undefined') window.__rocWeaponSystem = this;
 
     this.colliderMesh = null;
+    this.glassMesh = null;
     this.boxManager = null;
     this.monitorScreens = [];
     this.crosshairEl = null;
 
     // Shared Textures & Base Materials (Instanced for independent mesh opacity)
     this.decalTexture = createBulletDecalTexture();
+    this.glassDecalTexture = createGlassBulletDecalTexture();
     this.emberTexture = createEmberGlowTexture();
 
     this.baseDecalMaterial = new THREE.MeshBasicMaterial({
@@ -1006,6 +1183,18 @@ export class WeaponSystem {
         }
       }
 
+      const glassMesh = this.glassMesh || (this.scene ? (this.glassMesh = this.scene.getObjectByName('DC_VestibuleGlass')) : null);
+      if (glassMesh) {
+        const glassHits = _raycaster.intersectObject(glassMesh, false);
+        if (glassHits.length > 0) {
+          if (!closestHit || glassHits[0].distance < closestHit.distance) {
+            closestHit = glassHits[0];
+            hitObject = 'glass';
+            hitScreenMesh = null;
+          }
+        }
+      }
+
       if (this.colliderMesh) {
         const hits = _raycaster.intersectObject(this.colliderMesh, false);
         if (hits.length > 0) {
@@ -1019,7 +1208,12 @@ export class WeaponSystem {
 
       if (closestHit) {
         _hitPoint.copy(closestHit.point);
-        const normal = closestHit.face ? closestHit.face.normal : (closestHit.normal || _scratchVec2.set(0, 0, -1));
+        const normal = closestHit.face
+          ? _scratchVec2.copy(closestHit.face.normal)
+          : (closestHit.normal ? _scratchVec2.copy(closestHit.normal) : _scratchVec2.set(0, 0, -1));
+        if (normal.dot(_rayDirection) > 0) {
+          normal.negate();
+        }
 
         this._spawnTracer(_muzzlePos, _hitPoint, true);
 
@@ -1044,9 +1238,16 @@ export class WeaponSystem {
               this.sound.playGlassTick();
             }
           }
+        } else if (hitObject === 'glass') {
+          this._spawnMonitorSparks(_hitPoint, normal, false, 3);
+          this._spawnDecal(_hitPoint, normal, true, true);
+          if (!playedGlassTickThisBlast && this.sound && typeof this.sound.playGlassTick === 'function') {
+            playedGlassTickThisBlast = true;
+            this.sound.playGlassTick();
+          }
         } else if (hitObject === 'arena') {
           this._spawnImpactSparks(_hitPoint, normal, 2);
-          this._spawnDecal(_hitPoint, normal, true);
+          this._spawnDecal(_hitPoint, normal, true, false);
         } else if (hitObject === 'box' && this.boxManager) {
           this._spawnImpactSparks(_hitPoint, normal, 2);
           this.boxManager.onHit(closestHit);
@@ -1099,6 +1300,19 @@ export class WeaponSystem {
       }
     }
 
+    // Raycast against architectural glass (partition wall glass panes & open glass door pane)
+    const glassMesh = this.glassMesh || (this.scene ? (this.glassMesh = this.scene.getObjectByName('DC_VestibuleGlass')) : null);
+    if (glassMesh) {
+      const glassHits = _raycaster.intersectObject(glassMesh, false);
+      if (glassHits.length > 0) {
+        if (!closestHit || glassHits[0].distance < closestHit.distance) {
+          closestHit = glassHits[0];
+          hitObject = 'glass';
+          hitScreenMesh = null;
+        }
+      }
+    }
+
     // Raycast against merged BVH warehouse geometry
     if (this.colliderMesh) {
       const hits = _raycaster.intersectObject(this.colliderMesh, false);
@@ -1116,7 +1330,12 @@ export class WeaponSystem {
 
     if (closestHit) {
       _hitPoint.copy(closestHit.point);
-      const normal = closestHit.face ? closestHit.face.normal : (closestHit.normal || _scratchVec2.set(0, 0, -1));
+      const normal = closestHit.face
+        ? _scratchVec2.copy(closestHit.face.normal)
+        : (closestHit.normal ? _scratchVec2.copy(closestHit.normal) : _scratchVec2.set(0, 0, -1));
+      if (normal.dot(_rayDirection) > 0) {
+        normal.negate();
+      }
 
       // Spawn ballistic bolt from muzzle socket to hit point
       this._spawnTracer(_muzzlePos, _hitPoint);
@@ -1142,10 +1361,16 @@ export class WeaponSystem {
           }
         }
         // NOTE: Wall bullet decals are suppressed on monitor screens!
+      } else if (hitObject === 'glass') {
+        this._spawnMonitorSparks(_hitPoint, normal, false, 8);
+        this._spawnDecal(_hitPoint, normal, false, true);
+        if (this.sound && typeof this.sound.playGlassTick === 'function') {
+          this.sound.playGlassTick();
+        }
       } else if (hitObject === 'arena') {
         // Burst 6-8 hot metal impact sparks arcing with gravity
         this._spawnImpactSparks(_hitPoint, normal);
-        this._spawnDecal(_hitPoint, normal);
+        this._spawnDecal(_hitPoint, normal, false, false);
       } else if (hitObject === 'box' && this.boxManager) {
         this._spawnImpactSparks(_hitPoint, normal);
         this.boxManager.onHit(closestHit);
@@ -1222,21 +1447,28 @@ export class WeaponSystem {
     tracer.visible = true;
   }
 
-  _spawnDecal(hitPoint, surfaceNormal, isPellet = false) {
+  _spawnDecal(hitPoint, surfaceNormal, isPellet = false, isGlass = false) {
     const decal = this.decalPool.acquire();
 
     // Reset age and visual state
     decal.userData.age = 0;
     decal.material.opacity = 1.0;
 
-    // Sizzling hot-metal ember begins active
+    const targetMap = isGlass ? this.glassDecalTexture : this.decalTexture;
+    if (decal.material.map !== targetMap) {
+      decal.material.map = targetMap;
+      decal.material.needsUpdate = true;
+    }
+    decal.renderOrder = isGlass ? 3 : 1;
+
+    // Sizzling hot-metal ember begins active on solid surfaces, suppressed on glass
     if (decal.userData.ember) {
-      decal.userData.ember.visible = true;
-      decal.userData.ember.material.opacity = 1.0;
+      decal.userData.ember.visible = !isGlass;
+      decal.userData.ember.material.opacity = isGlass ? 0.0 : 1.0;
     }
 
     // Position decal slightly offset from surface to avoid z-fighting
-    decal.position.copy(hitPoint).addScaledVector(surfaceNormal, 0.005);
+    decal.position.copy(hitPoint).addScaledVector(surfaceNormal, isGlass ? 0.004 : 0.005);
 
     // Orient decal normal to match surface normal
     _scratchVec3.copy(hitPoint).add(surfaceNormal);
@@ -1245,8 +1477,10 @@ export class WeaponSystem {
     // Random rotation around surface normal
     decal.rotateZ(Math.random() * Math.PI * 2);
 
-    // Buckshot pellets leave smaller individual punctures (~0.44-0.58 scale) so all 8 holes form a distinct spread pattern
-    const s = isPellet ? (0.44 + Math.random() * 0.14) : (0.85 + Math.random() * 0.30);
+    // Glass spiderweb fractures spread slightly wider than solid craters; buckshot pellets leave tighter fractures
+    const s = isGlass
+      ? (isPellet ? (0.58 + Math.random() * 0.16) : (1.08 + Math.random() * 0.30))
+      : (isPellet ? (0.44 + Math.random() * 0.14) : (0.85 + Math.random() * 0.30));
     decal.scale.set(s, s, 1.0);
   }
 
@@ -1360,6 +1594,9 @@ export class WeaponSystem {
     // 1. Upload effect textures to GPU
     if (this.decalTexture) {
       try { renderer.initTexture(this.decalTexture); } catch (e) {}
+    }
+    if (this.glassDecalTexture) {
+      try { renderer.initTexture(this.glassDecalTexture); } catch (e) {}
     }
     if (this.emberTexture) {
       try { renderer.initTexture(this.emberTexture); } catch (e) {}
