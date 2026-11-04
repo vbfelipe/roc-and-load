@@ -141,6 +141,23 @@ export class SoundManager {
   }
 
   /**
+   * Tactical H&K MP5 Submachine Gun Gunshot (Slot 4 - Full Auto 9mm).
+   * Fast, snappy 9mm burst, routed cleanly to 9mm sound buffers with procedural fallback.
+   */
+  playMP5Gunshot() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    if (this.audioBuffers.has('9mm_fire')) {
+      const playbackRate = 1.05 + (Math.random() - 0.5) * 0.08;
+      this._playSoundBuffer('9mm_fire', { volume: 0.90, playbackRate });
+      return;
+    }
+
+    this.play9mmGunshot();
+  }
+
+  /**
    * Preload and decode authentic weapon audio samples (9mm, .50 AE, 12-gauge).
    */
   async _preloadAudioBuffers() {
@@ -230,7 +247,8 @@ export class SoundManager {
 
     if (this.audioBuffers.has('9mm_reload')) {
       const isPistol = weaponType === 'pistol';
-      const playbackRate = isPistol ? 0.90 : 2.13;
+      const isMP5 = weaponType === 'hk_mp5';
+      const playbackRate = isPistol ? 0.90 : (isMP5 ? 1.65 : 2.13);
       const volume = isPistol ? 1.05 : 0.95;
 
       this.stopActionSounds();
@@ -609,6 +627,8 @@ export class SoundManager {
         playbackRate = 0.85;
       } else if (weaponType === 'pistol') {
         playbackRate = 0.90;
+      } else if (weaponType === 'hk_mp5') {
+        playbackRate = 1.05;
       }
       this._playSoundBuffer('9mm_dryfire', { volume: 0.85, playbackRate });
       return;
@@ -1639,7 +1659,8 @@ export class SoundManager {
     const t = this.ctx.currentTime;
 
     const isShotgun = weaponType === 'shotgun' || weaponType === true || weaponType === 3 || weaponType === '3';
-    const is9mm = weaponType === 'cz_p10s' || weaponType === 1 || weaponType === '1';
+    const isMP5 = weaponType === 'hk_mp5' || weaponType === 4 || weaponType === '4';
+    const is9mm = weaponType === 'cz_p10s' || weaponType === 1 || weaponType === '1' || isMP5;
 
     const noiseBuffer = this._createNoiseBuffer(0.14);
     if (noiseBuffer) {

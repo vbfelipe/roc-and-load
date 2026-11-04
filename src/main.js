@@ -362,6 +362,10 @@ window.addEventListener('DOMContentLoaded', () => {
       weaponSystem.switchWeapon('shotgun');
       return;
     }
+    if (e.code === 'Digit4' || e.key === '4') {
+      weaponSystem.switchWeapon('hk_mp5');
+      return;
+    }
     if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
       if (weaponSystem.currentAmmo < weaponSystem.maxAmmo && !weaponSystem.isReloading) {
         weaponSystem.startReload();

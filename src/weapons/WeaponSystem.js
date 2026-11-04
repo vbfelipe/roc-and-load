@@ -165,6 +165,12 @@ export class WeaponSystem {
         fireRate: 0.72,
         isSlideLocked: false,
       },
+      hk_mp5: {
+        currentAmmo: 30,
+        maxAmmo: 30,
+        fireRate: 0.075,
+        isSlideLocked: false,
+      },
     };
 
     this.fireRate = 0.18;
@@ -285,7 +291,8 @@ export class WeaponSystem {
     if (weaponType === 1 || weaponType === '1') weaponType = 'cz_p10s';
     if (weaponType === 2 || weaponType === '2') weaponType = 'pistol';
     if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
-    if (weaponType !== 'cz_p10s' && weaponType !== 'pistol' && weaponType !== 'shotgun') return;
+    if (weaponType === 4 || weaponType === '4') weaponType = 'hk_mp5';
+    if (weaponType !== 'cz_p10s' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
     if (this.currentWeapon === weaponType) return;
 
     // 1. Persist current weapon state
@@ -379,7 +386,7 @@ export class WeaponSystem {
         if (this.hud) {
           this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
           this.hud.setEmptyState(false);
-          if (this.currentWeapon === 'pistol' || this.currentWeapon === 'cz_p10s') {
+          if (this.currentWeapon === 'pistol' || this.currentWeapon === 'cz_p10s' || this.currentWeapon === 'hk_mp5') {
             this.hud.onReloadComplete(ammoBeforeReload);
           }
         }
@@ -458,6 +465,7 @@ export class WeaponSystem {
 
     // 3a. Pooled 9mm Luger Brass Shell Casings (24 items)
     const casing9mmGeo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.019, 10);
+    // 3a. Pooled 9mm Luger Brass Shell Casings (36 items for full-auto)
     this.casing9mmPool = new ObjectPool(() => {
       const mesh = new THREE.Mesh(casing9mmGeo, this.casingMaterial);
       mesh.name = 'ShellCasing9mm';
@@ -467,7 +475,7 @@ export class WeaponSystem {
       mesh.visible = false;
       this.scene.add(mesh);
       return mesh;
-    }, 24);
+    }, 36);
 
     // 3b. Pooled Red 12-Gauge Shotgun Shells with Brass Base (15 items)
     const shellHullGeo = new THREE.CylinderGeometry(0.0095, 0.0095, 0.042, 12);
@@ -557,12 +565,16 @@ export class WeaponSystem {
       this.switchWeapon('shotgun');
       return;
     }
+    if (this.input.consumeKeyJustPressed('Digit4') || this.input.consumeKeyJustPressed('4')) {
+      this.switchWeapon('hk_mp5');
+      return;
+    }
 
     // 3c. Mouse Wheel Cycling
     if (typeof this.input.consumeWheelDelta === 'function') {
       const wheelDelta = this.input.consumeWheelDelta();
       if (wheelDelta !== 0) {
-        const order = ['cz_p10s', 'pistol', 'shotgun'];
+        const order = ['cz_p10s', 'pistol', 'shotgun', 'hk_mp5'];
         const curIdx = order.indexOf(this.currentWeapon);
         if (curIdx !== -1) {
           const nextIdx = wheelDelta > 0
@@ -602,12 +614,17 @@ export class WeaponSystem {
       this.camera.updateProjectionMatrix();
     }
 
-    // 6. Strict Semi-Auto Firing (Requires distinct click per heavy shot)
+    // 6. Trigger handling: Full-Auto for MP5, Semi-Auto for CZ, Pistol, Shotgun
     const isLeftDown = this.input.isMouseDown(0);
     const justClicked = isLeftDown && !this.wasMouseDown0;
     this.wasMouseDown0 = isLeftDown;
 
-    if (justClicked && this.fireTimer <= 0) {
+    const isFullAuto = this.currentWeapon === 'hk_mp5';
+    const shouldFire = isFullAuto
+      ? (isLeftDown && this.fireTimer <= 0 && !this.isReloading && (this.currentAmmo > 0 || justClicked))
+      : (justClicked && this.fireTimer <= 0);
+
+    if (shouldFire) {
       this.fire();
     }
   }
@@ -809,9 +826,12 @@ export class WeaponSystem {
 
     const isShotgun = this.currentWeapon === 'shotgun';
     const isCZ = this.currentWeapon === 'cz_p10s';
+    const isMP5 = this.currentWeapon === 'hk_mp5';
 
     if (this.sound) {
-      if (isCZ && typeof this.sound.play9mmGunshot === 'function') {
+      if (isMP5 && typeof this.sound.playMP5Gunshot === 'function') {
+        this.sound.playMP5Gunshot();
+      } else if (isCZ && typeof this.sound.play9mmGunshot === 'function') {
         this.sound.play9mmGunshot();
       } else if (isShotgun && typeof this.sound.playShotgunBlast === 'function') {
         this.sound.playShotgunBlast();
@@ -827,15 +847,17 @@ export class WeaponSystem {
         ? (this.viewmodel && this.viewmodel.isADS ? 0.036 : 0.062)
         : (isCZ
           ? (this.viewmodel && this.viewmodel.isADS ? 0.012 : 0.022)
-          : (this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042));
+          : (isMP5
+            ? (this.viewmodel && this.viewmodel.isADS ? 0.007 : 0.013)
+            : (this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042)));
       this.player.applyCameraRecoil(pitchKick);
     }
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this.muzzleLight.intensity = isShotgun ? 8.5 : (isCZ ? 4.5 : 6.0);
+    this.muzzleLight.intensity = isShotgun ? 8.5 : (isCZ ? 4.5 : (isMP5 ? 4.2 : 6.0));
     this.muzzleLight.visible = true;
-    this.flashDuration = 0.045;
+    this.flashDuration = isMP5 ? 0.035 : 0.045;
 
     if (isShotgun) {
       // Multi-pellet 12-gauge buckshot spread hitscan
@@ -856,13 +878,15 @@ export class WeaponSystem {
       this._performHitscan();
 
       if (this.currentAmmo === 0) {
-        this.isSlideLocked = true;
-        this.weapons[this.currentWeapon].isSlideLocked = true;
-        if (this.viewmodel) {
-          this.viewmodel.setSlideLocked(true);
-        }
-        if (this.sound) {
-          this.sound.playSlideCatchRing();
+        if (this.currentWeapon === 'cz_p10s' || this.currentWeapon === 'pistol') {
+          this.isSlideLocked = true;
+          this.weapons[this.currentWeapon].isSlideLocked = true;
+          if (this.viewmodel) {
+            this.viewmodel.setSlideLocked(true);
+          }
+          if (this.sound) {
+            this.sound.playSlideCatchRing();
+          }
         }
         if (this.hud) {
           this.hud.setEmptyState(true);
@@ -887,7 +911,7 @@ export class WeaponSystem {
     let pool = this.casingPool;
     if (weaponType === 'shotgun' && this.shotgunShellPool) {
       pool = this.shotgunShellPool;
-    } else if (weaponType === 'cz_p10s' && this.casing9mmPool) {
+    } else if ((weaponType === 'cz_p10s' || weaponType === 'hk_mp5') && this.casing9mmPool) {
       pool = this.casing9mmPool;
     }
     const casing = pool.acquire();
@@ -1042,7 +1066,7 @@ export class WeaponSystem {
     // Ray direction: camera world forward + subtle spread if not in ADS
     this.camera.getWorldDirection(_rayDirection);
     if (!this.viewmodel.isADS) {
-      const spread = 0.008;
+      const spread = this.currentWeapon === 'hk_mp5' ? 0.012 : 0.008;
       _rayDirection.x += (Math.random() - 0.5) * spread;
       _rayDirection.y += (Math.random() - 0.5) * spread;
       _rayDirection.z += (Math.random() - 0.5) * spread;
@@ -1237,6 +1261,8 @@ export class WeaponSystem {
     this.weapons.pistol.isSlideLocked = false;
     this.weapons.shotgun.currentAmmo = 6;
     this.weapons.shotgun.isSlideLocked = false;
+    this.weapons.hk_mp5.currentAmmo = 30;
+    this.weapons.hk_mp5.isSlideLocked = false;
 
     this.maxAmmo = 12;
     this.currentAmmo = 12;

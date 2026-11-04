@@ -95,7 +95,7 @@ export class HUD {
     this._lastReportedMax = null;
 
     if (this.caliberTextEl) {
-      if (weaponType === 'cz_p10s') {
+      if (weaponType === 'cz_p10s' || weaponType === 'hk_mp5') {
         this.caliberTextEl.textContent = '9MM';
       } else if (weaponType === 'shotgun') {
         this.caliberTextEl.textContent = '12 GAUGE';
@@ -104,7 +104,13 @@ export class HUD {
       }
     }
     if (this.modeTagEl) {
-      this.modeTagEl.textContent = weaponType === 'shotgun' ? 'PUMP-ACTION' : 'SEMI-AUTO';
+      if (weaponType === 'hk_mp5') {
+        this.modeTagEl.textContent = 'FULL-AUTO';
+      } else if (weaponType === 'shotgun') {
+        this.modeTagEl.textContent = 'PUMP-ACTION';
+      } else {
+        this.modeTagEl.textContent = 'SEMI-AUTO';
+      }
     }
 
     this._buildBulletPips();
@@ -116,7 +122,14 @@ export class HUD {
     this.pipsContainerEl.innerHTML = '';
 
     const isShotgun = this.currentWeapon === 'shotgun';
-    const is9mm = this.currentWeapon === 'cz_p10s';
+    const isMP5 = this.currentWeapon === 'hk_mp5';
+    const is9mm = this.currentWeapon === 'cz_p10s' || isMP5;
+
+    if (isMP5) {
+      this.pipsContainerEl.classList.add('rack-mp5');
+    } else {
+      this.pipsContainerEl.classList.remove('rack-mp5');
+    }
 
     for (let i = 0; i < this.maxAmmo; i++) {
       const pip = document.createElement('div');
@@ -129,7 +142,7 @@ export class HUD {
           <div class="shell-rim"></div>
         `;
       } else if (is9mm) {
-        pip.className = 'bullet-pip pip-9mm';
+        pip.className = isMP5 ? 'bullet-pip pip-9mm pip-mp5' : 'bullet-pip pip-9mm';
         pip.innerHTML = `
           <div class="pip-9mm-ogive"></div>
           <div class="pip-9mm-casing"></div>
@@ -193,10 +206,12 @@ export class HUD {
     // Reset warning classes
     this.ammoPanelEl.classList.remove('warning-low', 'warning-empty');
 
+    const lowThreshold = this.currentWeapon === 'hk_mp5' ? 6 : 2;
+
     if (this.currentAmmo === 0) {
       this.ammoPanelEl.classList.add('warning-empty');
       this.setEmptyState(true);
-    } else if (this.currentAmmo <= 2) {
+    } else if (this.currentAmmo <= lowThreshold) {
       this.ammoPanelEl.classList.add('warning-low');
       this.setEmptyState(false);
     } else {
@@ -313,7 +328,9 @@ export class HUD {
       // Trigger crisp CSS animation
       pip.classList.remove('refilling');
       void pip.offsetWidth; // Force reflow
-      pip.style.animationDelay = `${(i - startIdx) * 35}ms`;
+      const isMP5 = this.currentWeapon === 'hk_mp5';
+      const delayStep = isMP5 ? 18 : 35;
+      pip.style.animationDelay = `${(i - startIdx) * delayStep}ms`;
       pip.classList.add('refilling');
 
       pip.addEventListener(

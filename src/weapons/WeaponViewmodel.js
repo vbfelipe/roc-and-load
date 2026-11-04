@@ -130,6 +130,12 @@ export class WeaponViewmodel {
     this.shotgunHipRotation = new THREE.Euler(0.1, 0, 0);
     this.shotgunAdsRotation = new THREE.Euler(0, 0, 0);
 
+    // Slot 4 (H&K MP5 9mm Submachine Gun) Hip & ADS Transforms
+    this.mp5HipPosition = new THREE.Vector3(0.09, -0.12, -0.16);
+    this.mp5AdsPosition = new THREE.Vector3(0, -0.085, -0.08);
+    this.mp5HipRotation = new THREE.Euler(0.08, 0, 0.05);
+    this.mp5AdsRotation = new THREE.Euler(0, 0, 0);
+
     // Dynamic targets pointing to current active weapon transforms
     this.hipPosition = this.czHipPosition;
     this.adsPosition = this.czAdsPosition;
@@ -151,6 +157,8 @@ export class WeaponViewmodel {
     this.muzzleSocket.name = 'PistolMuzzleSocket';
     this.shotgunMuzzleSocket = new THREE.Object3D();
     this.shotgunMuzzleSocket.name = 'ShotgunMuzzleSocket';
+    this.mp5MuzzleSocket = new THREE.Object3D();
+    this.mp5MuzzleSocket.name = 'MP5MuzzleSocket';
     this.muzzleAnchor = this.czMuzzleSocket;
 
     this.czEjectionAnchor = new THREE.Group();
@@ -159,6 +167,8 @@ export class WeaponViewmodel {
     this.ejectionAnchor.name = 'PistolEjectionAnchor';
     this.shotgunEjectionAnchor = new THREE.Group();
     this.shotgunEjectionAnchor.name = 'ShotgunEjectionAnchor';
+    this.mp5EjectionAnchor = new THREE.Group();
+    this.mp5EjectionAnchor.name = 'MP5EjectionAnchor';
 
     this.muzzleWorldPos = new THREE.Vector3();
     this.ejectionWorldPos = new THREE.Vector3();
@@ -205,6 +215,24 @@ export class WeaponViewmodel {
     this.shotgunReloadShell = null;
     this.shotgunTriggerMesh = null;
 
+    // MP5 Sub-assemblies & references
+    this.mp5Group = null;
+    this.mp5ModelGroup = null;
+    this.mp5HandGroup = null;
+    this.mp5HandsClone = null;
+    this.mp5HandPivot = null;
+    this.mp5WristBone = null;
+    this.mp5ElbowBone = null;
+    this.mp5TriggerFingerGroup = null;
+    this.mp5BoltBlowback = 0;
+    this.mp5BoltMesh = null;
+    this.mp5BoltRestZ = 0;
+    this.mp5MagMesh = null;
+    this.mp5MagRestY = 0;
+    this.mp5MagRestZ = 0;
+    this.mp5TriggerMesh = null;
+    this.mp5SelectorMesh = null;
+
     this.shotgunPumpMesh = null;
     this.shotgunPumpRodsMesh = null;
     this.shotgunSlideLRodsMesh = null;
@@ -246,6 +274,7 @@ export class WeaponViewmodel {
     this._buildCZMesh();
     this._buildGunMesh();
     this._buildShotgunMesh();
+    this._buildMP5Mesh();
     this._buildMuzzleFlashRig();
 
     // Load 3D GLTF models asynchronously
@@ -388,6 +417,26 @@ export class WeaponViewmodel {
 
     this.shotgunGroup.add(this.shotgunReloadShell);
   }
+  _buildMP5Mesh() {
+    this.mp5Group = new THREE.Group();
+    this.mp5Group.name = 'HK_MP5';
+    this.mp5Group.visible = false;
+    this.root.add(this.mp5Group);
+
+    this.mp5ModelGroup = new THREE.Group();
+    this.mp5ModelGroup.name = 'MP5ModelContainer';
+    this.mp5Group.add(this.mp5ModelGroup);
+
+    this.mp5HandGroup = new THREE.Group();
+    this.mp5HandGroup.name = 'MP5HandContainer';
+    this.mp5Group.add(this.mp5HandGroup);
+
+    this.mp5MuzzleSocket.position.set(0, 0.036, -0.292);
+    this.mp5Group.add(this.mp5MuzzleSocket);
+
+    this.mp5EjectionAnchor.position.set(0.018, 0.043, -0.011);
+    this.mp5Group.add(this.mp5EjectionAnchor);
+  }
 
   // ===========================================================================
   // 3D GLTF ASSET PIPELINE LOADER
@@ -524,6 +573,77 @@ export class WeaponViewmodel {
       (err) => console.error('Failed to load ./models/remington_870.glb:', err)
     );
 
+    // 3. H&K MP5 Submachine Gun (9mm Full-Auto)
+    loader.load(
+      './models/hk_mp5.glb',
+      (gltf) => {
+        const mp5Scene = gltf.scene;
+        mp5Scene.name = 'HKMP5GLTF';
+
+        mp5Scene.traverse((child) => {
+          const nameLower = (child.name || '').toLowerCase();
+          if (
+            nameLower.includes('bullet') ||
+            nameLower.includes('casing') ||
+            nameLower.includes('shell') ||
+            nameLower.includes('showcase') ||
+            nameLower.includes('stand') ||
+            nameLower.includes('floor') ||
+            nameLower.includes('studio')
+          ) {
+            child.visible = false;
+          }
+          if (child.isMesh) {
+            child.frustumCulled = false;
+            child.castShadow = false;
+            child.receiveShadow = true;
+            if (child.material && child.material.map) {
+              child.material.map.colorSpace = THREE.SRGBColorSpace;
+            }
+          }
+        });
+
+        // 1 unit in hk_mp5.glb = 1mm. 0.001 scale converts to real-world meters (~58.4cm length)
+        mp5Scene.scale.setScalar(0.001);
+        mp5Scene.rotation.set(0, 0, 0);
+        mp5Scene.position.set(0, 0, 0);
+
+        this.mp5BoltMesh =
+          mp5Scene.getObjectByName('MP5005') ||
+          mp5Scene.getObjectByName('MP5.005') ||
+          mp5Scene.getObjectByName('MP5005_Case_0') ||
+          mp5Scene.getObjectByName('MP5.005_Case_0');
+        if (this.mp5BoltMesh) {
+          this.mp5BoltRestZ = this.mp5BoltMesh.position.z;
+        }
+
+        this.mp5MagMesh =
+          mp5Scene.getObjectByName('MP5003') ||
+          mp5Scene.getObjectByName('MP5.003') ||
+          mp5Scene.getObjectByName('MP5003_Case_0') ||
+          mp5Scene.getObjectByName('MP5.003_Case_0');
+        if (this.mp5MagMesh) {
+          this.mp5MagRestY = this.mp5MagMesh.position.y;
+          this.mp5MagRestZ = this.mp5MagMesh.position.z;
+        }
+
+        this.mp5TriggerMesh =
+          mp5Scene.getObjectByName('MP5001') ||
+          mp5Scene.getObjectByName('MP5.001') ||
+          mp5Scene.getObjectByName('MP5001_Case_0') ||
+          mp5Scene.getObjectByName('MP5.001_Case_0');
+
+        this.mp5SelectorMesh =
+          mp5Scene.getObjectByName('MP5010') ||
+          mp5Scene.getObjectByName('MP5.010') ||
+          mp5Scene.getObjectByName('MP5010_Case_0') ||
+          mp5Scene.getObjectByName('MP5.010_Case_0');
+
+        this.mp5ModelGroup.add(mp5Scene);
+      },
+      undefined,
+      (err) => console.error('Failed to load ./models/hk_mp5.glb:', err)
+    );
     // 3. Rigged FPS Hands by EvolveGames
     loader.load(
       './models/fps_hands.glb',
@@ -551,6 +671,7 @@ export class WeaponViewmodel {
         this._buildCZHand();
         this._buildPistolHand();
         this._buildShotgunHands();
+        this._buildMP5Hand();
 
         if (this.handTunerOverlay && this.handTunerOverlay.style.display !== 'none') {
           this._updateHandTunerSliders();
@@ -836,6 +957,57 @@ export class WeaponViewmodel {
 
     this.shotgunLeftHandGroup.add(this.shotgunHandPivot);
   }
+  /**
+   * Builds Slot 4 (H&K MP5 9mm) Right Rigged Hand
+   * Centered on the MP5 submachine gun grip with forearm exiting bottom-right.
+   */
+  _buildMP5Hand() {
+    if (!this.mp5HandGroup) return;
+    while (this.mp5HandGroup.children.length > 0) {
+      this.mp5HandGroup.remove(this.mp5HandGroup.children[0]);
+    }
+
+    const handData = this._createPalmCenteredHandClone('R');
+    if (!handData) return;
+
+    this.mp5HandPivot = handData.pivotGroup;
+    this.mp5HandsClone = handData.clone;
+    this.mp5WristBone = handData.wristBone;
+    this.mp5ElbowBone = handData.elbowBone;
+
+    // Baseline tuned MP5 grip anchor and orientation
+    this.mp5HandPivot.position.set(0.022, -0.034, 0.065);
+    this.mp5HandPivot.rotation.set(0.28, -3.14, 0.16);
+    this.mp5HandPivot.scale.setScalar(1.0);
+
+    if (this.mp5WristBone) {
+      this.mp5WristBone.userData.pitch = 0.24;
+      this.mp5WristBone.userData.roll = 0.04;
+      this.mp5WristBone.quaternion.copy(this.mp5WristBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(0.24, 0, 0.04, 'XYZ')
+      );
+      this.mp5WristBone.quaternion.multiply(qDelta);
+    }
+    if (this.mp5ElbowBone) {
+      this.mp5ElbowBone.userData.bend = -0.04;
+      this.mp5ElbowBone.quaternion.copy(this.mp5ElbowBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(
+        new THREE.Euler(-0.04, 0, 0, 'XYZ')
+      );
+      this.mp5ElbowBone.quaternion.multiply(qDelta);
+    }
+
+    this.mp5HandPivot.userData.defaultPos = this.mp5HandPivot.position.clone();
+    this.mp5HandPivot.userData.defaultRot = this.mp5HandPivot.rotation.clone();
+    this.mp5HandPivot.userData.defaultScale = this.mp5HandPivot.scale.clone();
+
+    this.mp5TriggerFingerGroup =
+      handData.clone.getObjectByName('index0_R_035') ||
+      handData.clone.getObjectByName('index1_R_036');
+
+    this.mp5HandGroup.add(this.mp5HandPivot);
+  }
 
   /**
    * Restores pristine default hand and bone pose for the active weapon in the F8 tuner.
@@ -843,9 +1015,10 @@ export class WeaponViewmodel {
   resetHandPose() {
     const isCZ = this.currentWeapon === 'cz_p10s';
     const isShotgun = this.currentWeapon === 'shotgun';
-    const target = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : this.pistolHandPivot);
-    const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : this.pistolWristBone);
-    const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : this.pistolElbowBone);
+    const isMP5 = this.currentWeapon === 'hk_mp5';
+    const target = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
+    const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
+    const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
 
     if (target && target.userData.defaultPos) {
       target.position.copy(target.userData.defaultPos);
@@ -853,8 +1026,8 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
     if (wrist && wrist.userData.restQuat) {
-      const defaultPitch = isCZ ? 0.26 : (isShotgun ? -0.08 : -0.02);
-      const defaultRoll = isCZ ? 0.06 : (isShotgun ? -0.1 : -0.02);
+      const defaultPitch = isCZ ? 0.26 : (isShotgun ? -0.08 : (isMP5 ? 0.24 : -0.02));
+      const defaultRoll = isCZ ? 0.06 : (isShotgun ? -0.1 : (isMP5 ? 0.04 : -0.02));
       wrist.userData.pitch = defaultPitch;
       wrist.userData.roll = defaultRoll;
       wrist.quaternion.copy(wrist.userData.restQuat);
@@ -866,7 +1039,7 @@ export class WeaponViewmodel {
       }
     }
     if (elbow && elbow.userData.restQuat) {
-      const defaultBend = isCZ ? -0.04 : (isShotgun ? -0.22 : -0.02);
+      const defaultBend = isCZ ? -0.04 : (isShotgun ? -0.22 : (isMP5 ? -0.04 : -0.02));
       elbow.userData.bend = defaultBend;
       elbow.quaternion.copy(elbow.userData.restQuat);
       if (defaultBend !== 0) {
@@ -884,12 +1057,15 @@ export class WeaponViewmodel {
       } else if (isShotgun) {
         this.shotgunHipPosition.set(0.1, -0.13, -0.042);
         this.shotgunHipRotation.set(0.1, 0, 0);
+      } else if (isMP5) {
+        this.mp5HipPosition.set(0.09, -0.12, -0.16);
+        this.mp5HipRotation.set(0.08, 0, 0.05);
       } else {
         this.pistolHipPosition.set(0.1, -0.1, -0.42);
         this.pistolHipRotation.set(0.15, 0.04, 0.1);
       }
-      const posTarget = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : this.pistolHipPosition);
-      const rotTarget = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : this.pistolHipRotation);
+      const posTarget = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
+      const rotTarget = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
       this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
       this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
     } else if (this.tunerMode === 'GUN (ADS)') {
@@ -899,12 +1075,15 @@ export class WeaponViewmodel {
       } else if (isShotgun) {
         this.shotgunAdsPosition.set(0, -0.075, -0.09);
         this.shotgunAdsRotation.set(0, 0, 0);
+      } else if (isMP5) {
+        this.mp5AdsPosition.set(0, -0.085, -0.08);
+        this.mp5AdsRotation.set(0, 0, 0);
       } else {
         this.pistolAdsPosition.set(0.000, -0.104, -0.345);
         this.pistolAdsRotation.set(-0.017, 0, 0);
       }
-      const posTarget = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : this.pistolAdsPosition);
-      const rotTarget = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : this.pistolAdsRotation);
+      const posTarget = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
+      const rotTarget = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
       this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
       this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
     }
@@ -955,6 +1134,7 @@ export class WeaponViewmodel {
           <button id="ht-slot1-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">1: 9mm</button>
           <button id="ht-slot2-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">2: .50 AE</button>
           <button id="ht-slot3-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">3: 12G</button>
+          <button id="ht-slot4-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">4: MP5</button>
           <button id="ht-ads-btn" style="flex:1; padding:4px 2px; background:#4a5568; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">Toggle ADS</button>
         </div>
         <div style="display:flex; gap:4px; margin-bottom:8px;">
@@ -1039,6 +1219,20 @@ export class WeaponViewmodel {
             window.weaponSystem.switchWeapon('shotgun', true);
           } else {
             this.switchWeapon('shotgun');
+          }
+          this._updateHandTunerSliders();
+        };
+      }
+
+      const slot4Btn = document.getElementById('ht-slot4-btn');
+      if (slot4Btn) {
+        slot4Btn.onclick = () => {
+          if (window.__rocWeaponSystem) {
+            window.__rocWeaponSystem.switchWeapon('hk_mp5', true);
+          } else if (window.weaponSystem) {
+            window.weaponSystem.switchWeapon('hk_mp5', true);
+          } else {
+            this.switchWeapon('hk_mp5');
           }
           this._updateHandTunerSliders();
         };
@@ -1137,13 +1331,14 @@ export class WeaponViewmodel {
         copyBtn.onclick = () => {
           const isCZ = this.currentWeapon === 'cz_p10s';
           const isShotgun = this.currentWeapon === 'shotgun';
-          const handPivot = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : this.pistolHandPivot);
-          const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : this.pistolWristBone);
-          const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : this.pistolElbowBone);
-          const hipPos = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : this.pistolHipPosition);
-          const hipRot = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : this.pistolHipRotation);
-          const adsPos = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : this.pistolAdsPosition);
-          const adsRot = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : this.pistolAdsRotation);
+          const isMP5 = this.currentWeapon === 'hk_mp5';
+          const handPivot = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
+          const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
+          const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
+          const hipPos = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
+          const hipRot = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
+          const adsPos = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
+          const adsRot = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
 
           const config = {
             weapon: this.currentWeapon,
@@ -1215,12 +1410,14 @@ export class WeaponViewmodel {
 
     const isCZ = this.currentWeapon === 'cz_p10s';
     const isShotgun = this.currentWeapon === 'shotgun';
+    const isMP5 = this.currentWeapon === 'hk_mp5';
     const isPistol = this.currentWeapon === 'pistol';
 
     const badge = document.getElementById('ht-weapon-badge');
     if (badge) {
       if (isCZ) badge.textContent = 'CZ P-10S (9MM)';
       else if (isShotgun) badge.textContent = 'REMINGTON 870 (12G)';
+      else if (isMP5) badge.textContent = 'H&K MP5 (9MM)';
       else badge.textContent = 'DESERT EAGLE (.50 AE)';
     }
 
@@ -1254,9 +1451,9 @@ export class WeaponViewmodel {
     };
 
     if (this.tunerMode === 'HAND RIG') {
-      const target = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : this.pistolHandPivot);
-      const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : this.pistolWristBone);
-      const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : this.pistolElbowBone);
+      const target = isCZ ? this.czHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
+      const wrist = isCZ ? this.czWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
+      const elbow = isCZ ? this.czElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
 
       if (!target) {
         container.innerHTML = '<div style="color:#a0aec0; padding:10px 0;">Loading hands 3D model...</div>';
@@ -1330,8 +1527,8 @@ export class WeaponViewmodel {
 
       fields.forEach(createSliderRow);
     } else if (this.tunerMode === 'GUN (HIP)') {
-      const posTarget = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : this.pistolHipPosition);
-      const rotTarget = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : this.pistolHipRotation);
+      const posTarget = isCZ ? this.czHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
+      const rotTarget = isCZ ? this.czHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
 
       const fields = [
         {
@@ -1421,8 +1618,8 @@ export class WeaponViewmodel {
       ];
       fields.forEach(createSliderRow);
     } else {
-      const posTarget = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : this.pistolAdsPosition);
-      const rotTarget = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : this.pistolAdsRotation);
+      const posTarget = isCZ ? this.czAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
+      const rotTarget = isCZ ? this.czAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
 
       const fields = [
         {
@@ -1540,6 +1737,16 @@ export class WeaponViewmodel {
     }
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
     if (this.czTriggerFingerGroup) this.czTriggerFingerGroup.rotation.x = 0;
+    this.mp5BoltBlowback = 0;
+    if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
+      this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
+    }
+    if (this.mp5MagMesh && this.mp5MagRestY !== undefined && this.mp5MagRestZ !== undefined) {
+      this.mp5MagMesh.visible = true;
+      this.mp5MagMesh.position.set(0, this.mp5MagRestY, this.mp5MagRestZ);
+    }
+    if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
+    if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
@@ -1549,6 +1756,7 @@ export class WeaponViewmodel {
     this.currentWeapon = weaponType;
     const isCZ = weaponType === 'cz_p10s';
     const isShotgun = weaponType === 'shotgun';
+    const isMP5 = weaponType === 'hk_mp5';
     const isPistol = weaponType === 'pistol';
 
     if (this.handTunerOverlay && this.handTunerOverlay.style.display !== 'none') {
@@ -1558,6 +1766,7 @@ export class WeaponViewmodel {
     if (this.czGroup) this.czGroup.visible = isCZ;
     if (this.gunGroup) this.gunGroup.visible = isPistol;
     if (this.shotgunGroup) this.shotgunGroup.visible = isShotgun;
+    if (this.mp5Group) this.mp5Group.visible = isMP5;
 
     if (isCZ) {
       this.hipPosition = this.czHipPosition;
@@ -1565,6 +1774,12 @@ export class WeaponViewmodel {
       this.hipRotation = this.czHipRotation;
       this.adsRotation = this.czAdsRotation;
       this.muzzleAnchor = this.czMuzzleSocket;
+    } else if (isMP5) {
+      this.hipPosition = this.mp5HipPosition;
+      this.adsPosition = this.mp5AdsPosition;
+      this.hipRotation = this.mp5HipRotation;
+      this.adsRotation = this.mp5AdsRotation;
+      this.muzzleAnchor = this.mp5MuzzleSocket;
     } else if (isShotgun) {
       this.hipPosition = this.shotgunHipPosition;
       this.adsPosition = this.shotgunAdsPosition;
@@ -1592,10 +1807,10 @@ export class WeaponViewmodel {
 
     // 2. Smooth, subtle low-ready equip transition (no forward Z impulse, no overshooting)
     this.reloadTilt.x = 0;
-    this.reloadTilt.y = isCZ ? -0.035 : (isShotgun ? -0.030 : -0.040);
+    this.reloadTilt.y = isCZ ? -0.035 : (isShotgun ? -0.030 : (isMP5 ? -0.032 : -0.040));
     this.reloadTilt.z = 0;
-    this.reloadTilt.pitch = isCZ ? -0.05 : (isShotgun ? -0.045 : -0.07);
-    this.reloadTilt.roll = isCZ ? 0.03 : (isShotgun ? -0.03 : 0.04);
+    this.reloadTilt.pitch = isCZ ? -0.05 : (isShotgun ? -0.045 : (isMP5 ? -0.048 : -0.07));
+    this.reloadTilt.roll = isCZ ? 0.03 : (isShotgun ? -0.03 : (isMP5 ? 0.025 : 0.04));
     this.reloadTilt.yaw = 0;
 
     const equipTween = new TWEEN.Tween(this.reloadTilt, true)
@@ -1655,7 +1870,7 @@ export class WeaponViewmodel {
     if (!this.muzzleFlashGroup) return;
     this.muzzleFlashGroup.visible = true;
     this.muzzleFlashGroup.rotation.z = Math.random() * Math.PI * 2;
-    const baseScale = this.currentWeapon === 'shotgun' ? 1.25 : (this.currentWeapon === 'cz_p10s' ? 0.65 : 0.88);
+    const baseScale = this.currentWeapon === 'shotgun' ? 1.25 : (this.currentWeapon === 'cz_p10s' ? 0.65 : (this.currentWeapon === 'hk_mp5' ? 0.70 : 0.88));
     const s = baseScale + Math.random() * 0.40;
     this.muzzleFlashGroup.scale.set(s, s, s);
     this.muzzleFlashMaterial.opacity = 1.0;
@@ -1693,6 +1908,24 @@ export class WeaponViewmodel {
 
       this.czSlideBlowback = 0.22;
       if (this.czTriggerFingerGroup) this.czTriggerFingerGroup.rotation.x = 0.18;
+
+      this.triggerMuzzleFlash();
+      return;
+    }
+
+    if (this.currentWeapon === 'hk_mp5') {
+      const recoilKick = this.isADS ? 0.024 : 0.048;
+      const recoilZ = this.isADS ? 0.006 : 0.045; // 50%+ reduction on ADS to prevent camera clipping
+      const recoilPitch = this.isADS ? 0.038 : 0.075;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.006 : 0.014);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.008 : 0.018);
+
+      this.posSpring.impulse(0, recoilKick * 0.22, recoilZ);
+      this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
+
+      this.mp5BoltBlowback = 0.032;
+      if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0.16;
+      if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0.16;
 
       this.triggerMuzzleFlash();
       return;
@@ -1835,7 +2068,18 @@ export class WeaponViewmodel {
     );
 
     // 2. Slide Blowback & Reciprocation
-    if (this.currentWeapon === 'cz_p10s') {
+    if (this.currentWeapon === 'hk_mp5') {
+      if (!this.isReloading) {
+        if (this.mp5BoltBlowback > 0.0005) {
+          this.mp5BoltBlowback = THREE.MathUtils.lerp(this.mp5BoltBlowback, 0, Math.min(delta * 38.0, 1.0));
+          if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
+            this.mp5BoltMesh.position.z = this.mp5BoltRestZ + this.mp5BoltBlowback * 1000;
+          }
+        } else if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined && this.mp5BoltMesh.position.z !== this.mp5BoltRestZ) {
+          this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
+        }
+      }
+    } else if (this.currentWeapon === 'cz_p10s') {
       if (this.isSlideLocked) {
         if (this.czSlideMesh && this.czSlideRestY !== undefined) {
           this.czSlideMesh.position.y = this.czSlideRestY + 0.22;
@@ -1891,6 +2135,12 @@ export class WeaponViewmodel {
     if (this.czTriggerFingerGroup && this.czTriggerFingerGroup.rotation.x > 0.001) {
       this.czTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.czTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
     }
+    if (this.mp5TriggerMesh && this.mp5TriggerMesh.rotation.x > 0.001) {
+      this.mp5TriggerMesh.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerMesh.rotation.x, 0, Math.min(delta * 22.0, 1.0));
+    }
+    if (this.mp5TriggerFingerGroup && this.mp5TriggerFingerGroup.rotation.x > 0.001) {
+      this.mp5TriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerFingerGroup.rotation.x, 0, Math.min(delta * 22.0, 1.0));
+    }
 
     // 4. Muzzle flash fade
     if (this.flashTimer > 0) {
@@ -1924,8 +2174,8 @@ export class WeaponViewmodel {
     this.root.rotation.set(rot.x, rot.y, rot.z);
 
     // 7. Update sockets
-    const activeMuzzle = this.currentWeapon === 'cz_p10s' ? this.czMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : this.muzzleSocket);
-    const activeEjection = this.currentWeapon === 'cz_p10s' ? this.czEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : this.ejectionAnchor);
+    const activeMuzzle = this.currentWeapon === 'cz_p10s' ? this.czMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
+    const activeEjection = this.currentWeapon === 'cz_p10s' ? this.czEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
     activeMuzzle.updateWorldMatrix(true, false);
     activeMuzzle.getWorldPosition(this.muzzleWorldPos);
     activeEjection.updateWorldMatrix(true, false);
@@ -1934,14 +2184,14 @@ export class WeaponViewmodel {
 
   getMuzzleWorldPosition(targetVec) {
     const out = targetVec || this.muzzleWorldPos;
-    const activeMuzzle = this.currentWeapon === 'cz_p10s' ? this.czMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : this.muzzleSocket);
+    const activeMuzzle = this.currentWeapon === 'cz_p10s' ? this.czMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
     activeMuzzle.updateWorldMatrix(true, false);
     return activeMuzzle.getWorldPosition(out);
   }
 
   getEjectionWorldPosition(targetVec) {
     const out = targetVec || this.ejectionWorldPos;
-    const activeEjection = this.currentWeapon === 'cz_p10s' ? this.czEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : this.ejectionAnchor);
+    const activeEjection = this.currentWeapon === 'cz_p10s' ? this.czEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
     activeEjection.updateWorldMatrix(true, false);
     return activeEjection.getWorldPosition(out);
   }
@@ -1954,18 +2204,21 @@ export class WeaponViewmodel {
       }
       return;
     }
-    if (locked) {
-      this.slideBlowback = 0.036;
-      this.slideGroup.position.z = 0.036;
-      if (this.pistolSlideMesh && this.deSlideRestZ !== undefined) {
-        this.pistolSlideMesh.position.z = this.deSlideRestZ - 3.6;
+    if (this.currentWeapon === 'pistol') {
+      if (locked) {
+        this.slideBlowback = 0.036;
+        this.slideGroup.position.z = 0.036;
+        if (this.pistolSlideMesh && this.deSlideRestZ !== undefined) {
+          this.pistolSlideMesh.position.z = this.deSlideRestZ - 3.6;
+        }
+      } else {
+        this.slideBlowback = 0;
+        this.slideGroup.position.z = 0;
+        if (this.pistolSlideMesh && this.deSlideRestZ !== undefined) {
+          this.pistolSlideMesh.position.z = this.deSlideRestZ;
+        }
       }
-    } else {
-      this.slideBlowback = 0;
-      this.slideGroup.position.z = 0;
-      if (this.pistolSlideMesh && this.deSlideRestZ !== undefined) {
-        this.pistolSlideMesh.position.z = this.deSlideRestZ;
-      }
+      return;
     }
   }
 
@@ -1989,6 +2242,11 @@ export class WeaponViewmodel {
 
     if (this.currentWeapon === 'cz_p10s') {
       this._startCZReloadAnimation(onComplete);
+      return;
+    }
+
+    if (this.currentWeapon === 'hk_mp5') {
+      this._startMP5ReloadAnimation(onComplete);
       return;
     }
 
@@ -2305,6 +2563,104 @@ export class WeaponViewmodel {
       this.reloadTimers.push(rackTimer);
     }, 280);
     this.reloadTimers.push(magInTimer);
+  }
+  _startMP5ReloadAnimation(onComplete) {
+    // Fast, snappy submachine gun tactical reload (~1.38s total cycle)
+    if (this.sound && typeof this.sound.playReloadSound === 'function') {
+      this.sound.playReloadSound('hk_mp5');
+    } else if (this.sound) {
+      this.sound.playMagOut();
+    }
+
+    if (this.mp5MagMesh) {
+      this.mp5MagMesh.visible = true;
+      this.mp5MagMesh.position.y = this.mp5MagRestY;
+      this.mp5MagMesh.position.z = this.mp5MagRestZ;
+    }
+
+    // STAGE 1: Tilt weapon slightly inward/upward (0 to 240ms)
+    const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: 0.28, pitch: 0.14, yaw: 0.08, y: -0.015 }, 240)
+      .easing(TWEEN.Easing.Cubic.Out);
+    this.reloadTweens.push(tiltIn);
+    tiltIn.start();
+
+    // STAGE 2: Magazine drops out at 240ms
+    const magDropTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'hk_mp5') return;
+      if (this.mp5MagMesh) {
+        const drop = new TWEEN.Tween(this.mp5MagMesh.position, true)
+          .to({ y: this.mp5MagRestY - 220, z: this.mp5MagRestZ - 40 }, 220)
+          .easing(TWEEN.Easing.Quadratic.In)
+          .onComplete(() => {
+            if (this.mp5MagMesh) this.mp5MagMesh.visible = false;
+          });
+        this.reloadTweens.push(drop);
+        drop.start();
+      }
+
+      // STAGE 3: Fresh magazine inserted at 550ms
+      const magInTimer = setTimeout(() => {
+        if (!this.isReloading || this.currentWeapon !== 'hk_mp5') return;
+        if (this.mp5MagMesh) {
+          this.mp5MagMesh.visible = true;
+          this.mp5MagMesh.position.set(0, this.mp5MagRestY - 200, this.mp5MagRestZ - 35);
+          const insert = new TWEEN.Tween(this.mp5MagMesh.position, true)
+            .to({ y: this.mp5MagRestY, z: this.mp5MagRestZ }, 200)
+            .easing(TWEEN.Easing.Back.Out)
+            .onComplete(() => {
+              this.posSpring.impulse(0, 0.045, 0);
+              this.rotSpring.impulse(0.018, 0, 0.035);
+              if (this.sound) this.sound.playMagIn();
+            });
+          this.reloadTweens.push(insert);
+          insert.start();
+        }
+
+        // STAGE 4: Charging handle pull and HK slap at 960ms
+        const slapTimer = setTimeout(() => {
+          if (!this.isReloading || this.currentWeapon !== 'hk_mp5') return;
+
+          if (this.mp5BoltMesh) {
+            this.mp5BoltMesh.position.z = this.mp5BoltRestZ + 35;
+          }
+          this.posSpring.impulse(0, 0.015, 0.025);
+          this.rotSpring.impulse(0.022, 0, -0.015);
+
+          const releaseTimer = setTimeout(() => {
+            if (!this.isReloading || this.currentWeapon !== 'hk_mp5') return;
+            if (this.mp5BoltMesh) {
+              this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
+            }
+            this.posSpring.impulse(0, -0.012, -0.035);
+            this.rotSpring.impulse(-0.042, 0, -0.018);
+            if (this.sound && typeof this.sound.playSlideRelease === 'function') {
+              this.sound.playSlideRelease();
+            }
+
+            // STAGE 5: Return to ready pose
+            const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+              .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 180)
+              .easing(TWEEN.Easing.Cubic.Out)
+              .onComplete(() => {
+                this.isReloading = false;
+                if (this.mp5BoltMesh) this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
+                if (this.mp5MagMesh) {
+                  this.mp5MagMesh.visible = true;
+                  this.mp5MagMesh.position.set(0, this.mp5MagRestY, this.mp5MagRestZ);
+                }
+                if (typeof onComplete === 'function') onComplete();
+              });
+            this.reloadTweens.push(tiltOut);
+            tiltOut.start();
+          }, 120);
+          this.reloadTimers.push(releaseTimer);
+        }, 410);
+        this.reloadTimers.push(slapTimer);
+      }, 310);
+      this.reloadTimers.push(magInTimer);
+    }, 240);
+    this.reloadTimers.push(magDropTimer);
   }
 
   reset() {
