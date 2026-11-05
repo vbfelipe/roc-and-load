@@ -2924,6 +2924,142 @@ function createExitSignTextures() {
 }
 
 /**
+ * Procedural "NO ENTRY / STAFF ONLY" Sign Plaque Texture (512x340).
+ * Matches standard OSHA / ISO 7010 prohibition safety signage:
+ * - Red background (#d1190e).
+ * - Vertically centered graphic at cy = 170 with R = 122 outer white badge (equal 48px top & bottom margins).
+ * - Unified white circle & top-right white banner (x: 138..488, y: 48..170).
+ * - Prohibition ring (#d1190e, r = 102, lineWidth = 18), bold walking silhouette, 45° slash.
+ * - Strictly bounded condensed text: "NO ENTRY" (scaled, bold, tall) and "STAFF ONLY" (scaled white).
+ */
+function createNoEntrySignTexture() {
+  const w = 512;
+  const h = 340;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Safety Red Background (#d1190e)
+  ctx.fillStyle = '#d1190e';
+  ctx.fillRect(0, 0, w, h);
+
+  // Layout parameters: centered vertically at cy = 170 with equal 48px margins
+  const cx = 138;
+  const cy = 170;
+  const R = 122; // outer white badge radius
+
+  // 2. Unified White Circle & Top-Right White Banner
+  ctx.fillStyle = '#eef1f4';
+  // A. Solid white circle at (cx = 138, cy = 170, radius = 122)
+  ctx.beginPath();
+  ctx.arc(cx, cy, R, 0, Math.PI * 2);
+  ctx.fill();
+
+  // B. Solid white rectangle (merging seamlessly with circle top)
+  // x = 138, y = 48 (cy - R), width = 350 (ends at x = 488, 24px right border), height = 122 (stops at y = 170)
+  ctx.fillRect(cx, cy - R, 350, R);
+
+  // 3. Red Prohibition Ring inside White Circle (radius = 102px, lineWidth = 18px)
+  const ringR = 102;
+  const ringWidth = 18;
+  ctx.strokeStyle = '#d1190e';
+  ctx.lineWidth = ringWidth;
+  ctx.beginPath();
+  ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // 4. Clean, Bold Black Walking-Person Silhouette Centered Inside the Ring
+  ctx.fillStyle = '#0a0a0a';
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 14;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Head circle at (138, 112), r = 13
+  ctx.beginPath();
+  ctx.arc(138, 112, 13, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Torso
+  ctx.beginPath();
+  ctx.moveTo(136, 129);
+  ctx.lineTo(142, 168);
+  ctx.stroke();
+
+  // Left Arm (trailing backward)
+  ctx.beginPath();
+  ctx.moveTo(136, 136);
+  ctx.lineTo(114, 154);
+  ctx.lineTo(110, 168);
+  ctx.stroke();
+
+  // Right Arm (swinging forward)
+  ctx.beginPath();
+  ctx.moveTo(136, 136);
+  ctx.lineTo(156, 154);
+  ctx.lineTo(168, 165);
+  ctx.stroke();
+
+  // Left Leg (trailing backward)
+  ctx.beginPath();
+  ctx.moveTo(142, 168);
+  ctx.lineTo(124, 196);
+  ctx.lineTo(110, 224);
+  ctx.stroke();
+
+  // Right Leg (striding forward)
+  ctx.beginPath();
+  ctx.moveTo(142, 168);
+  ctx.lineTo(158, 194);
+  ctx.lineTo(166, 226);
+  ctx.stroke();
+
+  // 5. 45° Red Diagonal Slash Cutting Across the Ring ((138 - 72, 170 - 72) to (138 + 72, 170 + 72))
+  ctx.strokeStyle = '#d1190e';
+  ctx.lineWidth = 18;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(cx - 72, cy - 72);
+  ctx.lineTo(cx + 72, cy + 72);
+  ctx.stroke();
+
+  // 6. Strictly Bounded Condensed Text (Zero Circle Overlap, Zero Right-Edge Clipping)
+  // Text column center: textCenterX = 373, safe bounds: x = 268 to x = 478
+  // "NO ENTRY" (Top White Box)
+  ctx.save();
+  ctx.translate(373, 111);
+  ctx.scale(0.75, 1.0);
+  ctx.font = '900 58px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fillText('NO ENTRY', 0, 0, 265);
+  ctx.restore();
+
+  // "STAFF ONLY" (Bottom Red Area)
+  ctx.save();
+  ctx.translate(373, 234);
+  ctx.scale(0.72, 1.0);
+  ctx.font = '900 56px Impact, "Arial Black", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#eef1f4';
+  ctx.fillText('STAFF ONLY', 0, 0, 280);
+  ctx.restore();
+
+  // 7. Crisp Sign Border / Edge Bevel
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(2, 2, w - 4, h - 4);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+/**
  * Procedural Enterprise 42U Server Cabinet Textures (1024x2048).
  * Generates high-resolution Diffuse Map and Emissive Map inspired by Dell PowerEdge and Cisco Nexus racks.
  * Precision enterprise-scale SMD LED light guides with clean, harmonized illumination.
@@ -9422,6 +9558,7 @@ export class WarehouseBuilder {
     this.plenumFloorBumpTexture = plenumTex.bumpTexture;
 
     this.stepTreadTexture = createStepTreadTexture();
+    this.noEntrySignTexture = createNoEntrySignTexture();
 
     // 2. High-Readability Industrial Palette (NO pure pitch-black silhouettes!)
     this.floorMaterial = new THREE.MeshStandardMaterial({
@@ -10146,6 +10283,42 @@ float rackHash(vec2 p) {
       depthWrite: false,
       side: THREE.DoubleSide,
     });
+
+    // Closed Matte-White Staff Door ("NO ENTRY / STAFF ONLY") Materials
+    // Anti-bloom calibrated: matte architectural painted finish with low specular & envMap reflection
+    this.staffDoorFrameMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb4bcc6,
+      roughness: 0.88,
+      metalness: 0.0,
+      envMapIntensity: 0.10,
+    });
+
+    this.staffDoorLeafMaterial = new THREE.MeshStandardMaterial({
+      color: 0xbdc5ce,
+      roughness: 0.86,
+      metalness: 0.0,
+      envMapIntensity: 0.10,
+    });
+
+    this.staffDoorSeamMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1e2228,
+      roughness: 0.90,
+      metalness: 0.10,
+    });
+
+    this.staffDoorHandleMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc6ccd4,
+      metalness: 0.85,
+      roughness: 0.28,
+      envMapIntensity: 0.75,
+    });
+
+    this.staffDoorSignMaterial = new THREE.MeshStandardMaterial({
+      map: this.noEntrySignTexture,
+      roughness: 0.78,
+      metalness: 0.0,
+      envMapIntensity: 0.15,
+    });
   }
 
   /**
@@ -10266,6 +10439,11 @@ float rackHash(vec2 p) {
       vestibuleCeilingLight: [],
       serverPodAlumFrame: [],
       serverPodGlass: [],
+      staffDoorFrame: [],
+      staffDoorLeaf: [],
+      staffDoorSeam: [],
+      staffDoorHandle: [],
+      staffDoorSign: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -10512,14 +10690,15 @@ float rackHash(vec2 p) {
     const postColliderGeo = new THREE.CylinderGeometry(0.25, 0.25, 1.143, 16);
     const endClipGeo = new THREE.BoxGeometry(0.024, 0.090, 0.020);
 
-    // 4 Stanchion Posts in Hero Scale parked along the right wall immediately to the right of the coffee cabinet
-    // Post 0 & 1: wall-adjacent pair (center distance 0.95m, clear of wall by 0.20m, linked with belt);
-    // Post 2 & 3: front-row staggered posts (generous clearances >= 0.60m from all other posts).
+    // 4 Stanchion Posts in Hero Scale relocated to the Left Wall under the first glass partition window
+    // (exact position indicated in front of the access vestibule window, Z ≈ 7.4m to 8.85m, X ≈ -9.55m to -9.02m)
+    // Post 0 & 1: wall-adjacent pair linked with sagging fabric belt (Z = 7.40m to 8.35m, 0.20m clear of wall)
+    // Post 2 & 3: front-row staggered posts (X = -9.02m and -9.18m, generous clearances >= 0.60m from all posts)
     const stanchionPosts = [
-      { x: 9.55, z: -4.95, yaw: 0.28 },  // Connected pair (near wall)
-      { x: 9.52, z: -4.00, yaw: -0.36 }, // Connected pair (near wall)
-      { x: 9.02, z: -4.55, yaw: 1.12 },  // Standalone post (staggered forward)
-      { x: 9.18, z: -3.50, yaw: -1.74 }  // Standalone post (staggered forward)
+      { x: -9.55, z: 7.40, yaw: 0.28 },  // Connected pair (near wall)
+      { x: -9.52, z: 8.35, yaw: -0.36 }, // Connected pair (near wall)
+      { x: -9.02, z: 7.95, yaw: 1.12 },  // Standalone post (staggered forward)
+      { x: -9.18, z: 8.85, yaw: -1.74 }  // Standalone post (staggered forward)
     ];
 
     // Assemble 4 Hero Scale stanchion posts
@@ -10597,7 +10776,11 @@ float rackHash(vec2 p) {
     // B. Potted Areca Palm Plant (Compact indoor office scale ~58%, placed neatly beside the coffee cabinet)
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -9.45, 0.0, -0.62, 0.58, 0.50);
 
-    // C. Enterprise Wall-Mounted Split AC Units (LG Artcool Mirror Style - +40% FPS Hero Scale)
+    // C. Closed Matte-White Staff Door ("NO ENTRY / STAFF ONLY")
+    // Mounted flush against Left Wall at X = -10.0m, Z = -4.0m, cleanly centered between wall outlets at Z = -2.0m & -6.0m
+    this._buildStaffDoor(addPart, addVisual, registerCollider, visualBuckets, -10.0, 0.0, -4.0);
+
+    // D. Enterprise Wall-Mounted Split AC Units (LG Artcool Mirror Style - +40% FPS Hero Scale)
     // 3 units mounted high on the wall with the stanchions, coffee machine & plant (X = 10.0m) near ceiling (Y = 3.42m)
     // Facing into room (-X), spaced at Z = 0.0m, Z = 5.0m, Z = 10.0m exactly where indicated in screenshot
     const acZPositions = [0.0, 5.0, 10.0];
@@ -10729,6 +10912,11 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.vestibuleGlassSeam, material: this.vestibuleGlassSeamMaterial, name: 'DC_VestibuleGlassSeam', renderOrder: 2 },
       { bucket: visualBuckets.vestibuleGlass, material: this.vestibuleGlassMaterial, name: 'DC_VestibuleGlass', renderOrder: 2, isGlass: true },
       { bucket: visualBuckets.serverPodGlass, material: this.serverPodGlassMaterial, name: 'DC_ServerPodGlass', renderOrder: 2, isGlass: true },
+      { bucket: visualBuckets.staffDoorFrame, material: this.staffDoorFrameMaterial, name: 'DC_StaffDoorFrame' },
+      { bucket: visualBuckets.staffDoorLeaf, material: this.staffDoorLeafMaterial, name: 'DC_StaffDoorLeaf' },
+      { bucket: visualBuckets.staffDoorSeam, material: this.staffDoorSeamMaterial, name: 'DC_StaffDoorSeam' },
+      { bucket: visualBuckets.staffDoorHandle, material: this.staffDoorHandleMaterial, name: 'DC_StaffDoorHandle' },
+      { bucket: visualBuckets.staffDoorSign, material: this.staffDoorSignMaterial, name: 'DC_StaffDoorSign' },
     ];
 
     for (const def of bucketDefs) {
@@ -12020,6 +12208,167 @@ float rackHash(vec2 p) {
     const machWorldPos = new THREE.Vector3(mx, 1.17 + 0.56, mz).applyMatrix4(coffeeMatrix);
     registerCollider(machineCollider, machWorldPos.x, machWorldPos.y, machWorldPos.z, 0, rotY, 0);
     machineCollider.dispose();
+  }
+
+  /**
+   * Builds the closed Matte-White Staff Door ("NO ENTRY / STAFF ONLY")
+   * Scaled to FPS Hero Scale (matching top header line of glass partition window ~2.65m).
+   * Mounted flush against the Left Solid Wall at posX = -10.0m, posZ = -4.0m
+   * (cleanly centered between wall outlets at Z = -2.0m and Z = -6.0m).
+   *
+   * Features:
+   * 1. Hero-scale outer casing architrave (~1.32m wide x 2.65m tall, 80mm trim width).
+   * 2. Recessed solid matte-white door leaf (1.14m x 2.50m) with dark perimeter shadow seam (0x1e2228).
+   * 3. Scaled brushed chrome lever handle on right side of leaf (at waist/hand height Y ≈ 1.18m,
+   *    lever length ~0.145m pointing inward to the left) with rosette, collar, spindle, hub, and keyhole escutcheon.
+   * 4. Eye-level (Y ≈ 1.78m) procedural "NO ENTRY / STAFF ONLY" sign plaque (0.38m wide x 0.25m tall).
+   * 5. Full physics & weapon hitscan collider registration for bullet decals & sparks.
+   */
+  _buildStaffDoor(addPart, addVisual, arg3, arg4, arg5 = -10.0, arg6 = 0.0, arg7 = -4.0) {
+    let registerCollider = null;
+    let visualBuckets;
+    let posX = -10.0;
+    let posY = 0.0;
+    let posZ = -4.0;
+
+    if (typeof arg3 === 'function') {
+      registerCollider = arg3;
+      visualBuckets = arg4;
+      if (arg5 !== undefined) posX = arg5;
+      if (arg6 !== undefined) posY = arg6;
+      if (arg7 !== undefined) posZ = arg7;
+    } else {
+      visualBuckets = arg3;
+      if (arg4 !== undefined) posX = arg4;
+      if (arg5 !== undefined) posY = arg5;
+      if (arg6 !== undefined) posZ = arg6;
+    }
+
+    // Hero-Scale Dimensions:
+    // Aligns with the 2.649m top header line of the glass partition window & vestibule doorway on the same wall!
+    const frameH = 2.650; // Total outer casing height (matching 2.649m header line)
+    const trimW = 0.080;  // 80mm architrave trim width
+    const trimD = 0.030;  // 30mm casing projection from wall (proud)
+    const openH = frameH - trimW; // 2.570m clear height inside casing
+    const openW = 1.150;  // 1.150m clear width inside casing
+    const frameW = openW + trimW * 2.0; // 1.310m total outer frame width
+    const frameCenterX = posX + trimD * 0.5; // -9.985m
+
+    // 1. Outer Frame / Architrave (0xf0f2f5, roughness: 0.55)
+    // Left Jamb (at +Z side) — height openH (jambs meet bottom of header casing seamlessly)
+    const jambGeo = new THREE.BoxGeometry(trimD, openH, trimW);
+    const leftJambZ = posZ + openW * 0.5 + trimW * 0.5; // -3.385m
+    const jambY = posY + openH * 0.5; // 1.285m
+    addPart(visualBuckets.staffDoorFrame, jambGeo, frameCenterX, jambY, leftJambZ, 0, 0, 0, true);
+
+    // Right Jamb (at -Z side)
+    const rightJambZ = posZ - openW * 0.5 - trimW * 0.5; // -4.615m
+    addPart(visualBuckets.staffDoorFrame, jambGeo, frameCenterX, jambY, rightJambZ, 0, 0, 0, true);
+    jambGeo.dispose();
+
+    // Top Header Casing (spans entire width: frameW = 1.310m, seated directly atop the jambs)
+    const headerGeo = new THREE.BoxGeometry(trimD, trimW, frameW);
+    const headerY = posY + openH + trimW * 0.5; // 2.610m (bottom at 2.570m, top reaches 2.650m)
+    addPart(visualBuckets.staffDoorFrame, headerGeo, frameCenterX, headerY, posZ, 0, 0, 0, true);
+    headerGeo.dispose();
+
+    // 2. Dark Perimeter Shadow Gap Seam (0x1e2228, roughness: 0.90)
+    // Backing reveal layer inside opening behind the door leaf
+    const seamD = 0.012;
+    const seamGeo = new THREE.BoxGeometry(seamD, openH, openW);
+    addVisual(visualBuckets.staffDoorSeam, seamGeo, posX + seamD * 0.5, posY + openH * 0.5, posZ);
+    seamGeo.dispose();
+
+    // 3. Recessed Matte-White Door Leaf (0xf7f8fa, roughness: 0.50)
+    // Borders perfectly aligned with the door frame opening with exact 2.5mm uniform reveal on top, left & right!
+    const revealGap = 0.0025; // 2.5mm exact uniform architectural reveal gap
+    const floorGap = 0.008;   // 8mm floor clearance gap
+    const leafW = openW - revealGap * 2.0; // 1.145m (exactly 2.5mm from left & right jambs)
+    const leafTopY = openH - revealGap;    // 2.5675m (exactly 2.5mm from top header soffit)
+    const leafBottomY = posY + floorGap;   // 0.008m
+    const leafH = leafTopY - leafBottomY;  // 2.5595m
+    const leafCenterY = (leafTopY + leafBottomY) * 0.5; // 1.28775m
+    const leafD = 0.024; // 24mm thick solid flush door leaf
+    const leafFrontX = posX + 0.002 + leafD; // -9.974m (subtle 4mm architectural recess inside casing at -9.970m)
+    const leafCenterX = posX + 0.002 + leafD * 0.5; // -9.986m
+
+    const leafGeo = new THREE.BoxGeometry(leafD, leafH, leafW);
+    addPart(visualBuckets.staffDoorLeaf, leafGeo, leafCenterX, leafCenterY, posZ, 0, 0, 0, true);
+    leafGeo.dispose();
+
+    // 4. Procedural "NO ENTRY / STAFF ONLY" Sign Plaque (0.38m wide x 0.25m tall x 0.004m thick)
+    // Mounted flush on door leaf at eye level (Y ≈ 1.78m), horizontally centered on the door leaf (Z = posZ)
+    const signW = 0.380; // width along Z
+    const signH = 0.250; // height along Y
+    const signD = 0.004; // 4mm thickness
+    const signGeo = new THREE.BoxGeometry(signD, signH, signW);
+    const signX = leafFrontX + signD * 0.5; // -9.972m
+    const signY = 1.78;
+    addPart(visualBuckets.staffDoorSign, signGeo, signX, signY, posZ, 0, 0, 0, true);
+    signGeo.dispose();
+
+    // 5. Hero-Scale Brushed Chrome Lever Handle (0xd8dde4, metalness: 0.88, roughness: 0.18)
+    // Mounted on right side of leaf at natural ergonomic hand height (Y ≈ 1.30m on 2.65m hero door)
+    const handleBackset = 0.085; // 85mm from right leaf edge
+    const handleZ = posZ - leafW * 0.5 + handleBackset; // -4.4875m
+    const handleY = 1.30;
+
+    // A. Circular Rosette Backplate (diameter 68mm, thickness 7mm)
+    const rosetteGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.007, 24);
+    rosetteGeo.rotateZ(Math.PI * 0.5);
+    addVisual(visualBuckets.staffDoorHandle, rosetteGeo, leafFrontX + 0.0035, handleY, handleZ);
+    rosetteGeo.dispose();
+
+    // Rosette beveled base collar (diameter 76mm, thickness 2.5mm)
+    const collarGeo = new THREE.CylinderGeometry(0.038, 0.038, 0.0025, 24);
+    collarGeo.rotateZ(Math.PI * 0.5);
+    addVisual(visualBuckets.staffDoorHandle, collarGeo, leafFrontX + 0.0012, handleY, handleZ);
+    collarGeo.dispose();
+
+    // B. Cylindrical Spindle Neck (diameter 24mm, length 26mm)
+    const spindleGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.026, 18);
+    spindleGeo.rotateZ(Math.PI * 0.5);
+    const spindleX = leafFrontX + 0.007 + 0.013; // -9.958m
+    addVisual(visualBuckets.staffDoorHandle, spindleGeo, spindleX, handleY, handleZ);
+    spindleGeo.dispose();
+
+    // C. Elbow Hub (connecting spindle to lever)
+    const hubGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.024, 18);
+    hubGeo.rotateX(Math.PI * 0.5);
+    const hubX = leafFrontX + 0.033; // -9.945m
+    addVisual(visualBuckets.staffDoorHandle, hubGeo, hubX, handleY, handleZ);
+    hubGeo.dispose();
+
+    // D. Horizontal Contoured Lever Bar (~0.145m long, pointing inward to the left (+Z))
+    const leverLen = 0.145;
+    const leverGeo = new THREE.CylinderGeometry(0.0105, 0.0095, leverLen, 18);
+    leverGeo.rotateX(Math.PI * 0.5);
+    const leverZ = handleZ + leverLen * 0.5; // -4.4125m
+    addVisual(visualBuckets.staffDoorHandle, leverGeo, hubX, handleY, leverZ);
+    leverGeo.dispose();
+
+    // E. Rounded Lever Tip (sphere at end of lever)
+    const tipGeo = new THREE.SphereGeometry(0.010, 14, 14);
+    addVisual(visualBuckets.staffDoorHandle, tipGeo, hubX, handleY, handleZ + leverLen);
+    tipGeo.dispose();
+
+    // F. Keyhole / Escutcheon Plate (115mm below handle at Y ≈ 1.065m)
+    const keyplateGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.006, 20);
+    keyplateGeo.rotateZ(Math.PI * 0.5);
+    const keyplateY = handleY - 0.115;
+    addVisual(visualBuckets.staffDoorHandle, keyplateGeo, leafFrontX + 0.003, keyplateY, handleZ);
+    keyplateGeo.dispose();
+
+    const keyholeGeo = new THREE.BoxGeometry(0.004, 0.015, 0.005);
+    addVisual(visualBuckets.staffDoorSeam, keyholeGeo, leafFrontX + 0.006, keyplateY, handleZ);
+    keyholeGeo.dispose();
+
+    // G. Handle Collider (for weapon hitscan raycasting)
+    if (typeof registerCollider === 'function') {
+      const handleColliderGeo = new THREE.BoxGeometry(0.08, 0.26, 0.24);
+      registerCollider(handleColliderGeo, leafFrontX + 0.030, handleY - 0.055, handleZ + leverLen * 0.40);
+      handleColliderGeo.dispose();
+    }
   }
 
   /**
