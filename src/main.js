@@ -338,7 +338,7 @@ window.addEventListener('DOMContentLoaded', () => {
     exitBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       sound.playExitClick();
-      player.reset(0, 0.1, -7.0, Math.PI, 0);
+      player.reset(0, 0.1, -3.0, Math.PI, 0);
       weaponSystem.reset();
       warehouse.resetMonitors();
       setGameState('MAIN_MENU');

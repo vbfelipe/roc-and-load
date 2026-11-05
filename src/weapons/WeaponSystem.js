@@ -618,6 +618,7 @@ export class WeaponSystem {
 
     this.colliderMesh = null;
     this.glassMesh = null;
+    this.glassMeshes = null;
     this.boxManager = null;
     this.monitorScreens = [];
     this.crosshairEl = null;
@@ -1389,6 +1390,23 @@ export class WeaponSystem {
     );
   }
 
+  _getGlassMeshes() {
+    if (this.glassMeshes && this.glassMeshes.length > 0) {
+      return this.glassMeshes;
+    }
+    if (!this.scene) return [];
+    const meshes = [];
+    const vestGlass = this.scene.getObjectByName('DC_VestibuleGlass');
+    if (vestGlass) meshes.push(vestGlass);
+    const podGlass = this.scene.getObjectByName('DC_ServerPodGlass');
+    if (podGlass) meshes.push(podGlass);
+    if (meshes.length > 0) {
+      this.glassMeshes = meshes;
+      this.glassMesh = vestGlass || meshes[0];
+    }
+    return meshes;
+  }
+
   /**
    * 12-Gauge 00-Buckshot Multi-Pellet Hitscan (8 Pellets in a Conical Choke Pattern).
    * Spawns individual pellet tracers, smaller buckshot pellet decals in a realistic cluster,
@@ -1453,9 +1471,9 @@ export class WeaponSystem {
         }
       }
 
-      const glassMesh = this.glassMesh || (this.scene ? (this.glassMesh = this.scene.getObjectByName('DC_VestibuleGlass')) : null);
-      if (glassMesh) {
-        const glassHits = _raycaster.intersectObject(glassMesh, false);
+      const glassMeshes = this._getGlassMeshes();
+      if (glassMeshes.length > 0) {
+        const glassHits = _raycaster.intersectObjects(glassMeshes, false);
         if (glassHits.length > 0) {
           if (!closestHit || glassHits[0].distance < closestHit.distance) {
             closestHit = glassHits[0];
@@ -1570,10 +1588,10 @@ export class WeaponSystem {
       }
     }
 
-    // Raycast against architectural glass (partition wall glass panes & open glass door pane)
-    const glassMesh = this.glassMesh || (this.scene ? (this.glassMesh = this.scene.getObjectByName('DC_VestibuleGlass')) : null);
-    if (glassMesh) {
-      const glassHits = _raycaster.intersectObject(glassMesh, false);
+    // Raycast against architectural glass (vestibule partition/door glass & server containment pod glass)
+    const glassMeshes = this._getGlassMeshes();
+    if (glassMeshes.length > 0) {
+      const glassHits = _raycaster.intersectObjects(glassMeshes, false);
       if (glassHits.length > 0) {
         if (!closestHit || glassHits[0].distance < closestHit.distance) {
           closestHit = glassHits[0];

@@ -430,12 +430,12 @@ function createPerforatedFloorTextures() {
     }
   }
 
-  // UV repeat set for exact 1.0m x 1.0m square tiles across Raised Platform (platW=14.0m x platL=6.0m)
-  // Each UV unit contains 2x2 tiles -> 7 repeats across X = 14 tiles (1.0m), 3 repeats across Z = 6 tiles (1.0m)
+  // UV repeat set for exact 1.0m x 1.0m square tiles across Raised Platform (platW=14.0m x platL=3.00m)
+  // Each UV unit contains 2x2 tiles -> 7 repeats across X = 14 tiles (1.0m), 1.5 repeats across Z = 3 tiles (1.0m)
   const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
   diffuseTexture.wrapS = THREE.RepeatWrapping;
   diffuseTexture.wrapT = THREE.RepeatWrapping;
-  diffuseTexture.repeat.set(7, 3);
+  diffuseTexture.repeat.set(7, 1.5);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
   diffuseTexture.anisotropy = 8;
   diffuseTexture.needsUpdate = true;
@@ -443,7 +443,7 @@ function createPerforatedFloorTextures() {
   const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
   bumpTexture.wrapS = THREE.RepeatWrapping;
   bumpTexture.wrapT = THREE.RepeatWrapping;
-  bumpTexture.repeat.set(7, 3);
+  bumpTexture.repeat.set(7, 1.5);
   bumpTexture.anisotropy = 8;
   bumpTexture.needsUpdate = true;
 
@@ -567,7 +567,12 @@ function createTreadBoxGeo(lenX, h, lenZ, repeatCount, axis = 'x') {
       if (axis === 'x') {
         const u = ((posAttr.getX(i) / lenX) + 0.5) * repeatCount;
         const normZ = (posAttr.getZ(i) / lenZ) + 0.5;
-        const v = 1 - normZ; // sight-line on outer front lip
+        const v = 1 - normZ; // sight-line on outer -Z lip
+        uvAttr.setXY(i, u, v);
+      } else if (axis === 'x_front') {
+        const u = ((posAttr.getX(i) / lenX) + 0.5) * repeatCount;
+        const normZ = (posAttr.getZ(i) / lenZ) + 0.5;
+        const v = normZ; // sight-line on outer +Z lip
         uvAttr.setXY(i, u, v);
       } else if (axis === 'z_left') {
         const u = ((posAttr.getZ(i) / lenZ) + 0.5) * repeatCount;
@@ -1867,147 +1872,317 @@ function createCurvedPalmFrondGeometry(len = 1.1, width = 0.38, archRise = 0.22,
 }
 
 /**
- * Procedural suspended tech ceiling texture with recessed cleanroom LED light troffers (512x512).
- * Returns { diffuseTexture, emissiveTexture } tiled across the ceiling.
+ * Procedural Corporate IT Office Suspended Acoustic Ceiling Textures (2048x2048).
+ * Mapped 1:1 across the W = 20.0m (X = -10.0 to +10.0) x L = 23.5m (Z = -10.0 to +13.5) ceiling plane:
+ * - Clean, uniform Armstrong-style mineral-fiber Tegular acoustic ceiling tiles (#b8c1cc) with
+ *   stepped 3D shadow-line reveal edges (ZERO punctured dot grids, ZERO dark slotted grates!).
+ * - Continuous, flush satin-aluminum 1.0m x 1.0m T-bar suspension grid (ZERO gray squares at intersections!),
+ *   mathematically aligned with the floor tiles and the Server Containment Pod headers (X = ±7.0m, Z = -6.5m).
+ * - Undivided, seamless recessed architectural LED flat-panel troffers installed cleanly inside
+ *   their modular bays (drawn after the T-bar grid so ZERO lines ever cut a lamp in half!).
  */
 function createDataCenterCeilingTextures() {
+  const cw = 2048;
+  const ch = 2048;
+
   const diffCanvas = document.createElement('canvas');
-  diffCanvas.width = 512;
-  diffCanvas.height = 512;
+  diffCanvas.width = cw;
+  diffCanvas.height = ch;
   const dCtx = diffCanvas.getContext('2d');
 
   const emisCanvas = document.createElement('canvas');
-  emisCanvas.width = 512;
-  emisCanvas.height = 512;
+  emisCanvas.width = cw;
+  emisCanvas.height = ch;
   const eCtx = emisCanvas.getContext('2d');
 
-  // Base background: dark charcoal acoustic tile (#1e2229)
-  dCtx.fillStyle = '#1e2229';
-  dCtx.fillRect(0, 0, 512, 512);
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = cw;
+  bumpCanvas.height = ch;
+  const bCtx = bumpCanvas.getContext('2d');
 
-  // Emissive is pure black by default (#000000)
-  eCtx.fillStyle = '#000000';
-  eCtx.fillRect(0, 0, 512, 512);
+  // Coordinate mappers from world (X in [-10..+10], Z in [-10..+13.5]) to canvas pixels
+  const xToPx = (wx) => ((wx + 10.0) / 20.0) * cw;
+  const zToPy = (wz) => ((13.5 - wz) / 23.5) * ch;
+  const tileW = cw / 20.0;  // 102.4px per 1.0m along X
+  const tileH = ch / 23.5;  // 87.15px per 1.0m along Z
 
-  // Subtle acoustic aggregate noise on diffuse
-  const imgData = dCtx.getImageData(0, 0, 512, 512);
-  const data = imgData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const grain = (Math.random() - 0.5) * 10;
-    data[i] = Math.min(255, Math.max(0, data[i] + grain));
-    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
-    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
-  }
-  dCtx.putImageData(imgData, 0, 0);
+  // Base fill: clean corporate cool light-grey mineral-fiber acoustic board (#b8c1cc)
+  dCtx.fillStyle = '#b8c1cc';
+  dCtx.fillRect(0, 0, cw, ch);
 
-  // Perforated dot matrix on Tile 1 (top-right: 256, 0) and Tile 3 (bottom-right: 256, 256)
-  // matching the floor's dot matrix perforations!
-  const dotTiles = [[256, 0], [256, 256]];
-  for (const [tx, ty] of dotTiles) {
-    dCtx.fillStyle = '#13161c';
-    for (let py = ty + 24; py < ty + 236; py += 16) {
-      for (let px = tx + 24; px < tx + 236; px += 16) {
-        dCtx.beginPath();
-        dCtx.arc(px, py, 1.8, 0, Math.PI * 2);
-        dCtx.fill();
-      }
+  // Calibrated indirect room-bounce ambient fill on emissive so downward-facing ceiling (normal 0,-1,0)
+  // reads as a bright, natural corporate IT office acoustic ceiling alongside the #8c95a0 upper walls
+  eCtx.fillStyle = '#4c535e';
+  eCtx.fillRect(0, 0, cw, ch);
+
+  // Neutral mid-height bump base
+  bCtx.fillStyle = '#808080';
+  bCtx.fillRect(0, 0, cw, ch);
+
+  // 1. Subtle per-tile tonal variation & tegular stepped reveal edges for every 1.0m x 1.0m acoustic tile
+  let tileSeed = 48271;
+  const nextRand = () => {
+    tileSeed = (tileSeed * 16807) % 2147483647;
+    return (tileSeed - 1) / 2147483646;
+  };
+
+  for (let wx = -10; wx < 10; wx++) {
+    const x0 = xToPx(wx);
+    const x1 = xToPx(wx + 1.0);
+    const w = x1 - x0;
+
+    for (let wz = -10.5; wz < 13.5; wz += 1.0) {
+      // Tile spans [wz, wz + 1.0]; in canvas Y, zToPy(wz + 1.0) is top, zToPy(wz) is bottom
+      const y0 = zToPy(wz + 1.0);
+      const y1 = zToPy(wz);
+      const h = y1 - y0;
+
+      // Very gentle natural mineral-fiber board variation (±2.5 RGB)
+      const delta = Math.round((nextRand() - 0.5) * 5);
+      const r = Math.min(255, Math.max(0, 184 + delta));
+      const g = Math.min(255, Math.max(0, 193 + delta));
+      const b = Math.min(255, Math.max(0, 204 + delta));
+
+      // Slim tegular recessed reveal margin around the T-bar flange (~1.8px) so squares sit close together
+      const rev = 1.8;
+      dCtx.fillStyle = '#5c6674'; // Subtle recessed shadow-line reveal channel around tile perimeter
+      dCtx.fillRect(x0, y0, w, h);
+
+      eCtx.fillStyle = '#282e37';
+      eCtx.fillRect(x0, y0, w, h);
+
+      bCtx.fillStyle = '#484848'; // Recessed groove in bump map
+      bCtx.fillRect(x0, y0, w, h);
+
+      // Raised central acoustic tile face dropping below the T-bar (Tegular edge profile)
+      dCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      dCtx.fillRect(x0 + rev, y0 + rev, w - rev * 2, h - rev * 2);
+
+      const er = Math.min(255, Math.max(0, 76 + Math.round(delta * 0.5)));
+      const eg = Math.min(255, Math.max(0, 83 + Math.round(delta * 0.5)));
+      const eb = Math.min(255, Math.max(0, 94 + Math.round(delta * 0.5)));
+      eCtx.fillStyle = `rgb(${er}, ${eg}, ${eb})`;
+      eCtx.fillRect(x0 + rev, y0 + rev, w - rev * 2, h - rev * 2);
+
+      bCtx.fillStyle = '#969696'; // Raised tegular tile face in bump map
+      bCtx.fillRect(x0 + rev, y0 + rev, w - rev * 2, h - rev * 2);
+
+      // Crisp chamfered bevel highlight & shade along the tegular step
+      dCtx.strokeStyle = 'rgba(255, 255, 255, 0.30)';
+      dCtx.lineWidth = 0.9;
+      dCtx.beginPath();
+      dCtx.moveTo(x0 + rev, y1 - rev);
+      dCtx.lineTo(x0 + rev, y0 + rev);
+      dCtx.lineTo(x1 - rev, y0 + rev);
+      dCtx.stroke();
+
+      dCtx.strokeStyle = 'rgba(30, 36, 44, 0.22)';
+      dCtx.lineWidth = 0.9;
+      dCtx.beginPath();
+      dCtx.moveTo(x0 + rev, y1 - rev);
+      dCtx.lineTo(x1 - rev, y1 - rev);
+      dCtx.lineTo(x1 - rev, y0 + rev);
+      dCtx.stroke();
     }
   }
 
-  // Tile 2 (bottom-left: x: 0 to 256, y: 256 to 512) -> HVAC Return Air Grille
-  const hvacX = 26;
-  const hvacY = 282;
-  const hvacW = 204;
-  const hvacH = 204;
+  // Fine mineral-fiber acoustic micro-stipple across the tiles
+  const imgData = dCtx.getImageData(0, 0, cw, ch);
+  const data = imgData.data;
+  const bumpImg = bCtx.getImageData(0, 0, cw, ch);
+  const bData = bumpImg.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const grain = (Math.random() - 0.5) * 7;
+    data[i] = Math.min(255, Math.max(0, data[i] + grain));
+    data[i + 1] = Math.min(255, Math.max(0, data[i + 1] + grain));
+    data[i + 2] = Math.min(255, Math.max(0, data[i + 2] + grain));
 
-  dCtx.fillStyle = '#12151a';
-  dCtx.fillRect(hvacX, hvacY, hvacW, hvacH);
-  dCtx.strokeStyle = '#2d343f';
-  dCtx.lineWidth = 3;
-  dCtx.strokeRect(hvacX, hvacY, hvacW, hvacH);
+    const bGrain = (Math.random() - 0.5) * 6;
+    bData[i] = Math.min(255, Math.max(0, bData[i] + bGrain));
+    bData[i + 1] = bData[i];
+    bData[i + 2] = bData[i];
+  }
+  dCtx.putImageData(imgData, 0, 0);
+  bCtx.putImageData(bumpImg, 0, 0);
 
-  // 14 horizontal louver slats
-  for (let ly = hvacY + 12; ly < hvacY + hvacH - 8; ly += 13) {
-    dCtx.fillStyle = '#0a0c0f';
-    dCtx.fillRect(hvacX + 6, ly, hvacW - 12, 4);
-    dCtx.fillStyle = '#252b34';
-    dCtx.fillRect(hvacX + 6, ly + 4, hvacW - 12, 5);
-    dCtx.fillStyle = '#3d4552';
-    dCtx.fillRect(hvacX + 6, ly + 9, hvacW - 12, 1);
+  // 2. Continuous Slim Satin-Aluminum / Off-White 1.0m x 1.0m T-Bar Suspension Grid
+  // Zero corner squares or blobs! Clean continuous main runners and cross-tees.
+  const tBarHalfW = 1.0; // 2.0px slim architectural T-bar flange
+  for (let wx = -10; wx <= 10; wx++) {
+    const px = xToPx(wx);
+    dCtx.fillStyle = '#9aa3b0';
+    dCtx.fillRect(px - tBarHalfW, 0, tBarHalfW * 2, ch);
+    dCtx.fillStyle = '#b4bdca';
+    dCtx.fillRect(px - 0.4, 0, 0.8, ch);
+
+    eCtx.fillStyle = '#3d434d';
+    eCtx.fillRect(px - tBarHalfW, 0, tBarHalfW * 2, ch);
+
+    bCtx.fillStyle = '#747474';
+    bCtx.fillRect(px - tBarHalfW, 0, tBarHalfW * 2, ch);
   }
 
-  // Tile 0 (top-left: x: 0 to 256, y: 0 to 256) -> Recessed Cleanroom LED Light Troffer
-  const trofferX = 38;
-  const trofferY = 88;
-  const trofferW = 180;
-  const trofferH = 80;
+  for (let wz = -9.5; wz <= 13.5; wz += 1.0) {
+    const py = zToPy(wz);
+    dCtx.fillStyle = '#9aa3b0';
+    dCtx.fillRect(0, py - tBarHalfW, cw, tBarHalfW * 2);
+    dCtx.fillStyle = '#b4bdca';
+    dCtx.fillRect(0, py - 0.4, cw, 0.8);
 
-  // Dark metal housing bezel
-  dCtx.fillStyle = '#14171d';
-  dCtx.fillRect(trofferX - 10, trofferY - 10, trofferW + 20, trofferH + 20);
-  dCtx.strokeStyle = '#38404c';
-  dCtx.lineWidth = 2;
-  dCtx.strokeRect(trofferX - 10, trofferY - 10, trofferW + 20, trofferH + 20);
+    eCtx.fillStyle = '#3d434d';
+    eCtx.fillRect(0, py - tBarHalfW, cw, tBarHalfW * 2);
 
-  // Cleanroom LED light diffuser panel (cool-white/ice-blue #dceeff)
-  const grad = dCtx.createLinearGradient(trofferX, trofferY, trofferX, trofferY + trofferH);
-  grad.addColorStop(0, '#ebf5ff');
-  grad.addColorStop(0.5, '#dceeff');
-  grad.addColorStop(1, '#c8e2fb');
-  dCtx.fillStyle = grad;
-  dCtx.fillRect(trofferX, trofferY, trofferW, trofferH);
+    bCtx.fillStyle = '#747474';
+    bCtx.fillRect(0, py - tBarHalfW, cw, tBarHalfW * 2);
+  }
 
-  // Subtle inner bezel frame on diffuse
-  dCtx.strokeStyle = '#94a3b8';
-  dCtx.lineWidth = 1;
-  dCtx.strokeRect(trofferX, trofferY, trofferW, trofferH);
+  // 3. Undivided, Seamless Recessed Architectural LED Flat-Panel Troffers
+  // Drawn AFTER the T-bar grid so that multi-tile (2.0m x 1.0m) fixtures replace the intermediate
+  // cross-tee as a single, whole, unbroken luminaire with ZERO lines cutting through the lamp!
+  const drawUndividedLedPanel = (xMin, xMax, zMin, zMax) => {
+    // Inset strictly inside the surrounding perimeter T-bar flange with a tight reveal
+    const padPx = tBarHalfW + 0.8;
+    const x0 = xToPx(xMin) + padPx;
+    const x1 = xToPx(xMax) - padPx;
+    const y0 = zToPy(zMax) + padPx;
+    const y1 = zToPy(zMin) - padPx;
+    const w = x1 - x0;
+    const h = y1 - y0;
 
-  // Companion emissiveMap: ONLY this rectangular LED light bar is bright (#8899aa)
-  eCtx.fillStyle = '#8899aa';
-  eCtx.fillRect(trofferX, trofferY, trofferW, trofferH);
+    // A. Outer dark recessed shadow gap around fixture perimeter
+    dCtx.fillStyle = '#48505d';
+    dCtx.fillRect(x0, y0, w, h);
+    eCtx.fillStyle = '#20252d';
+    eCtx.fillRect(x0, y0, w, h);
+    bCtx.fillStyle = '#383838';
+    bCtx.fillRect(x0, y0, w, h);
 
-  // 1. 2x2 Dark Metallic T-bar Suspension Rails (#16191e with #343b46 bevel edges)
-  // Perimeter rails
-  dCtx.strokeStyle = '#16191e';
-  dCtx.lineWidth = 10;
-  dCtx.strokeRect(0, 0, 512, 512);
+    // B. Sleek powder-coated white/silver aluminum luminaire bezel frame (~5.5px wide)
+    const frameInset = 1.0;
+    const frameW = 5.5;
+    const fx = x0 + frameInset;
+    const fy = y0 + frameInset;
+    const fw = w - frameInset * 2;
+    const fh = h - frameInset * 2;
 
-  // Center cross rails
-  dCtx.beginPath();
-  dCtx.moveTo(256, 0); dCtx.lineTo(256, 512);
-  dCtx.moveTo(0, 256); dCtx.lineTo(512, 256);
-  dCtx.stroke();
+    const frameGrad = dCtx.createLinearGradient(fx, fy, fx, fy + fh);
+    frameGrad.addColorStop(0, '#d8e0ea');
+    frameGrad.addColorStop(0.5, '#c5ced9');
+    frameGrad.addColorStop(1, '#b0bac7');
+    dCtx.fillStyle = frameGrad;
+    dCtx.fillRect(fx, fy, fw, fh);
 
-  // Bevel highlight edges on rails
-  dCtx.strokeStyle = '#343b46';
-  dCtx.lineWidth = 1.5;
-  dCtx.beginPath();
-  dCtx.moveTo(258, 0); dCtx.lineTo(258, 512);
-  dCtx.moveTo(0, 258); dCtx.lineTo(512, 258);
-  dCtx.stroke();
+    eCtx.fillStyle = '#586170';
+    eCtx.fillRect(fx, fy, fw, fh);
 
-  // Center intersection clip
-  dCtx.fillStyle = '#424b58';
-  dCtx.fillRect(250, 250, 12, 12);
+    bCtx.fillStyle = '#a8a8a8';
+    bCtx.fillRect(fx, fy, fw, fh);
 
-  // Diffuse texture
+    // Subtle 45-degree mitered corner lines on the aluminum bezel frame
+    dCtx.strokeStyle = 'rgba(70, 80, 95, 0.45)';
+    dCtx.lineWidth = 1.0;
+    dCtx.beginPath();
+    // Top-left miter
+    dCtx.moveTo(fx, fy);
+    dCtx.lineTo(fx + frameW, fy + frameW);
+    // Top-right miter
+    dCtx.moveTo(fx + fw, fy);
+    dCtx.lineTo(fx + fw - frameW, fy + frameW);
+    // Bottom-left miter
+    dCtx.moveTo(fx, fy + fh);
+    dCtx.lineTo(fx + frameW, fy + fh - frameW);
+    // Bottom-right miter
+    dCtx.moveTo(fx + fw, fy + fh);
+    dCtx.lineTo(fx + fw - frameW, fy + fh - frameW);
+    dCtx.stroke();
+
+    // C. Inner recessed diffuser gasket rim
+    const lx = fx + frameW;
+    const ly = fy + frameW;
+    const lw = fw - frameW * 2;
+    const lh = fh - frameW * 2;
+
+    dCtx.fillStyle = '#7c8796';
+    dCtx.fillRect(lx - 1.5, ly - 1.5, lw + 3.0, lh + 3.0);
+    bCtx.fillStyle = '#505050';
+    bCtx.fillRect(lx - 1.5, ly - 1.5, lw + 3.0, lh + 3.0);
+
+    // D. Single Undivided Micro-Prismatic Opal LED Diffuser Lens (100% seamless — zero divider bars!)
+    const diffGrad = dCtx.createLinearGradient(lx, ly, lx, ly + lh);
+    diffGrad.addColorStop(0, '#e6f0fa');
+    diffGrad.addColorStop(0.18, '#f5f9ff');
+    diffGrad.addColorStop(0.50, '#ffffff');
+    diffGrad.addColorStop(0.82, '#f5f9ff');
+    diffGrad.addColorStop(1, '#e2edf8');
+    dCtx.fillStyle = diffGrad;
+    dCtx.fillRect(lx, ly, lw, lh);
+
+    // Soft radial/edge falloff on emissive map so the glowing panel has realistic depth
+    const emisGrad = eCtx.createLinearGradient(lx, ly, lx, ly + lh);
+    emisGrad.addColorStop(0, '#c8daf0');
+    emisGrad.addColorStop(0.15, '#eaf3ff');
+    emisGrad.addColorStop(0.50, '#ffffff');
+    emisGrad.addColorStop(0.85, '#eaf3ff');
+    emisGrad.addColorStop(1, '#c8daf0');
+    eCtx.fillStyle = emisGrad;
+    eCtx.fillRect(lx, ly, lw, lh);
+
+    // Flat recessed lens surface in bump map
+    bCtx.fillStyle = '#686868';
+    bCtx.fillRect(lx, ly, lw, lh);
+  };
+
+  // Lighting Z-bands (each spanning exactly 1.0m [zMin, zMax] between horizontal T-bars):
+  // - Inside Server Containment Pod (Z = -9.5 to -6.5m): centered row [-8.5, -7.5] (1.0m clear of Z = -6.5m pod frame!)
+  // - Across Main Office (Z = -6.5 to +13.5m): every 3.0m ([-5.5,-4.5], [-2.5,-1.5], [0.5,1.5], [3.5,4.5], [6.5,7.5], [9.5,10.5])
+  const lightZBands = [
+    [-8.5, -7.5],
+    [-5.5, -4.5],
+    [-2.5, -1.5],
+    [0.5, 1.5],
+    [3.5, 4.5],
+    [6.5, 7.5],
+    [9.5, 10.5],
+  ];
+
+  for (const [zMin, zMax] of lightZBands) {
+    // 3 Central Undivided 2.0m x 1.0m Recessed LED Troffers (2.0m clear of X = ±7.0m pod walls!)
+    drawUndividedLedPanel(-5.0, -3.0, zMin, zMax);
+    drawUndividedLedPanel(-1.0, 1.0, zMin, zMax);
+    drawUndividedLedPanel(3.0, 5.0, zMin, zMax);
+
+    // 2 Side-Aisle Undivided 1.0m x 1.0m Recessed LED Troffers (1.0m clear of X = ±7.0m pod walls & X = ±10.0m outer walls!)
+    drawUndividedLedPanel(-9.0, -8.0, zMin, zMax);
+    drawUndividedLedPanel(8.0, 9.0, zMin, zMax);
+  }
+
+  // Diffuse texture (1:1 full-room mapping)
   const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
-  diffuseTexture.wrapS = THREE.RepeatWrapping;
-  diffuseTexture.wrapT = THREE.RepeatWrapping;
-  diffuseTexture.repeat.set(5, 6);
+  diffuseTexture.wrapS = THREE.ClampToEdgeWrapping;
+  diffuseTexture.wrapT = THREE.ClampToEdgeWrapping;
+  diffuseTexture.repeat.set(1, 1);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
-  diffuseTexture.anisotropy = 4;
+  diffuseTexture.anisotropy = 8;
   diffuseTexture.needsUpdate = true;
 
-  // Emissive texture
+  // Emissive texture (1:1 full-room mapping)
   const emissiveTexture = new THREE.CanvasTexture(emisCanvas);
-  emissiveTexture.wrapS = THREE.RepeatWrapping;
-  emissiveTexture.wrapT = THREE.RepeatWrapping;
-  emissiveTexture.repeat.set(5, 6);
-  emissiveTexture.anisotropy = 4;
+  emissiveTexture.wrapS = THREE.ClampToEdgeWrapping;
+  emissiveTexture.wrapT = THREE.ClampToEdgeWrapping;
+  emissiveTexture.repeat.set(1, 1);
+  emissiveTexture.colorSpace = THREE.SRGBColorSpace;
+  emissiveTexture.anisotropy = 8;
   emissiveTexture.needsUpdate = true;
 
-  return { diffuseTexture, emissiveTexture };
+  // Bump texture (1:1 full-room mapping)
+  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+  bumpTexture.wrapS = THREE.ClampToEdgeWrapping;
+  bumpTexture.wrapT = THREE.ClampToEdgeWrapping;
+  bumpTexture.repeat.set(1, 1);
+  bumpTexture.anisotropy = 8;
+  bumpTexture.needsUpdate = true;
+
+  return { diffuseTexture, emissiveTexture, bumpTexture };
 }
 
 /**
@@ -9203,6 +9378,7 @@ export class WarehouseBuilder {
     const ceilingTex = createDataCenterCeilingTextures();
     this.ceilingTexture = ceilingTex.diffuseTexture;
     this.ceilingEmissiveTexture = ceilingTex.emissiveTexture;
+    this.ceilingBumpTexture = ceilingTex.bumpTexture;
     const rackTex = createServerCabinetTextures();
     this.serverBladeDiffuseTexture = rackTex.diffuseTexture;
     this.serverBladeEmissiveTexture = rackTex.emissiveTexture;
@@ -9294,11 +9470,13 @@ export class WarehouseBuilder {
 
     this.ceilingMaterial = new THREE.MeshStandardMaterial({
       map: this.ceilingTexture,
+      bumpMap: this.ceilingBumpTexture,
+      bumpScale: 0.002,
       emissive: new THREE.Color(0xffffff),
       emissiveMap: this.ceilingEmissiveTexture,
-      emissiveIntensity: 0.60,
-      roughness: 0.60,
-      metalness: 0.25,
+      emissiveIntensity: 0.65,
+      roughness: 0.78,
+      metalness: 0.08,
     });
 
     // Industrial Gunmetal Slate for cabinets, PC chassis, desk legs, monitor bezels
@@ -9949,6 +10127,25 @@ float rackHash(vec2 p) {
       roughness: 0.30,
       metalness: 0.10,
     });
+
+    // Server Containment Pod (Platform-to-Ceiling Tempered Glass Enclosure & Double Doors) Materials
+    this.serverPodAlumFrameMaterial = new THREE.MeshStandardMaterial({
+      color: 0x8a929a,
+      roughness: 0.28,
+      metalness: 0.75,
+      envMapIntensity: 0.60,
+    });
+
+    this.serverPodGlassMaterial = new THREE.MeshStandardMaterial({
+      color: 0x162028,
+      transparent: true,
+      opacity: 0.28,
+      roughness: 0.08,
+      metalness: 0.15,
+      envMapIntensity: 0.65,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
   }
 
   /**
@@ -9970,6 +10167,7 @@ float rackHash(vec2 p) {
 
   build() {
     this.monitorScreens = [];
+    this.glassMeshes = [];
     const group = new THREE.Group();
     group.name = 'DataCenterArena';
     this.scene.add(group);
@@ -10066,6 +10264,8 @@ float rackHash(vec2 p) {
       elevatorDisplay: [],
       exitSign: [],
       vestibuleCeilingLight: [],
+      serverPodAlumFrame: [],
+      serverPodGlass: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -10144,15 +10344,15 @@ float rackHash(vec2 p) {
     registerCollider(floorCollider, 0, -0.5, zCenter);
     floorCollider.dispose();
 
-    // 2. ENTERPRISE DATA CENTER RAISED PLENUM FLOOR STAGE (Z = 7.5 to 13.5, Height = +0.35m)
-    // Elevates Row 3 workstations and the back wall server racks on an authentic modular access plenum floor.
-    // Dimensions & collider bounds are 100% preserved (platW = 14.0m, platL = 6.0m, platH = 0.35m, platZ = 10.5m).
+    // 2. ENTERPRISE DATA CENTER RAISED PLENUM FLOOR STAGE (Z = -9.50 to -6.50, Height = +0.35m)
+    // Supports the 8 server racks along the Front Wall (Z = -9.50m) spanning exactly 3 full 1.0m floor squares.
     const platW = 14.0;
-    const platL = 6.0;
+    const platL = 3.00;
     const platH = 0.35;
-    const platZ = 10.5;
+    const platZ = -8.00;      // Back edge flush with Front Wall inner surface at Z = -9.50m
+    const platZFront = -6.50; // Exposed front step edge facing +Z into the room (aligned exactly with the 3rd tile seam)
 
-    // A. Static BVH Environment Collider for Raised Platform (Identical bounds: 14.0m x 0.35m x 6.0m)
+    // A. Static BVH Environment Collider for Raised Platform (14.0m x 0.35m x 3.00m)
     const platformColliderGeo = new THREE.BoxGeometry(platW, platH, platL);
     registerCollider(platformColliderGeo, 0, platH / 2, platZ);
     platformColliderGeo.dispose();
@@ -10170,9 +10370,9 @@ float rackHash(vec2 p) {
     topPlaneGeo.dispose();
 
     // D. Grounding Cove Baseboard Trim at y = 0.0 (0.015m thick x 0.035m tall in #0f1217)
-    // Front baseboard strip (Z = 7.5)
+    // Front baseboard strip (Z = -6.50m, facing +Z)
     const frontBaseboardGeo = new THREE.BoxGeometry(platW + 0.03, 0.035, 0.015);
-    addVisual(visualBuckets.plenumBaseboard, frontBaseboardGeo, 0, 0.035 / 2, 7.5 - 0.015 / 2);
+    addVisual(visualBuckets.plenumBaseboard, frontBaseboardGeo, 0, 0.035 / 2, platZFront + 0.015 / 2);
     frontBaseboardGeo.dispose();
 
     // Left side baseboard strip (X = -7.0m)
@@ -10186,9 +10386,9 @@ float rackHash(vec2 p) {
     rightBaseboardGeo.dispose();
 
     // E. Flush, Low-Profile Brushed Slate-Steel Top Perimeter Nosing Channels (No overhanging gap or z-fighting)
-    // Front nosing metal channel
+    // Front nosing metal channel (along Z = -6.50m)
     const frontNosingGeo = new THREE.BoxGeometry(platW + 0.03, 0.018, 0.024);
-    addVisual(visualBuckets.stepNosingMetal, frontNosingGeo, 0, platH + 0.001, 7.5 - 0.012);
+    addVisual(visualBuckets.stepNosingMetal, frontNosingGeo, 0, platH + 0.001, platZFront + 0.012);
     frontNosingGeo.dispose();
 
     // Left side nosing metal channel
@@ -10202,18 +10402,18 @@ float rackHash(vec2 p) {
     rightNosingGeo.dispose();
 
     // F. Flush Ribbed Rubber Anti-Slip Step Tread with High-Tech Sight-Line Accent
-    // Front step tread
-    const frontTreadGeo = createTreadBoxGeo(platW, 0.004, 0.020, 14, 'x');
-    addVisual(visualBuckets.stepTread, frontTreadGeo, 0, platH + 0.005, 7.5 - 0.010);
+    // Front step tread (along Z = -6.50m, sight-line on outer +Z lip)
+    const frontTreadGeo = createTreadBoxGeo(platW, 0.004, 0.020, 14, 'x_front');
+    addVisual(visualBuckets.stepTread, frontTreadGeo, 0, platH + 0.005, platZFront + 0.010);
     frontTreadGeo.dispose();
 
     // Left side step tread (direct box aligned along Z, no Y-rotation!)
-    const leftTreadGeo = createTreadBoxGeo(0.020, 0.004, platL, 6, 'z_left');
+    const leftTreadGeo = createTreadBoxGeo(0.020, 0.004, platL, 3, 'z_left');
     addVisual(visualBuckets.stepTread, leftTreadGeo, -platW / 2 - 0.010, platH + 0.005, platZ);
     leftTreadGeo.dispose();
 
     // Right side step tread (direct box aligned along Z, no Y-rotation!)
-    const rightTreadGeo = createTreadBoxGeo(0.020, 0.004, platL, 6, 'z_right');
+    const rightTreadGeo = createTreadBoxGeo(0.020, 0.004, platL, 3, 'z_right');
     addVisual(visualBuckets.stepTread, rightTreadGeo, platW / 2 + 0.010, platH + 0.005, platZ);
     rightTreadGeo.dispose();
 
@@ -10389,13 +10589,13 @@ float rackHash(vec2 p) {
     postColliderGeo.dispose();
     endClipGeo.dispose();
 
-    // Player Lounge: Enterprise Coffee Station & Potted Areca Palm
-    // A. Enterprise Coffee Station (RED Rectangle: Z = -6.8m, X = +9.55m flush to wall)
-    // Rotated -Math.PI / 2 so cabinet doors, touchscreen & spout face inward (-X toward player)
-    this._buildCoffeeStation(addVisual, registerCollider, visualBuckets, 9.55, 0.0, -6.8);
+    // Enterprise Coffee Station & Potted Areca Palm (Relocated to Glass Partition Wall at X = -10.0m)
+    // A. Enterprise Coffee Station (Rotated +Math.PI / 2 so cabinet doors, touchscreen & spout face inward (+X into room))
+    // Sits on solid wall section immediately to the right of glass window frame (Z = 0.70m, X = -9.55m flush to wall)
+    this._buildCoffeeStation(addVisual, registerCollider, visualBuckets, -9.55, 0.0, 0.70, Math.PI / 2);
 
-    // B. Potted Areca Palm Plant (GREEN Rectangle: Z = -8.8m, X = +9.2m corner)
-    this._buildArecaPalm(addVisual, registerCollider, visualBuckets, 9.2, 0.0, -8.8);
+    // B. Potted Areca Palm Plant (Compact indoor office scale ~58%, placed neatly beside the coffee cabinet)
+    this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -9.45, 0.0, -0.62, 0.58, 0.50);
 
     // C. Enterprise Wall-Mounted Split AC Units (LG Artcool Mirror Style - +40% FPS Hero Scale)
     // 3 units mounted high on the wall with the stanchions, coffee machine & plant (X = 10.0m) near ceiling (Y = 3.42m)
@@ -10405,24 +10605,33 @@ float rackHash(vec2 p) {
       this._buildSplitAC(addVisual, registerCollider, visualBuckets, 9.845, 3.42, acZ);
     }
 
-    // Zone B: 42U Server Racks
-    // Back Wall Server Racks: Full row of 8 massive cabinets across Z = 12.52 facing -Z!
-    // Stood directly ON TOP of the raised platform at baseY = platH (0.35m), with 8cm rear wall clearance!
-    const backRackX = [-5.6, -4.0, -2.4, -0.8, 0.8, 2.4, 4.0, 5.6];
-    const backRackZ = 12.52; // Rear face at Z = 12.92, wall at Z = 13.00 -> Clean, unclipped clearance
-    for (const rx of backRackX) {
-      this._buildServerCabinet(addPart, addVisual, visualBuckets, rx, backRackZ, 0, platH); // rotY = 0 faces -Z, on platform!
+    // Zone B: 42U Server Racks & Tempered Glass Server Containment Pod
+    // Front Wall Server Racks: Full row of 8 massive cabinets across Z = -9.02 facing +Z!
+    // Stood directly ON TOP of the relocated raised platform at baseY = platH (0.35m), with 8cm rear wall clearance from Z = -9.50m!
+    const frontRackX = [-5.6, -4.0, -2.4, -0.8, 0.8, 2.4, 4.0, 5.6];
+    const frontRackZ = -9.02; // Rear face at Z = -9.42, wall at Z = -9.50 -> Clean, unclipped 8cm clearance
+    for (const rx of frontRackX) {
+      this._buildServerCabinet(addPart, addVisual, visualBuckets, rx, frontRackZ, Math.PI, platH); // rotY = Math.PI faces +Z into the room!
     }
 
-    // Zone C: Workstation Cover Rows
+    // Platform-to-Ceiling Tempered Glass Server Containment Pod with Centered Double Aluminum-Glass Doors
+    this._buildServerContainmentPod(
+      addPart,
+      addVisual,
+      registerCollider,
+      registerPlayerOnlyCollider,
+      visualBuckets
+    );
+
+    // Zone C: Workstation Cover Rows (All 3 rows strictly on the main floor at baseY = 0.0!)
     // Row 1: Close Distance (Z = 1.8m, Floor level)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 1.8, 0.0, 'close', addPartMatrix);
 
     // Row 2: Mid Distance (Z = 5.5m, Floor level, staggered wider)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 5.5, 0.0, 'mid', addPartMatrix);
 
-    // Row 3: Far Distance (Z = 9.2m, Elevated on +0.35m platform!)
-    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 9.2, platH, 'far', addPartMatrix);
+    // Row 3: Far Distance (Z = 9.2m, Floor level)
+    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 9.2, 0.0, 'far', addPartMatrix);
 
     // Zone D: Corporate Access Vestibule (Glass Partition Wall, Open Glass Door, Stairwell & Elevator Room)
     this._buildCorporateAccessVestibule(
@@ -10512,8 +10721,10 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.elevatorDisplay, material: this.elevatorDisplayMaterial, name: 'DC_ElevatorDisplay' },
       { bucket: visualBuckets.exitSign, material: this.exitSignMaterial, name: 'DC_ExitSign' },
       { bucket: visualBuckets.vestibuleCeilingLight, material: this.vestibuleCeilingLightMaterial, name: 'DC_VestibuleCeilingLight' },
+      { bucket: visualBuckets.serverPodAlumFrame, material: this.serverPodAlumFrameMaterial, name: 'DC_ServerPodAlumFrame' },
       { bucket: visualBuckets.vestibuleGlassSeam, material: this.vestibuleGlassSeamMaterial, name: 'DC_VestibuleGlassSeam', renderOrder: 2 },
-      { bucket: visualBuckets.vestibuleGlass, material: this.vestibuleGlassMaterial, name: 'DC_VestibuleGlass', renderOrder: 2 },
+      { bucket: visualBuckets.vestibuleGlass, material: this.vestibuleGlassMaterial, name: 'DC_VestibuleGlass', renderOrder: 2, isGlass: true },
+      { bucket: visualBuckets.serverPodGlass, material: this.serverPodGlassMaterial, name: 'DC_ServerPodGlass', renderOrder: 2, isGlass: true },
     ];
 
     for (const def of bucketDefs) {
@@ -10541,13 +10752,17 @@ float rackHash(vec2 p) {
         if (mergedGeo) {
           mergedGeo.computeBoundingBox();
           mergedGeo.computeBoundingSphere();
-          if (def.name === 'DC_VestibuleGlass' && typeof mergedGeo.computeBoundsTree === 'function') {
+          if (def.isGlass && typeof mergedGeo.computeBoundsTree === 'function') {
             mergedGeo.computeBoundsTree({ maxLeafTris: 5, strategy: 0 });
           }
           const mesh = new THREE.Mesh(mergedGeo, def.material);
           mesh.name = def.name;
-          if (def.name === 'DC_VestibuleGlass') {
-            this.glassMesh = mesh;
+          if (def.isGlass) {
+            mesh.userData.isGlass = true;
+            this.glassMeshes.push(mesh);
+            if (def.name === 'DC_VestibuleGlass') {
+              this.glassMesh = mesh;
+            }
           }
           if (def.renderOrder !== undefined) {
             mesh.renderOrder = def.renderOrder;
@@ -11577,9 +11792,9 @@ float rackHash(vec2 p) {
    * - Angled touchscreen fascia assembly (Y = 1.58m to 2.08m) sitting proud with ZERO clipping into chassis
    * - Paper cup stacks, placed espresso cup, and fully registered BVH colliders.
    */
-  _buildCoffeeStation(addVisual, registerCollider, visualBuckets, posX = 9.55, posY = 0.0, posZ = -6.8) {
+  _buildCoffeeStation(addVisual, registerCollider, visualBuckets, posX = -9.55, posY = 0.0, posZ = 0.70, rotY = Math.PI / 2) {
     const coffeePos = new THREE.Vector3(posX, posY, posZ);
-    const coffeeQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, -Math.PI / 2, 0));
+    const coffeeQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0));
     const coffeeScale = new THREE.Vector3(1, 1, 1);
     const coffeeMatrix = new THREE.Matrix4().compose(coffeePos, coffeeQuat, coffeeScale);
 
@@ -11794,11 +12009,12 @@ float rackHash(vec2 p) {
 
     // 8. COLLIDERS (Registered into BVH for physics and bullet hitscan!)
     const counterCollider = new THREE.BoxGeometry(1.66, 1.17, 0.90);
-    registerCollider(counterCollider, posX, 0.585, posZ, 0, -Math.PI / 2, 0);
+    registerCollider(counterCollider, posX, posY + 0.585, posZ, 0, rotY, 0);
     counterCollider.dispose();
 
     const machineCollider = new THREE.BoxGeometry(0.58, 1.12, 0.68);
-    registerCollider(machineCollider, posX - 0.01, 1.17 + 0.56, posZ + mx, 0, -Math.PI / 2, 0);
+    const machWorldPos = new THREE.Vector3(mx, 1.17 + 0.56, mz).applyMatrix4(coffeeMatrix);
+    registerCollider(machineCollider, machWorldPos.x, machWorldPos.y, machWorldPos.z, 0, rotY, 0);
     machineCollider.dispose();
   }
 
@@ -12744,9 +12960,9 @@ float rackHash(vec2 p) {
     exitFaceGeo.dispose();
 
     // C. Cylindrical Brushed Stainless-Steel Office Trash Bin (Inside Main Office under Glass Window)
-    // Positioned at X = -9.72m, Z = +6.80m against the lower half-wall below the glass partition
+    // Positioned at X = -9.72m, Z = +2.10m against the lower half-wall below the glass partition (0.36m from coffee cabinet)
     const binX = -9.72;
-    const binZ = 6.80;
+    const binZ = 2.10;
     const binR = 0.21;
     const binH = 0.68;
 
@@ -12780,6 +12996,280 @@ float rackHash(vec2 p) {
     // Scaled (scale = 0.64, frondSpreadScale = 0.50) to harmonize cleanly with the 0.94m corner niche
     // between the elevator left portal jamb (X = -13.26) and the west wall (X = -14.20) at Z = 10.83.
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -13.73, 0.0, 10.83, 0.64, 0.50);
+  }
+
+  /**
+   * Builds the Platform-to-Ceiling 3-Sided Tempered Glass Server Containment Pod
+   * enclosing the 8 Server Racks on the raised platform (X = -7.00m to +7.00m,
+   * Z = -9.50m to -6.50m, Y = 0.35m to 3.80m), complete with anodized aluminum
+   * perimeter framing, rack-aligned vertical mullions, a centered double aluminum-glass
+   * door assembly, brushed-chrome pull handles/locks/hinges, and an interior ceiling shadow soffit.
+   */
+  _buildServerContainmentPod(
+    addPart,
+    addVisual,
+    registerCollider,
+    registerPlayerOnlyCollider,
+    visualBuckets
+  ) {
+    const yBottom = 0.353; // Flush on top of the 0.352m plenum platform surface (1mm clearance for zero Z-fighting)
+    const yTop = 3.798;    // Flush against the 3.800m suspended ceiling
+    const podH = yTop - yBottom; // 3.445m
+    const podMidY = (yBottom + yTop) * 0.5;
+
+    const zFront = -6.535; // Sits flat on platform top just behind the -6.500m front step tread
+    const xLeft = -6.965;  // Sits flat on platform top just inside the -7.000m left step tread
+    const xRight = 6.965;  // Sits flat on platform top just inside the +7.000m right step tread
+
+    const trackH = 0.046;
+    const headerH = 0.050;
+    const paneYMin = yBottom + trackH + 0.001; // 0.400m
+    const paneYMax = yTop - headerH - 0.001;   // 3.747m
+    const paneH = paneYMax - paneYMin;         // 3.347m
+    const paneMidY = (paneYMin + paneYMax) * 0.5;
+    const glassThick = 0.012;
+
+    // =========================================================================
+    // 1. CORNER COLUMNS & BACK-WALL VERTICAL JAMBS
+    // =========================================================================
+    // 2 Front Corner Columns (X = ±6.965m, Z = -6.535m)
+    const cornerPostGeo = new THREE.BoxGeometry(0.064, podH, 0.064);
+    addPart(visualBuckets.serverPodAlumFrame, cornerPostGeo, xLeft, podMidY, zFront);
+    addPart(visualBuckets.serverPodAlumFrame, cornerPostGeo, xRight, podMidY, zFront);
+    cornerPostGeo.dispose();
+
+    // 2 Back-Wall Vertical Jambs sealing flush against Front Wall inner surface (Z = -9.500m)
+    const wallJambGeo = new THREE.BoxGeometry(0.060, podH, 0.048);
+    addPart(visualBuckets.serverPodAlumFrame, wallJambGeo, xLeft, podMidY, -9.476);
+    addPart(visualBuckets.serverPodAlumFrame, wallJambGeo, xRight, podMidY, -9.476);
+    wallJambGeo.dispose();
+
+    // =========================================================================
+    // 2. LEFT & RIGHT SIDE GLASS WALLS (X = ±6.965m, Z = -9.451m to -6.568m)
+    // =========================================================================
+    const sideZStart = -9.451;
+    const sideZEnd = -6.568;
+    const sideSpanZ = sideZEnd - sideZStart; // 2.883m
+    const sideMidZ = (sideZStart + sideZEnd) * 0.5; // -8.0095m
+
+    const sideBottomTrackGeo = new THREE.BoxGeometry(0.056, trackH, sideSpanZ);
+    const sideTopHeaderGeo = new THREE.BoxGeometry(0.056, headerH, sideSpanZ);
+    const sideMullionGeo = new THREE.BoxGeometry(0.052, paneH, 0.044);
+
+    const sideBaySpanZ = (sideSpanZ - 0.044 - 0.004) * 0.5; // 1.4175m per side bay
+    const sideGlassGeo = new THREE.BoxGeometry(glassThick, paneH - 0.002, sideBaySpanZ);
+    const sideRearBayMidZ = sideZStart + 0.001 + sideBaySpanZ * 0.5;
+    const sideFrontBayMidZ = sideZEnd - 0.001 - sideBaySpanZ * 0.5;
+
+    for (const sx of [xLeft, xRight]) {
+      // Bottom platform track & top ceiling header channel
+      addPart(visualBuckets.serverPodAlumFrame, sideBottomTrackGeo, sx, yBottom + trackH * 0.5, sideMidZ);
+      addPart(visualBuckets.serverPodAlumFrame, sideTopHeaderGeo, sx, yTop - headerH * 0.5, sideMidZ);
+      // Center vertical side mullion dividing side wall into 2 modular bays
+      addPart(visualBuckets.serverPodAlumFrame, sideMullionGeo, sx, paneMidY, sideMidZ);
+      // 2 Smoked Tempered Glass Side Bays
+      addVisual(visualBuckets.serverPodGlass, sideGlassGeo, sx, paneMidY, sideRearBayMidZ);
+      addVisual(visualBuckets.serverPodGlass, sideGlassGeo, sx, paneMidY, sideFrontBayMidZ);
+    }
+    sideBottomTrackGeo.dispose();
+    sideTopHeaderGeo.dispose();
+    sideMullionGeo.dispose();
+    sideGlassGeo.dispose();
+
+    // =========================================================================
+    // 3. FRONT GLASS WALL — TOP HEADER, DOOR PORTAL & FIXED WINGS (Z = -6.535m)
+    // =========================================================================
+    const frontFullSpanX = (xRight - 0.032) - (xLeft + 0.032) - 0.002; // 13.864m (-6.932 to +6.932)
+    const frontTopHeaderGeo = new THREE.BoxGeometry(frontFullSpanX, headerH, 0.056);
+    addPart(visualBuckets.serverPodAlumFrame, frontTopHeaderGeo, 0, yTop - headerH * 0.5, zFront);
+    frontTopHeaderGeo.dispose();
+
+    // Heavy Anodized Aluminum Door Portal Posts at X = -1.60m and X = +1.60m
+    // (Exact midpoints between Rack 3 & 4 on the left, and Rack 5 & 6 on the right!)
+    const portalPostW = 0.064;
+    const portalPostH = yTop - headerH - yBottom - 0.002; // 3.393m (Y = 0.353 to 3.746)
+    const portalPostMidY = yBottom + portalPostH * 0.5;
+    const portalPostGeo = new THREE.BoxGeometry(portalPostW, portalPostH, 0.068);
+    addPart(visualBuckets.serverPodAlumFrame, portalPostGeo, -1.60, portalPostMidY, zFront);
+    addPart(visualBuckets.serverPodAlumFrame, portalPostGeo, 1.60, portalPostMidY, zFront);
+    portalPostGeo.dispose();
+
+    // Left & Right Fixed Wing Bottom Tracks (X = ±1.633m to ±6.932m, span = 5.299m)
+    const wingInnerX = 1.60 + portalPostW * 0.5 + 0.001; // 1.633m
+    const wingOuterX = xRight - 0.032 - 0.001;           // 6.932m
+    const wingSpanX = wingOuterX - wingInnerX;           // 5.299m
+    const wingMidX = (wingInnerX + wingOuterX) * 0.5;    // 4.2825m
+
+    const wingBottomTrackGeo = new THREE.BoxGeometry(wingSpanX, trackH, 0.056);
+    addPart(visualBuckets.serverPodAlumFrame, wingBottomTrackGeo, -wingMidX, yBottom + trackH * 0.5, zFront);
+    addPart(visualBuckets.serverPodAlumFrame, wingBottomTrackGeo, wingMidX, yBottom + trackH * 0.5, zFront);
+    wingBottomTrackGeo.dispose();
+
+    // Slim Vertical Aluminum Mullions on Left & Right Wings aligned with Server Rack gaps (X = ±3.20m, ±4.80m)
+    const mullionW = 0.044;
+    const frontMullionGeo = new THREE.BoxGeometry(mullionW, paneH, 0.052);
+    for (const mx of [-4.80, -3.20, 3.20, 4.80]) {
+      addPart(visualBuckets.serverPodAlumFrame, frontMullionGeo, mx, paneMidY, zFront);
+    }
+    frontMullionGeo.dispose();
+
+    // 6 Modular Smoked Glass Bays across Left & Right Fixed Wings (3 on Left Wing, 3 on Right Wing)
+    const wingBayBounds = [
+      // Left Wing (Racks 1, 2, 3)
+      [-wingOuterX + 0.001, -4.80 - mullionW * 0.5 - 0.001],
+      [-4.80 + mullionW * 0.5 + 0.001, -3.20 - mullionW * 0.5 - 0.001],
+      [-3.20 + mullionW * 0.5 + 0.001, -wingInnerX - 0.001],
+      // Right Wing (Racks 6, 7, 8)
+      [wingInnerX + 0.001, 3.20 - mullionW * 0.5 - 0.001],
+      [3.20 + mullionW * 0.5 + 0.001, 4.80 - mullionW * 0.5 - 0.001],
+      [4.80 + mullionW * 0.5 + 0.001, wingOuterX - 0.001],
+    ];
+    for (const [bxMin, bxMax] of wingBayBounds) {
+      const bw = bxMax - bxMin;
+      const bMidX = (bxMin + bxMax) * 0.5;
+      const bayGlassGeo = new THREE.BoxGeometry(bw, paneH - 0.002, glassThick);
+      addVisual(visualBuckets.serverPodGlass, bayGlassGeo, bMidX, paneMidY, zFront);
+      bayGlassGeo.dispose();
+    }
+
+    // =========================================================================
+    // 4. CENTERED DOUBLE ALUMINUM-GLASS DOORS & TOP TRANSOM (X = -1.568m to +1.568m)
+    // =========================================================================
+    const portalClearHalfW = 1.60 - portalPostW * 0.5; // 1.568m
+    const portalClearFullW = portalClearHalfW * 2;     // 3.136m
+
+    // A. Horizontal Door Portal Transom Header Bar (Y = 3.132m to 3.190m, aligned with server rack tops at 3.15m)
+    const transomBarH = 0.058;
+    const transomBarYMin = 3.132;
+    const transomBarYMax = transomBarYMin + transomBarH; // 3.190m
+    const transomBarMidY = (transomBarYMin + transomBarYMax) * 0.5;
+    const transomBarGeo = new THREE.BoxGeometry(portalClearFullW - 0.002, transomBarH, 0.066);
+    addPart(visualBuckets.serverPodAlumFrame, transomBarGeo, 0, transomBarMidY, zFront);
+    transomBarGeo.dispose();
+
+    // B. Top Smoked-Glass Transom above Double Doors (Y = 3.191m to 3.747m)
+    const transomPaneYMin = transomBarYMax + 0.001;
+    const transomPaneYMax = paneYMax;
+    const transomPaneH = transomPaneYMax - transomPaneYMin; // 0.556m
+    const transomPaneMidY = (transomPaneYMin + transomPaneYMax) * 0.5;
+
+    const transomCenterMullionGeo = new THREE.BoxGeometry(mullionW, transomPaneH, 0.052);
+    addPart(visualBuckets.serverPodAlumFrame, transomCenterMullionGeo, 0, transomPaneMidY, zFront);
+    transomCenterMullionGeo.dispose();
+
+    const transomGlassW = portalClearHalfW - mullionW * 0.5 - 0.002; // 1.544m
+    const transomGlassMidX = mullionW * 0.5 + 0.001 + transomGlassW * 0.5;
+    const transomGlassGeo = new THREE.BoxGeometry(transomGlassW, transomPaneH - 0.002, glassThick);
+    addVisual(visualBuckets.serverPodGlass, transomGlassGeo, -transomGlassMidX, transomPaneMidY, zFront);
+    addVisual(visualBuckets.serverPodGlass, transomGlassGeo, transomGlassMidX, transomPaneMidY, zFront);
+    transomGlassGeo.dispose();
+
+    // C. Flush Brushed Stainless-Steel Threshold Strip under Double Doors (Y = 0.353m to 0.357m)
+    const doorThresholdGeo = new THREE.BoxGeometry(portalClearFullW - 0.004, 0.004, 0.064);
+    addVisual(visualBuckets.elevatorStainless, doorThresholdGeo, 0, yBottom + 0.002, zFront);
+    doorThresholdGeo.dispose();
+
+    // D. Two Symmetrical Closed Aluminum-Glass Door Leaves (Y = 0.358m to 3.130m)
+    const doorYMin = yBottom + 0.005;       // 0.358m
+    const doorYMax = transomBarYMin - 0.002; // 3.130m
+    const doorLeafH = doorYMax - doorYMin;  // 2.772m
+    const doorLeafMidY = (doorYMin + doorYMax) * 0.5; // 1.744m
+    const doorLeafThick = 0.044;
+
+    const doorStileW = 0.078;
+    const doorBottomRailH = 0.095;
+    const doorTopRailH = 0.085;
+    const centerGapHalf = 0.004; // 8mm center meeting seam
+    const outerGap = 0.004;
+    const leafXInner = centerGapHalf;                    // 0.004m
+    const leafXOuter = portalClearHalfW - outerGap;      // 1.564m
+    const leafW = leafXOuter - leafXInner;               // 1.560m
+    const leafInnerGlassW = leafW - doorStileW * 2 - 0.002; // 1.402m
+    const leafInnerGlassH = doorLeafH - doorBottomRailH - doorTopRailH - 0.002; // 2.590m
+    const leafInnerGlassMidY = doorYMin + doorBottomRailH + 0.001 + leafInnerGlassH * 0.5;
+
+    const doorStileGeo = new THREE.BoxGeometry(doorStileW, doorLeafH, doorLeafThick);
+    const doorBottomRailGeo = new THREE.BoxGeometry(leafInnerGlassW, doorBottomRailH, doorLeafThick);
+    const doorTopRailGeo = new THREE.BoxGeometry(leafInnerGlassW, doorTopRailH, doorLeafThick);
+    const doorGlassPaneGeo = new THREE.BoxGeometry(leafInnerGlassW, leafInnerGlassH, glassThick);
+
+    for (const sign of [-1, 1]) {
+      const outerStileX = sign * (leafXOuter - doorStileW * 0.5);
+      const innerStileX = sign * (leafXInner + doorStileW * 0.5);
+      const leafMidX = sign * ((leafXInner + leafXOuter) * 0.5);
+
+      // Outer hinge stile & inner meeting stile
+      addPart(visualBuckets.serverPodAlumFrame, doorStileGeo, outerStileX, doorLeafMidY, zFront);
+      addPart(visualBuckets.serverPodAlumFrame, doorStileGeo, innerStileX, doorLeafMidY, zFront);
+      // Bottom & top horizontal door rails
+      addPart(visualBuckets.serverPodAlumFrame, doorBottomRailGeo, leafMidX, doorYMin + doorBottomRailH * 0.5, zFront);
+      addPart(visualBuckets.serverPodAlumFrame, doorTopRailGeo, leafMidX, doorYMax - doorTopRailH * 0.5, zFront);
+      // Smoked tempered glass center door pane
+      addVisual(visualBuckets.serverPodGlass, doorGlassPaneGeo, leafMidX, leafInnerGlassMidY, zFront);
+    }
+    doorStileGeo.dispose();
+    doorBottomRailGeo.dispose();
+    doorTopRailGeo.dispose();
+    doorGlassPaneGeo.dispose();
+
+    // Center Meeting Seam Astragal Gasket at X = 0.000m
+    const astragalGeo = new THREE.BoxGeometry(0.006, doorLeafH - 0.002, 0.036);
+    addPart(visualBuckets.elevatorPortal, astragalGeo, 0, doorLeafMidY, zFront);
+    astragalGeo.dispose();
+
+    // E. Symmetrical Brushed-Chrome Vertical Pull Handles, Standoffs, Lock Cylinders & Barrel Hinges
+    const handleYMin = 1.05; // 0.70m above platform floor
+    const handleYMax = 1.85; // 1.50m above platform floor
+    const handleLen = handleYMax - handleYMin; // 0.80m
+    const handleMidY = (handleYMin + handleYMax) * 0.5; // 1.45m
+    const handleXOffset = 0.105; // Mounted symmetrically on left (-0.105m) & right (+0.105m) door leaves
+
+    const pullBarGeo = new THREE.CylinderGeometry(0.014, 0.014, handleLen, 14);
+    const standoffGeo = new THREE.BoxGeometry(0.022, 0.022, 0.036);
+    const lockEscutcheonGeo = new THREE.CylinderGeometry(0.018, 0.018, doorLeafThick + 0.012, 14);
+    lockEscutcheonGeo.rotateX(Math.PI * 0.5);
+
+    for (const doorSign of [-1, 1]) {
+      const hx = doorSign * handleXOffset;
+      // Keyhole lock cylinder on inner lock stile at Y = 0.96m
+      addPart(visualBuckets.vestibuleChrome, lockEscutcheonGeo, doorSign * 0.043, 0.96, zFront);
+
+      // Pull handles on both exterior (+Z) and interior (-Z) sides of each door leaf
+      for (const zSign of [-1, 1]) {
+        const barZ = zFront + zSign * (doorLeafThick * 0.5 + 0.038);
+        const standZ = zFront + zSign * (doorLeafThick * 0.5 + 0.019);
+        addPart(visualBuckets.vestibuleChrome, pullBarGeo, hx, handleMidY, barZ);
+        addPart(visualBuckets.vestibuleChrome, standoffGeo, hx, handleYMin + 0.06, standZ);
+        addPart(visualBuckets.vestibuleChrome, standoffGeo, hx, handleYMax - 0.06, standZ);
+      }
+    }
+    pullBarGeo.dispose();
+    standoffGeo.dispose();
+    lockEscutcheonGeo.dispose();
+
+    // 6 Chrome Barrel Hinges (3 on left portal jamb X = -1.566m, 3 on right portal jamb X = +1.566m)
+    const barrelHingeGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.095, 12);
+    for (const sideSign of [-1, 1]) {
+      const hingeX = sideSign * 1.566;
+      for (const hy of [0.72, 1.74, 2.76]) {
+        addVisual(visualBuckets.vestibuleChrome, barrelHingeGeo, hingeX, hy, zFront + 0.024);
+      }
+    }
+    barrelHingeGeo.dispose();
+
+    // =========================================================================
+    // 5. PLAYER-ONLY COLLISION BARRIERS ALONG 3-SIDED POD PERIMETER
+    // =========================================================================
+    // (Weapon raycasts pass through playerOnlyColliders to hit DC_ServerPodGlass directly for glass decals
+    //  or colliderMesh for aluminum frames, while the player is solidly blocked at the outer perimeter!)
+    const frontPlayerColGeo = new THREE.BoxGeometry(14.0, podH, 0.14);
+    registerPlayerOnlyCollider(frontPlayerColGeo, 0, podMidY, zFront);
+    frontPlayerColGeo.dispose();
+
+    const sidePlayerColGeo = new THREE.BoxGeometry(0.14, podH, 3.00);
+    registerPlayerOnlyCollider(sidePlayerColGeo, xLeft, podMidY, -8.00);
+    registerPlayerOnlyCollider(sidePlayerColGeo, xRight, podMidY, -8.00);
+    sidePlayerColGeo.dispose();
   }
 }
 
