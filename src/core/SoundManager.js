@@ -184,6 +184,23 @@ export class SoundManager {
           if (resp.ok) {
             const arrayBuffer = await resp.arrayBuffer();
             const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+            // Automatically detect & trim leading MP3 encoder/pre-attack silence on immediate weapon sounds
+            // so gunshots fire at 0.0ms on click and never lag behind impact effects!
+            if (key === '9mm_fire' || key === 'desert_eagle_fire' || key === 'remington_870_fire' || key === '9mm_dryfire') {
+              const ch0 = audioBuffer.getChannelData(0);
+              const threshold = 0.022;
+              let firstSample = 0;
+              const maxScan = Math.min(ch0.length, Math.floor(audioBuffer.sampleRate * 0.25));
+              for (let i = 0; i < maxScan; i++) {
+                if (Math.abs(ch0[i]) >= threshold) {
+                  firstSample = Math.max(0, i - 16);
+                  break;
+                }
+              }
+              audioBuffer._attackOffset = firstSample / audioBuffer.sampleRate;
+            } else {
+              audioBuffer._attackOffset = 0;
+            }
             this.audioBuffers.set(key, audioBuffer);
           }
         } catch (err) {
@@ -234,7 +251,8 @@ export class SoundManager {
       };
     }
 
-    source.start(0);
+    const startOffset = !isAction && buffer._attackOffset ? buffer._attackOffset : 0;
+    source.start(0, startOffset);
     return source;
   }
 
@@ -1134,116 +1152,317 @@ export class SoundManager {
   }
 
   /**
-   * Destructible LCD Monitor Screen Shatter + Electrical Short Pop SFX.
-   * Layer 1: High-Frequency Glass Crunch (90ms high-passed noise at 2800 Hz + 4 micro-pings at 3200, 4700, 5800, 2400 Hz)
-   * Layer 2: LCD Capacitive Pop (180 Hz -> 48 Hz snap over 65ms + 120 Hz buzz tail over 80ms)
+   * Generates a realistic granular brittle-fracture AudioBuffer (aperiodic crackle impulses +
+   * decaying pulverized grit, completely free of synthetic sine/triangle pitch sweeps).
    */
-  playMonitorShatter() {
-    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
-    this.resume();
-    const t = this.ctx.currentTime;
+  _createFractureBurstBuffer(duration = 0.14, impulseCount = 28, gritDecay = 22.0) {
+    if (!this.ctx) return null;
+    const sr = this.ctx.sampleRate;
+    const len = Math.floor(sr * duration);
+    const buffer = this.ctx.createBuffer(1, len, sr);
+    const data = buffer.getChannelData(0);
 
-    // 1. High-Frequency Glass Crunch (90ms high-passed white noise at 2800 Hz)
-    const noiseBuffer = this._createNoiseBuffer(0.10);
-    if (noiseBuffer) {
-      const noise = this.ctx.createBufferSource();
-      noise.buffer = noiseBuffer;
-
-      const hpFilter = this.ctx.createBiquadFilter();
-      hpFilter.type = 'highpass';
-      hpFilter.frequency.setValueAtTime(2800, t);
-
-      const noiseGain = this.ctx.createGain();
-      noiseGain.gain.setValueAtTime(0.55, t);
-      noiseGain.gain.exponentialRampToValueAtTime(0.001, t + 0.090);
-
-      noise.connect(hpFilter);
-      hpFilter.connect(noiseGain);
-      noiseGain.connect(this.masterGain);
-
-      noise.start(t);
-      noise.stop(t + 0.092);
+    // 1. Base pulverized crystalline grit bed with fast exponential decay
+    for (let i = 0; i < len; i++) {
+      const tNorm = i / len;
+      const env = Math.exp(-tNorm * gritDecay);
+      data[i] = (Math.random() * 2 - 1) * 0.32 * env;
     }
 
-    // 2. Four rapid metallic/glassy micro-pings (3200 Hz, 4700 Hz, 5800 Hz, 2400 Hz decaying over 45ms–110ms)
-    const pings = [
-      { freq: 3200, dur: 0.075, gain: 0.18, type: 'sine' },
-      { freq: 4700, dur: 0.055, gain: 0.16, type: 'triangle' },
-      { freq: 5800, dur: 0.045, gain: 0.14, type: 'sine' },
-      { freq: 2400, dur: 0.110, gain: 0.20, type: 'triangle' },
-    ];
-    for (const p of pings) {
-      const osc = this.ctx.createOscillator();
-      const g = this.ctx.createGain();
-      osc.type = p.type;
-      osc.frequency.setValueAtTime(p.freq, t);
-      osc.frequency.exponentialRampToValueAtTime(p.freq * 0.85, t + p.dur);
+    // 2. Stochastic micro-fracture stress-release spikes (short damped bipolar crackles)
+    for (let k = 0; k < impulseCount; k++) {
+      // Cluster more fractures near the initial impact, with trailing shard snaps
+      const progress = Math.pow(Math.random(), 1.65);
+      const startIdx = Math.floor(progress * (len - 64));
+      const spikeLen = 14 + Math.floor(Math.random() * 38); // ~0.3ms to 1.1ms micro-transient
+      const amp = (0.45 + Math.random() * 0.55) * (1.0 - progress * 0.55);
+      const sign = Math.random() < 0.5 ? 1 : -1;
+      const freqRad = 0.35 + Math.random() * 0.65;
 
-      g.gain.setValueAtTime(p.gain, t);
-      g.gain.exponentialRampToValueAtTime(0.001, t + p.dur);
-
-      osc.connect(g);
-      g.connect(this.masterGain);
-
-      osc.start(t);
-      osc.stop(t + p.dur + 0.005);
+      for (let j = 0; j < spikeLen && startIdx + j < len; j++) {
+        const wEnv = Math.exp(-j / (spikeLen * 0.32));
+        const jitter = (Math.random() * 2 - 1) * 0.45;
+        const val = sign * amp * wEnv * (Math.cos(j * freqRad) * 0.65 + jitter);
+        data[startIdx + j] = Math.max(-1.0, Math.min(1.0, data[startIdx + j] + val));
+      }
     }
 
-    // 3. LCD Capacitive Pop: low-mid electrical snap (180 Hz -> 48 Hz over 65ms)
-    const snapOsc = this.ctx.createOscillator();
-    const snapGain = this.ctx.createGain();
-    snapOsc.type = 'sawtooth';
-    snapOsc.frequency.setValueAtTime(180, t);
-    snapOsc.frequency.exponentialRampToValueAtTime(48, t + 0.065);
-
-    snapGain.gain.setValueAtTime(0.35, t);
-    snapGain.gain.exponentialRampToValueAtTime(0.001, t + 0.065);
-
-    snapOsc.connect(snapGain);
-    snapGain.connect(this.masterGain);
-
-    snapOsc.start(t);
-    snapOsc.stop(t + 0.068);
-
-    // 4. Electrical buzz tail (120 Hz over 80ms)
-    const buzzOsc = this.ctx.createOscillator();
-    const buzzGain = this.ctx.createGain();
-    buzzOsc.type = 'sawtooth';
-    buzzOsc.frequency.setValueAtTime(120, t + 0.015);
-
-    buzzGain.gain.setValueAtTime(0.0, t);
-    buzzGain.gain.setValueAtTime(0.18, t + 0.015);
-    buzzGain.gain.exponentialRampToValueAtTime(0.001, t + 0.095);
-
-    buzzOsc.connect(buzzGain);
-    buzzGain.connect(this.masterGain);
-
-    buzzOsc.start(t + 0.015);
-    buzzOsc.stop(t + 0.098);
+    return buffer;
   }
 
   /**
-   * Light glass-tick sound for shooting an already-broken monitor screen.
+   * Computes realistic ballistic travel + acoustic propagation delay and distance attenuation
+   * so monitor/glass impacts ALWAYS occur AFTER the weapon gunshot transient and scale with distance.
    */
-  playGlassTick() {
+  _getImpactAcoustics(distance = 3.0) {
+    const d = Number.isFinite(distance) ? Math.max(0.5, distance) : 3.0;
+    // 55ms psychoacoustic lead so the gunshot muzzle blast always hits the ear first,
+    // plus physical projectile flight + speed-of-sound return time (~7.5ms per meter)
+    const delaySec = Math.min(0.24, 0.055 + d * 0.0075);
+    const distAtten = 1.0 / (1.0 + Math.max(0, d - 1.4) * 0.15);
+    const airLpFreq = Math.max(2600, 9800 - d * 310);
+    return { delaySec, distAtten, airLpFreq };
+  }
+
+  /**
+   * Destructible LCD Monitor Screen Shatter SFX (First Hit on Intact Screen).
+   * - Scheduled AFTER the gunshot transient + ballistic travel time (never before the gun!).
+   * - Zero cartoon sine/sawtooth laser sweeps: uses physical ABS plastic casing punch,
+   *   stochastic LCD glass/polarizer fracture crackle, and staggered debris scatter.
+   */
+  playMonitorShatter(distance = 3.0) {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
-    const t = this.ctx.currentTime;
 
-    const osc = this.ctx.createOscillator();
-    const g = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(4200 + Math.random() * 800, t);
-    osc.frequency.exponentialRampToValueAtTime(2600, t + 0.035);
+    const { delaySec, distAtten, airLpFreq } = this._getImpactAcoustics(distance);
+    const t = this.ctx.currentTime + delaySec;
 
-    g.gain.setValueAtTime(0.12, t);
-    g.gain.exponentialRampToValueAtTime(0.001, t + 0.035);
+    // Distance air-absorption filter feeding masterGain
+    const distFilter = this.ctx.createBiquadFilter();
+    distFilter.type = 'lowpass';
+    distFilter.frequency.setValueAtTime(airLpFreq, t);
+    distFilter.connect(this.masterGain);
 
-    osc.connect(g);
-    g.connect(this.masterGain);
+    // 1. ABS Plastic Bezel & Steel Backplate Ballistic Punch (Hollow casing thwack)
+    const punchOsc = this.ctx.createOscillator();
+    const punchGain = this.ctx.createGain();
+    punchOsc.type = 'triangle';
+    punchOsc.frequency.setValueAtTime(118, t);
+    punchOsc.frequency.exponentialRampToValueAtTime(36, t + 0.032);
 
-    osc.start(t);
-    osc.stop(t + 0.038);
+    punchGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    punchGain.gain.setValueAtTime(0.52 * distAtten, t);
+    punchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.036);
+
+    punchOsc.connect(punchGain);
+    punchGain.connect(distFilter);
+    punchOsc.start(t);
+    punchOsc.stop(t + 0.038);
+
+    // 2. Granular LCD Substrate Shatter & Polarizer Film Tear (0ms..115ms after impact)
+    const fracBuf = this._createFractureBurstBuffer(0.12, 34, 18.0);
+    if (fracBuf) {
+      // Mid-band plastic/housing crack body (950 Hz bandpass)
+      const bodySrc = this.ctx.createBufferSource();
+      bodySrc.buffer = fracBuf;
+      const bodyBp = this.ctx.createBiquadFilter();
+      bodyBp.type = 'bandpass';
+      bodyBp.frequency.setValueAtTime(920 + (Math.random() - 0.5) * 140, t);
+      bodyBp.Q.setValueAtTime(1.35, t);
+
+      const bodyGain = this.ctx.createGain();
+      bodyGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      bodyGain.gain.setValueAtTime(0.62 * distAtten, t);
+      bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.068);
+
+      bodySrc.connect(bodyBp);
+      bodyBp.connect(bodyGain);
+      bodyGain.connect(distFilter);
+      bodySrc.start(t);
+      bodySrc.stop(t + 0.072);
+
+      // High-band thin LCD glass crunch & spiderweb snap (3400 Hz bandpass)
+      const crunchSrc = this.ctx.createBufferSource();
+      crunchSrc.buffer = fracBuf;
+      const crunchBp = this.ctx.createBiquadFilter();
+      crunchBp.type = 'bandpass';
+      crunchBp.frequency.setValueAtTime(3400 + (Math.random() - 0.5) * 350, t);
+      crunchBp.Q.setValueAtTime(1.15, t);
+
+      const crunchGain = this.ctx.createGain();
+      crunchGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      crunchGain.gain.setValueAtTime(0.58 * distAtten, t + 0.002);
+      crunchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.105);
+
+      crunchSrc.connect(crunchBp);
+      crunchBp.connect(crunchGain);
+      crunchGain.connect(distFilter);
+      crunchSrc.start(t + 0.002);
+      crunchSrc.stop(t + 0.112);
+    }
+
+    // 3. Staggered Crushed Glass & Plastic Debris Scatter onto Desk (25ms..165ms after impact)
+    const shardBuf = this._createNoiseBuffer(0.016);
+    if (shardBuf) {
+      const shardCount = 6;
+      for (let i = 0; i < shardCount; i++) {
+        const st = t + 0.024 + i * 0.019 + Math.random() * 0.014;
+        const dur = 0.007 + Math.random() * 0.006;
+        const src = this.ctx.createBufferSource();
+        src.buffer = shardBuf;
+
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(3600 + Math.random() * 3400, st);
+        bp.Q.setValueAtTime(2.6, st);
+
+        const g = this.ctx.createGain();
+        const peak = (0.16 - i * 0.018) * distAtten;
+        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        g.gain.setValueAtTime(Math.max(0.02, peak), st);
+        g.gain.exponentialRampToValueAtTime(0.0008, st + dur);
+
+        src.connect(bp);
+        bp.connect(g);
+        g.connect(distFilter);
+        src.start(st);
+        src.stop(st + dur + 0.002);
+      }
+    }
+  }
+
+  /**
+   * Secondary Bullet Impact on an Already-Broken LCD Monitor Screen.
+   * Dry punch into cracked plastic casing & crushed LCD glass (scheduled after gunshot + flight delay).
+   */
+  playMonitorHit(distance = 3.0) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const { delaySec, distAtten, airLpFreq } = this._getImpactAcoustics(distance);
+    const t = this.ctx.currentTime + delaySec;
+
+    const distFilter = this.ctx.createBiquadFilter();
+    distFilter.type = 'lowpass';
+    distFilter.frequency.setValueAtTime(airLpFreq, t);
+    distFilter.connect(this.masterGain);
+
+    const fracBuf = this._createFractureBurstBuffer(0.065, 16, 26.0);
+    if (fracBuf) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = fracBuf;
+
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(1650 + (Math.random() - 0.5) * 280, t);
+      bp.Q.setValueAtTime(1.4, t);
+
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      g.gain.setValueAtTime(0.42 * distAtten, t);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.052);
+
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(distFilter);
+      src.start(t);
+      src.stop(t + 0.056);
+    }
+  }
+
+  /**
+   * Ballistic Impact on Thick Tempered / Laminated Architectural Glass
+   * (Glass Partition Wall, Vestibule Door, and Server Containment Pod).
+   * - Scheduled AFTER the gunshot transient + ballistic travel time.
+   * - Synthesizes a heavy laminated glass thwack, dry crystalline spiderweb crunch,
+   *   and fine falling glass grit — zero cartoon sine sweeps!
+   */
+  playGlassImpact(distance = 3.0) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const { delaySec, distAtten, airLpFreq } = this._getImpactAcoustics(distance);
+    const t = this.ctx.currentTime + delaySec;
+
+    const distFilter = this.ctx.createBiquadFilter();
+    distFilter.type = 'lowpass';
+    distFilter.frequency.setValueAtTime(airLpFreq, t);
+    distFilter.connect(this.masterGain);
+
+    // 1. Heavy Tempered Pane Kinetic Thwack (damped low-mid plate thump)
+    const thumpOsc = this.ctx.createOscillator();
+    const thumpGain = this.ctx.createGain();
+    thumpOsc.type = 'triangle';
+    thumpOsc.frequency.setValueAtTime(96, t);
+    thumpOsc.frequency.exponentialRampToValueAtTime(40, t + 0.022);
+
+    thumpGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    thumpGain.gain.setValueAtTime(0.44 * distAtten, t);
+    thumpGain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+
+    thumpOsc.connect(thumpGain);
+    thumpGain.connect(distFilter);
+    thumpOsc.start(t);
+    thumpOsc.stop(t + 0.027);
+
+    // 2. Pulverized Tempered Glass Fracture Crunch (Granular crackle burst)
+    const fracBuf = this._createFractureBurstBuffer(0.095, 28, 22.0);
+    if (fracBuf) {
+      // Mid-high crystalline fracture crunch (2300 Hz)
+      const crunchSrc = this.ctx.createBufferSource();
+      crunchSrc.buffer = fracBuf;
+
+      const crunchBp = this.ctx.createBiquadFilter();
+      crunchBp.type = 'bandpass';
+      crunchBp.frequency.setValueAtTime(2350 + (Math.random() - 0.5) * 320, t);
+      crunchBp.Q.setValueAtTime(1.3, t);
+
+      const crunchGain = this.ctx.createGain();
+      crunchGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      crunchGain.gain.setValueAtTime(0.56 * distAtten, t);
+      crunchGain.gain.exponentialRampToValueAtTime(0.001, t + 0.075);
+
+      crunchSrc.connect(crunchBp);
+      crunchBp.connect(crunchGain);
+      crunchGain.connect(distFilter);
+      crunchSrc.start(t);
+      crunchSrc.stop(t + 0.080);
+
+      // High-frequency pulverized glass grit snap (5200 Hz highpass)
+      const gritSrc = this.ctx.createBufferSource();
+      gritSrc.buffer = fracBuf;
+
+      const gritHp = this.ctx.createBiquadFilter();
+      gritHp.type = 'highpass';
+      gritHp.frequency.setValueAtTime(4800, t);
+
+      const gritGain = this.ctx.createGain();
+      gritGain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+      gritGain.gain.setValueAtTime(0.38 * distAtten, t + 0.001);
+      gritGain.gain.exponentialRampToValueAtTime(0.001, t + 0.062);
+
+      gritSrc.connect(gritHp);
+      gritHp.connect(gritGain);
+      gritGain.connect(distFilter);
+      gritSrc.start(t + 0.001);
+      gritSrc.stop(t + 0.066);
+    }
+
+    // 3. Staggered Fine Glass Shards & Spall Granules Settling (20ms..145ms after impact)
+    const shardBuf = this._createNoiseBuffer(0.014);
+    if (shardBuf) {
+      const numShards = 5;
+      for (let i = 0; i < numShards; i++) {
+        const st = t + 0.020 + i * 0.018 + Math.random() * 0.012;
+        const dur = 0.005 + Math.random() * 0.005;
+        const src = this.ctx.createBufferSource();
+        src.buffer = shardBuf;
+
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(5200 + Math.random() * 3200, st);
+        bp.Q.setValueAtTime(3.0, st);
+
+        const g = this.ctx.createGain();
+        const peak = (0.14 - i * 0.018) * distAtten;
+        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+        g.gain.setValueAtTime(Math.max(0.018, peak), st);
+        g.gain.exponentialRampToValueAtTime(0.0008, st + dur);
+
+        src.connect(bp);
+        bp.connect(g);
+        g.connect(distFilter);
+        src.start(st);
+        src.stop(st + dur + 0.002);
+      }
+    }
+  }
+
+  /**
+   * Backwards-compatible alias for glass impact sound.
+   */
+  playGlassTick(distance = 3.0) {
+    this.playGlassImpact(distance);
   }
 
   /**

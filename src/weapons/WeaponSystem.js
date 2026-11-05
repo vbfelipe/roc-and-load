@@ -742,7 +742,7 @@ export class WeaponSystem {
     if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
     if (weaponType === 4 || weaponType === '4') weaponType = 'hk_mp5';
     if (weaponType !== 'hk_usp' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
-    if (this.currentWeapon === weaponType) return;
+    if (this.currentWeapon === weaponType && (!this.viewmodel || this.viewmodel.currentWeapon === weaponType)) return;
 
     // 1. Persist current weapon state
     const prevState = this.weapons[this.currentWeapon];
@@ -1517,21 +1517,29 @@ export class WeaponSystem {
             }
             this._spawnMonitorSparks(_hitPoint, normal, true);
             if (this.sound && typeof this.sound.playMonitorShatter === 'function') {
-              this.sound.playMonitorShatter();
+              this.sound.playMonitorShatter(closestHit.distance);
             }
           } else {
             this._spawnMonitorSparks(_hitPoint, normal, false, 2);
-            if (!playedGlassTickThisBlast && this.sound && typeof this.sound.playGlassTick === 'function') {
+            if (!playedGlassTickThisBlast && this.sound) {
               playedGlassTickThisBlast = true;
-              this.sound.playGlassTick();
+              if (typeof this.sound.playMonitorHit === 'function') {
+                this.sound.playMonitorHit(closestHit.distance);
+              } else if (typeof this.sound.playGlassTick === 'function') {
+                this.sound.playGlassTick(closestHit.distance);
+              }
             }
           }
         } else if (hitObject === 'glass') {
           this._spawnMonitorSparks(_hitPoint, normal, false, 3);
           this._spawnDecal(_hitPoint, normal, true, true);
-          if (!playedGlassTickThisBlast && this.sound && typeof this.sound.playGlassTick === 'function') {
+          if (!playedGlassTickThisBlast && this.sound) {
             playedGlassTickThisBlast = true;
-            this.sound.playGlassTick();
+            if (typeof this.sound.playGlassImpact === 'function') {
+              this.sound.playGlassImpact(closestHit.distance);
+            } else if (typeof this.sound.playGlassTick === 'function') {
+              this.sound.playGlassTick(closestHit.distance);
+            }
           }
         } else if (hitObject === 'arena') {
           this._spawnImpactSparks(_hitPoint, normal, 2);
@@ -1640,20 +1648,28 @@ export class WeaponSystem {
           }
           this._spawnMonitorSparks(_hitPoint, normal, true);
           if (this.sound && typeof this.sound.playMonitorShatter === 'function') {
-            this.sound.playMonitorShatter();
+            this.sound.playMonitorShatter(closestHit.distance);
           }
         } else {
           this._spawnMonitorSparks(_hitPoint, normal, false);
-          if (this.sound && typeof this.sound.playGlassTick === 'function') {
-            this.sound.playGlassTick();
+          if (this.sound) {
+            if (typeof this.sound.playMonitorHit === 'function') {
+              this.sound.playMonitorHit(closestHit.distance);
+            } else if (typeof this.sound.playGlassTick === 'function') {
+              this.sound.playGlassTick(closestHit.distance);
+            }
           }
         }
         // NOTE: Wall bullet decals are suppressed on monitor screens!
       } else if (hitObject === 'glass') {
         this._spawnMonitorSparks(_hitPoint, normal, false, 8);
         this._spawnDecal(_hitPoint, normal, false, true);
-        if (this.sound && typeof this.sound.playGlassTick === 'function') {
-          this.sound.playGlassTick();
+        if (this.sound) {
+          if (typeof this.sound.playGlassImpact === 'function') {
+            this.sound.playGlassImpact(closestHit.distance);
+          } else if (typeof this.sound.playGlassTick === 'function') {
+            this.sound.playGlassTick(closestHit.distance);
+          }
         }
       } else if (hitObject === 'arena') {
         // Burst 6-8 hot metal impact sparks arcing with gravity

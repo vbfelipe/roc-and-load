@@ -3192,12 +3192,35 @@ export class WeaponViewmodel {
       this.sound.stopActionSounds();
     }
 
+    this.currentWeapon = 'hk_usp';
+    this.isADS = false;
     this.isReloading = false;
     this.isPumping = false;
     this.isSlideLocked = false;
     this.slideBlowback = 0;
+    this.hammerRecoil = 0;
     this.uspSlideBlowback = 0;
     this.uspHammerRecoil = 0;
+    this.mp5BoltBlowback = 0;
+    this.flashTimer = 0;
+
+    // Restore 3D weapon group visibilities to Slot 1 (H&K USP 9mm)
+    if (this.uspGroup) this.uspGroup.visible = true;
+    if (this.gunGroup) this.gunGroup.visible = false;
+    if (this.shotgunGroup) this.shotgunGroup.visible = false;
+    if (this.mp5Group) this.mp5Group.visible = false;
+
+    // Restore active hip/ADS transform pointers & muzzle socket to Slot 1 (H&K USP 9mm)
+    this.hipPosition = this.uspHipPosition;
+    this.adsPosition = this.uspAdsPosition;
+    this.hipRotation = this.uspHipRotation;
+    this.adsRotation = this.uspAdsRotation;
+    this.muzzleAnchor = this.uspMuzzleSocket;
+
+    if (this.muzzleFlashGroup && this.muzzleAnchor) {
+      this.muzzleAnchor.add(this.muzzleFlashGroup);
+      this.muzzleFlashGroup.visible = false;
+    }
 
     if (this.uspSlideGroup) this.uspSlideGroup.position.set(0, 0, 0);
     if (this.uspHammerGroup) this.uspHammerGroup.rotation.x = 0;
@@ -3210,25 +3233,44 @@ export class WeaponViewmodel {
     if (this.pistolSlideMesh && this.deSlideRestZ !== undefined) {
       this.pistolSlideMesh.position.z = this.deSlideRestZ;
     }
+    if (this.triggerMesh) this.triggerMesh.rotation.x = 0;
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
     }
     this._updateDesertEagleMagVisuals(0, true);
     this._updateShotgunPumpVisuals(0);
+    if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
+    if (this.shotgunTriggerMesh) this.shotgunTriggerMesh.rotation.x = 0;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
     if (this.shotgunLeftHandGroup) {
       this.shotgunLeftHandGroup.position.set(0, 0, 0);
       this.shotgunLeftHandGroup.rotation.set(0, 0, 0);
     }
+    if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
+      this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
+    }
+    if (this.mp5MagMesh && this.mp5MagRestY !== undefined && this.mp5MagRestZ !== undefined) {
+      this.mp5MagMesh.visible = true;
+      this.mp5MagMesh.position.set(0, this.mp5MagRestY, this.mp5MagRestZ);
+    }
+    if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
+    if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
     if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
-    if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
 
-    const targetPos = this.isADS ? this.adsPosition : this.hipPosition;
-    const targetRot = this.isADS ? this.adsRotation : this.hipRotation;
+    if (this.handTunerOverlay && this.handTunerOverlay.style.display !== 'none') {
+      this._updateHandTunerSliders();
+    }
+
+    const targetPos = this.hipPosition;
+    const targetRot = this.hipRotation;
     this.posSpring.reset(targetPos.x, targetPos.y, targetPos.z);
     this.rotSpring.reset(targetRot.x, targetRot.y, targetRot.z);
+    this.bobSpring.reset(0, 0, 0);
+    this.bobCycle = 0;
+    this.root.position.set(targetPos.x, targetPos.y, targetPos.z);
+    this.root.rotation.set(targetRot.x, targetRot.y, targetRot.z);
     this.reloadTilt.x = 0;
     this.reloadTilt.y = 0;
     this.reloadTilt.z = 0;
