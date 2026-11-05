@@ -10220,7 +10220,7 @@ float rackHash(vec2 p) {
     // 3. PERIMETER WALLS & CEILING
     // Suspended Tech Ceiling (Y = H = 3.8m, facing down -Y toward room)
     const ceilingGeo = new THREE.PlaneGeometry(W, L);
-    addVisual(visualBuckets.ceiling, ceilingGeo, 0, H, zCenter, Math.PI / 2, 0, 0);
+    addPart(visualBuckets.ceiling, ceilingGeo, 0, H, zCenter, Math.PI / 2, 0, 0, true);
     ceilingGeo.dispose();
 
     // Back Wall (Z = +13.5, Room-facing side at Z = +13.0)
@@ -12364,7 +12364,7 @@ float rackHash(vec2 p) {
 
     // Vestibule Ceiling Slab (Y = 3.802m to 3.962m, strictly above walls)
     const vestCeilingGeo = new THREE.BoxGeometry(vestW, 0.16, vestL);
-    addVisual(visualBuckets.vestibuleWhiteWall, vestCeilingGeo, vestXMid, vestH + 0.082, vestZMid);
+    addPart(visualBuckets.vestibuleWhiteWall, vestCeilingGeo, vestXMid, vestH + 0.082, vestZMid, 0, 0, 0, true);
     vestCeilingGeo.dispose();
 
     // 6 Recessed Circular LED Downlight Fixtures in Vestibule Ceiling
@@ -12372,8 +12372,8 @@ float rackHash(vec2 p) {
     const downlightDiskGeo = new THREE.CylinderGeometry(0.102, 0.102, 0.012, 20);
     for (const lx of [-11.00, -12.90]) {
       for (const lz of [2.80, 6.25, 9.70]) {
-        addVisual(visualBuckets.vestibuleAlumFrame, downlightRingGeo, lx, vestH - 0.004, lz);
-        addVisual(visualBuckets.vestibuleCeilingLight, downlightDiskGeo, lx, vestH - 0.008, lz);
+        addPart(visualBuckets.vestibuleAlumFrame, downlightRingGeo, lx, vestH - 0.004, lz, 0, 0, 0, true);
+        addPart(visualBuckets.vestibuleCeilingLight, downlightDiskGeo, lx, vestH - 0.008, lz, 0, 0, 0, true);
       }
     }
     downlightRingGeo.dispose();
@@ -12410,7 +12410,7 @@ float rackHash(vec2 p) {
         new THREE.BoxGeometry(cladThickX, ch, cd),
         { px: true, py: true, ny: true, pz: true, nz: true }
       );
-      addVisual(visualBuckets.vestibuleWhiteWall, cg, cladCenterX, cy, cz);
+      addPart(visualBuckets.vestibuleWhiteWall, cg, cladCenterX, cy, cz, 0, 0, 0, true);
       cg.dispose();
     }
 

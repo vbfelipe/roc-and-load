@@ -18,91 +18,348 @@ const _tracerSpawn = new THREE.Vector3();
 const _pelletForward = new THREE.Vector3();
 const _pelletRight = new THREE.Vector3();
 const _pelletUp = new THREE.Vector3();
+const _decalUnitZ = new THREE.Vector3(0, 0, 1);
 const _raycaster = new THREE.Raycaster();
 _raycaster.firstHitOnly = true;
 
-// Procedural bullet impact spall decal texture
-function createBulletDecalTexture() {
+// Procedural multi-layered architectural wall/surface bullet impact decal texture (256x256)
+// Generates subtle variations so consecutive shots never look like identical stamps.
+function createBulletDecalTexture(variantIndex = 0, isHeavySpall = false) {
+  const size = 256;
   const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 128;
+  canvas.width = size;
+  canvas.height = size;
   const ctx = canvas.getContext('2d');
-  const cx = 64;
-  const cy = 64;
+  const cx = size * 0.5;
+  const cy = size * 0.5;
+  const maxR = size * 0.5; // 128px
 
-  ctx.clearRect(0, 0, 128, 128);
+  ctx.clearRect(0, 0, size, size);
 
-  // 1. Faint outer microscopic powder soot (tight, zero blur outside 44px)
-  const sootGrad = ctx.createRadialGradient(cx, cy, 14, cx, cy, 44);
-  sootGrad.addColorStop(0.0, 'rgba(20, 24, 30, 0.65)');
-  sootGrad.addColorStop(0.5, 'rgba(30, 35, 42, 0.28)');
-  sootGrad.addColorStop(0.85, 'rgba(15, 18, 22, 0.06)');
-  sootGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
-  ctx.fillStyle = sootGrad;
+  // Deterministic PRNG per variant so each pooled texture has unique organic geometry
+  let seed = (variantIndex + 1) * 9301 + (isHeavySpall ? 49297 : 17389);
+  const rand = () => {
+    seed = (seed * 16807 + 11) % 2147483647;
+    return (seed & 0x7fffffff) / 2147483647;
+  };
+
+  const spallBoost = isHeavySpall ? 1.12 : 1.0;
+
+  // ===========================================================================
+  // LAYER 1 — SUBTLE SCORCH & DUST HALO
+  // Soft, low-opacity radial smudge of gunsmoke soot and chalky plaster/concrete
+  // dust fading smoothly to rgba(0,0,0,0) well before the outer canvas border.
+  // ===========================================================================
+  const dustOuterR = 114;
+  const dustGrad = ctx.createRadialGradient(cx, cy, 22, cx, cy, dustOuterR);
+  dustGrad.addColorStop(0.0, 'rgba(178, 184, 192, 0.22)');
+  dustGrad.addColorStop(0.32, 'rgba(152, 158, 168, 0.13)');
+  dustGrad.addColorStop(0.65, 'rgba(116, 122, 132, 0.045)');
+  dustGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+  ctx.fillStyle = dustGrad;
   ctx.beginPath();
-  ctx.arc(cx, cy, 44, 0, Math.PI * 2);
+  ctx.arc(cx, cy, dustOuterR, 0, Math.PI * 2);
   ctx.fill();
 
-  // 2. 8 Sharp, jagged radial micro-cracks radiating from impact ring
-  const numCracks = 8;
-  ctx.lineWidth = 1.4;
-  for (let i = 0; i < numCracks; i++) {
-    const angle = (i / numCracks) * Math.PI * 2 + (Math.sin(i * 3.7) * 0.25);
-    const startR = 14 + (i % 3) * 2;
-    const crackLen = 16 + ((i * 7) % 15); // reaches 32-42px
-    
-    ctx.strokeStyle = i % 2 === 0 ? 'rgba(12, 14, 18, 0.85)' : 'rgba(25, 30, 38, 0.70)';
+  // Asymmetric off-center chalky dust puffs so the outer halo feels organic
+  const puffCount = 5;
+  for (let i = 0; i < puffCount; i++) {
+    const a = (i / puffCount) * Math.PI * 2 + rand() * 0.65;
+    const dist = 16 + rand() * 18;
+    const px = cx + Math.cos(a) * dist;
+    const py = cy + Math.sin(a) * dist;
+    const pr = 46 + rand() * 28;
+    const pGrad = ctx.createRadialGradient(px, py, 6, px, py, pr);
+    pGrad.addColorStop(0.0, 'rgba(168, 174, 182, 0.09)');
+    pGrad.addColorStop(0.55, 'rgba(95, 102, 112, 0.035)');
+    pGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+    ctx.fillStyle = pGrad;
     ctx.beginPath();
-    ctx.moveTo(cx + Math.cos(angle) * startR, cy + Math.sin(angle) * startR);
-    const midR = startR + crackLen * 0.5;
-    const midAngle = angle + (i % 2 === 0 ? 0.08 : -0.08);
-    ctx.lineTo(cx + Math.cos(midAngle) * midR, cy + Math.sin(midAngle) * midR);
-    const tipR = startR + crackLen;
-    const tipAngle = angle + (i % 2 === 0 ? -0.04 : 0.05);
-    ctx.lineTo(cx + Math.cos(tipAngle) * tipR, cy + Math.sin(tipAngle) * tipR);
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Soft propellant gunsmoke scorch smudge around the crater rim
+  const scorchOuterR = 76 * spallBoost;
+  const scorchGrad = ctx.createRadialGradient(cx, cy, 18, cx, cy, scorchOuterR);
+  scorchGrad.addColorStop(0.0, 'rgba(22, 26, 32, 0.36)');
+  scorchGrad.addColorStop(0.42, 'rgba(34, 39, 47, 0.18)');
+  scorchGrad.addColorStop(0.76, 'rgba(48, 54, 64, 0.05)');
+  scorchGrad.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+  ctx.fillStyle = scorchGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, scorchOuterR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // ===========================================================================
+  // LAYER 2 — CHIPPED PLASTER/CONCRETE SPALL CRATER (3D DEPTH ILLUSION)
+  // Irregular, jagged chipped rim using lighter gray/off-white spalled drywall
+  // tones (#8a8f96 to #b8bec6) with directional inner shading (darker top-inner
+  // bevel, subtle lighter bottom-inner edge) so the crater looks recessed.
+  // ===========================================================================
+  const outerPtsCount = 28;
+  const outerRimPts = [];
+  const phase1 = rand() * Math.PI * 2;
+  const phase2 = rand() * Math.PI * 2;
+  for (let i = 0; i < outerPtsCount; i++) {
+    const a = (i / outerPtsCount) * Math.PI * 2;
+    const wave =
+      Math.sin(a * 3 + phase1) * 4.2 +
+      Math.cos(a * 7 + phase2) * 3.1 +
+      (rand() - 0.5) * 6.4;
+    const baseR = (49 + wave) * spallBoost; // ~42px to 58px
+    outerRimPts.push({
+      a,
+      r: baseR,
+      x: cx + Math.cos(a) * baseR,
+      y: cy + Math.sin(a) * baseR,
+    });
+  }
+
+  // Subtle outer ambient-occlusion lip where paint/plaster is sheared off
+  ctx.fillStyle = 'rgba(26, 30, 36, 0.42)';
+  ctx.beginPath();
+  for (let i = 0; i < outerRimPts.length; i++) {
+    const p = outerRimPts[i];
+    const ox = p.x + 0.8;
+    const oy = p.y + 1.0;
+    if (i === 0) ctx.moveTo(ox, oy);
+    else ctx.lineTo(ox, oy);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Primary chipped spall crater shelf (#8a8f96 to #b8bec6 directional shading)
+  const spallShelfGrad = ctx.createLinearGradient(cx - 52, cy - 52, cx + 52, cy + 52);
+  spallShelfGrad.addColorStop(0.0, '#8a8f96');
+  spallShelfGrad.addColorStop(0.45, '#9fa5ae');
+  spallShelfGrad.addColorStop(1.0, '#b8bec6');
+  ctx.fillStyle = spallShelfGrad;
+  ctx.beginPath();
+  for (let i = 0; i < outerRimPts.length; i++) {
+    const p = outerRimPts[i];
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Terraced spall facets / chipped plaster flakes around the crater shelf
+  const facetCount = isHeavySpall ? 9 : 6;
+  const facetTones = ['#8a8f96', '#949aa2', '#a4aab3', '#b0b6bf', '#b8bec6'];
+  for (let f = 0; f < facetCount; f++) {
+    const startIdx = Math.floor((f / facetCount) * outerPtsCount + rand() * 2) % outerPtsCount;
+    const span = 3 + Math.floor(rand() * 3);
+    const innerR1 = (32 + rand() * 6) * spallBoost;
+    const innerR2 = (33 + rand() * 6) * spallBoost;
+
+    ctx.fillStyle = facetTones[(f + variantIndex) % facetTones.length];
+    ctx.beginPath();
+    for (let k = 0; k <= span; k++) {
+      const pt = outerRimPts[(startIdx + k) % outerPtsCount];
+      const jitterR = pt.r * (0.90 + rand() * 0.12);
+      const px = cx + Math.cos(pt.a) * jitterR;
+      const py = cy + Math.sin(pt.a) * jitterR;
+      if (k === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    const endA = outerRimPts[(startIdx + span) % outerPtsCount].a;
+    const startA = outerRimPts[startIdx].a;
+    ctx.lineTo(cx + Math.cos(endA) * innerR2, cy + Math.sin(endA) * innerR2);
+    ctx.lineTo(cx + Math.cos(startA) * innerR1, cy + Math.sin(startA) * innerR1);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(48, 54, 62, 0.34)';
+    ctx.lineWidth = 0.75;
     ctx.stroke();
   }
 
-  // 3. Jagged, dark-grey concrete/metal spall ring around crater (radius ~18-24px)
-  ctx.fillStyle = '#22262c';
+  // Recessed inner bevel ring (directional 3D bowl shading: darker top-inner bevel,
+  // lighter bottom-inner edge)
+  const bevelPtsCount = 24;
+  const bevelPts = [];
+  for (let i = 0; i < bevelPtsCount; i++) {
+    const a = (i / bevelPtsCount) * Math.PI * 2;
+    const r = (36.5 + Math.sin(a * 5 + phase1) * 2.2 + (rand() - 0.5) * 3.4) * (isHeavySpall ? 1.06 : 1.0);
+    bevelPts.push({
+      a,
+      r,
+      x: cx + Math.cos(a) * r,
+      y: cy + Math.sin(a) * r,
+    });
+  }
+
+  // Directional inner bevel gradient: dark top-inner bevel (#3a4048) -> lighter bottom-inner edge (#b8bec6)
+  const innerBevelGrad = ctx.createLinearGradient(cx - 10, cy - 38, cx + 10, cy + 38);
+  innerBevelGrad.addColorStop(0.0, '#3a4048');
+  innerBevelGrad.addColorStop(0.38, '#585f6a');
+  innerBevelGrad.addColorStop(0.72, '#9298a1');
+  innerBevelGrad.addColorStop(1.0, '#b8bec6');
+  ctx.fillStyle = innerBevelGrad;
   ctx.beginPath();
-  const spallPoints = 16;
-  for (let i = 0; i < spallPoints; i++) {
-    const a = (i / spallPoints) * Math.PI * 2;
-    const r = 18 + ((i * 5 + 3) % 7); // 18 to 24px
-    const px = cx + Math.cos(a) * r;
-    const py = cy + Math.sin(a) * r;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+  for (let i = 0; i < bevelPts.length; i++) {
+    const p = bevelPts[i];
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
   }
   ctx.closePath();
   ctx.fill();
 
-  // Inner chipped bevel ring
-  ctx.fillStyle = '#15181c';
+  // Top-inner shadow crescent inside the upper crater wall for deep 3D recession
+  ctx.strokeStyle = 'rgba(28, 32, 38, 0.68)';
+  ctx.lineWidth = 2.6;
   ctx.beginPath();
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    const r = 12 + ((i * 3 + 1) % 4); // 12 to 15px
-    const px = cx + Math.cos(a) * r;
-    const py = cy + Math.sin(a) * r;
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
+  for (let i = 0; i < bevelPts.length; i++) {
+    const p = bevelPts[i];
+    if (Math.sin(p.a) < 0.15) {
+      if (i === 0 || Math.sin(bevelPts[(i - 1 + bevelPts.length) % bevelPts.length].a) >= 0.15) {
+        ctx.moveTo(p.x, p.y);
+      } else {
+        ctx.lineTo(p.x, p.y);
+      }
+    }
   }
-  ctx.closePath();
-  ctx.fill();
+  ctx.stroke();
 
-  // 4. Small, pitch-black punctured center core hole (#050505)
-  ctx.fillStyle = '#050505';
-  ctx.beginPath();
-  ctx.arc(cx, cy, 8.5, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Sharp dark shadow rim inside the puncture
-  ctx.strokeStyle = '#000000';
+  // Subtle lighter bottom-inner catchlight edge along the lower crater lip
+  ctx.strokeStyle = 'rgba(202, 208, 216, 0.78)';
   ctx.lineWidth = 1.6;
   ctx.beginPath();
-  ctx.arc(cx, cy, 9.0, 0, Math.PI * 2);
+  for (let i = 0; i < bevelPts.length; i++) {
+    const p = bevelPts[i];
+    if (Math.sin(p.a) > 0.10) {
+      if (i === 0 || Math.sin(bevelPts[(i - 1 + bevelPts.length) % bevelPts.length].a) <= 0.10) {
+        ctx.moveTo(p.x, p.y);
+      } else {
+        ctx.lineTo(p.x, p.y);
+      }
+    }
+  }
+  ctx.stroke();
+
+  // ===========================================================================
+  // LAYER 3 — MICRO-FRACTURES & SPALL FLECKS
+  // Short, sharp, ultra-thin hairline cracks (lineWidth: 0.6–1.2px, tapering
+  // opacity) and tiny irregular chipped debris dots hugging closely to the
+  // crater rim — NO long, thick cartoon spider legs sticking out.
+  // ===========================================================================
+  const numHairlines = isHeavySpall ? 14 : 11;
+  for (let i = 0; i < numHairlines; i++) {
+    const baseAngle = (i / numHairlines) * Math.PI * 2 + (rand() - 0.5) * 0.28;
+    const startR = (35 + rand() * 8) * (isHeavySpall ? 1.05 : 1.0);
+    const totalLen = (10 + rand() * 14) * spallBoost; // short, tight to the rim (reaches ~46-66px)
+    const segs = 3;
+
+    let curX = cx + Math.cos(baseAngle) * startR;
+    let curY = cy + Math.sin(baseAngle) * startR;
+    let curA = baseAngle;
+
+    for (let s = 0; s < segs; s++) {
+      const t = s / segs;
+      const segLen = totalLen / segs;
+      curA += (rand() - 0.5) * 0.34;
+      const nextX = curX + Math.cos(curA) * segLen;
+      const nextY = curY + Math.sin(curA) * segLen;
+
+      const width = 1.15 - t * 0.52; // 1.15px tapering down to 0.63px
+      const alpha = (0.56 - t * 0.36).toFixed(2);
+
+      // Ultra-thin hairline shadow fracture
+      ctx.strokeStyle = `rgba(30, 34, 42, ${alpha})`;
+      ctx.lineWidth = width;
+      ctx.beginPath();
+      ctx.moveTo(curX, curY);
+      ctx.lineTo(nextX, nextY);
+      ctx.stroke();
+
+      // Faint plaster edge micro-highlight alongside the hairline
+      ctx.strokeStyle = `rgba(186, 192, 200, ${((0.56 - t * 0.36) * 0.42).toFixed(2)})`;
+      ctx.lineWidth = 0.6;
+      ctx.beginPath();
+      ctx.moveTo(curX + 0.5, curY + 0.5);
+      ctx.lineTo(nextX + 0.5, nextY + 0.5);
+      ctx.stroke();
+
+      curX = nextX;
+      curY = nextY;
+    }
+  }
+
+  // Tiny irregular chipped debris dots & spall flecks hugging the crater rim
+  const numFlecks = isHeavySpall ? 34 : 26;
+  const fleckColors = ['#8a8f96', '#9ca2ab', '#b4bac2', '#2e333b', '#6c727b'];
+  for (let i = 0; i < numFlecks; i++) {
+    const a = (i / numFlecks) * Math.PI * 2 + (rand() - 0.5) * 0.35;
+    const r = (39 + rand() * 29) * spallBoost; // tightly hugging the rim (~39px to 68px)
+    const fx = cx + Math.cos(a) * r;
+    const fy = cy + Math.sin(a) * r;
+    const fr = 0.8 + rand() * 1.5;
+
+    ctx.fillStyle = fleckColors[(i + variantIndex) % fleckColors.length];
+    ctx.beginPath();
+    const sides = 4;
+    for (let v = 0; v < sides; v++) {
+      const va = (v / sides) * Math.PI * 2 + rand() * 0.5;
+      const vr = fr * (0.65 + rand() * 0.55);
+      const vx = fx + Math.cos(va) * vr;
+      const vy = fy + Math.sin(va) * vr;
+      if (v === 0) ctx.moveTo(vx, vy);
+      else ctx.lineTo(vx, vy);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ===========================================================================
+  // LAYER 4 — DEEP ENTRY CAVITY (CORE PUNCTURE)
+  // Sharp, irregular pitch-black entry hole (#050608) occupying only ~22%–26%
+  // of the canvas radius (128px * 0.22..0.26 = 28.2px..33.3px) so the black
+  // bullet hole itself stays tight and proportional.
+  // ===========================================================================
+  const corePtsCount = 22;
+  const coreBaseR = maxR * (0.232 + (variantIndex % 3) * 0.006); // ~29.7px to 31.2px (~23-24.5% of 128px)
+  const corePts = [];
+  for (let i = 0; i < corePtsCount; i++) {
+    const a = (i / corePtsCount) * Math.PI * 2;
+    const rJitter =
+      Math.sin(a * 4 + phase2) * 1.4 +
+      Math.cos(a * 6 + phase1) * 1.1 +
+      (rand() - 0.5) * 2.2;
+    const r = THREE.MathUtils.clamp(coreBaseR + rJitter, maxR * 0.22, maxR * 0.26);
+    corePts.push({
+      x: cx + Math.cos(a) * r,
+      y: cy + Math.sin(a) * r,
+    });
+  }
+
+  // Crushed dark concrete transition lip right around the core puncture
+  ctx.fillStyle = '#1b1f26';
+  ctx.beginPath();
+  for (let i = 0; i < corePts.length; i++) {
+    const p = corePts[i];
+    const tx = cx + (p.x - cx) * 1.10;
+    const ty = cy + (p.y - cy) * 1.10;
+    if (i === 0) ctx.moveTo(tx, ty);
+    else ctx.lineTo(tx, ty);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Sharp, irregular pitch-black entry cavity (#050608)
+  ctx.fillStyle = '#050608';
+  ctx.beginPath();
+  for (let i = 0; i < corePts.length; i++) {
+    const p = corePts[i];
+    if (i === 0) ctx.moveTo(p.x, p.y);
+    else ctx.lineTo(p.x, p.y);
+  }
+  ctx.closePath();
+  ctx.fill();
+
+  // Crisp inner cavity edge definition
+  ctx.strokeStyle = '#0d1015';
+  ctx.lineWidth = 1.1;
   ctx.stroke();
 
   const texture = new THREE.CanvasTexture(canvas);
@@ -365,8 +622,21 @@ export class WeaponSystem {
     this.monitorScreens = [];
     this.crosshairEl = null;
 
-    // Shared Textures & Base Materials (Instanced for independent mesh opacity)
-    this.decalTexture = createBulletDecalTexture();
+    // Pre-generated 256x256 Wall Bullet Decal Variations & Base Materials
+    this.decalTextures = [
+      createBulletDecalTexture(0, false),
+      createBulletDecalTexture(1, false),
+      createBulletDecalTexture(2, false),
+      createBulletDecalTexture(3, false),
+    ];
+    this.heavyDecalTextures = [
+      createBulletDecalTexture(0, true),
+      createBulletDecalTexture(1, true),
+      createBulletDecalTexture(2, true),
+      createBulletDecalTexture(3, true),
+    ];
+    this.decalTexture = this.decalTextures[0];
+    this._lastDecalVariantIdx = -1;
     this.glassDecalTexture = createGlassBulletDecalTexture();
     this.emberTexture = createEmberGlowTexture();
 
@@ -376,8 +646,8 @@ export class WeaponSystem {
       side: THREE.DoubleSide,
       depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: -3,
-      polygonOffsetUnits: -3,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
 
     this.baseEmberMaterial = new THREE.MeshBasicMaterial({
@@ -589,10 +859,10 @@ export class WeaponSystem {
   }
 
   _initObjectPools() {
-    // 1. Bullet & Buckshot Decals Pool (64 items to support 8-pellet 12-gauge buckshot clusters + .50 AE craters)
+    // 1. Bullet & Buckshot Decals Pool (128 items to support extended 7.0s persistence across high-RPM bursts)
     // Each mesh clones the base material for independent opacity fading
     const decalGeo = new THREE.PlaneGeometry(0.24, 0.24);
-    const emberGeo = new THREE.PlaneGeometry(0.11, 0.11);
+    const emberGeo = new THREE.PlaneGeometry(0.072, 0.072);
     this.decalPool = new ObjectPool(() => {
       const mesh = new THREE.Mesh(decalGeo, this.baseDecalMaterial.clone());
       mesh.name = 'BulletDecal';
@@ -608,7 +878,7 @@ export class WeaponSystem {
 
       this.scene.add(mesh);
       return mesh;
-    }, 64);
+    }, 128);
 
     // 2. Ballistic Tracers Pool (48 items, fast-moving 150u/s golden streak bolts)
     // Tapered cylinder along Z: length 0.85m, front tip facing +Z, tail at origin (0, 0, 0)
@@ -947,29 +1217,29 @@ export class WeaponSystem {
       spark.scale.set(progress, progress, progress);
     });
 
-    // 6. Update Bullet Decals Lifecycle (2.5s hold + 1.0s smooth fade-out + 0.4s hot-metal cooling)
+    // 6. Update Bullet Decals Lifecycle (5.0s hold + 2.0s smooth fade-out + 0.6s hot-metal cooling)
     this.decalPool.forEachActive((decal) => {
       decal.userData.age += delta;
       const age = decal.userData.age;
 
-      // Hot-metal cooling: sizzles warm orange and cools down to neutral dark grey within 0.4s
+      // Hot-metal cooling: sizzles warm orange and cools down to neutral dark grey within 0.6s
       if (decal.userData.ember && decal.userData.ember.visible) {
-        if (age < 0.4) {
-          decal.userData.ember.material.opacity = 1.0 - (age / 0.4);
+        if (age < 0.6) {
+          decal.userData.ember.material.opacity = 1.0 - (age / 0.6);
         } else {
           decal.userData.ember.visible = false;
         }
       }
 
-      // 0.0s to 2.5s: Hold Phase (opacity 1.0)
-      if (age < 2.5) {
+      // 0.0s to 5.0s: Hold Phase (opacity 1.0 - doubled hold time)
+      if (age < 5.0) {
         decal.material.opacity = 1.0;
       }
-      // 2.5s to 3.5s: Fade Phase (linearly interpolate 1.0 down to 0.0)
-      else if (age < 3.5) {
-        decal.material.opacity = 1.0 - (age - 2.5) / 1.0;
+      // 5.0s to 7.0s: Fade Phase (linearly interpolate 1.0 down to 0.0 over 2.0s)
+      else if (age < 7.0) {
+        decal.material.opacity = 1.0 - (age - 5.0) / 2.0;
       }
-      // At 3.5s: Recycle back to pool (zero draw calls wasted on invisible planes)
+      // At 7.0s: Recycle back to pool (zero draw calls wasted on invisible planes)
       else {
         decal.visible = false;
         if (decal.userData.ember) decal.userData.ember.visible = false;
@@ -1209,9 +1479,9 @@ export class WeaponSystem {
       if (closestHit) {
         _hitPoint.copy(closestHit.point);
         const normal = closestHit.face
-          ? _scratchVec2.copy(closestHit.face.normal)
-          : (closestHit.normal ? _scratchVec2.copy(closestHit.normal) : _scratchVec2.set(0, 0, -1));
-        if (normal.dot(_rayDirection) > 0) {
+          ? _scratchVec2.copy(closestHit.face.normal).transformDirection(closestHit.object.matrixWorld).normalize()
+          : (closestHit.normal ? _scratchVec2.copy(closestHit.normal).normalize() : _scratchVec2.set(0, 0, -1));
+        if (normal.dot(_raycaster.ray.direction) > 0) {
           normal.negate();
         }
 
@@ -1247,7 +1517,7 @@ export class WeaponSystem {
           }
         } else if (hitObject === 'arena') {
           this._spawnImpactSparks(_hitPoint, normal, 2);
-          this._spawnDecal(_hitPoint, normal, true, false);
+          this._spawnDecal(_hitPoint, normal, true, false, 'shotgun');
         } else if (hitObject === 'box' && this.boxManager) {
           this._spawnImpactSparks(_hitPoint, normal, 2);
           this.boxManager.onHit(closestHit);
@@ -1331,9 +1601,9 @@ export class WeaponSystem {
     if (closestHit) {
       _hitPoint.copy(closestHit.point);
       const normal = closestHit.face
-        ? _scratchVec2.copy(closestHit.face.normal)
-        : (closestHit.normal ? _scratchVec2.copy(closestHit.normal) : _scratchVec2.set(0, 0, -1));
-      if (normal.dot(_rayDirection) > 0) {
+        ? _scratchVec2.copy(closestHit.face.normal).transformDirection(closestHit.object.matrixWorld).normalize()
+        : (closestHit.normal ? _scratchVec2.copy(closestHit.normal).normalize() : _scratchVec2.set(0, 0, -1));
+      if (normal.dot(_raycaster.ray.direction) > 0) {
         normal.negate();
       }
 
@@ -1370,7 +1640,7 @@ export class WeaponSystem {
       } else if (hitObject === 'arena') {
         // Burst 6-8 hot metal impact sparks arcing with gravity
         this._spawnImpactSparks(_hitPoint, normal);
-        this._spawnDecal(_hitPoint, normal, false, false);
+        this._spawnDecal(_hitPoint, normal, false, false, this.currentWeapon);
       } else if (hitObject === 'box' && this.boxManager) {
         this._spawnImpactSparks(_hitPoint, normal);
         this.boxManager.onHit(closestHit);
@@ -1403,17 +1673,18 @@ export class WeaponSystem {
 
   _spawnImpactSparks(hitPoint, normal, overrideCount = null) {
     const count = overrideCount !== null ? overrideCount : (6 + Math.floor(Math.random() * 3));
+    const isCeiling = normal.y < -0.5;
     for (let i = 0; i < count; i++) {
       const spark = this.sparkPool.acquire();
       spark.visible = true;
-      spark.position.copy(hitPoint);
+      spark.position.copy(hitPoint).addScaledVector(normal, 0.012);
       spark._life = 0.22 + Math.random() * 0.16;
       spark._maxLife = spark._life;
 
-      // Arc outward along normal + hemisphere scatter
+      // Arc outward along normal + hemisphere scatter (shower downward cleanly on ceiling hits)
       _scratchVec1.copy(normal).multiplyScalar(2.0 + Math.random() * 3.0);
       _scratchVec1.x += (Math.random() - 0.5) * 4.0;
-      _scratchVec1.y += Math.random() * 2.8;
+      _scratchVec1.y += isCeiling ? (-Math.random() * 1.4) : (Math.random() * 2.8);
       _scratchVec1.z += (Math.random() - 0.5) * 4.0;
       spark._velocity.copy(_scratchVec1);
     }
@@ -1447,14 +1718,30 @@ export class WeaponSystem {
     tracer.visible = true;
   }
 
-  _spawnDecal(hitPoint, surfaceNormal, isPellet = false, isGlass = false) {
+  _spawnDecal(hitPoint, surfaceNormal, isPellet = false, isGlass = false, weaponId = this.currentWeapon) {
     const decal = this.decalPool.acquire();
 
     // Reset age and visual state
     decal.userData.age = 0;
     decal.material.opacity = 1.0;
 
-    const targetMap = isGlass ? this.glassDecalTexture : this.decalTexture;
+    const activeWeapon = isPellet ? 'shotgun' : (weaponId || this.currentWeapon);
+
+    let targetMap = this.glassDecalTexture;
+    if (!isGlass) {
+      const variants = activeWeapon === 'pistol' ? this.heavyDecalTextures : this.decalTextures;
+      if (variants && variants.length > 0) {
+        let nextIdx = Math.floor(Math.random() * variants.length);
+        if (variants.length > 1 && nextIdx === this._lastDecalVariantIdx) {
+          nextIdx = (nextIdx + 1 + Math.floor(Math.random() * (variants.length - 1))) % variants.length;
+        }
+        this._lastDecalVariantIdx = nextIdx;
+        targetMap = variants[nextIdx];
+      } else {
+        targetMap = this.decalTexture;
+      }
+    }
+
     if (decal.material.map !== targetMap) {
       decal.material.map = targetMap;
       decal.material.needsUpdate = true;
@@ -1467,21 +1754,40 @@ export class WeaponSystem {
       decal.userData.ember.material.opacity = isGlass ? 0.0 : 1.0;
     }
 
-    // Position decal slightly offset from surface to avoid z-fighting
-    decal.position.copy(hitPoint).addScaledVector(surfaceNormal, isGlass ? 0.004 : 0.005);
+    // Ensure surfaceNormal is unit length and position decal slightly offset toward shooter to avoid z-fighting
+    _scratchVec3.copy(surfaceNormal).normalize();
+    decal.position.copy(hitPoint).addScaledVector(_scratchVec3, isGlass ? 0.004 : 0.005);
 
-    // Orient decal normal to match surface normal
-    _scratchVec3.copy(hitPoint).add(surfaceNormal);
-    decal.lookAt(_scratchVec3);
+    // Orient decal via unit-vector quaternion alignment (prevents lookAt() collinearity on flat ceilings & floors)
+    decal.quaternion.setFromUnitVectors(_decalUnitZ, _scratchVec3);
 
-    // Random rotation around surface normal
+    // Apply random Z-axis roll (0 to Math.PI * 2) around surface normal
     decal.rotateZ(Math.random() * Math.PI * 2);
 
-    // Glass spiderweb fractures spread slightly wider than solid craters; buckshot pellets leave tighter fractures
-    const s = isGlass
-      ? (isPellet ? (0.58 + Math.random() * 0.16) : (1.08 + Math.random() * 0.30))
-      : (isPellet ? (0.44 + Math.random() * 0.14) : (0.85 + Math.random() * 0.30));
-    decal.scale.set(s, s, 1.0);
+    if (isGlass) {
+      // Glass spiderweb fractures kept 100% untouched
+      const s = isPellet ? (0.58 + Math.random() * 0.16) : (1.08 + Math.random() * 0.30);
+      decal.scale.set(s, s, 1.0);
+    } else {
+      // Caliber-specific world-space quad size (in meters) with ±8% random scale jitter
+      // Base decal PlaneGeometry is 0.24m x 0.24m
+      let baseQuadMeters;
+      if (isPellet || activeWeapon === 'shotgun') {
+        // 12 Gauge Buckshot ('shotgun' / Remington 870): ~0.032m to 0.042m per pellet
+        baseQuadMeters = 0.037;
+      } else if (activeWeapon === 'pistol') {
+        // .50 AE ('pistol' / Desert Eagle): ~0.105m to 0.125m total quad size (~1.9x 9mm)
+        baseQuadMeters = 0.115;
+      } else {
+        // 9mm ('hk_usp' and 'hk_mp5'): ~0.055m to 0.065m total quad size
+        baseQuadMeters = 0.060;
+      }
+
+      const jitter = 1.0 + (Math.random() * 2.0 - 1.0) * 0.08;
+      const worldQuadSize = baseQuadMeters * jitter;
+      const s = worldQuadSize / 0.24;
+      decal.scale.set(s, s, 1.0);
+    }
   }
 
   reset() {
@@ -1591,7 +1897,21 @@ export class WeaponSystem {
   warmUpGPU(renderer, camera) {
     if (!renderer) return;
 
-    // 1. Upload effect textures to GPU
+    // 1. Upload effect textures (including all procedural wall decal variations) to GPU
+    if (this.decalTextures && this.decalTextures.length > 0) {
+      for (const tex of this.decalTextures) {
+        if (tex) {
+          try { renderer.initTexture(tex); } catch (e) {}
+        }
+      }
+    }
+    if (this.heavyDecalTextures && this.heavyDecalTextures.length > 0) {
+      for (const tex of this.heavyDecalTextures) {
+        if (tex) {
+          try { renderer.initTexture(tex); } catch (e) {}
+        }
+      }
+    }
     if (this.decalTexture) {
       try { renderer.initTexture(this.decalTexture); } catch (e) {}
     }
