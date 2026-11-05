@@ -10010,23 +10010,23 @@ float rackHash(vec2 p) {
     const exitSignTex = createExitSignTextures();
 
     this.vestibuleGlassMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcbd5e1,
+      color: 0xdde5ee,
       transparent: true,
-      opacity: 0.20,
-      roughness: 0.12,
-      metalness: 0.08,
-      envMapIntensity: 0.50,
+      opacity: 0.06,
+      roughness: 0.08,
+      metalness: 0.05,
+      envMapIntensity: 0.85,
       depthWrite: false,
-      side: THREE.DoubleSide,
+      side: THREE.FrontSide,
     });
 
     this.vestibuleGlassSeamMaterial = new THREE.MeshStandardMaterial({
-      color: 0x64748b,
+      color: 0x94a3b8,
       transparent: true,
-      opacity: 0.50,
-      roughness: 0.22,
-      metalness: 0.30,
-      envMapIntensity: 0.45,
+      opacity: 0.20,
+      roughness: 0.25,
+      metalness: 0.10,
+      envMapIntensity: 0.50,
       depthWrite: false,
     });
 
@@ -10137,12 +10137,12 @@ float rackHash(vec2 p) {
     });
 
     this.serverPodGlassMaterial = new THREE.MeshStandardMaterial({
-      color: 0x162028,
+      color: 0x0f161e,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.64,
       roughness: 0.08,
-      metalness: 0.15,
-      envMapIntensity: 0.65,
+      metalness: 0.28,
+      envMapIntensity: 1.05,
       depthWrite: false,
       side: THREE.DoubleSide,
     });
@@ -10624,14 +10624,18 @@ float rackHash(vec2 p) {
     );
 
     // Zone C: Workstation Cover Rows (All 3 rows strictly on the main floor at baseY = 0.0!)
-    // Row 1: Close Distance (Z = 1.8m, Floor level)
-    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 1.8, 0.0, 'close', addPartMatrix);
+    // Uniformly translated by -4.5m along Z toward the Server Pod (Z = -6.50m) so Row 1 sits ~2.8m-3.25m
+    // from the Server Pod glass wall and opens up a generous clear zone in front of the Vestibule Door.
+    const deskClusterOffsetZ = -4.5;
 
-    // Row 2: Mid Distance (Z = 5.5m, Floor level, staggered wider)
-    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 5.5, 0.0, 'mid', addPartMatrix);
+    // Row 1: Close Distance (Z = -2.7m, Floor level)
+    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 1.8 + deskClusterOffsetZ, 0.0, 'close', addPartMatrix);
 
-    // Row 3: Far Distance (Z = 9.2m, Floor level)
-    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 9.2, 0.0, 'far', addPartMatrix);
+    // Row 2: Mid Distance (Z = 1.0m, Floor level, staggered wider)
+    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 5.5 + deskClusterOffsetZ, 0.0, 'mid', addPartMatrix);
+
+    // Row 3: Far Distance (Z = 4.7m, Floor level)
+    this._buildWorkstationRow(addPart, addVisual, visualBuckets, 9.2 + deskClusterOffsetZ, 0.0, 'far', addPartMatrix);
 
     // Zone D: Corporate Access Vestibule (Glass Partition Wall, Open Glass Door, Stairwell & Elevator Room)
     this._buildCorporateAccessVestibule(
