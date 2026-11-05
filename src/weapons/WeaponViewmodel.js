@@ -691,7 +691,7 @@ export class WeaponViewmodel {
 
     this._loadModelsPromise = Promise.all(modelDefs.map(loadSingle)).then(async () => {
       this._isLoaded = true;
-      this.selectWeapon('hk_usp');
+      this.selectWeapon('hk_usp', { silent: true });
       await yieldToBrowser();
     });
 
@@ -1142,9 +1142,10 @@ export class WeaponViewmodel {
     this.root.visible = prevRootVis;
   }
 
-  selectWeapon(weaponType) {
+  selectWeapon(weaponType, options = {}) {
     this.currentWeapon = null;
-    this.switchWeapon(weaponType);
+    const isSilent = typeof options === 'boolean' ? options : !!(options && options.silent);
+    this.switchWeapon(weaponType, { silent: isSilent, force: true });
   }
 
   /**
@@ -2176,8 +2177,11 @@ export class WeaponViewmodel {
   // WEAPON SWITCHING & ADS
   // ===========================================================================
 
-  switchWeapon(weaponType) {
-    if (this.currentWeapon === weaponType) return;
+  switchWeapon(weaponType, options = {}) {
+    const isSilent = (typeof options === 'object' && options !== null) ? !!options.silent : false;
+    const isForce = (typeof options === 'object' && options !== null) ? !!options.force : (typeof options === 'boolean' ? options : false);
+
+    if (this.currentWeapon === weaponType && !isForce) return;
 
     if (this.sound && typeof this.sound.stopActionSounds === 'function') {
       this.sound.stopActionSounds();
@@ -2266,16 +2270,56 @@ export class WeaponViewmodel {
     this.posSpring.reset(targetPos.x, targetPos.y, targetPos.z);
     this.rotSpring.reset(targetRot.x, targetRot.y, targetRot.z);
 
-    // 2. Smooth, subtle low-ready equip transition (no forward Z impulse, no overshooting)
+    // 2. Equip transition and audio
+    if (isSilent) {
+      this.reloadTilt.x = 0;
+      this.reloadTilt.y = 0;
+      this.reloadTilt.z = 0;
+      this.reloadTilt.pitch = 0;
+      this.reloadTilt.roll = 0;
+      this.reloadTilt.yaw = 0;
+    } else {
+      // Smooth, subtle low-ready equip transition (no forward Z impulse, no overshooting)
+      this.reloadTilt.x = 0;
+      this.reloadTilt.y = isUSP ? -0.035 : (isShotgun ? -0.030 : (isMP5 ? -0.032 : -0.040));
+      this.reloadTilt.z = 0;
+      this.reloadTilt.pitch = isUSP ? -0.05 : (isShotgun ? -0.045 : (isMP5 ? -0.048 : -0.07));
+      this.reloadTilt.roll = isUSP ? 0.03 : (isShotgun ? -0.03 : (isMP5 ? 0.025 : 0.04));
+      this.reloadTilt.yaw = 0;
+
+      const equipTween = new TWEEN.Tween(this.reloadTilt, true)
+        .to({ roll: 0, pitch: 0, yaw: 0, y: 0, x: 0, z: 0 }, 190)
+        .easing(TWEEN.Easing.Cubic.Out);
+      this.reloadTweens.push(equipTween);
+      equipTween.start();
+
+      if (this.sound && typeof this.sound.playWeaponSwitch === 'function') {
+        this.sound.playWeaponSwitch(weaponType);
+      }
+    }
+  }
+
+  /**
+   * Explicitly triggers the weapon draw/equip animation and sound effect.
+   * Called when clicking START on the main menu to enter gameplay.
+   */
+  playEquipAnimation(weaponType = this.currentWeapon) {
+    const isUSP = weaponType === 'hk_usp';
+    const isShotgun = weaponType === 'shotgun';
+    const isMP5 = weaponType === 'hk_mp5';
+
+    this.reloadTweens.forEach((t) => t.stop());
+    this.reloadTweens.length = 0;
+
     this.reloadTilt.x = 0;
-    this.reloadTilt.y = isUSP ? -0.035 : (isShotgun ? -0.030 : (isMP5 ? -0.032 : -0.040));
+    this.reloadTilt.y = isUSP ? -0.040 : (isShotgun ? -0.035 : (isMP5 ? -0.036 : -0.045));
     this.reloadTilt.z = 0;
-    this.reloadTilt.pitch = isUSP ? -0.05 : (isShotgun ? -0.045 : (isMP5 ? -0.048 : -0.07));
-    this.reloadTilt.roll = isUSP ? 0.03 : (isShotgun ? -0.03 : (isMP5 ? 0.025 : 0.04));
+    this.reloadTilt.pitch = isUSP ? -0.06 : (isShotgun ? -0.055 : (isMP5 ? -0.052 : -0.08));
+    this.reloadTilt.roll = isUSP ? 0.035 : (isShotgun ? -0.035 : (isMP5 ? 0.028 : 0.045));
     this.reloadTilt.yaw = 0;
 
     const equipTween = new TWEEN.Tween(this.reloadTilt, true)
-      .to({ roll: 0, pitch: 0, yaw: 0, y: 0, x: 0, z: 0 }, 190)
+      .to({ roll: 0, pitch: 0, yaw: 0, y: 0, x: 0, z: 0 }, 220)
       .easing(TWEEN.Easing.Cubic.Out);
     this.reloadTweens.push(equipTween);
     equipTween.start();

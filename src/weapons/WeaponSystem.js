@@ -734,7 +734,16 @@ export class WeaponSystem {
    * Slot 3 ('shotgun' - Remington 870 12-Gauge),
    * and Slot 4 ('hk_mp5' - 9mm H&K MP5 Submachine Gun).
    */
-  switchWeapon(weaponType, force = false) {
+  switchWeapon(weaponType, force = false, options = {}) {
+    let isSilent = false;
+    if (typeof force === 'object' && force !== null) {
+      options = force;
+      force = !!options.force;
+      isSilent = !!options.silent;
+    } else if (typeof options === 'object' && options !== null) {
+      isSilent = !!options.silent;
+    }
+
     const canSwitch = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
     if (!canSwitch) return;
     if (weaponType === 1 || weaponType === '1') weaponType = 'hk_usp';
@@ -742,7 +751,7 @@ export class WeaponSystem {
     if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
     if (weaponType === 4 || weaponType === '4') weaponType = 'hk_mp5';
     if (weaponType !== 'hk_usp' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
-    if (this.currentWeapon === weaponType && (!this.viewmodel || this.viewmodel.currentWeapon === weaponType)) return;
+    if (this.currentWeapon === weaponType && (!this.viewmodel || this.viewmodel.currentWeapon === weaponType) && !force) return;
 
     // 1. Persist current weapon state
     const prevState = this.weapons[this.currentWeapon];
@@ -769,7 +778,7 @@ export class WeaponSystem {
       if (!window.isViewmodelTunerOpen) {
         this.viewmodel.setADS(false);
       }
-      this.viewmodel.switchWeapon(weaponType);
+      this.viewmodel.switchWeapon(weaponType, { silent: isSilent, force });
       if (weaponType === 'hk_usp' || weaponType === 'pistol') {
         this.viewmodel.setSlideLocked(this.isSlideLocked);
       }
@@ -782,6 +791,16 @@ export class WeaponSystem {
       } else {
         this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true);
       }
+    }
+  }
+
+  /**
+   * Plays the tactical weapon draw/equip animation and sound when entering gameplay.
+   */
+  playInitialEquip() {
+    this.fireTimer = 0.22; // Brief equip delay before firing
+    if (this.viewmodel && typeof this.viewmodel.playEquipAnimation === 'function') {
+      this.viewmodel.playEquipAnimation(this.currentWeapon);
     }
   }
 

@@ -28,6 +28,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const loadingBarFill = document.getElementById('loading-bar-fill');
   const loadingStatusText = document.getElementById('loading-status-text');
   const loadingPctText = document.getElementById('loading-pct-text');
+  let isPreloading = true;
 
   let currentBootProgress = 0;
   function updateBootProgress(targetPct, statusMsg) {
@@ -131,8 +132,8 @@ window.addEventListener('DOMContentLoaded', () => {
         statusVal.style.color = '';
       }
       // If returning from PAUSED (via EXIT), keep playing seamlessly without restarting;
-      // if music was paused or not yet playing, resume it
-      if (sound.menuMusic && sound.menuMusic.paused) {
+      // if music was paused or not yet playing, resume it (only if preloading has completed)
+      if (!isPreloading && sound.menuMusic && sound.menuMusic.paused) {
         sound.resumeMenuMusic(0);
       }
     }
@@ -197,6 +198,10 @@ window.addEventListener('DOMContentLoaded', () => {
     // Smooth transition from loading screen to main menu
     await new Promise((r) => setTimeout(r, 260));
 
+    // Preloader is 100% complete: unblock audio playback
+    isPreloading = false;
+    sound.setPreloading(false);
+
     if (loadingScreen) {
       loadingScreen.classList.add('hidden');
       setTimeout(() => {
@@ -212,26 +217,33 @@ window.addEventListener('DOMContentLoaded', () => {
     if (statusVal) {
       statusVal.textContent = 'READY';
     }
+
+    // Start menu music strictly after the loading screen completes and fades out
+    playMenuMusicOnReady();
   }
 
   runBootPipeline();
 
-  // Attempt autoplay immediately on initial load (MAIN_MENU)
-  sound.startMenuMusic().catch(() => {
-    // Autoplay blocked by browser policy: attach one-time gesture listeners on window
-    const onFirstGesture = (e) => {
-      sound.resume();
-      // If the first user interaction was directly on the start button, skip starting menu music
-      const isStartBtn = e.target && (e.target.id === 'start-btn' || (e.target.closest && e.target.closest('#start-btn')));
-      if (!isStartBtn && (gameState === 'MAIN_MENU' || gameState === 'PAUSED')) {
-        sound.resumeMenuMusic(300);
-      }
-      window.removeEventListener('pointerdown', onFirstGesture);
-      window.removeEventListener('keydown', onFirstGesture);
-    };
-    window.addEventListener('pointerdown', onFirstGesture);
-    window.addEventListener('keydown', onFirstGesture);
-  });
+  function playMenuMusicOnReady() {
+    if (isPreloading || gameState === 'PLAYING') return;
+
+    sound.startMenuMusic().catch(() => {
+      // Autoplay blocked by browser policy: attach one-time gesture listeners on window
+      const onFirstGesture = (e) => {
+        if (isPreloading) return;
+        sound.resume();
+        // If the first user interaction was directly on the start button, skip starting menu music
+        const isStartBtn = e.target && (e.target.id === 'start-btn' || (e.target.closest && e.target.closest('#start-btn')));
+        if (!isStartBtn && (gameState === 'MAIN_MENU' || gameState === 'PAUSED')) {
+          sound.resumeMenuMusic(300);
+        }
+        window.removeEventListener('pointerdown', onFirstGesture);
+        window.removeEventListener('keydown', onFirstGesture);
+      };
+      window.addEventListener('pointerdown', onFirstGesture);
+      window.addEventListener('keydown', onFirstGesture);
+    });
+  }
 
   // Engine physics tick
   engine.addPhysicsUpdatable({
@@ -320,10 +332,18 @@ window.addEventListener('DOMContentLoaded', () => {
   startBtn.addEventListener('mouseup', (e) => e.stopPropagation());
   startBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    if (isPreloading) return;
+
+    const isInitialStart = (gameState === 'MAIN_MENU');
     sound.resume();
     sound.playStartClick();
     setGameState('PLAYING');
     input.requestLock();
+
+    // Trigger weapon draw/equip animation and sound when entering gameplay
+    if (isInitialStart) {
+      weaponSystem.playInitialEquip();
+    }
   });
 
   if (exitBtn) {

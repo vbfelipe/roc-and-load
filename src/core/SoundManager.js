@@ -16,9 +16,14 @@ export class SoundManager {
     this.activeActionSources = new Set();
     this.isSampleReloadActive = false;
     this.lastDryFireTime = 0;
+    this.isPreloading = true;
 
     this._initAudio();
     this._initMenuMusic();
+  }
+
+  setPreloading(loading) {
+    this.isPreloading = !!loading;
   }
 
   _initMenuMusic() {
@@ -60,6 +65,7 @@ export class SoundManager {
   }
 
   startMenuMusic() {
+    if (this.isPreloading) return Promise.reject(new Error('Preloading active'));
     if (!this.isBgmEnabled) return Promise.reject(new Error('BGM disabled'));
     if (!this.menuMusic) return Promise.reject(new Error('No menu music'));
     if (this._fadeRaf) {
@@ -71,6 +77,7 @@ export class SoundManager {
   }
 
   resumeMenuMusic(fadeDurationMs = 300) {
+    if (this.isPreloading) return;
     if (!this.isBgmEnabled) return;
     if (!this.menuMusic) return;
     if (this._fadeRaf) {
@@ -124,9 +131,6 @@ export class SoundManager {
     this.masterGain = this.ctx.createGain();
     this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
     this.masterGain.connect(this.ctx.destination);
-
-    // Preload & decode authentic weapon audio samples into AudioBuffers
-    this._preloadPromise = this.preloadAllAudio();
 
     // Auto-resume audio on first user gesture
     const resumeOnGesture = () => {
@@ -222,7 +226,7 @@ export class SoundManager {
    * If isAction = true, tracked so it can be interrupted/cancelled on weapon switch.
    */
   _playSoundBuffer(bufferKey, options = {}) {
-    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return null;
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return null;
     this.resume();
 
     const buffer = this.audioBuffers.get(bufferKey);
@@ -1889,7 +1893,7 @@ export class SoundManager {
    * Tactical Weapon Equip / Switch SFX (Keys 1, 2, & 3).
    */
   playWeaponSwitch(weaponType = 'hk_usp') {
-    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
     const t = this.ctx.currentTime;
 
