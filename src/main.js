@@ -188,6 +188,20 @@ window.addEventListener('DOMContentLoaded', () => {
     try {
       await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera);
       weaponSystem.warmUpGPU(engine.renderer, engine.camera);
+      if (warehouse && engine.renderer && typeof engine.renderer.initTexture === 'function') {
+        if (warehouse.noEntrySignTexture) {
+          try { engine.renderer.initTexture(warehouse.noEntrySignTexture); } catch (e) {}
+        }
+        if (warehouse.extinguisherSignTexture) {
+          try { engine.renderer.initTexture(warehouse.extinguisherSignTexture); } catch (e) {}
+        }
+        if (warehouse.extinguisherStickerTexture) {
+          try { engine.renderer.initTexture(warehouse.extinguisherStickerTexture); } catch (e) {}
+        }
+        if (warehouse.extinguisherGaugeTexture) {
+          try { engine.renderer.initTexture(warehouse.extinguisherGaugeTexture); } catch (e) {}
+        }
+      }
     } catch (err) {
       console.warn('GPU warm-up warning:', err);
     }

@@ -2924,138 +2924,421 @@ function createExitSignTextures() {
 }
 
 /**
- * Procedural "NO ENTRY / STAFF ONLY" Sign Plaque Texture (512x340).
- * Matches standard OSHA / ISO 7010 prohibition safety signage:
- * - Red background (#d1190e).
- * - Vertically centered graphic at cy = 170 with R = 122 outer white badge (equal 48px top & bottom margins).
- * - Unified white circle & top-right white banner (x: 138..488, y: 48..170).
- * - Prohibition ring (#d1190e, r = 102, lineWidth = 18), bold walking silhouette, 45° slash.
- * - Strictly bounded condensed text: "NO ENTRY" (scaled, bold, tall) and "STAFF ONLY" (scaled white).
+ * Procedural Brazilian Portuguese "AVISO / ACESSO RESTRITO / SOMENTE PESSOAS AUTORIZADAS" Sign Plaque Texture (600x420).
+ * Matches standard Brazilian NBR / NR-26 security & restricted access signage.
  */
 function createNoEntrySignTexture() {
-  const w = 512;
-  const h = 340;
+  const w = 600;
+  const h = 420;
   const canvas = document.createElement('canvas');
   canvas.width = w;
   canvas.height = h;
   const ctx = canvas.getContext('2d');
 
-  // 1. Safety Red Background (#d1190e)
-  ctx.fillStyle = '#d1190e';
+  const drawRoundedRect = (rx, ry, rw, rh, rad) => {
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(rx, ry, rw, rh, rad);
+    } else {
+      ctx.moveTo(rx + rad, ry);
+      ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, rad);
+      ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, rad);
+      ctx.arcTo(rx, ry + rh, rx, ry, rad);
+      ctx.arcTo(rx, ry, rx + rw, ry, rad);
+      ctx.closePath();
+    }
+  };
+
+  // 1. White Base & Outer Black Rounded Border
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, w, h);
 
-  // Layout parameters: centered vertically at cy = 170 with equal 48px margins
-  const cx = 138;
-  const cy = 170;
-  const R = 122; // outer white badge radius
-
-  // 2. Unified White Circle & Top-Right White Banner
-  ctx.fillStyle = '#eef1f4';
-  // A. Solid white circle at (cx = 138, cy = 170, radius = 122)
-  ctx.beginPath();
-  ctx.arc(cx, cy, R, 0, Math.PI * 2);
-  ctx.fill();
-
-  // B. Solid white rectangle (merging seamlessly with circle top)
-  // x = 138, y = 48 (cy - R), width = 350 (ends at x = 488, 24px right border), height = 122 (stops at y = 170)
-  ctx.fillRect(cx, cy - R, 350, R);
-
-  // 3. Red Prohibition Ring inside White Circle (radius = 102px, lineWidth = 18px)
-  const ringR = 102;
-  const ringWidth = 18;
-  ctx.strokeStyle = '#d1190e';
-  ctx.lineWidth = ringWidth;
-  ctx.beginPath();
-  ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
-  ctx.stroke();
-
-  // 4. Clean, Bold Black Walking-Person Silhouette Centered Inside the Ring
-  ctx.fillStyle = '#0a0a0a';
+  drawRoundedRect(14, 14, 572, 392, 24);
   ctx.strokeStyle = '#0a0a0a';
-  ctx.lineWidth = 14;
-  ctx.lineCap = 'round';
-  ctx.lineJoin = 'round';
+  ctx.lineWidth = 7;
+  ctx.stroke();
 
-  // Head circle at (138, 112), r = 13
-  ctx.beginPath();
-  ctx.arc(138, 112, 13, 0, Math.PI * 2);
+  // 2. Top Blue Header Box & "AVISO" Title
+  drawRoundedRect(28, 28, 544, 118, 14);
+  ctx.fillStyle = '#001eff';
   ctx.fill();
 
-  // Torso
+  ctx.save();
+  ctx.translate(300, 90);
+  ctx.scale(1.08, 1.0);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 88px "Arial Black", Impact, Arial, sans-serif';
+  ctx.fillText('AVISO', 0, 0);
+  ctx.restore();
+
+  // 3. Middle-Left Stacked Text ("ACESSO" / "RESTRITO")
+  ctx.fillStyle = '#0a0a0a';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 62px "Arial Black", Arial, sans-serif';
+  ctx.fillText('ACESSO', 212, 204);
+  ctx.fillText('RESTRITO', 212, 282);
+
+  // 4. Middle-Right Prohibition Icon & Front-Facing Standing Silhouette
+  // Step A: Front-Facing Standing Person Silhouette (#0a0a0a, drawn BEFORE red ring/slash)
+  // Head: Solid black circle at (468, 198), radius = 11.5
+  ctx.fillStyle = '#0a0a0a';
   ctx.beginPath();
-  ctx.moveTo(136, 129);
-  ctx.lineTo(142, 168);
+  ctx.arc(468, 198, 11.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Shoulders & Torso: Solid black rounded rectangle from x = 451 to 485 (w = 34), y = 213 to 260 (h = 47, radius = 8)
+  drawRoundedRect(451, 213, 34, 47, 8);
+  ctx.fillStyle = '#0a0a0a';
+  ctx.fill();
+
+  // Arms: Two thick black rounded strokes (lineWidth = 8.5, lineCap = 'round') angled slightly outward
+  ctx.strokeStyle = '#0a0a0a';
+  ctx.lineWidth = 8.5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(451, 219);
+  ctx.lineTo(442, 260);
   ctx.stroke();
 
-  // Left Arm (trailing backward)
   ctx.beginPath();
-  ctx.moveTo(136, 136);
-  ctx.lineTo(114, 154);
-  ctx.lineTo(110, 168);
+  ctx.moveTo(485, 219);
+  ctx.lineTo(494, 260);
   ctx.stroke();
 
-  // Right Arm (swinging forward)
+  // Legs: Two vertical black rounded strokes (lineWidth = 10.5, lineCap = 'round')
+  ctx.lineWidth = 10.5;
   ctx.beginPath();
-  ctx.moveTo(136, 136);
-  ctx.lineTo(156, 154);
-  ctx.lineTo(168, 165);
+  ctx.moveTo(460, 256);
+  ctx.lineTo(460, 300);
   ctx.stroke();
 
-  // Left Leg (trailing backward)
   ctx.beginPath();
-  ctx.moveTo(142, 168);
-  ctx.lineTo(124, 196);
-  ctx.lineTo(110, 224);
+  ctx.moveTo(476, 256);
+  ctx.lineTo(476, 300);
   ctx.stroke();
 
-  // Right Leg (striding forward)
-  ctx.beginPath();
-  ctx.moveTo(142, 168);
-  ctx.lineTo(158, 194);
-  ctx.lineTo(166, 226);
-  ctx.stroke();
-
-  // 5. 45° Red Diagonal Slash Cutting Across the Ring ((138 - 72, 170 - 72) to (138 + 72, 170 + 72))
-  ctx.strokeStyle = '#d1190e';
-  ctx.lineWidth = 18;
+  // Step B: Red Prohibition Ring & 45° Diagonal Slash (#ee1111)
+  ctx.strokeStyle = '#ee1111';
+  ctx.lineWidth = 15;
   ctx.lineCap = 'butt';
   ctx.beginPath();
-  ctx.moveTo(cx - 72, cy - 72);
-  ctx.lineTo(cx + 72, cy + 72);
+  ctx.arc(468, 244, 68, 0, Math.PI * 2);
   ctx.stroke();
 
-  // 6. Strictly Bounded Condensed Text (Zero Circle Overlap, Zero Right-Edge Clipping)
-  // Text column center: textCenterX = 373, safe bounds: x = 268 to x = 478
-  // "NO ENTRY" (Top White Box)
+  ctx.beginPath();
+  ctx.moveTo(468 - 48, 244 - 48);
+  ctx.lineTo(468 + 48, 244 + 48);
+  ctx.stroke();
+
+  // 5. Bottom Full-Width Footer Text ("SOMENTE PESSOAS AUTORIZADAS")
   ctx.save();
-  ctx.translate(373, 111);
-  ctx.scale(0.75, 1.0);
-  ctx.font = '900 58px Impact, "Arial Black", sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
+  ctx.translate(300, 368);
+  ctx.scale(0.82, 1.0);
   ctx.fillStyle = '#0a0a0a';
-  ctx.fillText('NO ENTRY', 0, 0, 265);
-  ctx.restore();
-
-  // "STAFF ONLY" (Bottom Red Area)
-  ctx.save();
-  ctx.translate(373, 234);
-  ctx.scale(0.72, 1.0);
-  ctx.font = '900 56px Impact, "Arial Black", sans-serif';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillStyle = '#eef1f4';
-  ctx.fillText('STAFF ONLY', 0, 0, 280);
+  ctx.font = '900 32px "Arial Black", Arial, sans-serif';
+  ctx.fillText('SOMENTE PESSOAS AUTORIZADAS', 0, 0, 620);
   ctx.restore();
-
-  // 7. Crisp Sign Border / Edge Bevel
-  ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(2, 2, w - 4, h - 4);
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Brazilian "EXTINTOR" Sign Plaque Texture (400x580).
+ * Matches standard Brazilian NBR 13434 / NR-23 safety signage with vivid safety-red background,
+ * white rounded border, INDA FIRE vendor stamp, extinguisher silhouette, bold "EXTINTOR" title,
+ * downward chevron arrow, and micro certification code.
+ */
+function createExtinguisherSignTexture() {
+  const w = 400;
+  const h = 580;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  const drawRoundedRect = (rx, ry, rw, rh, rad) => {
+    ctx.beginPath();
+    if (typeof ctx.roundRect === 'function') {
+      ctx.roundRect(rx, ry, rw, rh, rad);
+    } else {
+      ctx.moveTo(rx + rad, ry);
+      ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, rad);
+      ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, rad);
+      ctx.arcTo(rx, ry + rh, rx, ry, rad);
+      ctx.arcTo(rx, ry, rx + rw, ry, rad);
+      ctx.closePath();
+    }
+  };
+
+  // 1. Rich Safety-Red Plaque Background (#d91108) & Thick White Rounded Inset Border
+  ctx.fillStyle = '#d91108';
+  ctx.fillRect(0, 0, w, h);
+
+  drawRoundedRect(18, 18, 364, 544, 40);
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 12;
+  ctx.stroke();
+
+  // 2. Large White Extinguisher Silhouette (Top-Center: y = 48 to 292, centered at x = 200)
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(140, 135);
+  ctx.arcTo(140, 96, 185, 96, 40);
+  ctx.lineTo(185, 96);
+  ctx.lineTo(185, 52);
+  ctx.lineTo(215, 52);
+  ctx.lineTo(215, 96);
+  ctx.arcTo(260, 96, 260, 135, 40);
+  ctx.lineTo(260, 292);
+  ctx.lineTo(140, 292);
+  ctx.closePath();
+  ctx.fill();
+
+  // Valve handle extending to the right
+  drawRoundedRect(194, 52, 54, 18, 7);
+  ctx.fill();
+
+  // Curved hose arching to the left
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 15;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(194, 61);
+  ctx.bezierCurveTo(142, 56, 114, 72, 110, 104);
+  ctx.stroke();
+
+  // Nozzle tip
+  drawRoundedRect(103, 104, 14, 20, 4);
+  ctx.fill();
+
+  // 3. Bold White "EXTINTOR" Title (Middle: y = 348)
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 52px Arial, Helvetica, sans-serif';
+  ctx.fillText('EXTINTOR', 200, 348);
+
+  // 4. Bold White Downward Arrow (Bottom-Center: y = 398 to 524)
+  ctx.beginPath();
+  ctx.moveTo(183, 398);
+  ctx.lineTo(217, 398);
+  ctx.lineTo(217, 452);
+  ctx.lineTo(258, 452);
+  ctx.lineTo(200, 524);
+  ctx.lineTo(142, 452);
+  ctx.lineTo(183, 452);
+  ctx.closePath();
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Brazilian Fire Extinguisher Instruction Sticker Texture (256x256).
+ * Includes INMETRO certification seal, ABC dry powder header, pictograms for Class A/B (flame)
+ * and Class C (electrical spark), usage instructions, and technical maintenance ratings.
+ */
+function createExtinguisherStickerTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // Background - clean white sticker
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 0, size, size);
+
+  // Thin outer label border
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(3, 3, size - 6, size - 6);
+
+  // 1. Top INMETRO seal and inspection badge
+  ctx.fillStyle = '#f59e0b';
+  ctx.fillRect(10, 8, 46, 20);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(10, 8, 46, 20);
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 8px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('INMETRO', 33, 18);
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.fillRect(62, 8, 184, 20);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(62, 8, 184, 20);
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 8px Arial, sans-serif';
+  ctx.fillText('SELO DE CONFORMIDADE NBR 15808', 154, 18);
+
+  // 2. Red Header Bar
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(8, 32, 240, 24);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 13px Arial, sans-serif';
+  ctx.fillText('EXTINTOR PÓ ABC', 128, 44);
+
+  // 3. Pictogram Boxes (Left: Flame / Classes A&B, Right: Spark / Class C)
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(12, 60, 110, 46);
+  ctx.strokeStyle = '#dc2626';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(12, 60, 110, 46);
+
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(12, 60, 110, 12);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px Arial, sans-serif';
+  ctx.fillText('SÓLIDOS E LÍQUIDOS (A B)', 67, 66);
+
+  // Stylized flame pictogram
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath();
+  ctx.moveTo(67, 76);
+  ctx.bezierCurveTo(60, 82, 54, 92, 60, 98);
+  ctx.bezierCurveTo(63, 101, 71, 101, 74, 98);
+  ctx.bezierCurveTo(80, 92, 74, 82, 67, 76);
+  ctx.closePath();
+  ctx.fill();
+
+  // Right: Blue electrical spark box
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(134, 60, 110, 46);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(134, 60, 110, 46);
+
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(134, 60, 110, 12);
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 8px Arial, sans-serif';
+  ctx.fillText('EQUIPAMENTOS ELÉTRICOS (C)', 189, 66);
+
+  // Stylized electrical lightning spark pictogram
+  ctx.fillStyle = '#0284c7';
+  ctx.beginPath();
+  ctx.moveTo(193, 76);
+  ctx.lineTo(183, 89);
+  ctx.lineTo(189, 89);
+  ctx.lineTo(185, 100);
+  ctx.lineTo(195, 87);
+  ctx.lineTo(189, 87);
+  ctx.closePath();
+  ctx.fill();
+
+  // 4. Instructions
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 9px Arial, sans-serif';
+  ctx.fillText('INSTRUÇÕES DE USO:', 14, 120);
+
+  ctx.font = 'bold 8.5px Arial, sans-serif';
+  ctx.fillText('1. PUXE A TRAVA E O LACRE PLÁSTICO', 16, 136);
+  ctx.fillText('2. APONTE A MANGUEIRA PARA A BASE DO FOGO', 16, 152);
+  ctx.fillText('3. APERTE O GATILHO E FAÇA MOVIMENTOS EM LEQUE', 16, 168);
+
+  // Technical Specs Box
+  ctx.fillStyle = '#f1f5f9';
+  ctx.fillRect(12, 182, 232, 64);
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 1;
+  ctx.strokeRect(12, 182, 232, 64);
+
+  ctx.fillStyle = '#334155';
+  ctx.font = '7.5px Arial, sans-serif';
+  ctx.fillText('AGENTE EXTINTOR: PÓ QUÍMICO SECO ABC 55%', 16, 196);
+  ctx.fillText('CAPACIDADE: 4 KG  |  PRESSÃO DE TRABALHO: 1.0 MPa', 16, 209);
+  ctx.fillText('TEMPERATURA DE OPERAÇÃO: -10°C A +50°C', 16, 222);
+  ctx.fillText('VALIDADE DA CARGA: 1 ANO  |  TESTE HIDROSTÁTICO: 5 ANOS', 16, 235);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Extinguisher Pressure Gauge (Manometer) Texture (64x64).
+ * Front dial displaying red/green/red pressure zones with vertical needle.
+ */
+function createExtinguisherGaugeTexture() {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  const cx = size * 0.5;
+  const cy = size * 0.5;
+  const r = 26;
+
+  // Background white dial
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Chrome outer rim
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Left red arc (0 to 10 bar)
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 5, Math.PI * 0.85, Math.PI * 1.30);
+  ctx.stroke();
+
+  // Center green arc (10 to 14 bar - operational range)
+  ctx.strokeStyle = '#22c55e';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 5, Math.PI * 1.30, Math.PI * 1.70);
+  ctx.stroke();
+
+  // Right red arc (14 to 20 bar)
+  ctx.strokeStyle = '#ef4444';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r - 5, Math.PI * 1.70, Math.PI * 2.15);
+  ctx.stroke();
+
+  // Black needle pointing straight up into green zone
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(cx, cy - 17);
+  ctx.stroke();
+
+  // Center pivot pin
+  ctx.fillStyle = '#0f172a';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.needsUpdate = true;
   return texture;
 }
 
@@ -9559,6 +9842,9 @@ export class WarehouseBuilder {
 
     this.stepTreadTexture = createStepTreadTexture();
     this.noEntrySignTexture = createNoEntrySignTexture();
+    this.extinguisherSignTexture = createExtinguisherSignTexture();
+    this.extinguisherStickerTexture = createExtinguisherStickerTexture();
+    this.extinguisherGaugeTexture = createExtinguisherGaugeTexture();
 
     // 2. High-Readability Industrial Palette (NO pure pitch-black silhouettes!)
     this.floorMaterial = new THREE.MeshStandardMaterial({
@@ -10319,6 +10605,55 @@ float rackHash(vec2 p) {
       metalness: 0.0,
       envMapIntensity: 0.15,
     });
+
+    // Hero-Scale Fire Extinguisher & Polished Inox Stand Materials
+    this.inoxStandMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe2e6ec,
+      metalness: 0.92,
+      roughness: 0.12,
+      envMapIntensity: 0.85,
+      side: THREE.DoubleSide,
+    });
+
+    this.extinguisherRedMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd11515,
+      roughness: 0.20,
+      metalness: 0.30,
+      envMapIntensity: 0.40,
+    });
+
+    this.extinguisherLabelMaterial = new THREE.MeshStandardMaterial({
+      map: this.extinguisherStickerTexture,
+      roughness: 0.40,
+      metalness: 0.05,
+    });
+
+    this.extinguisherHoseMaterial = new THREE.MeshStandardMaterial({
+      color: 0x141619,
+      roughness: 0.70,
+      metalness: 0.10,
+    });
+
+    this.extinguisherMetalMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc8ced6,
+      metalness: 0.85,
+      roughness: 0.25,
+      envMapIntensity: 0.60,
+    });
+
+    this.extinguisherGaugeMaterial = new THREE.MeshStandardMaterial({
+      map: this.extinguisherGaugeTexture,
+      roughness: 0.25,
+      metalness: 0.30,
+      envMapIntensity: 0.40,
+    });
+
+    this.extinguisherSignMaterial = new THREE.MeshStandardMaterial({
+      map: this.extinguisherSignTexture,
+      roughness: 0.55,
+      metalness: 0.0,
+      envMapIntensity: 0.10,
+    });
   }
 
   /**
@@ -10444,6 +10779,13 @@ float rackHash(vec2 p) {
       staffDoorSeam: [],
       staffDoorHandle: [],
       staffDoorSign: [],
+      extinguisherInox: [],
+      extinguisherRed: [],
+      extinguisherLabel: [],
+      extinguisherHose: [],
+      extinguisherMetal: [],
+      extinguisherGauge: [],
+      extinguisherSign: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -10806,6 +11148,15 @@ float rackHash(vec2 p) {
       visualBuckets
     );
 
+    // Hero-Scale Floor-Standing Fire Extinguishers & Wall-Mounted "EXTINTOR" Signs
+    // Placed symmetrically on BOTH sides (X = -8.50m and X = +8.50m, Z = -9.18m) dead-center in open wall bays
+    this._buildFloorFireExtinguishers(
+      addPart,
+      addVisual,
+      registerCollider,
+      visualBuckets
+    );
+
     // Zone C: Workstation Cover Rows (All 3 rows strictly on the main floor at baseY = 0.0!)
     // Uniformly translated by -4.5m along Z toward the Server Pod (Z = -6.50m) so Row 1 sits ~2.8m-3.25m
     // from the Server Pod glass wall and opens up a generous clear zone in front of the Vestibule Door.
@@ -10917,6 +11268,13 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.staffDoorSeam, material: this.staffDoorSeamMaterial, name: 'DC_StaffDoorSeam' },
       { bucket: visualBuckets.staffDoorHandle, material: this.staffDoorHandleMaterial, name: 'DC_StaffDoorHandle' },
       { bucket: visualBuckets.staffDoorSign, material: this.staffDoorSignMaterial, name: 'DC_StaffDoorSign' },
+      { bucket: visualBuckets.extinguisherInox, material: this.inoxStandMaterial, name: 'DC_ExtinguisherInox' },
+      { bucket: visualBuckets.extinguisherRed, material: this.extinguisherRedMaterial, name: 'DC_ExtinguisherRed' },
+      { bucket: visualBuckets.extinguisherLabel, material: this.extinguisherLabelMaterial, name: 'DC_ExtinguisherLabel' },
+      { bucket: visualBuckets.extinguisherHose, material: this.extinguisherHoseMaterial, name: 'DC_ExtinguisherHose' },
+      { bucket: visualBuckets.extinguisherMetal, material: this.extinguisherMetalMaterial, name: 'DC_ExtinguisherMetal' },
+      { bucket: visualBuckets.extinguisherGauge, material: this.extinguisherGaugeMaterial, name: 'DC_ExtinguisherGauge' },
+      { bucket: visualBuckets.extinguisherSign, material: this.extinguisherSignMaterial, name: 'DC_ExtinguisherSign' },
     ];
 
     for (const def of bucketDefs) {
@@ -12296,10 +12654,10 @@ float rackHash(vec2 p) {
     addPart(visualBuckets.staffDoorLeaf, leafGeo, leafCenterX, leafCenterY, posZ, 0, 0, 0, true);
     leafGeo.dispose();
 
-    // 4. Procedural "NO ENTRY / STAFF ONLY" Sign Plaque (0.38m wide x 0.25m tall x 0.004m thick)
+    // 4. Procedural Brazilian Portuguese "AVISO / ACESSO RESTRITO" Sign Plaque (0.38m wide x 0.266m tall x 0.004m thick)
     // Mounted flush on door leaf at eye level (Y ≈ 1.78m), horizontally centered on the door leaf (Z = posZ)
     const signW = 0.380; // width along Z
-    const signH = 0.250; // height along Y
+    const signH = 0.266; // height along Y (~0.38m x 0.266m matches 600x420 aspect ratio)
     const signD = 0.004; // 4mm thickness
     const signGeo = new THREE.BoxGeometry(signD, signH, signW);
     const signX = leafFrontX + signD * 0.5; // -9.972m
@@ -13623,6 +13981,150 @@ float rackHash(vec2 p) {
     registerPlayerOnlyCollider(sidePlayerColGeo, xLeft, podMidY, -8.00);
     registerPlayerOnlyCollider(sidePlayerColGeo, xRight, podMidY, -8.00);
     sidePlayerColGeo.dispose();
+  }
+
+  /**
+   * Builds the two Hero-Scale Floor-Standing Fire Extinguishers inside polished stainless-steel
+   * cylindrical stands with wall-mounted Brazilian "EXTINTOR" sign plaques above them,
+   * placed symmetrically on both sides of the Server Containment Pod (X = ±7.50m, Z = -9.25m).
+   */
+  _buildFloorFireExtinguishers(
+    addPart,
+    addVisual,
+    registerCollider,
+    visualBuckets
+  ) {
+    // Symmetrically placed dead-center in the open wall bays between the Server Pod and the room corners:
+    // Shifted outward by one full floor tile to X = ±8.50m, slightly forward at Z = -9.18m (zero baseboard clipping)
+    const standPositions = [
+      { x: -8.50, z: -9.18 },
+      { x: 8.50, z: -9.18 },
+    ];
+
+    // 1. Wall-Mounted "EXTINTOR" Sign Plaque (0.30m wide x 0.43m tall x 0.005m thick)
+    // Mounted high on the upper light-gray drywall panel at Y = 1.84m (bottom edge at 1.625m, well above
+    // the white cable trunking strip ending at Y = 1.61m and above the taller 1.4x hose loop at Y ≈ 1.39m)
+    const signW = 0.300;
+    const signH = 0.430;
+    const signD = 0.005;
+    const signGeo = new THREE.BoxGeometry(signW, signH, signD);
+
+    // 2. 1.4x Hero Scale Assembly Geometries (~1.38m Total Height, ~0.36m Outer Stand Diameter)
+    const standR = 0.182; // 0.130m * 1.4 = 0.182m (~0.364m outer diameter)
+    const rubberBaseGeo = new THREE.CylinderGeometry(0.188, 0.190, 0.034, 32);
+    const chromeLipGeo = new THREE.CylinderGeometry(0.185, 0.187, 0.014, 32);
+    const lowerStandGeo = new THREE.CylinderGeometry(standR, standR, 0.357, 32); // 0.255m * 1.4 = 0.357m
+
+    // Upper inox cylinder with wide front U-cutout window (0.300m * 1.4 = 0.420m)
+    const cutoutSpan = 1.85;
+    const wrapSpan = Math.PI * 2 - cutoutSpan; // ~4.433 rad
+    const thetaStart = cutoutSpan * 0.5; // ~0.925 rad
+    const upperCutoutGeo = new THREE.CylinderGeometry(standR, standR, 0.420, 32, 1, true, thetaStart, wrapSpan);
+
+    // Red fire extinguisher steel tank (0.108m * 1.4 = 0.151m radius, 0.690m * 1.4 = 0.966m height)
+    const tankR = 0.151;
+    const tankH = 0.966;
+    const tankGeo = new THREE.CylinderGeometry(tankR, tankR, tankH, 28);
+    const domeGeo = new THREE.SphereGeometry(tankR, 24, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
+    domeGeo.scale(1, 0.48, 1);
+
+    // Front instruction sticker curved around the front of the tank (visible through U-cutout)
+    const stickerGeo = new THREE.CylinderGeometry(tankR + 0.001, tankR + 0.001, 0.350, 24, 1, true, -1.05, 2.10);
+
+    // Valve collar, body & levers scaled by 1.4x
+    const neckCollarGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.045, 16);
+    const valveBlockGeo = new THREE.BoxGeometry(0.056, 0.050, 0.056);
+    const lowerLeverGeo = new THREE.BoxGeometry(0.133, 0.010, 0.034);
+    const upperLeverGeo = new THREE.BoxGeometry(0.140, 0.010, 0.031);
+    const sealPinGeo = new THREE.TorusGeometry(0.017, 0.004, 8, 16);
+
+    // Pressure gauge facing forward (+Z)
+    const gaugeGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.017, 16);
+    gaugeGeo.rotateX(Math.PI * 0.5);
+
+    // Hose ferrules
+    const ferruleGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.028, 12);
+    const ferrule1Geo = ferruleGeo.clone();
+    ferrule1Geo.rotateZ(Math.PI * 0.5);
+
+    // Player collision box (AABB 0.40m x 1.40m x 0.40m matching 1.4x stand radius & height)
+    const playerColGeo = new THREE.BoxGeometry(0.40, 1.40, 0.40);
+
+    for (const pos of standPositions) {
+      const sx = pos.x;
+      const sz = pos.z;
+
+      // A. Wall-Mounted "EXTINTOR" Sign Plaque (centered with extinguisher at X = ±8.50m, Y = 1.84m)
+      addPart(visualBuckets.extinguisherSign, signGeo, sx, 1.84, -9.4975, 0, 0, 0, true);
+
+      // B. Black Rubber Floor Base Ring (flush on floor at Y = 0.00m)
+      addPart(visualBuckets.extinguisherHose, rubberBaseGeo, sx, 0.017, sz, 0, 0, 0, true);
+
+      // C. Stepped Chrome Base Lip
+      addPart(visualBuckets.extinguisherInox, chromeLipGeo, sx, 0.041, sz, 0, 0, 0, true);
+
+      // D. Polished Inox Cylindrical Stand (Lower Solid Body: Y = 0.035m to 0.392m)
+      addPart(visualBuckets.extinguisherInox, lowerStandGeo, sx, 0.035 + 0.357 * 0.5, sz, 0, 0, 0, true);
+
+      // E. Polished Inox Cylindrical Stand (Upper U-Cutout: Y = 0.392m to 0.812m)
+      addPart(visualBuckets.extinguisherInox, upperCutoutGeo, sx, 0.392 + 0.210, sz, 0, 0, 0, true);
+
+      // F. Red Fire Extinguisher Tank & Hemispherical Shoulder Dome
+      addPart(visualBuckets.extinguisherRed, tankGeo, sx, 0.042 + tankH * 0.5, sz, 0, 0, 0, true);
+      addPart(visualBuckets.extinguisherRed, domeGeo, sx, 1.008, sz, 0, 0, 0, true);
+
+      // G. Front Instruction Sticker (visible through U-cutout)
+      addVisual(visualBuckets.extinguisherLabel, stickerGeo, sx, 0.616, sz);
+
+      // H. Valve Assembly & Forward Pressure Gauge
+      addPart(visualBuckets.extinguisherMetal, neckCollarGeo, sx, 1.100, sz, 0, 0, 0, true);
+      addPart(visualBuckets.extinguisherMetal, valveBlockGeo, sx, 1.137, sz, 0, 0, 0, true);
+      addPart(visualBuckets.extinguisherGauge, gaugeGeo, sx, 1.137, sz + 0.034, 0, 0, 0, true);
+
+      // I. Red Metal Squeeze / Carry Levers
+      addPart(visualBuckets.extinguisherRed, lowerLeverGeo, sx + 0.073, 1.151, sz, 0, 0, -0.05, true);
+      addPart(visualBuckets.extinguisherRed, upperLeverGeo, sx + 0.076, 1.179, sz, 0, 0, 0.26, true);
+
+      // J. Blue Tamper-Seal Pin Loop
+      addVisual(visualBuckets.extinguisherGauge, sealPinGeo, sx + 0.036, 1.169, sz);
+
+      // K. Curved Black Rubber Hose Loop (Apex reaches Y ≈ 1.39m)
+      const hoseCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(sx - 0.031, 1.137, sz),
+        new THREE.Vector3(sx - 0.123, 1.225, sz + 0.017),
+        new THREE.Vector3(sx - 0.105, 1.379, sz),
+        new THREE.Vector3(sx - 0.035, 1.302, sz - 0.022),
+        new THREE.Vector3(sx - 0.020, 1.162, sz + 0.025),
+      ]);
+      const hoseGeo = new THREE.TubeGeometry(hoseCurve, 32, 0.012, 8, false);
+      addPart(visualBuckets.extinguisherHose, hoseGeo, 0, 0, 0, 0, 0, 0, true);
+      hoseGeo.dispose();
+
+      // Hose silver metallic end ferrules
+      addVisual(visualBuckets.extinguisherMetal, ferrule1Geo, sx - 0.036, 1.137, sz);
+      addVisual(visualBuckets.extinguisherMetal, ferruleGeo, sx - 0.020, 1.162, sz + 0.025);
+
+      // L. Player Collision Box (solid barrier so player cannot walk through)
+      registerCollider(playerColGeo, sx, 0.70, sz);
+    }
+
+    signGeo.dispose();
+    rubberBaseGeo.dispose();
+    chromeLipGeo.dispose();
+    lowerStandGeo.dispose();
+    upperCutoutGeo.dispose();
+    tankGeo.dispose();
+    domeGeo.dispose();
+    stickerGeo.dispose();
+    neckCollarGeo.dispose();
+    valveBlockGeo.dispose();
+    lowerLeverGeo.dispose();
+    upperLeverGeo.dispose();
+    sealPinGeo.dispose();
+    gaugeGeo.dispose();
+    ferruleGeo.dispose();
+    ferrule1Geo.dispose();
+    playerColGeo.dispose();
   }
 }
 
