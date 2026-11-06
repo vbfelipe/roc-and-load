@@ -3343,6 +3343,796 @@ function createExtinguisherGaugeTexture() {
 }
 
 /**
+ * Procedural ISO 7010 / Brazilian Standard Emergency Running-Man Exit Sign Textures (512x256).
+ * Produces crisp Diffuse Map and Emissive Map featuring a white running person exiting a doorway
+ * with a bold directional arrow (->) on an emerald green (#007a3d) background.
+ */
+function createRunningManExitSignTextures() {
+  const w = 512;
+  const h = 256;
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = w;
+  diffCanvas.height = h;
+  const ctx = diffCanvas.getContext('2d');
+
+  const emCanvas = document.createElement('canvas');
+  emCanvas.width = w;
+  emCanvas.height = h;
+  const eCtx = emCanvas.getContext('2d');
+
+  const drawExitSign = (c, isEmissive) => {
+    // Outer casing / bezel margin
+    c.fillStyle = isEmissive ? '#00361a' : '#005429';
+    c.fillRect(0, 0, w, h);
+
+    // Emerald Green Background (#007a3d)
+    c.fillStyle = isEmissive ? '#00c853' : '#007a3d';
+    c.fillRect(8, 8, w - 16, h - 16);
+
+    // Inner White Margin Border
+    c.strokeStyle = isEmissive ? '#a7f3d0' : '#ffffff';
+    c.lineWidth = 6;
+    c.strokeRect(18, 18, w - 36, h - 36);
+
+    // 1. Left Graphic: Doorway & Running Person (ISO 7010)
+    // Darker green recessed door opening
+    c.fillStyle = isEmissive ? '#004d25' : '#005c2e';
+    c.fillRect(56, 42, 72, 172);
+
+    // White doorway frame
+    c.strokeStyle = isEmissive ? '#a7f3d0' : '#ffffff';
+    c.lineWidth = 6;
+    c.strokeRect(56, 42, 72, 172);
+
+    // Running Person (crisp white silhouette)
+    c.fillStyle = '#ffffff';
+    c.strokeStyle = '#ffffff';
+
+    // Head
+    c.beginPath();
+    c.arc(162, 78, 18, 0, Math.PI * 2);
+    c.fill();
+
+    // Torso (angled forward towards the doorway)
+    c.lineWidth = 14;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(160, 96);
+    c.lineTo(142, 148);
+    c.stroke();
+
+    // Arms
+    // Left arm reaching forward toward door opening
+    c.lineWidth = 10;
+    c.beginPath();
+    c.moveTo(158, 106);
+    c.lineTo(130, 114);
+    c.lineTo(110, 110);
+    c.stroke();
+
+    // Right arm trailing back
+    c.beginPath();
+    c.moveTo(158, 106);
+    c.lineTo(186, 120);
+    c.lineTo(182, 142);
+    c.stroke();
+
+    // Legs
+    // Front leg stepping into doorway
+    c.lineWidth = 12;
+    c.beginPath();
+    c.moveTo(142, 148);
+    c.lineTo(118, 172);
+    c.lineTo(118, 202);
+    c.stroke();
+
+    // Rear leg kicking back
+    c.beginPath();
+    c.moveTo(142, 148);
+    c.lineTo(172, 168);
+    c.lineTo(198, 158);
+    c.stroke();
+
+    // 2. Right Graphic: Directional Arrow (->)
+    // Arrow shaft
+    c.beginPath();
+    c.rect(260, 112, 105, 32);
+    c.fill();
+
+    // Arrow head
+    c.beginPath();
+    c.moveTo(360, 76);
+    c.lineTo(440, 128);
+    c.lineTo(360, 180);
+    c.closePath();
+    c.fill();
+  };
+
+  drawExitSign(ctx, false);
+  drawExitSign(eCtx, true);
+
+  const diffuse = new THREE.CanvasTexture(diffCanvas);
+  diffuse.colorSpace = THREE.SRGBColorSpace;
+  const emissive = new THREE.CanvasTexture(emCanvas);
+  emissive.colorSpace = THREE.SRGBColorSpace;
+  return { diffuse, emissive };
+}
+
+/**
+ * Procedural Soft Anti-Aliased Circular Alpha Texture for Stars (16x16).
+ * Ensures WebGL points render as smooth tiny round circles rather than harsh square pixels.
+ */
+function createStarPointTexture() {
+  const size = 16;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+
+  const grad = ctx.createRadialGradient(8, 8, 0, 8, 8, 8);
+  grad.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+  grad.addColorStop(0.45, 'rgba(255, 255, 255, 0.85)');
+  grad.addColorStop(1.0, 'rgba(255, 255, 255, 0.0)');
+  ctx.fillStyle = grad;
+  ctx.beginPath();
+  ctx.arc(8, 8, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+/**
+ * Procedural Photorealistic Moon Texture (512x512).
+ * Replicates high-resolution lunar astrophotography:
+ * - 100% transparent background with ZERO outer blur halo outside r = 210px.
+ * - Crisp lunar disc clipped at (cx = 256, cy = 256, r = 210px).
+ * - Bright, unmistakable sunlit lunar disc (#f8fafc to #e2e8f0).
+ * - Crisp, high-contrast dark slate lunar mare seas (#475569, #64748b, #94a3b8).
+ * - Micro impact craters with sharp sunlit rims and shadow depths.
+ * - Realistic angled crescent/gibbous terminator shadow across the upper-left (#070a10).
+ * - Delicate edge rim highlight along the illuminated lower-right limb.
+ */
+function createMoonTexture() {
+  const size = 512;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, size, size);
+
+  const cx = size / 2;
+  const cy = size / 2;
+  const moonR = 210;
+
+  // Crisp Lunar Disc (strictly clipped to r = 210px so outside remains 100% transparent)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx, cy, moonR, 0, Math.PI * 2);
+  ctx.clip();
+
+  // 1. Bright Sunlit Lunar Surface Base (#f8fafc to #e2e8f0)
+  const surfaceGrad = ctx.createRadialGradient(cx + 70, cy + 70, 50, cx, cy, moonR);
+  surfaceGrad.addColorStop(0.00, '#f8fafc');
+  surfaceGrad.addColorStop(0.40, '#f1f5f9');
+  surfaceGrad.addColorStop(0.75, '#e2e8f0');
+  surfaceGrad.addColorStop(1.00, '#cbd5e1');
+  ctx.fillStyle = surfaceGrad;
+  ctx.fillRect(cx - moonR, cy - moonR, moonR * 2, moonR * 2);
+
+  // 2. Overlapping Dark Slate Lunar Maria Seas (#475569, #64748b, #94a3b8)
+  const maria = [
+    { x: cx - 45, y: cy - 60, r: 72, col: 'rgba(71, 85, 105, 0.85)' },  // Mare Imbrium
+    { x: cx + 30, y: cy - 70, r: 58, col: 'rgba(100, 116, 139, 0.80)' }, // Mare Serenitatis
+    { x: cx - 80, y: cy - 16, r: 66, col: 'rgba(51, 65, 85, 0.82)' },   // Oceanus Procellarum upper
+    { x: cx - 30, y: cy + 18, r: 82, col: 'rgba(71, 85, 105, 0.78)' },  // Mare Nubium
+    { x: cx + 55, y: cy - 28, r: 46, col: 'rgba(100, 116, 139, 0.76)' }, // Mare Tranquillitatis
+    { x: cx - 88, y: cy + 54, r: 55, col: 'rgba(51, 65, 85, 0.80)' },   // Oceanus Procellarum lower
+    { x: cx + 10, y: cy + 80, r: 62, col: 'rgba(71, 85, 105, 0.75)' },  // Mare Humorum / South
+    { x: cx + 72, y: cy + 45, r: 48, col: 'rgba(100, 116, 139, 0.72)' }, // Mare Fecunditatis
+    { x: cx + 95, y: cy - 50, r: 35, col: 'rgba(71, 85, 105, 0.88)' },  // Mare Crisium
+  ];
+  for (let m = 0; m < maria.length; m++) {
+    const item = maria[m];
+    const mg = ctx.createRadialGradient(item.x, item.y, 6, item.x, item.y, item.r);
+    mg.addColorStop(0.00, item.col);
+    mg.addColorStop(0.70, item.col.replace(/[\d\.]+\)$/, '0.45)'));
+    mg.addColorStop(1.00, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = mg;
+    ctx.beginPath();
+    ctx.arc(item.x, item.y, item.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 3. Small Impact Craters with Sunlit Rims & Shadow Depths
+  let cSeed = 19690720;
+  const cRand = () => {
+    cSeed = (cSeed * 1664525 + 1013904223) % 4294967296;
+    return cSeed / 4294967296;
+  };
+
+  for (let i = 0; i < 90; i++) {
+    const ang = cRand() * Math.PI * 2;
+    const dist = cRand() * (moonR - 15);
+    const crX = cx + Math.cos(ang) * dist;
+    const crY = cy + Math.sin(ang) * dist;
+    const crR = 3.0 + cRand() * 9.0;
+
+    // Dark crater floor
+    ctx.fillStyle = 'rgba(30, 41, 59, 0.75)';
+    ctx.beginPath();
+    ctx.arc(crX, crY, crR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sunlit crater rim highlight (lower-right, facing sun)
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(crX, crY, crR, -Math.PI * 0.15, Math.PI * 0.75);
+    ctx.stroke();
+
+    // Shadow on opposing rim (upper-left)
+    ctx.strokeStyle = 'rgba(15, 23, 42, 0.85)';
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(crX, crY, crR, Math.PI * 0.85, Math.PI * 1.75);
+    ctx.stroke();
+  }
+
+  // 4. Realistic Angled Crescent/Gibbous Terminator Shadow (#070a10)
+  const termGrad = ctx.createLinearGradient(cx - 170, cy - 170, cx + 100, cy + 100);
+  termGrad.addColorStop(0.00, '#070a10'); // Deep pitch-black lunar night
+  termGrad.addColorStop(0.38, '#070a10'); // Solid shadow
+  termGrad.addColorStop(0.52, 'rgba(15, 23, 42, 0.82)'); // Terminator threshold
+  termGrad.addColorStop(0.66, 'rgba(30, 41, 59, 0.38)'); // Penumbra
+  termGrad.addColorStop(0.80, 'rgba(0, 0, 0, 0.05)');
+  termGrad.addColorStop(1.00, 'rgba(0, 0, 0, 0)');      // Bright daylight
+  ctx.fillStyle = termGrad;
+  ctx.fillRect(cx - moonR, cy - moonR, moonR * 2, moonR * 2);
+
+  // 5. Delicate Edge Rim Highlight on Sunlit Lower-Right Limb
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  ctx.arc(cx, cy, moonR - 0.75, -Math.PI * 0.1, Math.PI * 0.65);
+  ctx.stroke();
+
+  ctx.restore();
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/**
+ * Procedural Seamless High-Density Epoxy Flake / Granite Terrazzo Balcony Floor Texture (1024x1024).
+ * Replicates luxury high-rise outdoor aggregate balcony coatings (Granite / Domino / Terrazzo flake blend):
+ * - Seamless 100% toroidal edge wrapping (zero tiling seams, zero grid grout lines).
+ * - Multi-tier dense aggregate chip distribution:
+ *   1. Fine micro-stipple stone matrix (14,000+ tiny 1-2px mineral specks).
+ *   2. Medium irregular broadcast flakes (8,500+ 3-5px angular chips: bright white, slate, charcoal, black, warm sandstone).
+ *   3. Large hero granite flakes (1,800+ 5-8px distinctive angular chips with irregular polygon edges).
+ * - Returns { map, bumpMap } with matching high-resolution tactile aggregate relief.
+ */
+function createGraniteFlakeFloorTexture() {
+  const size = 1024;
+
+  // 1. Diffuse Color Canvas
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+
+  // 2. Normal / Bump Canvas (tactile 3D relief for individual aggregate chips)
+  const bumpCanvas = document.createElement('canvas');
+  bumpCanvas.width = size;
+  bumpCanvas.height = size;
+  const bumpCtx = bumpCanvas.getContext('2d');
+
+  // Base stone grey resin matrix
+  ctx.fillStyle = '#656b74';
+  ctx.fillRect(0, 0, size, size);
+
+  bumpCtx.fillStyle = '#808080';
+  bumpCtx.fillRect(0, 0, size, size);
+
+  // Subtle natural undercoat resin mottling (soft organic cloudy variation)
+  let seed = 8675309;
+  const rand = () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+
+  for (let i = 0; i < 48; i++) {
+    const cx = rand() * size;
+    const cy = rand() * size;
+    const cr = 60 + rand() * 120;
+    const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+    const bright = (rand() - 0.5) * 16;
+    const rTone = Math.floor(101 + bright);
+    const gTone = Math.floor(107 + bright);
+    const bTone = Math.floor(116 + bright);
+    grad.addColorStop(0, `rgba(${rTone}, ${gTone}, ${bTone}, 0.25)`);
+    grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, cr, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Helper: draw irregular polygon flake with 100% seamless toroidal edge wrapping
+  const drawFlake = (cx, cy, r, color, bumpTone, sides = 5) => {
+    const offsetsX = cx - r < 0 ? [0, size] : (cx + r > size ? [0, -size] : [0]);
+    const offsetsY = cy - r < 0 ? [0, size] : (cy + r > size ? [0, -size] : [0]);
+
+    for (const ox of offsetsX) {
+      for (const oy of offsetsY) {
+        const x = cx + ox;
+        const y = cy + oy;
+
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        bumpCtx.fillStyle = bumpTone;
+        bumpCtx.beginPath();
+
+        for (let j = 0; j < sides; j++) {
+          const ang = (j * Math.PI * 2) / sides;
+          const rad = r * (0.68 + rand() * 0.64);
+          const px = x + Math.cos(ang) * rad;
+          const py = y + Math.sin(ang) * rad;
+          if (j === 0) {
+            ctx.moveTo(px, py);
+            bumpCtx.moveTo(px, py);
+          } else {
+            ctx.lineTo(px, py);
+            bumpCtx.lineTo(px, py);
+          }
+        }
+        ctx.closePath();
+        ctx.fill();
+
+        bumpCtx.closePath();
+        bumpCtx.fill();
+      }
+    }
+  };
+
+  // Color palettes matching the reference photos (Granite/Domino aggregate blend)
+  const whiteFlakes = ['#ffffff', '#f8fafc', '#f1f5f9', '#e2e8f0'];
+  const darkFlakes = ['#111419', '#1a1f26', '#262d36', '#333b47'];
+  const slateFlakes = ['#828a96', '#98a1ad', '#b0b8c3', '#c5cdd6'];
+  const warmFlakes = ['#c8bcaf', '#b4a697', '#dfd5ca', '#a19383'];
+
+  // Layer 1: Fine mineral micro-stipple (14,000 tiny aggregate sand grains, radius 0.8 to 1.6px)
+  for (let i = 0; i < 14000; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 0.8 + rand() * 0.8;
+    const roll = rand();
+    let col, bump;
+    if (roll < 0.32) {
+      col = whiteFlakes[Math.floor(rand() * whiteFlakes.length)];
+      bump = '#969696';
+    } else if (roll < 0.65) {
+      col = darkFlakes[Math.floor(rand() * darkFlakes.length)];
+      bump = '#6c6c6c';
+    } else if (roll < 0.88) {
+      col = slateFlakes[Math.floor(rand() * slateFlakes.length)];
+      bump = '#888888';
+    } else {
+      col = warmFlakes[Math.floor(rand() * warmFlakes.length)];
+      bump = '#8c8c8c';
+    }
+    drawFlake(x, y, r, col, bump, 3 + Math.floor(rand() * 2));
+  }
+
+  // Layer 2: Medium broadcast flakes (8,500 irregular 4-6 sided flakes, radius 2.2 to 4.5px)
+  for (let i = 0; i < 8500; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 2.2 + rand() * 2.3;
+    const roll = rand();
+    let col, bump;
+    if (roll < 0.34) {
+      col = whiteFlakes[Math.floor(rand() * whiteFlakes.length)];
+      bump = '#a6a6a6';
+    } else if (roll < 0.68) {
+      col = darkFlakes[Math.floor(rand() * darkFlakes.length)];
+      bump = '#5e5e5e';
+    } else if (roll < 0.88) {
+      col = slateFlakes[Math.floor(rand() * slateFlakes.length)];
+      bump = '#8a8a8a';
+    } else {
+      col = warmFlakes[Math.floor(rand() * warmFlakes.length)];
+      bump = '#909090';
+    }
+    drawFlake(x, y, r, col, bump, 4 + Math.floor(rand() * 3));
+  }
+
+  // Layer 3: Large hero granite flakes (1,800 distinctive angular chips, radius 4.5 to 7.8px)
+  for (let i = 0; i < 1800; i++) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 4.5 + rand() * 3.3;
+    const roll = rand();
+    let col, bump;
+    if (roll < 0.40) {
+      col = whiteFlakes[Math.floor(rand() * whiteFlakes.length)];
+      bump = '#b8b8b8';
+    } else if (roll < 0.75) {
+      col = darkFlakes[Math.floor(rand() * darkFlakes.length)];
+      bump = '#545454';
+    } else if (roll < 0.90) {
+      col = slateFlakes[Math.floor(rand() * slateFlakes.length)];
+      bump = '#8e8e8e';
+    } else {
+      col = warmFlakes[Math.floor(rand() * warmFlakes.length)];
+      bump = '#989898';
+    }
+    drawFlake(x, y, r, col, bump, 5 + Math.floor(rand() * 3));
+  }
+
+  // Create Three.js textures
+  const mapTexture = new THREE.CanvasTexture(canvas);
+  mapTexture.wrapS = THREE.RepeatWrapping;
+  mapTexture.wrapT = THREE.RepeatWrapping;
+  mapTexture.repeat.set(9.0, 3.0);
+  mapTexture.colorSpace = THREE.SRGBColorSpace;
+  mapTexture.anisotropy = 16;
+
+  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
+  bumpTexture.wrapS = THREE.RepeatWrapping;
+  bumpTexture.wrapT = THREE.RepeatWrapping;
+  bumpTexture.repeat.set(9.0, 3.0);
+  bumpTexture.anisotropy = 16;
+
+  return { map: mapTexture, bumpMap: bumpTexture };
+}
+
+/**
+ * Procedural Photorealistic High-Density Skyscraper Facade Textures (1024x2048 each).
+ * Returns { facadeA, facadeB, facadeC, facadeDiagrid }:
+ * - 36 to 44 window columns across width, 80 to 88 floors vertically.
+ * - Tiny realistic window scale: ~12px to 16px individual panes, 4px dark mullions, 9px spandrels (#050811).
+ * - Real office lighting: horizontal runs of 4 to 14 consecutive lit windows (active suites) with vertical ceiling glow gradient.
+ * - Solid dark vertical corner piers (24px wide #04070e) and periodic mechanical floors.
+ * - Facade Diagrid: ONLY ONE refined, slender landmark diagrid with crisp 3px architectural gold diagrid lines.
+ */
+function createSkyscraperFacadeTextures() {
+  const w = 1024;
+  const h = 2048;
+
+  const createRng = (initSeed) => {
+    let s = initSeed;
+    return () => {
+      s = (s * 1664525 + 1013904223) % 4294967296;
+      return s / 4294967296;
+    };
+  };
+
+  const setupFacadeTexture = (canvas) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.RepeatWrapping;
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 16;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.generateMipmaps = true;
+    return tex;
+  };
+
+  // Helper to draw realistic high-density micro-windows on a canvas
+  const drawBaseTower = (ctx, rng, config) => {
+    const {
+      numCols = 40,
+      numFloors = 84,
+      spandrelH = 9,
+      mullionW = 4,
+      cornerPierW = 24,
+      activeFloorChance = 0.55,
+      warmPalette = ['#ffe8b8', '#ffbe66', '#f59e0b', '#ffd180'],
+      coolPalette = ['#e0f4ff', '#93c5fd', '#38bdf8', '#bae6fd'],
+      dimColor = '#1e3a5f',
+      darkColor = '#060b14',
+      spandrelColor = '#050811'
+    } = config;
+
+    // Deep architectural background
+    ctx.fillStyle = '#04060b';
+    ctx.fillRect(0, 0, w, h);
+
+    const innerW = w - cornerPierW * 2;
+    const colStep = innerW / numCols;
+    const floorStep = h / numFloors;
+    const winW = colStep - mullionW;
+    const winH = floorStep - spandrelH;
+
+    for (let f = 0; f < numFloors; f++) {
+      const fy = f * floorStep;
+      const isMechFloor = f % 18 === 17;
+
+      if (isMechFloor) {
+        // Dark mechanical louvers floor
+        ctx.fillStyle = '#030509';
+        ctx.fillRect(0, fy, w, floorStep);
+        ctx.fillStyle = '#080d16';
+        for (let ly = fy + 3; ly < fy + floorStep - 2; ly += 4) {
+          ctx.fillRect(cornerPierW, ly, innerW, 2);
+        }
+        continue;
+      }
+
+      // Horizontal concrete/steel spandrel band (#050811)
+      ctx.fillStyle = spandrelColor;
+      ctx.fillRect(0, fy + winH, w, spandrelH);
+      // Subtle 1px floor dividing seam
+      ctx.fillStyle = '#0b111e';
+      ctx.fillRect(0, fy + winH + spandrelH - 1, w, 1);
+
+      // Determine office suites on this floor: horizontal runs of 4 to 14 lit windows
+      const isFloorActive = rng() < activeFloorChance;
+      let litRunRemaining = 0;
+      let suitePalette = warmPalette;
+      let isSuiteWarm = true;
+
+      for (let c = 0; c < numCols; c++) {
+        const bx = cornerPierW + c * colStep;
+        const winX = bx + mullionW / 2;
+        const winY = fy + 1;
+
+        if (isFloorActive) {
+          if (litRunRemaining <= 0) {
+            if (rng() < 0.45) {
+              litRunRemaining = Math.floor(4 + rng() * 11); // 4 to 14 consecutive windows
+              isSuiteWarm = rng() > 0.40;
+              suitePalette = isSuiteWarm ? warmPalette : coolPalette;
+            } else {
+              litRunRemaining = -Math.floor(2 + rng() * 6);
+            }
+          }
+        }
+
+        const isLit = isFloorActive && litRunRemaining > 0;
+        if (litRunRemaining > 0) litRunRemaining--;
+        else if (litRunRemaining < 0) litRunRemaining++;
+
+        if (isLit) {
+          // Lit office window with subtle vertical gradient (brighter ceiling light)
+          const baseCol = suitePalette[Math.floor(rng() * suitePalette.length)];
+          ctx.fillStyle = baseCol;
+          ctx.fillRect(winX, winY, winW, winH);
+
+          // Top ceiling light fixture glow
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+          ctx.fillRect(winX, winY, winW, Math.max(2, winH * 0.25));
+
+          // Occasional micro venetian-blind lines or partition silhouette
+          if (rng() < 0.35) {
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.28)';
+            ctx.fillRect(winX, winY + winH * 0.55, winW, 1.5);
+          }
+        } else {
+          // Dark after-hours window with subtle night reflection
+          ctx.fillStyle = rng() < 0.15 ? dimColor : darkColor;
+          ctx.fillRect(winX, winY, winW, winH);
+        }
+
+        // Dark vertical mullion
+        ctx.fillStyle = '#04070e';
+        ctx.fillRect(bx, fy, mullionW, floorStep);
+      }
+    }
+
+    // Solid dark vertical corner piers (#04070e)
+    ctx.fillStyle = '#04070e';
+    ctx.fillRect(0, 0, cornerPierW, h);
+    ctx.fillRect(w - cornerPierW, 0, cornerPierW, h);
+    // Subtle inner pier highlight
+    ctx.fillStyle = '#0c1322';
+    ctx.fillRect(cornerPierW - 2, 0, 2, h);
+    ctx.fillRect(w - cornerPierW, 0, 2, h);
+  };
+
+  // 1. Facade A: Corporate High-Rise
+  const canvasA = document.createElement('canvas');
+  canvasA.width = w;
+  canvasA.height = h;
+  const ctxA = canvasA.getContext('2d');
+  drawBaseTower(ctxA, createRng(101), {
+    numCols: 40,
+    numFloors: 84,
+    spandrelH: 9,
+    mullionW: 4,
+    activeFloorChance: 0.58
+  });
+
+  // 2. Facade B: Modern Financial Center (Vertical Fins & Cool Cyan Ribbon Bands)
+  const canvasB = document.createElement('canvas');
+  canvasB.width = w;
+  canvasB.height = h;
+  const ctxB = canvasB.getContext('2d');
+  drawBaseTower(ctxB, createRng(202), {
+    numCols: 44,
+    numFloors: 88,
+    spandrelH: 8,
+    mullionW: 3.5,
+    activeFloorChance: 0.62,
+    coolPalette: ['#38bdf8', '#7dd3fc', '#bae6fd', '#0284c7']
+  });
+
+  // Add vertical fin piers every 4 columns
+  const numFins = 11;
+  const finStep = (w - 48) / numFins;
+  for (let i = 0; i <= numFins; i++) {
+    const fx = 24 + i * finStep;
+    ctxB.fillStyle = '#111827';
+    ctxB.fillRect(fx - 2, 0, 4, h);
+    ctxB.fillStyle = '#1e293b';
+    ctxB.fillRect(fx - 1, 0, 2, h);
+  }
+
+  // 3. Facade C: International Commerce Tower (Rich Warm Gold & Ice White Executive Suites)
+  const canvasC = document.createElement('canvas');
+  canvasC.width = w;
+  canvasC.height = h;
+  const ctxC = canvasC.getContext('2d');
+  drawBaseTower(ctxC, createRng(303), {
+    numCols: 38,
+    numFloors: 80,
+    spandrelH: 10,
+    mullionW: 4.5,
+    activeFloorChance: 0.50,
+    warmPalette: ['#ffcf70', '#ffa826', '#ffe0a3', '#f59e0b']
+  });
+
+  // 4. Facade D: Slender Landmark Diagrid Tower (Crisp 3px architectural gold diagrid)
+  const canvasD = document.createElement('canvas');
+  canvasD.width = w;
+  canvasD.height = h;
+  const ctxD = canvasD.getContext('2d');
+  drawBaseTower(ctxD, createRng(404), {
+    numCols: 36,
+    numFloors: 82,
+    spandrelH: 9,
+    mullionW: 4,
+    activeFloorChance: 0.52
+  });
+
+  // Overlay refined, slender 3px warm-white/gold diagrid trusses
+  const diagridTiers = 5;
+  const tierH = h / diagridTiers;
+  for (let t = 0; t < diagridTiers; t++) {
+    const yTop = t * tierH;
+    const yMid = yTop + tierH * 0.5;
+    const yBot = yTop + tierH;
+
+    // Horizontal structural tie ring (crisp 3px)
+    ctxD.fillStyle = '#d97706';
+    ctxD.fillRect(0, yTop - 2, w, 4);
+    ctxD.fillStyle = '#fef3c7';
+    ctxD.fillRect(0, yTop - 1, w, 2);
+
+    const diagonals = [
+      [0, yTop, w, yBot],
+      [w, yTop, 0, yBot],
+      [w * 0.5, yTop, 0, yMid],
+      [w * 0.5, yTop, w, yMid],
+      [0, yMid, w * 0.5, yBot],
+      [w, yMid, w * 0.5, yBot]
+    ];
+
+    for (const [x1, y1, x2, y2] of diagonals) {
+      // Thin 5px subtle warm ambient glow
+      ctxD.strokeStyle = 'rgba(245, 158, 11, 0.40)';
+      ctxD.lineWidth = 5;
+      ctxD.lineCap = 'round';
+      ctxD.beginPath();
+      ctxD.moveTo(x1, y1);
+      ctxD.lineTo(x2, y2);
+      ctxD.stroke();
+
+      // Crisp 3px champagne/gold architectural steel line
+      ctxD.strokeStyle = '#fde68a';
+      ctxD.lineWidth = 3;
+      ctxD.stroke();
+
+      // Thin 1px white highlight core
+      ctxD.strokeStyle = '#ffffff';
+      ctxD.lineWidth = 1;
+      ctxD.stroke();
+    }
+  }
+
+  return {
+    facadeA: setupFacadeTexture(canvasA),
+    facadeB: setupFacadeTexture(canvasB),
+    facadeC: setupFacadeTexture(canvasC),
+    facadeDiagrid: setupFacadeTexture(canvasD),
+  };
+}
+
+/**
+ * Creates separate facade geometry (4 vertical sides with seamless world UVs)
+ * and roof geometry (top horizontal cap) for a skyscraper tower.
+ * Discards underground bottom face.
+ */
+function createTowerGeometries(w, h, d, uScale = null, vScale = 45.0) {
+  const geo = new THREE.BoxGeometry(w, h, d).toNonIndexed();
+  const pos = geo.attributes.position;
+  const norm = geo.attributes.normal;
+
+  const facadePositions = [];
+  const facadeNormals = [];
+  const facadeUVs = [];
+
+  const roofPositions = [];
+  const roofNormals = [];
+  const roofUVs = [];
+
+  for (let i = 0; i < pos.count; i += 3) {
+    const ny = norm.getY(i);
+    if (ny < -0.5) continue; // Skip bottom underground face
+
+    const isRoof = ny > 0.5;
+    for (let j = 0; j < 3; j++) {
+      const idx = i + j;
+      const x = pos.getX(idx);
+      const y = pos.getY(idx);
+      const z = pos.getZ(idx);
+      const nx = norm.getX(idx);
+      const nz = norm.getZ(idx);
+
+      if (isRoof) {
+        roofPositions.push(x, y, z);
+        roofNormals.push(nx, ny, nz);
+        roofUVs.push((x + w / 2) / w, (z + d / 2) / d);
+      } else {
+        facadePositions.push(x, y, z);
+        facadeNormals.push(nx, ny, nz);
+
+        const v = (y + h / 2) / vScale;
+        let u = 0;
+        const scaleX = uScale !== null ? uScale : w;
+        const scaleZ = uScale !== null ? uScale : d;
+
+        if (nz > 0.5) {
+          u = (x + w / 2) / scaleX;
+        } else if (nz < -0.5) {
+          u = (w - (x + w / 2)) / scaleX;
+        } else if (nx > 0.5) {
+          u = (z + d / 2) / scaleZ;
+        } else {
+          u = (d - (z + d / 2)) / scaleZ;
+        }
+        facadeUVs.push(u, v);
+      }
+    }
+  }
+
+  geo.dispose();
+
+  const facadeGeo = new THREE.BufferGeometry();
+  facadeGeo.setAttribute('position', new THREE.Float32BufferAttribute(facadePositions, 3));
+  facadeGeo.setAttribute('normal', new THREE.Float32BufferAttribute(facadeNormals, 3));
+  facadeGeo.setAttribute('uv', new THREE.Float32BufferAttribute(facadeUVs, 2));
+
+  const roofGeo = new THREE.BufferGeometry();
+  roofGeo.setAttribute('position', new THREE.Float32BufferAttribute(roofPositions, 3));
+  roofGeo.setAttribute('normal', new THREE.Float32BufferAttribute(roofNormals, 3));
+  roofGeo.setAttribute('uv', new THREE.Float32BufferAttribute(roofUVs, 2));
+
+  return { facadeGeo, roofGeo };
+}
+
+/**
  * Procedural Enterprise 42U Server Cabinet Textures (1024x2048).
  * Generates high-resolution Diffuse Map and Emissive Map inspired by Dell PowerEdge and Cisco Nexus racks.
  * Precision enterprise-scale SMD LED light guides with clean, harmonized illumination.
@@ -10432,25 +11222,20 @@ float rackHash(vec2 p) {
     const elevDisplayTex = createElevatorDisplayTextures();
     const exitSignTex = createExitSignTextures();
 
-    this.vestibuleGlassMaterial = new THREE.MeshStandardMaterial({
-      color: 0xdde5ee,
+    this.vestibuleGlassMaterial = new THREE.MeshBasicMaterial({
+      color: 0x16222f,
       transparent: true,
-      opacity: 0.06,
-      roughness: 0.08,
-      metalness: 0.05,
-      envMapIntensity: 0.85,
+      opacity: 0.16,
       depthWrite: false,
-      side: THREE.FrontSide,
+      side: THREE.DoubleSide,
     });
 
-    this.vestibuleGlassSeamMaterial = new THREE.MeshStandardMaterial({
-      color: 0x94a3b8,
+    this.vestibuleGlassSeamMaterial = new THREE.MeshBasicMaterial({
+      color: 0x334155,
       transparent: true,
-      opacity: 0.20,
-      roughness: 0.25,
-      metalness: 0.10,
-      envMapIntensity: 0.50,
+      opacity: 0.30,
       depthWrite: false,
+      side: THREE.DoubleSide,
     });
 
     this.vestibuleSillMaterial = new THREE.MeshStandardMaterial({
@@ -10654,6 +11439,154 @@ float rackHash(vec2 p) {
       metalness: 0.0,
       envMapIntensity: 0.10,
     });
+
+    // Closed Double Balcony Door & Exterior Skyline Materials
+    this.runningManExitSignTextures = createRunningManExitSignTextures();
+    this.runningManExitSignTexture = this.runningManExitSignTextures.diffuse;
+    this.runningManExitSignMaterial = new THREE.MeshStandardMaterial({
+      map: this.runningManExitSignTextures.diffuse,
+      emissiveMap: this.runningManExitSignTextures.emissive,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 1.05,
+      roughness: 0.35,
+      metalness: 0.10,
+    });
+
+    this.nightSkyBackdropMaterial = new THREE.MeshBasicMaterial({
+      color: 0x010204,
+      side: THREE.BackSide,
+      fog: false,
+      toneMapped: false,
+      depthWrite: false,
+    });
+
+    this.moonTexture = createMoonTexture();
+    this.moonMaterial = new THREE.MeshBasicMaterial({
+      map: this.moonTexture,
+      side: THREE.DoubleSide,
+      transparent: true,
+      fog: false,
+      toneMapped: false,
+      depthTest: true,
+      depthWrite: false,
+    });
+
+    const flakeTextures = createGraniteFlakeFloorTexture();
+    this.balconyTileTexture = flakeTextures.map;
+    this.balconyFlakeBumpMap = flakeTextures.bumpMap;
+
+    this.balconyFloorMaterial = new THREE.MeshStandardMaterial({
+      map: this.balconyTileTexture,
+      bumpMap: this.balconyFlakeBumpMap,
+      bumpScale: 0.0035,
+      roughness: 0.40,
+      metalness: 0.08,
+    });
+
+    this.balconyCurbMaterial = new THREE.MeshStandardMaterial({
+      map: this.balconyTileTexture,
+      bumpMap: this.balconyFlakeBumpMap,
+      bumpScale: 0.0025,
+      roughness: 0.45,
+      metalness: 0.08,
+    });
+
+    this.patioMetalMaterial = new THREE.MeshStandardMaterial({
+      color: 0x232020,
+      roughness: 0.38,
+      metalness: 0.65,
+    });
+
+    this.patioTeakMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc49a76,
+      roughness: 0.70,
+      metalness: 0.05,
+    });
+
+    this.patioTabletopMaterial = new THREE.MeshStandardMaterial({
+      color: 0xb37444,
+      roughness: 0.45,
+      metalness: 0.10,
+    });
+
+    this.patioUmbrellaMaterial = new THREE.MeshStandardMaterial({
+      color: 0xdcc3a5,
+      roughness: 0.85,
+      emissive: 0x3a2a18,
+      emissiveIntensity: 0.35,
+      side: THREE.DoubleSide,
+    });
+
+    this.patioCeramicMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf5f7fa,
+      roughness: 0.30,
+      metalness: 0.05,
+    });
+
+    this.patioTrayMaterial = new THREE.MeshStandardMaterial({
+      color: 0x2b1d14,
+      roughness: 0.55,
+      metalness: 0.05,
+    });
+
+    this.balconyRailMetalMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd8dde4,
+      metalness: 0.88,
+      roughness: 0.18,
+      envMapIntensity: 0.65,
+    });
+
+    this.balconySmokedGlassMaterial = new THREE.MeshBasicMaterial({
+      color: 0x16222f,
+      transparent: true,
+      opacity: 0.16,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+
+    this.balconyExteriorWallMaterial = new THREE.MeshStandardMaterial({
+      color: 0x161a20,
+      roughness: 0.85,
+      metalness: 0.15,
+    });
+
+    const skylineFacades = createSkyscraperFacadeTextures();
+    this.skylineTowerATexture = skylineFacades.facadeA;
+    this.skylineTowerBTexture = skylineFacades.facadeB;
+    this.skylineTowerCTexture = skylineFacades.facadeC;
+    this.skylineTowerDTexture = skylineFacades.facadeDiagrid;
+
+    this.skylineTowerAMaterial = new THREE.MeshBasicMaterial({
+      map: skylineFacades.facadeA,
+    });
+
+    this.skylineTowerBMaterial = new THREE.MeshBasicMaterial({
+      map: skylineFacades.facadeB,
+    });
+
+    this.skylineTowerCMaterial = new THREE.MeshBasicMaterial({
+      map: skylineFacades.facadeC,
+    });
+
+    this.skylineTowerDMaterial = new THREE.MeshBasicMaterial({
+      map: skylineFacades.facadeDiagrid,
+    });
+
+    this.skylineTowerRoofMaterial = new THREE.MeshStandardMaterial({
+      color: 0x0c0f16,
+      roughness: 0.75,
+      metalness: 0.25,
+    });
+
+    this.skylineRoofTrimMaterial = new THREE.MeshBasicMaterial({
+      color: 0xffdfa0,
+    });
+
+    this.skylineBeaconMaterial = new THREE.MeshBasicMaterial({
+      color: 0xff1515,
+    });
+
+    this.skylineBeacons = [];
   }
 
   /**
@@ -10786,6 +11719,24 @@ float rackHash(vec2 p) {
       extinguisherMetal: [],
       extinguisherGauge: [],
       extinguisherSign: [],
+      balconyFloor: [],
+      balconyCurb: [],
+      balconyRailMetal: [],
+      balconySmokedGlass: [],
+      balconyExteriorWall: [],
+      patioMetal: [],
+      patioTeak: [],
+      patioTabletop: [],
+      patioUmbrella: [],
+      patioCeramic: [],
+      patioTray: [],
+      runningManExitSign: [],
+      skylineTowerA: [],
+      skylineTowerB: [],
+      skylineTowerC: [],
+      skylineTowerD: [],
+      skylineTowerRoofs: [],
+      skylineRoofTrim: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -10943,10 +11894,60 @@ float rackHash(vec2 p) {
     addPart(visualBuckets.ceiling, ceilingGeo, 0, H, zCenter, Math.PI / 2, 0, 0, true);
     ceilingGeo.dispose();
 
-    // Back Wall (Z = +13.5, Room-facing side at Z = +13.0)
-    const backWallGeo = createWallBoxGeometry(W, H, 1.0, false, false);
-    addPart(visualBuckets.wall, backWallGeo, 0, H / 2, 13.5);
-    backWallGeo.dispose();
+    // Back Wall (Z = +13.00 room face, Z = +13.10 center, thickness 0.20m, Y = 0.00 to 3.80m)
+    // Seamless UV world-space continuity across all segments matching the full 20.0m x 3.8m room span.
+    const backWallZCenter = 13.10;
+    const backWallThick = 0.20;
+    const backWallSegs = [
+      // 1. Full-width continuous upper header above door & window (X = -10.00 to +10.00, Y = 2.649 to 3.80m)
+      {
+        w: 20.00, h: 1.151, d: backWallThick, x: 0.00, yBottom: 2.649, z: backWallZCenter, horizStart: 0.00,
+        hide: { pz: true, py: true, ny: true }
+      },
+      // 2. Far-Left solid corner wall (X = +7.50 to +10.00, Y = 0.00 to 2.649m)
+      {
+        w: 2.50, h: 2.649, d: backWallThick, x: 8.75, yBottom: 0.00, z: backWallZCenter, horizStart: 17.50,
+        hide: { pz: true, py: true, ny: true, px: true }
+      },
+      // 3. Solid center-left pillar between Balcony Door and Window (X = +4.50 to +5.50, Y = 0.00 to 2.649m)
+      {
+        w: 1.00, h: 2.649, d: backWallThick, x: 5.00, yBottom: 0.00, z: backWallZCenter, horizStart: 14.50,
+        hide: { pz: true, py: true, ny: true }
+      },
+      // 4. Lower half-wall below Panoramic Window (X = -4.50 to +4.50, Y = 0.00 to 1.081m)
+      {
+        w: 9.00, h: 1.081, d: backWallThick, x: 0.00, yBottom: 0.00, z: backWallZCenter, horizStart: 5.50,
+        hide: { pz: true, py: true, ny: true }
+      },
+      // 5. Far-Right solid corner wall (X = -10.00 to -4.50, Y = 0.00 to 2.649m)
+      {
+        w: 5.50, h: 2.649, d: backWallThick, x: -7.25, yBottom: 0.00, z: backWallZCenter, horizStart: 0.00,
+        hide: { pz: true, py: true, ny: true, nx: true }
+      },
+    ];
+
+    for (const seg of backWallSegs) {
+      const segGeo = createWallSegmentGeometry(
+        seg.w, seg.h, seg.d, false, false, seg.yBottom, seg.horizStart, W, seg.hide
+      );
+      addVisual(visualBuckets.wall, segGeo, seg.x, seg.yBottom + seg.h / 2, seg.z);
+      segGeo.dispose();
+
+      const colGeo = new THREE.BoxGeometry(seg.w, seg.h, seg.d);
+      registerCollider(colGeo, seg.x, seg.yBottom + seg.h / 2, seg.z);
+      colGeo.dispose();
+    }
+
+    // Player-only collision barriers for the doorway and window openings
+    // Blocks player from stepping outside while weapon raycasts pass through to hit glass/frames
+    const doorBarrierGeo = new THREE.BoxGeometry(2.00, 2.649, backWallThick);
+    registerPlayerOnlyCollider(doorBarrierGeo, 6.50, 2.649 / 2, backWallZCenter);
+    doorBarrierGeo.dispose();
+
+    const winClearH = 2.649 - 1.081;
+    const winBarrierGeo = new THREE.BoxGeometry(9.00, winClearH, backWallThick);
+    registerPlayerOnlyCollider(winBarrierGeo, 0.00, 1.081 + winClearH / 2, backWallZCenter);
+    winBarrierGeo.dispose();
 
     // Front Wall (Z = -10.0, Room-facing side at Z = -9.5)
     const frontWallGeo = createWallBoxGeometry(W, H, 1.0, false, true);
@@ -11123,9 +12124,12 @@ float rackHash(vec2 p) {
     this._buildStaffDoor(addPart, addVisual, registerCollider, visualBuckets, -10.0, 0.0, -4.0);
 
     // D. Enterprise Wall-Mounted Split AC Units (LG Artcool Mirror Style - +40% FPS Hero Scale)
-    // 3 units mounted high on the wall with the stanchions, coffee machine & plant (X = 10.0m) near ceiling (Y = 3.42m)
-    // Facing into room (-X), spaced at Z = 0.0m, Z = 5.0m, Z = 10.0m exactly where indicated in screenshot
-    const acZPositions = [0.0, 5.0, 10.0];
+    // 3 units mounted high on the East wall (X = 10.0m) near ceiling (Y = 3.42m) facing into room (-X).
+    // Slid toward the server racks and aligned directly with the 3 workstation cover desk rows along Z:
+    // - Row 1 (Close / Server Pod side): Z = 1.8 - 4.5 = -2.7m
+    // - Row 2 (Mid / Center):            Z = 5.5 - 4.5 =  1.0m
+    // - Row 3 (Far / Balcony side):      Z = 9.2 - 4.5 =  4.7m
+    const acZPositions = [-2.7, 1.0, 4.7];
     for (const acZ of acZPositions) {
       this._buildSplitAC(addVisual, registerCollider, visualBuckets, 9.845, 3.42, acZ);
     }
@@ -11180,6 +12184,12 @@ float rackHash(vec2 p) {
       visualBuckets,
       group
     );
+
+    // Zone E: Back Wall Transformation (Closed Double Balcony Door, Panoramic Window, Exterior Balcony & 3D Skyline)
+    this._buildDoubleBalconyDoor(addPart, addVisual, visualBuckets, group);
+    this._buildPanoramicExteriorWindow(addPart, addVisual, visualBuckets);
+    this._buildExteriorBalcony(addPart, addVisual, registerCollider, visualBuckets, addPartMatrix);
+    this._buildNightCitySkyline(addVisual, visualBuckets, group);
 
     // Batch Merge Geometry Buckets
     const bucketDefs = [
@@ -11275,6 +12285,24 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.extinguisherMetal, material: this.extinguisherMetalMaterial, name: 'DC_ExtinguisherMetal' },
       { bucket: visualBuckets.extinguisherGauge, material: this.extinguisherGaugeMaterial, name: 'DC_ExtinguisherGauge' },
       { bucket: visualBuckets.extinguisherSign, material: this.extinguisherSignMaterial, name: 'DC_ExtinguisherSign' },
+      { bucket: visualBuckets.balconyFloor, material: this.balconyFloorMaterial, name: 'DC_BalconyFloor' },
+      { bucket: visualBuckets.balconyCurb, material: this.balconyCurbMaterial, name: 'DC_BalconyCurb' },
+      { bucket: visualBuckets.balconyRailMetal, material: this.balconyRailMetalMaterial, name: 'DC_BalconyRailMetal' },
+      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2, isGlass: true },
+      { bucket: visualBuckets.balconyExteriorWall, material: this.balconyExteriorWallMaterial, name: 'DC_BalconyExteriorWall' },
+      { bucket: visualBuckets.patioMetal, material: this.patioMetalMaterial, name: 'DC_PatioMetal' },
+      { bucket: visualBuckets.patioTeak, material: this.patioTeakMaterial, name: 'DC_PatioTeak' },
+      { bucket: visualBuckets.patioTabletop, material: this.patioTabletopMaterial, name: 'DC_PatioTabletop' },
+      { bucket: visualBuckets.patioUmbrella, material: this.patioUmbrellaMaterial, name: 'DC_PatioUmbrella' },
+      { bucket: visualBuckets.patioCeramic, material: this.patioCeramicMaterial, name: 'DC_PatioCeramic' },
+      { bucket: visualBuckets.patioTray, material: this.patioTrayMaterial, name: 'DC_PatioTray' },
+      { bucket: visualBuckets.runningManExitSign, material: this.runningManExitSignMaterial, name: 'DC_BalconyExitSign' },
+      { bucket: visualBuckets.skylineTowerA, material: this.skylineTowerAMaterial, name: 'DC_SkylineTowerA' },
+      { bucket: visualBuckets.skylineTowerB, material: this.skylineTowerBMaterial, name: 'DC_SkylineTowerB' },
+      { bucket: visualBuckets.skylineTowerC, material: this.skylineTowerCMaterial, name: 'DC_SkylineTowerC' },
+      { bucket: visualBuckets.skylineTowerD, material: this.skylineTowerDMaterial, name: 'DC_SkylineTowerD' },
+      { bucket: visualBuckets.skylineTowerRoofs, material: this.skylineTowerRoofMaterial, name: 'DC_SkylineTowerRoofs' },
+      { bucket: visualBuckets.skylineRoofTrim, material: this.skylineRoofTrimMaterial, name: 'DC_SkylineRoofTrim' },
     ];
 
     for (const def of bucketDefs) {
@@ -14125,6 +15153,1095 @@ float rackHash(vec2 p) {
     ferruleGeo.dispose();
     ferrule1Geo.dispose();
     playerColGeo.dispose();
+  }
+
+  /**
+   * Builds the Closed Double Aluminum-Glass Balcony Door (Hero Scale ~2.00m wide x 2.649m tall)
+   * with illuminated green emergency exit sign mounted directly above the top header.
+   */
+  _buildDoubleBalconyDoor(addPart, addVisual, visualBuckets, group) {
+    const doorX = 6.50;
+    const doorZ = 13.10;
+    const doorW = 2.00;
+    const doorH = 2.649;
+    const frameThick = 0.045;
+    const frameDepth = 0.22;
+
+    // 1. Anodized Aluminum Outer Perimeter Frame
+    const jambH = doorH - frameThick;
+    const jambGeo = new THREE.BoxGeometry(frameThick, jambH, frameDepth);
+    // Left jamb (X = 7.50 - frameThick/2 = 7.4775)
+    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, doorX + doorW / 2 - frameThick / 2, jambH / 2, doorZ);
+    // Right jamb (X = 5.50 + frameThick/2 = 5.5225)
+    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, doorX - doorW / 2 + frameThick / 2, jambH / 2, doorZ);
+    jambGeo.dispose();
+
+    // Top Header Channel
+    const headerGeo = new THREE.BoxGeometry(doorW, frameThick, frameDepth);
+    addPart(visualBuckets.vestibuleAlumFrame, headerGeo, doorX, doorH - frameThick / 2, doorZ);
+    headerGeo.dispose();
+
+    // Flush Brushed Stainless Doorway Threshold
+    const threshW = doorW - frameThick * 2 - 0.004;
+    const threshGeo = new THREE.BoxGeometry(threshW, 0.004, frameDepth - 0.010);
+    addVisual(visualBuckets.elevatorStainless, threshGeo, doorX, 0.002, doorZ);
+    threshGeo.dispose();
+
+    // 2. Closed Symmetrical Aluminum-Framed Double Door Leaves
+    const clearW = doorW - frameThick * 2 - 0.006;
+    const leafW = clearW / 2; // ~0.952m
+    const leafH = doorH - frameThick - 0.015; // ~2.589m
+    const leafY = 0.010 + leafH / 2;
+    const leafThick = 0.042;
+    const stileW = 0.080;
+    const topRailH = 0.090;
+    const botRailH = 0.120;
+    const glassW = leafW - stileW * 2;
+    const glassH = leafH - topRailH - botRailH;
+    const glassY = 0.010 + botRailH + glassH / 2;
+
+    const buildDoorLeaf = (leafX, isLeftLeaf) => {
+      // Outer & Meeting Vertical Stiles
+      const stileGeo = new THREE.BoxGeometry(stileW, leafH, leafThick);
+      const outerStileX = isLeftLeaf ? (leafX + leafW / 2 - stileW / 2) : (leafX - leafW / 2 + stileW / 2);
+      addPart(visualBuckets.vestibuleAlumFrame, stileGeo, outerStileX, leafY, doorZ);
+      const meetStileX = isLeftLeaf ? (leafX - leafW / 2 + stileW / 2) : (leafX + leafW / 2 - stileW / 2);
+      addPart(visualBuckets.vestibuleAlumFrame, stileGeo, meetStileX, leafY, doorZ);
+      stileGeo.dispose();
+
+      // Top Rail
+      const topRailGeo = new THREE.BoxGeometry(glassW, topRailH, leafThick);
+      addPart(visualBuckets.vestibuleAlumFrame, topRailGeo, leafX, 0.010 + leafH - topRailH / 2, doorZ);
+      topRailGeo.dispose();
+
+      // Bottom Rail
+      const botRailGeo = new THREE.BoxGeometry(glassW, botRailH, leafThick);
+      addPart(visualBuckets.vestibuleAlumFrame, botRailGeo, leafX, 0.010 + botRailH / 2, doorZ);
+      botRailGeo.dispose();
+
+      // Clear Tempered Glass Panel
+      const glassGeo = new THREE.BoxGeometry(glassW, glassH, 0.012);
+      addVisual(visualBuckets.vestibuleGlass, glassGeo, leafX, glassY, doorZ);
+      glassGeo.dispose();
+
+      // 3 Barrel Hinges on Outer Stile
+      const hingeGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.075, 12);
+      const hingeYLevels = [0.38, 1.30, 2.22];
+      const hingeOffsetZ = -leafThick / 2 - 0.003;
+      const hingeXPos = isLeftLeaf ? (outerStileX + stileW / 2 - 0.005) : (outerStileX - stileW / 2 + 0.005);
+      for (const hy of hingeYLevels) {
+        addVisual(visualBuckets.vestibuleChrome, hingeGeo, hingeXPos, hy, doorZ + hingeOffsetZ);
+      }
+      hingeGeo.dispose();
+
+      // Hardware on Meeting Stile: Escutcheon Plate & Brushed Chrome Lever Handle
+      const handleY = 1.05;
+      const hwOffsetZ = leafThick / 2 + 0.004;
+
+      // Chrome Escutcheon Plate
+      const escPlateGeo = new THREE.BoxGeometry(0.038, 0.22, 0.006);
+      addVisual(visualBuckets.vestibuleChrome, escPlateGeo, meetStileX, handleY, doorZ - hwOffsetZ);
+      addVisual(visualBuckets.vestibuleChrome, escPlateGeo, meetStileX, handleY, doorZ + hwOffsetZ);
+      escPlateGeo.dispose();
+
+      // Keyhole slot
+      const keyholeGeo = new THREE.BoxGeometry(0.010, 0.024, 0.008);
+      addVisual(visualBuckets.vestibuleVoid, keyholeGeo, meetStileX, handleY - 0.055, doorZ - hwOffsetZ);
+      addVisual(visualBuckets.vestibuleVoid, keyholeGeo, meetStileX, handleY - 0.055, doorZ + hwOffsetZ);
+      keyholeGeo.dispose();
+
+      // Rosette & Lever Handle
+      const rosetteGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.008, 16);
+      rosetteGeo.rotateX(Math.PI / 2);
+      addVisual(visualBuckets.vestibuleChrome, rosetteGeo, meetStileX, handleY + 0.035, doorZ - hwOffsetZ - 0.004);
+      addVisual(visualBuckets.vestibuleChrome, rosetteGeo, meetStileX, handleY + 0.035, doorZ + hwOffsetZ + 0.004);
+      rosetteGeo.dispose();
+
+      const spindleGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.026, 12);
+      spindleGeo.rotateX(Math.PI / 2);
+      addVisual(visualBuckets.vestibuleChrome, spindleGeo, meetStileX, handleY + 0.035, doorZ - hwOffsetZ - 0.016);
+      addVisual(visualBuckets.vestibuleChrome, spindleGeo, meetStileX, handleY + 0.035, doorZ + hwOffsetZ + 0.016);
+      spindleGeo.dispose();
+
+      const leverLength = 0.125;
+      const leverDir = isLeftLeaf ? 1 : -1;
+      const leverArmGeo = new THREE.BoxGeometry(leverLength, 0.018, 0.014);
+      addVisual(visualBuckets.vestibuleChrome, leverArmGeo, meetStileX + leverDir * (leverLength / 2), handleY + 0.035, doorZ - hwOffsetZ - 0.026);
+      addVisual(visualBuckets.vestibuleChrome, leverArmGeo, meetStileX + leverDir * (leverLength / 2), handleY + 0.035, doorZ + hwOffsetZ + 0.026);
+      leverArmGeo.dispose();
+    };
+
+    // Left Leaf (X > doorX)
+    buildDoorLeaf(doorX + 0.003 + leafW / 2, true);
+    // Right Leaf (X < doorX)
+    buildDoorLeaf(doorX - 0.003 - leafW / 2, false);
+
+    // 3. Illuminated Green Emergency Exit Sign Above Door Header
+    const signX = doorX;
+    const signY = 2.82;
+    const signZ = 12.988;
+    const signW = 0.36;
+    const signH = 0.17;
+    const signD = 0.024;
+
+    const signHousingGeo = new THREE.BoxGeometry(signW, signH, signD);
+    addVisual(visualBuckets.staffDoorFrame, signHousingGeo, signX, signY, signZ);
+    signHousingGeo.dispose();
+
+    const signFaceGeo = new THREE.PlaneGeometry(signW - 0.02, signH - 0.02);
+    signFaceGeo.rotateY(Math.PI);
+    addVisual(visualBuckets.runningManExitSign, signFaceGeo, signX, signY, signZ - signD / 2 - 0.001);
+    signFaceGeo.dispose();
+  }
+
+  /**
+   * Builds the Panoramic Exterior Glass Window Partition (9.0m wide x 1.568m clear glass height)
+   * with stone windowsill ledge (Y = 1.081m to 1.125m) and 5 modular vertical glass panes.
+   */
+  _buildPanoramicExteriorWindow(addPart, addVisual, visualBuckets) {
+    const winX = 0.00;
+    const winZ = 13.10;
+    const winW = 9.00;
+    const sillBottomY = 1.081;
+    const sillTopY = 1.125;
+    const sillH = sillTopY - sillBottomY; // 0.044m
+    const winTopY = 2.649;
+    const frameDepth = 0.22;
+    const frameThick = 0.032;
+
+    // 1. Beige / Light-Gray Stone Windowsill Cap Ledge (Y = 1.081m to 1.125m)
+    const sillDepth = 0.27;
+    const sillGeo = new THREE.BoxGeometry(winW, sillH, sillDepth);
+    addPart(visualBuckets.vestibuleSill, sillGeo, winX, sillBottomY + sillH / 2, winZ);
+    sillGeo.dispose();
+
+    // 2. Anodized Aluminum Perimeter Frame
+    const clearH = winTopY - sillTopY;
+    const innerH = clearH - frameThick * 2;
+
+    // Bottom U-channel on sill
+    const botChannelGeo = new THREE.BoxGeometry(winW, frameThick, frameDepth);
+    addPart(visualBuckets.vestibuleAlumFrame, botChannelGeo, winX, sillTopY + frameThick / 2, winZ);
+    botChannelGeo.dispose();
+
+    // Top U-channel under upper header
+    const topChannelGeo = new THREE.BoxGeometry(winW, frameThick, frameDepth);
+    addPart(visualBuckets.vestibuleAlumFrame, topChannelGeo, winX, winTopY - frameThick / 2, winZ);
+    topChannelGeo.dispose();
+
+    // Left and Right Jamb Channels
+    const jambGeo = new THREE.BoxGeometry(frameThick, innerH, frameDepth);
+    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, winX + winW / 2 - frameThick / 2, sillTopY + frameThick + innerH / 2, winZ);
+    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, winX - winW / 2 + frameThick / 2, sillTopY + frameThick + innerH / 2, winZ);
+    jambGeo.dispose();
+
+    // 3. 5 Modular Tempered Glass Panes & 4 Slim Aluminum Mullions
+    const innerW = winW - frameThick * 2;
+    const numPanes = 5;
+    const mullionW = 0.035;
+    const totalMullionW = (numPanes - 1) * mullionW;
+    const paneW = (innerW - totalMullionW) / numPanes; // ~1.759m
+    const paneH = innerH - 0.004;
+    const paneY = sillTopY + frameThick + innerH / 2;
+
+    const paneGeo = new THREE.BoxGeometry(paneW, paneH, 0.014);
+    const mullionGeo = new THREE.BoxGeometry(mullionW, innerH, frameDepth - 0.004);
+
+    const startX = winX - innerW / 2;
+    for (let i = 0; i < numPanes; i++) {
+      const px = startX + paneW / 2 + i * (paneW + mullionW);
+      addVisual(visualBuckets.vestibuleGlass, paneGeo, px, paneY, winZ);
+
+      if (i < numPanes - 1) {
+        const mx = px + paneW / 2 + mullionW / 2;
+        addPart(visualBuckets.vestibuleAlumFrame, mullionGeo, mx, paneY, winZ);
+      }
+    }
+    paneGeo.dispose();
+    mullionGeo.dispose();
+  }
+
+  /**
+   * Builds the Spacious Exterior High-Rise Balcony Terrace (4.80m deep x 14.60m wide, Z = 13.20m to 18.00m)
+   * with dark basalt pavers, solid 0.20m dark-granite concrete parapet curb (ZERO bottom gap!),
+   * Hero-Scale 1.34m guardrail (stainless posts, top handrail, thin mid-rail, smoked glass balustrade),
+   * 2 complete high-craft Outdoor Patio Dining & Umbrella sets with tabletop props,
+   * skyscraper exterior facade drop down to Y = -35.0m, and completely open upward sky sightline (NO soffit/roof!).
+   */
+  _buildExteriorBalcony(addPart, addVisual, registerCollider, visualBuckets, addPartMatrix = null) {
+    const balX = 1.50;
+    const balW = 14.60;
+    const balFloorY = 0.00;
+    const balSlabH = 0.30;
+    const wallZ = 13.20; // Exterior back wall surface
+    const frontOuterZ = 18.00; // Balcony slab front edge (spacious 4.80m depth!)
+    const balD = frontOuterZ - wallZ; // 4.80m
+    const balZ = (wallZ + frontOuterZ) / 2; // 15.60m
+
+    // 1. Structural Concrete Cantilever Slab (-0.30m to 0.00m)
+    const slabGeo = new THREE.BoxGeometry(balW, balSlabH, balD);
+    addPart(visualBuckets.balconyExteriorWall, slabGeo, balX, balFloorY - balSlabH / 2, balZ);
+    slabGeo.dispose();
+
+    // 2. Balcony Tile Floor (Dark basalt pavers with drainage grate along building wall at Y = 0.001m)
+    const floorGeo = new THREE.PlaneGeometry(balW, balD);
+    floorGeo.rotateX(-Math.PI / 2);
+    addVisual(visualBuckets.balconyFloor, floorGeo, balX, balFloorY + 0.001, balZ);
+    floorGeo.dispose();
+
+    // 3. Solid Continuous Dark-Granite Parapet Curb (Height: 0.20m, Thickness: 0.18m)
+    // Sits flush on balcony slab so there is ZERO bottom gap where background textures can bleed through.
+    const curbH = 0.20;
+    const curbThick = 0.18;
+    const curbY = balFloorY + curbH / 2; // 0.10m
+    const frontCurbZ = frontOuterZ - curbThick / 2; // 17.91m
+    const leftCurbX = balX + balW / 2 - curbThick / 2; // 8.71m
+    const rightCurbX = balX - balW / 2 + curbThick / 2; // -5.71m
+    const sideCurbD = balD - curbThick; // 4.62m
+    const sideCurbZ = (wallZ + (frontOuterZ - curbThick)) / 2; // 15.51m
+
+    // Front continuous curb
+    const frontCurbGeo = new THREE.BoxGeometry(balW, curbH, curbThick);
+    addPart(visualBuckets.balconyCurb, frontCurbGeo, balX, curbY, frontCurbZ);
+    frontCurbGeo.dispose();
+
+    // Side returns
+    const sideCurbGeo = new THREE.BoxGeometry(curbThick, curbH, sideCurbD);
+    addPart(visualBuckets.balconyCurb, sideCurbGeo, leftCurbX, curbY, sideCurbZ);
+    addPart(visualBuckets.balconyCurb, sideCurbGeo, rightCurbX, curbY, sideCurbZ);
+    sideCurbGeo.dispose();
+
+    // 4. Hero-Scale Architectural Guardrail (Top Handrail at Y = 1.34m, visible above 1.125m windowsill)
+    const handrailY = 1.34;
+    const midRailY = 1.25;
+    const postW = 0.040;
+    const handrailDia = 0.045;
+    const midRailDia = 0.018;
+
+    // A. Vertical Stainless Steel Square Posts (anchored into curb from Y = 0.20m up to Y = 1.34m)
+    const postH = handrailY - curbH; // 1.14m
+    const postY = curbH + postH / 2; // 0.77m
+    const postGeo = new THREE.BoxGeometry(postW, postH, postW);
+
+    const numFrontPosts = 11;
+    const frontSpan = (leftCurbX - rightCurbX);
+    const postStep = frontSpan / (numFrontPosts - 1); // ~1.442m
+
+    for (let p = 0; p < numFrontPosts; p++) {
+      const px = rightCurbX + p * postStep;
+      addVisual(visualBuckets.balconyRailMetal, postGeo, px, postY, frontCurbZ);
+    }
+
+    // Side return posts (extended across full 4.71m return length)
+    const sideReturnL = frontCurbZ - wallZ; // ~4.71m
+    const numSideIntervals = 4;
+    const sideStep = sideReturnL / numSideIntervals;
+    for (let s = 0; s <= numSideIntervals; s++) {
+      const sz = wallZ + s * sideStep;
+      addVisual(visualBuckets.balconyRailMetal, postGeo, leftCurbX, postY, sz);
+      addVisual(visualBuckets.balconyRailMetal, postGeo, rightCurbX, postY, sz);
+    }
+    postGeo.dispose();
+
+    // B. Cylindrical Top Handrails (Y = 1.34m)
+    const frontHandrailGeo = new THREE.CylinderGeometry(handrailDia / 2, handrailDia / 2, balW, 16);
+    frontHandrailGeo.rotateZ(Math.PI / 2);
+    addVisual(visualBuckets.balconyRailMetal, frontHandrailGeo, balX, handrailY, frontCurbZ);
+    frontHandrailGeo.dispose();
+
+    const sideHandrailGeo = new THREE.CylinderGeometry(handrailDia / 2, handrailDia / 2, sideReturnL, 16);
+    sideHandrailGeo.rotateX(Math.PI / 2);
+    addVisual(visualBuckets.balconyRailMetal, sideHandrailGeo, leftCurbX, handrailY, (wallZ + frontCurbZ) / 2);
+    addVisual(visualBuckets.balconyRailMetal, sideHandrailGeo, rightCurbX, handrailY, (wallZ + frontCurbZ) / 2);
+    sideHandrailGeo.dispose();
+
+    // C. Thin Horizontal Chrome Mid-Rail (Y = 1.25m, centered in the 0.18m gap above the glass)
+    const frontMidRailGeo = new THREE.CylinderGeometry(midRailDia / 2, midRailDia / 2, balW, 12);
+    frontMidRailGeo.rotateZ(Math.PI / 2);
+    addVisual(visualBuckets.balconyRailMetal, frontMidRailGeo, balX, midRailY, frontCurbZ);
+    frontMidRailGeo.dispose();
+
+    const sideMidRailGeo = new THREE.CylinderGeometry(midRailDia / 2, midRailDia / 2, sideReturnL, 12);
+    sideMidRailGeo.rotateX(Math.PI / 2);
+    addVisual(visualBuckets.balconyRailMetal, sideMidRailGeo, leftCurbX, midRailY, (wallZ + frontCurbZ) / 2);
+    addVisual(visualBuckets.balconyRailMetal, sideMidRailGeo, rightCurbX, midRailY, (wallZ + frontCurbZ) / 2);
+    sideMidRailGeo.dispose();
+
+    // D. Lightly Smoked Glass Balustrade Panels (Y = 0.24m to Y = 1.16m)
+    const glassBottomY = 0.24;
+    const glassTopY = 1.16;
+    const glassH = glassTopY - glassBottomY; // 0.92m
+    const glassY = (glassBottomY + glassTopY) / 2; // 0.70m
+    const glassThick = 0.012;
+
+    // Front glass panels between posts
+    const frontPanelW = postStep - postW - 0.030; // ~1.372m
+    const frontPanelGeo = new THREE.BoxGeometry(frontPanelW, glassH, glassThick);
+    for (let p = 0; p < numFrontPosts - 1; p++) {
+      const px = rightCurbX + (p + 0.5) * postStep;
+      addVisual(visualBuckets.balconySmokedGlass, frontPanelGeo, px, glassY, frontCurbZ);
+    }
+    frontPanelGeo.dispose();
+
+    // Side return glass panels (4 panels per side)
+    const sidePanelW = sideStep - postW - 0.030;
+    const sidePanelGeo = new THREE.BoxGeometry(glassThick, glassH, sidePanelW);
+    for (let sp = 0; sp < numSideIntervals; sp++) {
+      const sz = wallZ + (sp + 0.5) * sideStep;
+      addVisual(visualBuckets.balconySmokedGlass, sidePanelGeo, leftCurbX, glassY, sz);
+      addVisual(visualBuckets.balconySmokedGlass, sidePanelGeo, rightCurbX, glassY, sz);
+    }
+    sidePanelGeo.dispose();
+
+    // E. Small Chrome Mounting Clamps on posts
+    const clampGeo = new THREE.BoxGeometry(0.024, 0.032, 0.024);
+    const clampYLevels = [0.38, 1.02];
+    for (let p = 0; p < numFrontPosts; p++) {
+      const px = rightCurbX + p * postStep;
+      for (const cy of clampYLevels) {
+        if (p < numFrontPosts - 1) addVisual(visualBuckets.balconyRailMetal, clampGeo, px + postW / 2 + 0.008, cy, frontCurbZ);
+        if (p > 0) addVisual(visualBuckets.balconyRailMetal, clampGeo, px - postW / 2 - 0.008, cy, frontCurbZ);
+      }
+    }
+    clampGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 5. High-Craft 3D Outdoor Patio Furniture Sets with Market Umbrellas
+    // -------------------------------------------------------------------------
+    const _vDir = new THREE.Vector3();
+    const _vMid = new THREE.Vector3();
+    const _vUnitZ = new THREE.Vector3(0, 0, 1);
+    const _vScale = new THREE.Vector3(1, 1, 1);
+    const _qRod = new THREE.Quaternion();
+    const _mRod = new THREE.Matrix4();
+
+    const addRod = (bucket, x1, y1, z1, x2, y2, z2, width, height) => {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const dz = z2 - z1;
+      const len = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      if (len < 0.001) return;
+
+      const rodGeo = new THREE.BoxGeometry(width, height, len);
+      _vDir.set(dx / len, dy / len, dz / len);
+      _vMid.set((x1 + x2) * 0.5, (y1 + y2) * 0.5, (z1 + z2) * 0.5);
+      _qRod.setFromUnitVectors(_vUnitZ, _vDir);
+      _mRod.compose(_vMid, _qRod, _vScale);
+
+      const g = rodGeo.toNonIndexed();
+      g.applyMatrix4(_mRod);
+      bucket.push(g);
+      rodGeo.dispose();
+    };
+
+    const buildPatioSet = (setX, setZ, hasProps = false) => {
+      // A. Large Market Patio Umbrella (Hero Scale, 8-rib collapsible mechanical structure)
+      // 1. Heavy circular cast-iron weight base
+      const baseGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.06, 24);
+      addPart(visualBuckets.patioMetal, baseGeo, setX, 0.03, setZ);
+      baseGeo.dispose();
+
+      // 2. Vertical aluminum center pole (height = 2.55m)
+      const poleGeo = new THREE.CylinderGeometry(0.022, 0.022, 2.55, 16);
+      addPart(visualBuckets.patioMetal, poleGeo, setX, 1.275, setZ);
+      poleGeo.dispose();
+
+      // Silver locking collar
+      const collarGeo = new THREE.CylinderGeometry(0.030, 0.030, 0.035, 16);
+      addVisual(visualBuckets.vestibuleChrome, collarGeo, setX, 1.05, setZ);
+      collarGeo.dispose();
+
+      // 3D Side crank winder housing & angled crank handle at Y = 1.15m
+      const crankBoxGeo = new THREE.BoxGeometry(0.05, 0.08, 0.05);
+      addVisual(visualBuckets.patioMetal, crankBoxGeo, setX + 0.032, 1.15, setZ);
+      crankBoxGeo.dispose();
+
+      const crankArmGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.065, 8);
+      crankArmGeo.rotateZ(Math.PI / 4);
+      addVisual(visualBuckets.vestibuleChrome, crankArmGeo, setX + 0.075, 1.165, setZ);
+      crankArmGeo.dispose();
+
+      const crankKnobGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.032, 8);
+      crankKnobGeo.rotateX(Math.PI / 2);
+      addVisual(visualBuckets.patioMetal, crankKnobGeo, setX + 0.10, 1.185, setZ);
+      crankKnobGeo.dispose();
+
+      // Upper Notch / Top Hub at apex (Y = 2.505m, R = 0.040m)
+      const topHubGeo = new THREE.CylinderGeometry(0.040, 0.040, 0.045, 16);
+      addVisual(visualBuckets.patioMetal, topHubGeo, setX, 2.505, setZ);
+      topHubGeo.dispose();
+
+      // Lower Runner Hub (Sliding Hub at Y = 2.06m)
+      const runnerHubGeo = new THREE.CylinderGeometry(0.040, 0.040, 0.055, 16);
+      addVisual(visualBuckets.patioMetal, runnerHubGeo, setX, 2.06, setZ);
+      runnerHubGeo.dispose();
+
+      const runnerCollarGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.020, 16);
+      addVisual(visualBuckets.vestibuleChrome, runnerCollarGeo, setX, 2.02, setZ);
+      runnerCollarGeo.dispose();
+
+      // 8-Segment Canopy Framework: 8 Main Ribs + 8 Diagonal Stretchers + Pivot Hinge Brackets + Outer Tip Caps
+      const tipCapGeo = new THREE.BoxGeometry(0.024, 0.020, 0.036);
+      const hingeBracketGeo = new THREE.BoxGeometry(0.020, 0.024, 0.026);
+
+      for (let k = 0; k < 8; k++) {
+        const theta = (k * Math.PI) / 4;
+        const sinT = Math.sin(theta);
+        const cosT = Math.cos(theta);
+
+        // 1. Main Rib from Upper Hub (r = 0.04m, Y = 2.500m) along underside of seam to corner tip (r = 1.320m, Y = 2.142m)
+        const ribStartX = setX + 0.040 * sinT;
+        const ribStartY = 2.500;
+        const ribStartZ = setZ + 0.040 * cosT;
+
+        const ribEndX = setX + 1.320 * sinT;
+        const ribEndY = 2.142;
+        const ribEndZ = setZ + 1.320 * cosT;
+
+        addRod(visualBuckets.patioMetal, ribStartX, ribStartY, ribStartZ, ribEndX, ribEndY, ribEndZ, 0.016, 0.012);
+
+        // Outer corner tip pocket cap
+        addVisual(visualBuckets.patioMetal, tipCapGeo, ribEndX, ribEndY + 0.005, ribEndZ, 0, theta, 0);
+
+        // 2. Diagonal Stretcher (Strut) from Lower Runner Hub (r = 0.04m, Y = 2.060m) to Main Rib midpoint (r = 0.580m, Y = 2.342m)
+        const strStartX = setX + 0.040 * sinT;
+        const strStartY = 2.060;
+        const strStartZ = setZ + 0.040 * cosT;
+
+        const strEndX = setX + 0.580 * sinT;
+        const strEndY = 2.342;
+        const strEndZ = setZ + 0.580 * cosT;
+
+        addRod(visualBuckets.patioMetal, strStartX, strStartY, strStartZ, strEndX, strEndY, strEndZ, 0.014, 0.012);
+
+        // Pivot hinge bracket at strut-rib connection
+        addVisual(visualBuckets.patioMetal, hingeBracketGeo, strEndX, strEndY, strEndZ, 0, theta, 0);
+      }
+
+      tipCapGeo.dispose();
+      hingeBracketGeo.dispose();
+
+      // 3. Octagonal Warm Tan Fabric Canopy (diameter = 2.65m, radius = 1.325m, Y = 2.15m to 2.52m)
+      const canopyGeo = new THREE.CylinderGeometry(0.08, 1.325, 0.37, 8, 1, true);
+      addPart(visualBuckets.patioUmbrella, canopyGeo, setX, 2.335, setZ);
+      canopyGeo.dispose();
+
+      // Second-tier wind-vent cap / valance at apex (Y = 2.45m to 2.58m)
+      const ventGeo = new THREE.CylinderGeometry(0.04, 0.38, 0.14, 8, 1, true);
+      addVisual(visualBuckets.patioUmbrella, ventGeo, setX, 2.51, setZ);
+      ventGeo.dispose();
+
+      // Turned finial ball at top
+      const finialGeo = new THREE.SphereGeometry(0.035, 12, 10);
+      addVisual(visualBuckets.patioMetal, finialGeo, setX, 2.61, setZ);
+      finialGeo.dispose();
+
+      // B. Square Hero-Scale Patio Dining Table (1.24m x 1.24m, height = 0.82m)
+      const tableW = 1.24;
+      const tableTopY = 0.82;
+      const frameThick = 0.040;
+      const frameDepth = 0.040;
+
+      // Tabletop outer perimeter metal frame
+      const frameRimLongGeo = new THREE.BoxGeometry(tableW, frameThick, frameDepth);
+      addPart(visualBuckets.patioMetal, frameRimLongGeo, setX, tableTopY - frameThick / 2, setZ + tableW / 2 - frameDepth / 2);
+      addPart(visualBuckets.patioMetal, frameRimLongGeo, setX, tableTopY - frameThick / 2, setZ - tableW / 2 + frameDepth / 2);
+      frameRimLongGeo.dispose();
+
+      const frameRimShortGeo = new THREE.BoxGeometry(frameDepth, frameThick, tableW - frameDepth * 2);
+      addPart(visualBuckets.patioMetal, frameRimShortGeo, setX + tableW / 2 - frameDepth / 2, tableTopY - frameThick / 2, setZ);
+      addPart(visualBuckets.patioMetal, frameRimShortGeo, setX - tableW / 2 + frameDepth / 2, tableTopY - frameThick / 2, setZ);
+      frameRimShortGeo.dispose();
+
+      // Teak wood slats tabletop (7 horizontal slats)
+      const numSlats = 7;
+      const slatInnerW = tableW - frameDepth * 2; // 1.16m
+      const slatD = (slatInnerW - (numSlats - 1) * 0.008) / numSlats; // ~0.158m per slat
+      const slatH = 0.024;
+      const slatGeo = new THREE.BoxGeometry(slatInnerW, slatH, slatD);
+      for (let s = 0; s < numSlats; s++) {
+        const sz = setZ - slatInnerW / 2 + (s + 0.5) * (slatInnerW / numSlats);
+        // Leave center clearance for pole
+        if (Math.abs(sz - setZ) < 0.07) {
+          const splitW = (slatInnerW - 0.14) / 2;
+          const splitGeo = new THREE.BoxGeometry(splitW, slatH, slatD);
+          addPart(visualBuckets.patioTabletop, splitGeo, setX - splitW / 2 - 0.07, tableTopY - slatH / 2, sz);
+          addPart(visualBuckets.patioTabletop, splitGeo, setX + splitW / 2 + 0.07, tableTopY - slatH / 2, sz);
+          splitGeo.dispose();
+        } else {
+          addPart(visualBuckets.patioTabletop, slatGeo, setX, tableTopY - slatH / 2, sz);
+        }
+      }
+      slatGeo.dispose();
+
+      // Center umbrella grommet ring
+      const grommetGeo = new THREE.CylinderGeometry(0.040, 0.040, 0.030, 16);
+      addVisual(visualBuckets.patioMetal, grommetGeo, setX, tableTopY - 0.015, setZ);
+      grommetGeo.dispose();
+
+      // 4 Chunky tubular table legs (radius 0.024m, height = 0.78m)
+      const legRadius = 0.024;
+      const legH = tableTopY - frameThick; // 0.78m
+      const legGeo = new THREE.CylinderGeometry(legRadius, legRadius, legH, 14);
+      const legOffset = tableW / 2 - 0.07; // 0.55m
+      const legPositions = [
+        [-legOffset, -legOffset],
+        [legOffset, -legOffset],
+        [-legOffset, legOffset],
+        [legOffset, legOffset]
+      ];
+      for (const [lx, lz] of legPositions) {
+        addPart(visualBuckets.patioMetal, legGeo, setX + lx, legH / 2, setZ + lz);
+      }
+      legGeo.dispose();
+
+      // Foot glides
+      const glideGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.018, 14);
+      for (const [lx, lz] of legPositions) {
+        addVisual(visualBuckets.patioMetal, glideGeo, setX + lx, 0.009, setZ + lz);
+      }
+      glideGeo.dispose();
+
+      // C. 4 Hero-Scale Patio Armchairs per Table (Width: 0.60m, Depth: 0.54m, Seat Y = 0.50m, Arm Y = 0.72m, Back Top Y = 1.02m)
+      const chairDist = 0.88;
+      const chairConfigs = [
+        { x: setX, z: setZ - chairDist, rotY: 0 },              // South chair, facing North (+Z) towards table
+        { x: setX, z: setZ + chairDist, rotY: Math.PI },          // North chair, facing South (-Z) towards table
+        { x: setX - chairDist, z: setZ, rotY: Math.PI * 0.5 },    // West chair, facing East (+X) towards table
+        { x: setX + chairDist, z: setZ, rotY: -Math.PI * 0.5 }    // East chair, facing West (-X) towards table
+      ];
+
+      const chairSeatW = 0.60;
+      const chairSeatD = 0.54;
+      const seatH = 0.50;
+      const armH = 0.72;
+      const backTopH = 1.02;
+      const tubeThick = 0.026;
+
+      // Geometries for chair parts (reused across all 4 chairs)
+      // 1. Seat frame: side rails and cross rails
+      const seatSideRailGeo = new THREE.BoxGeometry(tubeThick, tubeThick, chairSeatD);
+      const seatCrossRailGeo = new THREE.BoxGeometry(chairSeatW - tubeThick * 2, tubeThick, tubeThick);
+
+      // 2. Teak seat slats (5 horizontal slats recessed into frame)
+      const numSeatSlats = 5;
+      const seatSlatW = chairSeatW - tubeThick * 2 - 0.010; // ~0.538m
+      const seatSlatD = 0.088;
+      const seatSlatH = 0.018;
+      const seatSlatGeo = new THREE.BoxGeometry(seatSlatW, seatSlatH, seatSlatD);
+
+      // 3. Front legs with integrated armrest upright (continuous tubular upright from floor to armrest)
+      // Height = armH - 0.010 = 0.71m. Center Y = 0.010 + 0.71 / 2 = 0.365m.
+      const frontUprightH = armH - 0.010;
+      const frontUprightGeo = new THREE.CylinderGeometry(0.015, 0.015, frontUprightH, 12);
+
+      // 4. Rear legs (from floor to seat)
+      const rearLegH = seatH - 0.010;
+      const rearLegGeo = new THREE.CylinderGeometry(0.015, 0.015, rearLegH, 12);
+
+      // 5. Backrest posts (rising from seat to backTopH with -8.6° backward recline)
+      const backRise = backTopH - seatH; // 0.52m
+      const reclineAngle = 0.15; // ~8.6° backward
+      const backPostLen = backRise / Math.cos(reclineAngle); // ~0.526m
+      const backPostGeo = new THREE.CylinderGeometry(0.015, 0.015, backPostLen, 12);
+      const backPostCapGeo = new THREE.SphereGeometry(0.018, 10, 8);
+
+      // 6. 3 Teak backrest slats
+      const backSlatW = chairSeatW - tubeThick * 2 - 0.010; // ~0.538m
+      const backSlatH = 0.092;
+      const backSlatThick = 0.020;
+      const backSlatGeo = new THREE.BoxGeometry(backSlatW, backSlatH, backSlatThick);
+
+      // 7. Left & Right Armrest tubular bars
+      const armBarLen = chairSeatD - 0.06; // 0.48m
+      const armBarGeo = new THREE.BoxGeometry(tubeThick, 0.022, armBarLen);
+
+      // 8. Teak wood armrest caps (warm tactile forearm rests)
+      const armCapGeo = new THREE.BoxGeometry(0.046, 0.016, armBarLen + 0.02);
+
+      // 9. Leg foot glides
+      const chairGlideGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.012, 12);
+
+      const chairPos = new THREE.Vector3();
+      const chairQuat = new THREE.Quaternion();
+      const chairScale = new THREE.Vector3(1, 1, 1);
+      const chairMatrix = new THREE.Matrix4();
+      const localMat = new THREE.Matrix4();
+      const worldMat = new THREE.Matrix4();
+      const _lPos = new THREE.Vector3();
+      const _lQuat = new THREE.Quaternion();
+      const _lEuler = new THREE.Euler();
+
+      const applyLocalPart = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0, collidable = true) => {
+        _lPos.set(lx, ly, lz);
+        _lEuler.set(rx, ry, rz);
+        _lQuat.setFromEuler(_lEuler);
+        localMat.compose(_lPos, _lQuat, chairScale);
+        worldMat.multiplyMatrices(chairMatrix, localMat);
+
+        if (collidable && addPartMatrix) {
+          addPartMatrix(bucket, geo, worldMat, true);
+        } else {
+          const g = (geo.index ? geo.toNonIndexed() : geo.clone());
+          g.applyMatrix4(worldMat);
+          bucket.push(g);
+        }
+      };
+
+      const legOffX = chairSeatW / 2 - 0.035;
+      const frontLegZ = chairSeatD / 2 - 0.035;
+      const rearLegZ = -chairSeatD / 2 + 0.035;
+
+      for (const ch of chairConfigs) {
+        chairPos.set(ch.x, 0, ch.z);
+        chairQuat.setFromEuler(new THREE.Euler(0, ch.rotY, 0));
+        chairMatrix.compose(chairPos, chairQuat, chairScale);
+
+        // A. Seat frame perimeter
+        applyLocalPart(visualBuckets.patioMetal, seatSideRailGeo, -chairSeatW / 2 + tubeThick / 2, seatH - tubeThick / 2, 0);
+        applyLocalPart(visualBuckets.patioMetal, seatSideRailGeo, chairSeatW / 2 - tubeThick / 2, seatH - tubeThick / 2, 0);
+        applyLocalPart(visualBuckets.patioMetal, seatCrossRailGeo, 0, seatH - tubeThick / 2, frontLegZ);
+        applyLocalPart(visualBuckets.patioMetal, seatCrossRailGeo, 0, seatH - tubeThick / 2, rearLegZ);
+
+        // B. 5 Teak seat slats
+        for (let sl = 0; sl < numSeatSlats; sl++) {
+          const slatZ = rearLegZ + 0.048 + sl * ((chairSeatD - 0.12) / (numSeatSlats - 1));
+          applyLocalPart(visualBuckets.patioTeak, seatSlatGeo, 0, seatH - 0.005, slatZ);
+        }
+
+        // C. Continuous Front Legs + Armrest Uprights (rising from floor Y = 0.010m to armrest Y = 0.72m)
+        applyLocalPart(visualBuckets.patioMetal, frontUprightGeo, -legOffX, frontUprightH / 2 + 0.010, frontLegZ);
+        applyLocalPart(visualBuckets.patioMetal, frontUprightGeo, legOffX, frontUprightH / 2 + 0.010, frontLegZ);
+
+        // D. Rear Legs (from floor Y = 0.010m to seat Y = 0.50m)
+        applyLocalPart(visualBuckets.patioMetal, rearLegGeo, -legOffX, rearLegH / 2 + 0.010, rearLegZ);
+        applyLocalPart(visualBuckets.patioMetal, rearLegGeo, legOffX, rearLegH / 2 + 0.010, rearLegZ);
+
+        // E. 4 Foot Glides
+        applyLocalPart(visualBuckets.patioMetal, chairGlideGeo, -legOffX, 0.006, frontLegZ, 0, 0, 0, false);
+        applyLocalPart(visualBuckets.patioMetal, chairGlideGeo, legOffX, 0.006, frontLegZ, 0, 0, 0, false);
+        applyLocalPart(visualBuckets.patioMetal, chairGlideGeo, -legOffX, 0.006, rearLegZ, 0, 0, 0, false);
+        applyLocalPart(visualBuckets.patioMetal, chairGlideGeo, legOffX, 0.006, rearLegZ, 0, 0, 0, false);
+
+        // F. Reclined Backrest Uprights (2 posts tilted backwards by 8.6°)
+        const backMidY = seatH + backRise / 2;
+        const backMidZ = rearLegZ - (backRise / 2) * Math.sin(reclineAngle);
+        applyLocalPart(visualBuckets.patioMetal, backPostGeo, -legOffX, backMidY, backMidZ, -reclineAngle, 0, 0);
+        applyLocalPart(visualBuckets.patioMetal, backPostGeo, legOffX, backMidY, backMidZ, -reclineAngle, 0, 0);
+
+        // Top decorative finial balls
+        const backTopZ = rearLegZ - backRise * Math.sin(reclineAngle);
+        applyLocalPart(visualBuckets.patioMetal, backPostCapGeo, -legOffX, backTopH, backTopZ, 0, 0, 0, false);
+        applyLocalPart(visualBuckets.patioMetal, backPostCapGeo, legOffX, backTopH, backTopZ, 0, 0, 0, false);
+
+        // G. 3 Teak Backrest Slats
+        for (let b = 0; b < 3; b++) {
+          const slatYOff = 0.12 + b * 0.15;
+          const slatY = seatH + slatYOff;
+          const slatZ = rearLegZ - slatYOff * Math.sin(reclineAngle) + 0.012; // Flush against front face of post
+          applyLocalPart(visualBuckets.patioTeak, backSlatGeo, 0, slatY, slatZ, -reclineAngle, 0, 0);
+        }
+
+        // H. Left & Right Closed Armrests (tubular steel bar + teak wood cap)
+        const armBarMidZ = (frontLegZ + rearLegZ) / 2;
+        applyLocalPart(visualBuckets.patioMetal, armBarGeo, -legOffX, armH - 0.011, armBarMidZ);
+        applyLocalPart(visualBuckets.patioMetal, armBarGeo, legOffX, armH - 0.011, armBarMidZ);
+
+        applyLocalPart(visualBuckets.patioTeak, armCapGeo, -legOffX, armH + 0.008, armBarMidZ);
+        applyLocalPart(visualBuckets.patioTeak, armCapGeo, legOffX, armH + 0.008, armBarMidZ);
+      }
+
+      seatSideRailGeo.dispose();
+      seatCrossRailGeo.dispose();
+      seatSlatGeo.dispose();
+      frontUprightGeo.dispose();
+      rearLegGeo.dispose();
+      backPostGeo.dispose();
+      backPostCapGeo.dispose();
+      backSlatGeo.dispose();
+      armBarGeo.dispose();
+      armCapGeo.dispose();
+      chairGlideGeo.dispose();
+
+      // D. Tabletop Props on Set 1 Table
+      if (hasProps) {
+        // Wooden serving tray
+        const trayGeo = new THREE.BoxGeometry(0.36, 0.020, 0.24);
+        addPart(visualBuckets.patioTray, trayGeo, setX + 0.12, tableTopY + 0.010, setZ - 0.10);
+        trayGeo.dispose();
+
+        // French press coffee carafe
+        const pressGlassGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.14, 16);
+        addVisual(visualBuckets.vestibuleGlass, pressGlassGeo, setX + 0.06, tableTopY + 0.09, setZ - 0.10);
+        pressGlassGeo.dispose();
+
+        const pressCoffeeGeo = new THREE.CylinderGeometry(0.039, 0.039, 0.08, 16);
+        addVisual(visualBuckets.coffeeMachine, pressCoffeeGeo, setX + 0.06, tableTopY + 0.06, setZ - 0.10);
+        pressCoffeeGeo.dispose();
+
+        const pressChromeGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.018, 16);
+        addVisual(visualBuckets.vestibuleChrome, pressChromeGeo, setX + 0.06, tableTopY + 0.165, setZ - 0.10);
+        pressChromeGeo.dispose();
+
+        const plungerRodGeo = new THREE.CylinderGeometry(0.005, 0.005, 0.08, 8);
+        addVisual(visualBuckets.vestibuleChrome, plungerRodGeo, setX + 0.06, tableTopY + 0.20, setZ - 0.10);
+        plungerRodGeo.dispose();
+
+        // 2 White ceramic coffee mugs
+        const mugGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.07, 16);
+        addVisual(visualBuckets.patioCeramic, mugGeo, setX + 0.18, tableTopY + 0.055, setZ - 0.06);
+        addVisual(visualBuckets.patioCeramic, mugGeo, setX + 0.18, tableTopY + 0.055, setZ - 0.14);
+        mugGeo.dispose();
+
+        const mugCoffeeGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.005, 12);
+        addVisual(visualBuckets.coffeeMachine, mugCoffeeGeo, setX + 0.18, tableTopY + 0.080, setZ - 0.06);
+        addVisual(visualBuckets.coffeeMachine, mugCoffeeGeo, setX + 0.18, tableTopY + 0.080, setZ - 0.14);
+        mugCoffeeGeo.dispose();
+
+        // Open magazine
+        const magGeo = new THREE.BoxGeometry(0.20, 0.004, 0.14);
+        addVisual(visualBuckets.extinguisherLabel, magGeo, setX - 0.22, tableTopY + 0.004, setZ + 0.12, 0, 0.25, 0);
+        magGeo.dispose();
+      }
+    };
+
+    // Build Set 1 (positioned at X = -3.20m, Z = 15.60m in front of panoramic window, with tabletop props)
+    buildPatioSet(-3.20, 15.60, true);
+
+    // Build Set 2 (slid away from balcony door to X = 1.80m, Z = 15.60m)
+    buildPatioSet(1.80, 15.60, false);
+
+    // 6. Skyscraper Exterior Concrete Facade Drop below Balcony (Y = 0.00 down to -35.00m)
+    const dropH = 35.00;
+    const dropY = -dropH / 2;
+    // Front drop
+    const frontDropGeo = new THREE.BoxGeometry(balW, dropH, 0.30);
+    addPart(visualBuckets.balconyExteriorWall, frontDropGeo, balX, dropY, frontOuterZ - 0.15);
+    frontDropGeo.dispose();
+
+    // Side drops
+    const sideDropGeo = new THREE.BoxGeometry(0.30, dropH, balD);
+    addPart(visualBuckets.balconyExteriorWall, sideDropGeo, balX + balW / 2 - 0.15, dropY, balZ);
+    addPart(visualBuckets.balconyExteriorWall, sideDropGeo, balX - balW / 2 + 0.15, dropY, balZ);
+    sideDropGeo.dispose();
+  }
+
+  /**
+   * Constructs the Alive 3D Parallax Nighttime City Skyline:
+   * - Layer A: Curved Panoramic Sky Backdrop (Radius = 115m, Height = 95m, unlit fog-free)
+   * - Layer B: Dedicated 3D Luminous Glowing Moon (10m x 10m at X = -6.5m, Y = 16.5m, Z = 108m)
+   * - Layer C: 32 3D High-Rise Skyscraper Towers across 3 True Depth Tiers (Z = 38m to 125m, Y = -35m to +15m)
+   * - Layer D: Stepped Rooftop Crowns, Illuminated Roof Trims & Pulsing Red Aviation Warning Beacons
+   */
+  _buildNightCitySkyline(addVisual, visualBuckets, group) {
+    // -------------------------------------------------------------------------
+    // Layer A: Pure Pitch-Black Unlit Sky Dome (Radius = 220m, 360° Surrounding)
+    // -------------------------------------------------------------------------
+    const skyGeo = new THREE.SphereGeometry(220, 32, 24);
+    const skyMesh = new THREE.Mesh(skyGeo, this.nightSkyBackdropMaterial);
+    skyMesh.position.set(0, 0, 15);
+    skyMesh.renderOrder = -10;
+    skyMesh.name = 'DC_NightSkyBackdrop';
+    group.add(skyMesh);
+
+    // -------------------------------------------------------------------------
+    // Layer B: Screen-Space Anti-Aliased Pinpoint Starfield (THREE.Points, sizeAttenuation: false)
+    // -------------------------------------------------------------------------
+    const starPointTexture = createStarPointTexture();
+
+    let seed = 42109;
+    const rand = () => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    };
+
+    const generateStarVertices = (count) => {
+      const positions = new Float32Array(count * 3);
+      let idx = 0;
+      while (idx < count) {
+        const u = rand() * 2 - 1;
+        const v = rand() * 2 - 1;
+        const w = rand() * 2 - 1;
+        const lenSq = u * u + v * v + w * w;
+        if (lenSq > 1 || lenSq < 0.0001) continue;
+        const invLen = 1 / Math.sqrt(lenSq);
+        const r = 188 + rand() * 4;
+        const px = u * invLen * r;
+        const py = v * invLen * r;
+        const pz = 15 + w * invLen * r;
+        if (py >= -5 && pz >= 5) {
+          positions[idx * 3] = px;
+          positions[idx * 3 + 1] = py;
+          positions[idx * 3 + 2] = pz;
+          idx++;
+        }
+      }
+      return positions;
+    };
+
+    // Layer B1: 1,800 Faint Pinpoint Stars (sub-pixel 0.65 size, opacity 0.35, color 0xcbd5e1)
+    const pointsGeoA = new THREE.BufferGeometry();
+    pointsGeoA.setAttribute('position', new THREE.Float32BufferAttribute(generateStarVertices(1800), 3));
+    const pointsMatA = new THREE.PointsMaterial({
+      map: starPointTexture,
+      alphaTest: 0.05,
+      color: 0xcbd5e1,
+      size: 0.65,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 0.35,
+      fog: false,
+      toneMapped: false,
+      depthWrite: false,
+    });
+    const starsA = new THREE.Points(pointsGeoA, pointsMatA);
+    starsA.renderOrder = -9;
+    starsA.name = 'DC_Stars_Faint';
+    group.add(starsA);
+
+    // Layer B2: 250 Crisp Bright Pinpoint Stars (0.95 size, opacity 0.78, color 0xffffff)
+    const pointsGeoB = new THREE.BufferGeometry();
+    pointsGeoB.setAttribute('position', new THREE.Float32BufferAttribute(generateStarVertices(250), 3));
+    const pointsMatB = new THREE.PointsMaterial({
+      map: starPointTexture,
+      alphaTest: 0.05,
+      color: 0xffffff,
+      size: 0.95,
+      sizeAttenuation: false,
+      transparent: true,
+      opacity: 0.78,
+      fog: false,
+      toneMapped: false,
+      depthWrite: false,
+    });
+    const starsB = new THREE.Points(pointsGeoB, pointsMatB);
+    starsB.renderOrder = -8;
+    starsB.name = 'DC_Stars_Bright';
+    group.add(starsB);
+
+    // -------------------------------------------------------------------------
+    // Layer C: ONE Single Photorealistic 3D Moon (Celestial Distance, Upper Right Sky)
+    // Positioned at (X = 124.0m, Y = 100.0m, Z = 117.0m) at celestial distance R = 188.5m,
+    // matching the exact position drawn in the user's reference screenshot (media_1793994528461_590ddf26.jpg).
+    // Sized at 38.4m x 38.4m (20% smaller as requested for authentic celestial scale).
+    // -------------------------------------------------------------------------
+    const moonGeo = new THREE.PlaneGeometry(38.4, 38.4);
+    const moonMesh = new THREE.Mesh(moonGeo, this.moonMaterial);
+    moonMesh.position.set(124.0, 100.0, 117.0);
+    moonMesh.lookAt(0, 1.7, 12.6);
+    moonMesh.renderOrder = -2;
+    moonMesh.name = 'DC_GlowingMoon';
+    group.add(moonMesh);
+
+    // -------------------------------------------------------------------------
+    // Layer D: 37 3D Skyscraper Towers Horizontally Distributed (X = -65m to +65m)
+    // - Foreground towers (Z = 40m–55m) spaced with 4.0m to 8.5m of open sky between them
+    // - Midground (Z = 62m–86m) and Distant (Z = 92m–125m) towers staggered behind gaps
+    // - All towers feature complete architectural crowns, penthouses, trims & beacons
+    // -------------------------------------------------------------------------
+    const towers = [
+      // Tier 1 — Foreground (Z = 40m to 54m): 9 towers across X = -56m to +60m
+      { x: -56.0, z: 46.0, w: 6.8, d: 6.0, hTop: 9.5, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.8, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: -42.0, z: 43.0, w: 6.2, d: 5.6, hTop: 10.2, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: -28.0, z: 45.0, w: 6.5, d: 5.8, hTop: 9.0, hBot: -35.0, facade: 'B', beacon: true, spireH: 3.5, penthouse: true, roofTrim: true, cornerBeacons: true },
+      // Restored Tower: Full penthouse crown, roof trim, spire antenna & red warning beacons
+      { x: -9.5, z: 44.0, w: 6.0, d: 5.5, hTop: 9.8, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true, cornerBeacons: true },
+      // Landmark Diagrid Tower (Slender, gold diagrid lines, 3-tier stepped crown, and spire)
+      { x: 8.5, z: 50.0, w: 6.5, d: 6.0, hTop: 13.0, hBot: -35.0, facade: 'D', beacon: true, spireH: 4.8, crownSteps: 3, roofTrim: true, cornerBeacons: true },
+      { x: 22.0, z: 43.0, w: 6.2, d: 5.8, hTop: 8.8, hBot: -35.0, facade: 'B', beacon: true, spireH: 3.2, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: 35.0, z: 47.0, w: 6.6, d: 6.0, hTop: 10.8, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.2, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: 48.0, z: 44.0, w: 6.2, d: 5.8, hTop: 9.2, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: 60.0, z: 48.0, w: 7.0, d: 6.5, hTop: 8.5, hBot: -35.0, facade: 'B', beacon: false, penthouse: true, roofTrim: true },
+
+      // Tier 2 — Midground (Z = 62m to 86m): 13 towers filling corridors and creating 3D parallax
+      { x: -64.0, z: 66.0, w: 8.0, d: 7.5, hTop: 11.5, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true },
+      { x: -49.0, z: 62.0, w: 7.5, d: 7.0, hTop: 12.2, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.5, crownSteps: 2, roofTrim: true },
+      { x: -35.0, z: 68.0, w: 7.8, d: 7.2, hTop: 13.0, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.8, penthouse: true, roofTrim: true },
+      { x: -20.0, z: 64.0, w: 7.2, d: 6.8, hTop: 12.5, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.2, crownSteps: 2, roofTrim: true },
+      // Restored Midground Tower: Stepped crown, roof trim, spire antenna & red warning beacon
+      { x: -7.0, z: 76.0, w: 6.5, d: 6.0, hTop: 12.8, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.5, crownSteps: 2, roofTrim: true },
+      { x: 0.0, z: 65.0, w: 7.2, d: 6.8, hTop: 12.8, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.6, crownSteps: 3, roofTrim: true },
+      { x: 15.0, z: 63.0, w: 7.5, d: 7.0, hTop: 11.8, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true },
+      { x: 28.5, z: 67.0, w: 8.0, d: 7.5, hTop: 13.5, hBot: -35.0, facade: 'A', beacon: true, spireH: 5.0, crownSteps: 2, roofTrim: true },
+      { x: 42.0, z: 64.0, w: 7.6, d: 7.2, hTop: 12.0, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.2, penthouse: true, roofTrim: true },
+      { x: 54.0, z: 68.0, w: 8.0, d: 7.5, hTop: 13.2, hBot: -35.0, facade: 'C', beacon: false, penthouse: true, roofTrim: true },
+      { x: 65.0, z: 62.0, w: 8.2, d: 7.6, hTop: 11.0, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.8, penthouse: true, roofTrim: true },
+      { x: -27.0, z: 82.0, w: 8.5, d: 7.8, hTop: 13.8, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.5, crownSteps: 2, roofTrim: true },
+      { x: 35.0, z: 82.0, w: 8.5, d: 8.0, hTop: 13.5, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.6, penthouse: true, roofTrim: true },
+
+      // Tier 3 — Distant Horizon (Z = 92m to 125m): 15 towers creating a vast sprawling skyline
+      { x: -62.0, z: 95.0, w: 10.0, d: 9.0, hTop: 13.5, hBot: -35.0, facade: 'A', beacon: false },
+      { x: -48.0, z: 100.0, w: 9.5, d: 8.5, hTop: 14.2, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0 },
+      { x: -34.0, z: 96.0, w: 9.0, d: 8.0, hTop: 13.8, hBot: -35.0, facade: 'B', beacon: false },
+      { x: -18.0, z: 102.0, w: 9.2, d: 8.2, hTop: 14.0, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.2 },
+      // Restored Distant Tower: Spire antenna & red warning beacon
+      { x: -5.0, z: 98.0, w: 8.8, d: 8.0, hTop: 14.0, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0 },
+      { x: 8.0, z: 95.0, w: 9.0, d: 8.2, hTop: 14.5, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.0 },
+      { x: 22.0, z: 100.0, w: 9.5, d: 8.5, hTop: 13.8, hBot: -35.0, facade: 'A', beacon: false },
+      { x: 38.0, z: 96.0, w: 9.2, d: 8.2, hTop: 14.2, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.5 },
+      { x: 52.0, z: 98.0, w: 9.8, d: 8.6, hTop: 13.5, hBot: -35.0, facade: 'B', beacon: false },
+      { x: 64.0, z: 94.0, w: 10.0, d: 8.8, hTop: 13.0, hBot: -35.0, facade: 'A', beacon: false },
+      { x: -42.0, z: 118.0, w: 11.5, d: 10.0, hTop: 14.5, hBot: -35.0, facade: 'B', beacon: false },
+      { x: -20.0, z: 120.0, w: 11.0, d: 9.5, hTop: 14.8, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.5 },
+      { x: 2.0, z: 122.0, w: 11.0, d: 9.5, hTop: 14.2, hBot: -35.0, facade: 'C', beacon: false },
+      { x: 25.0, z: 118.0, w: 11.5, d: 10.0, hTop: 14.6, hBot: -35.0, facade: 'B', beacon: false },
+      { x: 48.0, z: 120.0, w: 11.8, d: 10.2, hTop: 13.8, hBot: -35.0, facade: 'A', beacon: false },
+    ];
+
+    this.skylineBeacons = [];
+    const beaconSphereGeo = new THREE.SphereGeometry(0.22, 12, 10);
+    const cornerBeaconGeo = new THREE.SphereGeometry(0.14, 10, 8);
+
+    for (let t = 0; t < towers.length; t++) {
+      const tow = towers[t];
+      const hTotal = tow.hTop - tow.hBot;
+      const centerY = (tow.hTop + tow.hBot) / 2;
+
+      const { facadeGeo, roofGeo } = createTowerGeometries(
+        tow.w, hTotal, tow.d,
+        tow.w,
+        45.0
+      );
+
+      let targetBucket = visualBuckets.skylineTowerA;
+      if (tow.facade === 'B') targetBucket = visualBuckets.skylineTowerB;
+      else if (tow.facade === 'C') targetBucket = visualBuckets.skylineTowerC;
+      else if (tow.facade === 'D') targetBucket = visualBuckets.skylineTowerD;
+
+      addVisual(targetBucket, facadeGeo, tow.x, centerY, tow.z);
+      addVisual(visualBuckets.skylineTowerRoofs, roofGeo, tow.x, centerY, tow.z);
+      facadeGeo.dispose();
+      roofGeo.dispose();
+
+      let roofTopY = tow.hTop;
+
+      // Illuminated architectural roof trim
+      if (tow.roofTrim) {
+        const trimH = 0.18;
+        const trimGeo = new THREE.BoxGeometry(tow.w + 0.10, trimH, tow.d + 0.10);
+        addVisual(visualBuckets.skylineRoofTrim, trimGeo, tow.x, roofTopY + trimH / 2, tow.z);
+        trimGeo.dispose();
+      }
+
+      if (tow.crownSteps) {
+        let cw = tow.w * 0.78;
+        let cd = tow.d * 0.78;
+        const stepH = 1.80;
+        for (let s = 0; s < tow.crownSteps; s++) {
+          const stepGeo = new THREE.BoxGeometry(cw, stepH, cd);
+          addVisual(visualBuckets.skylineTowerRoofs, stepGeo, tow.x, roofTopY + stepH / 2, tow.z);
+          stepGeo.dispose();
+
+          if (tow.roofTrim) {
+            const stepTrimGeo = new THREE.BoxGeometry(cw + 0.08, 0.14, cd + 0.08);
+            addVisual(visualBuckets.skylineRoofTrim, stepTrimGeo, tow.x, roofTopY + stepH + 0.07, tow.z);
+            stepTrimGeo.dispose();
+          }
+
+          roofTopY += stepH;
+          cw *= 0.72;
+          cd *= 0.72;
+        }
+      } else if (tow.penthouse) {
+        const phW = tow.w * 0.55;
+        const phD = tow.d * 0.55;
+        const phH = 2.40;
+        const phGeo = new THREE.BoxGeometry(phW, phH, phD);
+        addVisual(visualBuckets.skylineTowerRoofs, phGeo, tow.x, roofTopY + phH / 2, tow.z);
+        phGeo.dispose();
+
+        if (tow.roofTrim) {
+          const phTrimGeo = new THREE.BoxGeometry(phW + 0.08, 0.14, phD + 0.08);
+          addVisual(visualBuckets.skylineRoofTrim, phTrimGeo, tow.x, roofTopY + phH + 0.07, tow.z);
+          phTrimGeo.dispose();
+        }
+
+        roofTopY += phH;
+      }
+
+      // Roof corner beacons on foreground towers
+      if (tow.cornerBeacons) {
+        const halfW = tow.w / 2 - 0.20;
+        const halfD = tow.d / 2 - 0.20;
+        const cornerY = tow.hTop + 0.22;
+        const corners = [
+          [-halfW, -halfD],
+          [halfW, -halfD]
+        ];
+        for (let c = 0; c < corners.length; c++) {
+          const cbMesh = new THREE.Mesh(
+            cornerBeaconGeo.clone(),
+            new THREE.MeshBasicMaterial({ color: 0xff1515, transparent: true, opacity: 0.95 })
+          );
+          cbMesh.position.set(tow.x + corners[c][0], cornerY, tow.z + corners[c][1]);
+          cbMesh.name = `DC_SkylineCornerBeacon_${t}_${c}`;
+          group.add(cbMesh);
+          this.skylineBeacons.push({
+            mesh: cbMesh,
+            baseScale: 1.0,
+            phase: (t + c * 0.5) * 0.85 + Math.PI * 0.15
+          });
+        }
+      }
+
+      // Central rooftop antenna & aviation warning beacon
+      if (tow.beacon) {
+        const spireHeight = tow.spireH || 4.5;
+        const spireGeo = new THREE.CylinderGeometry(0.02, 0.08, spireHeight, 10);
+        addVisual(visualBuckets.balconyRailMetal, spireGeo, tow.x, roofTopY + spireHeight / 2, tow.z);
+        spireGeo.dispose();
+
+        const beaconY = roofTopY + spireHeight + 0.15;
+        const beaconMesh = new THREE.Mesh(
+          beaconSphereGeo.clone(),
+          new THREE.MeshBasicMaterial({ color: 0xff1515, transparent: true, opacity: 0.95 })
+        );
+        beaconMesh.position.set(tow.x, beaconY, tow.z);
+        beaconMesh.name = `DC_SkylineBeacon_${t}`;
+        group.add(beaconMesh);
+
+        this.skylineBeacons.push({
+          mesh: beaconMesh,
+          baseScale: 1.0,
+          phase: t * 0.75 + Math.PI * 0.25
+        });
+      }
+    }
+    beaconSphereGeo.dispose();
+    cornerBeaconGeo.dispose();
+  }
+
+  /**
+   * Smoothly animates the sinusoidal breathing pulse of all red aviation warning beacons
+   * atop the skyscrapers in the night skyline.
+   */
+  updateSkylineBeacons(time) {
+    if (!this.skylineBeacons || this.skylineBeacons.length === 0) return;
+    for (let i = 0; i < this.skylineBeacons.length; i++) {
+      const b = this.skylineBeacons[i];
+      const pulse = 0.55 + 0.45 * Math.sin(time * 3.0 + b.phase);
+      const s = b.baseScale * (0.85 + 0.35 * pulse);
+      b.mesh.scale.set(s, s, s);
+    }
+  }
+
+  /**
+   * Returns array of procedural textures to pre-warm on the GPU during the loading screen pass.
+   */
+  getPreloadTextures() {
+    return [
+      this.noEntrySignTexture,
+      this.extinguisherSignTexture,
+      this.extinguisherStickerTexture,
+      this.extinguisherGaugeTexture,
+      this.runningManExitSignTexture,
+      this.moonTexture,
+      this.balconyTileTexture,
+      this.skylineTowerATexture,
+      this.skylineTowerBTexture,
+      this.skylineTowerCTexture,
+      this.skylineTowerDTexture,
+    ].filter(Boolean);
   }
 }
 

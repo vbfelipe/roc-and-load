@@ -189,17 +189,24 @@ window.addEventListener('DOMContentLoaded', () => {
       await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera);
       weaponSystem.warmUpGPU(engine.renderer, engine.camera);
       if (warehouse && engine.renderer && typeof engine.renderer.initTexture === 'function') {
-        if (warehouse.noEntrySignTexture) {
-          try { engine.renderer.initTexture(warehouse.noEntrySignTexture); } catch (e) {}
-        }
-        if (warehouse.extinguisherSignTexture) {
-          try { engine.renderer.initTexture(warehouse.extinguisherSignTexture); } catch (e) {}
-        }
-        if (warehouse.extinguisherStickerTexture) {
-          try { engine.renderer.initTexture(warehouse.extinguisherStickerTexture); } catch (e) {}
-        }
-        if (warehouse.extinguisherGaugeTexture) {
-          try { engine.renderer.initTexture(warehouse.extinguisherGaugeTexture); } catch (e) {}
+        const texturesToWarm = [
+          warehouse.noEntrySignTexture,
+          warehouse.extinguisherSignTexture,
+          warehouse.extinguisherStickerTexture,
+          warehouse.extinguisherGaugeTexture,
+          warehouse.runningManExitSignTexture,
+          warehouse.moonTexture,
+          warehouse.balconyTileTexture,
+          warehouse.balconyFlakeBumpMap,
+          warehouse.skylineTowerATexture,
+          warehouse.skylineTowerBTexture,
+          warehouse.skylineTowerCTexture,
+          warehouse.skylineTowerDTexture,
+        ];
+        for (const tex of texturesToWarm) {
+          if (tex) {
+            try { engine.renderer.initTexture(tex); } catch (e) {}
+          }
         }
       }
     } catch (err) {
@@ -271,6 +278,10 @@ window.addEventListener('DOMContentLoaded', () => {
   // Visual frame tick
   engine.addVisualUpdatable({
     update: (delta) => {
+      if (warehouse && typeof warehouse.updateSkylineBeacons === 'function') {
+        warehouse.updateSkylineBeacons(performance.now() * 0.001);
+      }
+
       if (gameState === 'MAIN_MENU') {
         // Slow cinematic idle camera drift overlooking the Data Center
         const time = performance.now() * 0.001;

@@ -1419,6 +1419,8 @@ export class WeaponSystem {
     if (vestGlass) meshes.push(vestGlass);
     const podGlass = this.scene.getObjectByName('DC_ServerPodGlass');
     if (podGlass) meshes.push(podGlass);
+    const balconyGlass = this.scene.getObjectByName('DC_BalconyGlass');
+    if (balconyGlass) meshes.push(balconyGlass);
     if (meshes.length > 0) {
       this.glassMeshes = meshes;
       this.glassMesh = vestGlass || meshes[0];
