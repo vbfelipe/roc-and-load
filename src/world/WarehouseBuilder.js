@@ -3806,8 +3806,8 @@ function createGraniteFlakeFloorTexture() {
  * - Facade Diagrid: ONLY ONE refined, slender landmark diagrid with crisp 3px architectural gold diagrid lines.
  */
 function createSkyscraperFacadeTextures() {
-  const w = 1024;
-  const h = 2048;
+  const w = 512;
+  const h = 1024;
 
   const createRng = (initSeed) => {
     let s = initSeed;
@@ -3822,7 +3822,7 @@ function createSkyscraperFacadeTextures() {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 16;
+    tex.anisotropy = 4;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = true;
@@ -11558,34 +11558,52 @@ float rackHash(vec2 p) {
 
     this.skylineTowerAMaterial = new THREE.MeshBasicMaterial({
       map: skylineFacades.facadeA,
+      fog: false,
+      toneMapped: false,
     });
 
     this.skylineTowerBMaterial = new THREE.MeshBasicMaterial({
       map: skylineFacades.facadeB,
+      fog: false,
+      toneMapped: false,
     });
 
     this.skylineTowerCMaterial = new THREE.MeshBasicMaterial({
       map: skylineFacades.facadeC,
+      fog: false,
+      toneMapped: false,
     });
 
     this.skylineTowerDMaterial = new THREE.MeshBasicMaterial({
       map: skylineFacades.facadeDiagrid,
+      fog: false,
+      toneMapped: false,
     });
 
-    this.skylineTowerRoofMaterial = new THREE.MeshStandardMaterial({
-      color: 0x0c0f16,
-      roughness: 0.75,
-      metalness: 0.25,
+    this.skylineTowerRoofMaterial = new THREE.MeshBasicMaterial({
+      color: 0x0a0d14,
+      fog: false,
     });
 
     this.skylineRoofTrimMaterial = new THREE.MeshBasicMaterial({
       color: 0xffdfa0,
+      fog: false,
+      toneMapped: false,
     });
 
-    this.skylineBeaconMaterial = new THREE.MeshBasicMaterial({
+    this.skylineBeaconMatA = new THREE.MeshBasicMaterial({
       color: 0xff1515,
+      fog: false,
+      toneMapped: false,
     });
 
+    this.skylineBeaconMatB = new THREE.MeshBasicMaterial({
+      color: 0xff1515,
+      fog: false,
+      toneMapped: false,
+    });
+
+    this.skylineBeaconMaterial = this.skylineBeaconMatA;
     this.skylineBeacons = [];
   }
 
@@ -11612,6 +11630,10 @@ float rackHash(vec2 p) {
     const group = new THREE.Group();
     group.name = 'DataCenterArena';
     this.scene.add(group);
+
+    this.exteriorVistaGroup = new THREE.Group();
+    this.exteriorVistaGroup.name = 'DC_ExteriorVistaGroup';
+    group.add(this.exteriorVistaGroup);
 
     const colliderGeometries = [];
     const playerOnlyColliderGeometries = [];
@@ -12189,7 +12211,7 @@ float rackHash(vec2 p) {
     this._buildDoubleBalconyDoor(addPart, addVisual, visualBuckets, group);
     this._buildPanoramicExteriorWindow(addPart, addVisual, visualBuckets);
     this._buildExteriorBalcony(addPart, addVisual, registerCollider, visualBuckets, addPartMatrix);
-    this._buildNightCitySkyline(addVisual, visualBuckets, group);
+    this._buildNightCitySkyline(addVisual, visualBuckets, this.exteriorVistaGroup);
 
     // Batch Merge Geometry Buckets
     const bucketDefs = [
@@ -12288,7 +12310,7 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.balconyFloor, material: this.balconyFloorMaterial, name: 'DC_BalconyFloor' },
       { bucket: visualBuckets.balconyCurb, material: this.balconyCurbMaterial, name: 'DC_BalconyCurb' },
       { bucket: visualBuckets.balconyRailMetal, material: this.balconyRailMetalMaterial, name: 'DC_BalconyRailMetal' },
-      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2, isGlass: true },
+      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2 },
       { bucket: visualBuckets.balconyExteriorWall, material: this.balconyExteriorWallMaterial, name: 'DC_BalconyExteriorWall' },
       { bucket: visualBuckets.patioMetal, material: this.patioMetalMaterial, name: 'DC_PatioMetal' },
       { bucket: visualBuckets.patioTeak, material: this.patioTeakMaterial, name: 'DC_PatioTeak' },
@@ -12350,7 +12372,32 @@ float rackHash(vec2 p) {
               this.serverRackBladeUniforms.uTime.value = performance.now() * 0.001;
             };
           }
-          group.add(mesh);
+          const exteriorMeshNames = new Set([
+            'DC_BalconyFloor',
+            'DC_BalconyCurb',
+            'DC_BalconyRailMetal',
+            'DC_BalconyGlass',
+            'DC_BalconyExteriorWall',
+            'DC_PatioMetal',
+            'DC_PatioTeak',
+            'DC_PatioTabletop',
+            'DC_PatioUmbrella',
+            'DC_PatioCeramic',
+            'DC_PatioTray',
+            'DC_SkylineTowerA',
+            'DC_SkylineTowerB',
+            'DC_SkylineTowerC',
+            'DC_SkylineTowerD',
+            'DC_SkylineTowerRoofs',
+            'DC_SkylineRoofTrim',
+          ]);
+          if (exteriorMeshNames.has(def.name)) {
+            mesh.castShadow = false;
+            mesh.receiveShadow = false;
+            this.exteriorVistaGroup.add(mesh);
+          } else {
+            group.add(mesh);
+          }
         } else {
           console.error(`[WarehouseBuilder] mergeGeometries failed for bucket ${def.name}`);
         }
@@ -15380,7 +15427,7 @@ float rackHash(vec2 p) {
 
     // 1. Structural Concrete Cantilever Slab (-0.30m to 0.00m)
     const slabGeo = new THREE.BoxGeometry(balW, balSlabH, balD);
-    addPart(visualBuckets.balconyExteriorWall, slabGeo, balX, balFloorY - balSlabH / 2, balZ);
+    addVisual(visualBuckets.balconyExteriorWall, slabGeo, balX, balFloorY - balSlabH / 2, balZ);
     slabGeo.dispose();
 
     // 2. Balcony Tile Floor (Dark basalt pavers with drainage grate along building wall at Y = 0.001m)
@@ -15402,13 +15449,13 @@ float rackHash(vec2 p) {
 
     // Front continuous curb
     const frontCurbGeo = new THREE.BoxGeometry(balW, curbH, curbThick);
-    addPart(visualBuckets.balconyCurb, frontCurbGeo, balX, curbY, frontCurbZ);
+    addVisual(visualBuckets.balconyCurb, frontCurbGeo, balX, curbY, frontCurbZ);
     frontCurbGeo.dispose();
 
     // Side returns
     const sideCurbGeo = new THREE.BoxGeometry(curbThick, curbH, sideCurbD);
-    addPart(visualBuckets.balconyCurb, sideCurbGeo, leftCurbX, curbY, sideCurbZ);
-    addPart(visualBuckets.balconyCurb, sideCurbGeo, rightCurbX, curbY, sideCurbZ);
+    addVisual(visualBuckets.balconyCurb, sideCurbGeo, leftCurbX, curbY, sideCurbZ);
+    addVisual(visualBuckets.balconyCurb, sideCurbGeo, rightCurbX, curbY, sideCurbZ);
     sideCurbGeo.dispose();
 
     // 4. Hero-Scale Architectural Guardrail (Top Handrail at Y = 1.34m, visible above 1.125m windowsill)
@@ -15538,12 +15585,12 @@ float rackHash(vec2 p) {
       // A. Large Market Patio Umbrella (Hero Scale, 8-rib collapsible mechanical structure)
       // 1. Heavy circular cast-iron weight base
       const baseGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.06, 24);
-      addPart(visualBuckets.patioMetal, baseGeo, setX, 0.03, setZ);
+      addVisual(visualBuckets.patioMetal, baseGeo, setX, 0.03, setZ);
       baseGeo.dispose();
 
       // 2. Vertical aluminum center pole (height = 2.55m)
       const poleGeo = new THREE.CylinderGeometry(0.022, 0.022, 2.55, 16);
-      addPart(visualBuckets.patioMetal, poleGeo, setX, 1.275, setZ);
+      addVisual(visualBuckets.patioMetal, poleGeo, setX, 1.275, setZ);
       poleGeo.dispose();
 
       // Silver locking collar
@@ -15623,7 +15670,7 @@ float rackHash(vec2 p) {
 
       // 3. Octagonal Warm Tan Fabric Canopy (diameter = 2.65m, radius = 1.325m, Y = 2.15m to 2.52m)
       const canopyGeo = new THREE.CylinderGeometry(0.08, 1.325, 0.37, 8, 1, true);
-      addPart(visualBuckets.patioUmbrella, canopyGeo, setX, 2.335, setZ);
+      addVisual(visualBuckets.patioUmbrella, canopyGeo, setX, 2.335, setZ);
       canopyGeo.dispose();
 
       // Second-tier wind-vent cap / valance at apex (Y = 2.45m to 2.58m)
@@ -15644,13 +15691,13 @@ float rackHash(vec2 p) {
 
       // Tabletop outer perimeter metal frame
       const frameRimLongGeo = new THREE.BoxGeometry(tableW, frameThick, frameDepth);
-      addPart(visualBuckets.patioMetal, frameRimLongGeo, setX, tableTopY - frameThick / 2, setZ + tableW / 2 - frameDepth / 2);
-      addPart(visualBuckets.patioMetal, frameRimLongGeo, setX, tableTopY - frameThick / 2, setZ - tableW / 2 + frameDepth / 2);
+      addVisual(visualBuckets.patioMetal, frameRimLongGeo, setX, tableTopY - frameThick / 2, setZ + tableW / 2 - frameDepth / 2);
+      addVisual(visualBuckets.patioMetal, frameRimLongGeo, setX, tableTopY - frameThick / 2, setZ - tableW / 2 + frameDepth / 2);
       frameRimLongGeo.dispose();
 
       const frameRimShortGeo = new THREE.BoxGeometry(frameDepth, frameThick, tableW - frameDepth * 2);
-      addPart(visualBuckets.patioMetal, frameRimShortGeo, setX + tableW / 2 - frameDepth / 2, tableTopY - frameThick / 2, setZ);
-      addPart(visualBuckets.patioMetal, frameRimShortGeo, setX - tableW / 2 + frameDepth / 2, tableTopY - frameThick / 2, setZ);
+      addVisual(visualBuckets.patioMetal, frameRimShortGeo, setX + tableW / 2 - frameDepth / 2, tableTopY - frameThick / 2, setZ);
+      addVisual(visualBuckets.patioMetal, frameRimShortGeo, setX - tableW / 2 + frameDepth / 2, tableTopY - frameThick / 2, setZ);
       frameRimShortGeo.dispose();
 
       // Teak wood slats tabletop (7 horizontal slats)
@@ -15665,11 +15712,11 @@ float rackHash(vec2 p) {
         if (Math.abs(sz - setZ) < 0.07) {
           const splitW = (slatInnerW - 0.14) / 2;
           const splitGeo = new THREE.BoxGeometry(splitW, slatH, slatD);
-          addPart(visualBuckets.patioTabletop, splitGeo, setX - splitW / 2 - 0.07, tableTopY - slatH / 2, sz);
-          addPart(visualBuckets.patioTabletop, splitGeo, setX + splitW / 2 + 0.07, tableTopY - slatH / 2, sz);
+          addVisual(visualBuckets.patioTabletop, splitGeo, setX - splitW / 2 - 0.07, tableTopY - slatH / 2, sz);
+          addVisual(visualBuckets.patioTabletop, splitGeo, setX + splitW / 2 + 0.07, tableTopY - slatH / 2, sz);
           splitGeo.dispose();
         } else {
-          addPart(visualBuckets.patioTabletop, slatGeo, setX, tableTopY - slatH / 2, sz);
+          addVisual(visualBuckets.patioTabletop, slatGeo, setX, tableTopY - slatH / 2, sz);
         }
       }
       slatGeo.dispose();
@@ -15691,7 +15738,7 @@ float rackHash(vec2 p) {
         [legOffset, legOffset]
       ];
       for (const [lx, lz] of legPositions) {
-        addPart(visualBuckets.patioMetal, legGeo, setX + lx, legH / 2, setZ + lz);
+        addVisual(visualBuckets.patioMetal, legGeo, setX + lx, legH / 2, setZ + lz);
       }
       legGeo.dispose();
 
@@ -15772,20 +15819,16 @@ float rackHash(vec2 p) {
       const _lQuat = new THREE.Quaternion();
       const _lEuler = new THREE.Euler();
 
-      const applyLocalPart = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0, collidable = true) => {
+      const applyLocalPart = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
         _lPos.set(lx, ly, lz);
         _lEuler.set(rx, ry, rz);
         _lQuat.setFromEuler(_lEuler);
         localMat.compose(_lPos, _lQuat, chairScale);
         worldMat.multiplyMatrices(chairMatrix, localMat);
 
-        if (collidable && addPartMatrix) {
-          addPartMatrix(bucket, geo, worldMat, true);
-        } else {
-          const g = (geo.index ? geo.toNonIndexed() : geo.clone());
-          g.applyMatrix4(worldMat);
-          bucket.push(g);
-        }
+        const g = (geo.index ? geo.toNonIndexed() : geo.clone());
+        g.applyMatrix4(worldMat);
+        bucket.push(g);
       };
 
       const legOffX = chairSeatW / 2 - 0.035;
@@ -15867,7 +15910,7 @@ float rackHash(vec2 p) {
       if (hasProps) {
         // Wooden serving tray
         const trayGeo = new THREE.BoxGeometry(0.36, 0.020, 0.24);
-        addPart(visualBuckets.patioTray, trayGeo, setX + 0.12, tableTopY + 0.010, setZ - 0.10);
+        addVisual(visualBuckets.patioTray, trayGeo, setX + 0.12, tableTopY + 0.010, setZ - 0.10);
         trayGeo.dispose();
 
         // French press coffee carafe
@@ -15916,13 +15959,13 @@ float rackHash(vec2 p) {
     const dropY = -dropH / 2;
     // Front drop
     const frontDropGeo = new THREE.BoxGeometry(balW, dropH, 0.30);
-    addPart(visualBuckets.balconyExteriorWall, frontDropGeo, balX, dropY, frontOuterZ - 0.15);
+    addVisual(visualBuckets.balconyExteriorWall, frontDropGeo, balX, dropY, frontOuterZ - 0.15);
     frontDropGeo.dispose();
 
     // Side drops
     const sideDropGeo = new THREE.BoxGeometry(0.30, dropH, balD);
-    addPart(visualBuckets.balconyExteriorWall, sideDropGeo, balX + balW / 2 - 0.15, dropY, balZ);
-    addPart(visualBuckets.balconyExteriorWall, sideDropGeo, balX - balW / 2 + 0.15, dropY, balZ);
+    addVisual(visualBuckets.balconyExteriorWall, sideDropGeo, balX + balW / 2 - 0.15, dropY, balZ);
+    addVisual(visualBuckets.balconyExteriorWall, sideDropGeo, balX - balW / 2 + 0.15, dropY, balZ);
     sideDropGeo.dispose();
   }
 
@@ -15941,6 +15984,8 @@ float rackHash(vec2 p) {
     const skyMesh = new THREE.Mesh(skyGeo, this.nightSkyBackdropMaterial);
     skyMesh.position.set(0, 0, 15);
     skyMesh.renderOrder = -10;
+    skyMesh.castShadow = false;
+    skyMesh.receiveShadow = false;
     skyMesh.name = 'DC_NightSkyBackdrop';
     group.add(skyMesh);
 
@@ -16030,6 +16075,8 @@ float rackHash(vec2 p) {
     moonMesh.position.set(124.0, 100.0, 117.0);
     moonMesh.lookAt(0, 1.7, 12.6);
     moonMesh.renderOrder = -2;
+    moonMesh.castShadow = false;
+    moonMesh.receiveShadow = false;
     moonMesh.name = 'DC_GlowingMoon';
     group.add(moonMesh);
 
@@ -16091,6 +16138,9 @@ float rackHash(vec2 p) {
     this.skylineBeacons = [];
     const beaconSphereGeo = new THREE.SphereGeometry(0.22, 12, 10);
     const cornerBeaconGeo = new THREE.SphereGeometry(0.14, 10, 8);
+    const beaconGeosA = [];
+    const beaconGeosB = [];
+    const _mBeacon = new THREE.Matrix4();
 
     for (let t = 0; t < towers.length; t++) {
       const tow = towers[t];
@@ -16169,18 +16219,14 @@ float rackHash(vec2 p) {
           [halfW, -halfD]
         ];
         for (let c = 0; c < corners.length; c++) {
-          const cbMesh = new THREE.Mesh(
-            cornerBeaconGeo.clone(),
-            new THREE.MeshBasicMaterial({ color: 0xff1515, transparent: true, opacity: 0.95 })
-          );
-          cbMesh.position.set(tow.x + corners[c][0], cornerY, tow.z + corners[c][1]);
-          cbMesh.name = `DC_SkylineCornerBeacon_${t}_${c}`;
-          group.add(cbMesh);
-          this.skylineBeacons.push({
-            mesh: cbMesh,
-            baseScale: 1.0,
-            phase: (t + c * 0.5) * 0.85 + Math.PI * 0.15
-          });
+          _mBeacon.makeTranslation(tow.x + corners[c][0], cornerY, tow.z + corners[c][1]);
+          const cbG = cornerBeaconGeo.toNonIndexed();
+          cbG.applyMatrix4(_mBeacon);
+          if ((t + c) % 2 === 0) {
+            beaconGeosA.push(cbG);
+          } else {
+            beaconGeosB.push(cbG);
+          }
         }
       }
 
@@ -16188,27 +16234,48 @@ float rackHash(vec2 p) {
       if (tow.beacon) {
         const spireHeight = tow.spireH || 4.5;
         const spireGeo = new THREE.CylinderGeometry(0.02, 0.08, spireHeight, 10);
-        addVisual(visualBuckets.balconyRailMetal, spireGeo, tow.x, roofTopY + spireHeight / 2, tow.z);
+        addVisual(visualBuckets.skylineTowerRoofs, spireGeo, tow.x, roofTopY + spireHeight / 2, tow.z);
         spireGeo.dispose();
 
         const beaconY = roofTopY + spireHeight + 0.15;
-        const beaconMesh = new THREE.Mesh(
-          beaconSphereGeo.clone(),
-          new THREE.MeshBasicMaterial({ color: 0xff1515, transparent: true, opacity: 0.95 })
-        );
-        beaconMesh.position.set(tow.x, beaconY, tow.z);
-        beaconMesh.name = `DC_SkylineBeacon_${t}`;
-        group.add(beaconMesh);
-
-        this.skylineBeacons.push({
-          mesh: beaconMesh,
-          baseScale: 1.0,
-          phase: t * 0.75 + Math.PI * 0.25
-        });
+        _mBeacon.makeTranslation(tow.x, beaconY, tow.z);
+        const bG = beaconSphereGeo.toNonIndexed();
+        bG.applyMatrix4(_mBeacon);
+        if (t % 2 === 0) {
+          beaconGeosA.push(bG);
+        } else {
+          beaconGeosB.push(bG);
+        }
       }
     }
     beaconSphereGeo.dispose();
     cornerBeaconGeo.dispose();
+
+    if (beaconGeosA.length > 0) {
+      const mergedA = BufferGeometryUtils.mergeGeometries(beaconGeosA, false);
+      if (mergedA) {
+        mergedA.computeBoundingSphere();
+        this.skylineBeaconMeshA = new THREE.Mesh(mergedA, this.skylineBeaconMatA);
+        this.skylineBeaconMeshA.name = 'DC_SkylineBeaconsA';
+        this.skylineBeaconMeshA.castShadow = false;
+        this.skylineBeaconMeshA.receiveShadow = false;
+        group.add(this.skylineBeaconMeshA);
+      }
+      for (let i = 0; i < beaconGeosA.length; i++) beaconGeosA[i].dispose();
+    }
+
+    if (beaconGeosB.length > 0) {
+      const mergedB = BufferGeometryUtils.mergeGeometries(beaconGeosB, false);
+      if (mergedB) {
+        mergedB.computeBoundingSphere();
+        this.skylineBeaconMeshB = new THREE.Mesh(mergedB, this.skylineBeaconMatB);
+        this.skylineBeaconMeshB.name = 'DC_SkylineBeaconsB';
+        this.skylineBeaconMeshB.castShadow = false;
+        this.skylineBeaconMeshB.receiveShadow = false;
+        group.add(this.skylineBeaconMeshB);
+      }
+      for (let i = 0; i < beaconGeosB.length; i++) beaconGeosB[i].dispose();
+    }
   }
 
   /**
@@ -16216,13 +16283,13 @@ float rackHash(vec2 p) {
    * atop the skyscrapers in the night skyline.
    */
   updateSkylineBeacons(time) {
-    if (!this.skylineBeacons || this.skylineBeacons.length === 0) return;
-    for (let i = 0; i < this.skylineBeacons.length; i++) {
-      const b = this.skylineBeacons[i];
-      const pulse = 0.55 + 0.45 * Math.sin(time * 3.0 + b.phase);
-      const s = b.baseScale * (0.85 + 0.35 * pulse);
-      b.mesh.scale.set(s, s, s);
-    }
+    if (!this.skylineBeaconMatA || !this.skylineBeaconMatB) return;
+    const pulseA = 0.55 + 0.45 * Math.sin(time * 3.0);
+    const pulseB = 0.55 + 0.45 * Math.sin(time * 3.0 + Math.PI * 0.5);
+    const rA = 0.25 + 0.75 * pulseA;
+    const rB = 0.25 + 0.75 * pulseB;
+    this.skylineBeaconMatA.color.setRGB(rA, 0.04 * rA, 0.04 * rA);
+    this.skylineBeaconMatB.color.setRGB(rB, 0.04 * rB, 0.04 * rB);
   }
 
   /**
