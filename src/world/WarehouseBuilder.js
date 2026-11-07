@@ -3347,6 +3347,335 @@ function createExtinguisherGaugeTexture() {
  * Produces crisp Diffuse Map and Emissive Map featuring a white running person exiting a doorway
  * with a bold directional arrow (->) on an emerald green (#007a3d) background.
  */
+/**
+ * Procedural Front Panel Texture for the Enterprise Multifunction Printer (512x256).
+ * Features clean off-white corporate casing (#ebedf2), prominent centered dark-gray metallic "EPSON" lettering,
+ * "WorkForce Enterprise" sub-badge, and bottom-right PrecisionCore / Heat-Free Technology badge.
+ */
+function createPrinterBadgeTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Matte corporate tech casing base (toned down to prevent any glowing)
+  ctx.fillStyle = '#98a0ab';
+  ctx.fillRect(0, 0, 512, 256);
+
+  // Subtle vertical panel seam on left side (x = 32)
+  ctx.fillStyle = '#7c838e';
+  ctx.fillRect(32, 0, 3, 256);
+  ctx.fillStyle = '#1e2229';
+  ctx.fillRect(33, 0, 1, 256);
+
+  // Subtle horizontal divide seam near bottom (y = 210)
+  ctx.fillStyle = '#7c838e';
+  ctx.fillRect(0, 210, 512, 2);
+  ctx.fillStyle = '#1e2229';
+  ctx.fillRect(0, 211, 512, 1);
+
+  // Centered PRINTER metallic logo (generic branding to avoid copyright issues)
+  ctx.fillStyle = '#1a1d22';
+  ctx.font = 'bold 42px "Arial Black", "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('PRINTER', 268, 92);
+
+  // Subtle 1px metallic highlight above letters
+  ctx.fillStyle = '#d1d5db';
+  ctx.font = 'bold 42px "Arial Black", "Segoe UI", Arial, sans-serif';
+  ctx.fillText('PRINTER', 268, 91);
+
+  // Subtitle "Enterprise Series"
+  ctx.fillStyle = '#2d3748';
+  ctx.font = '600 15px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('Enterprise Series', 268, 128);
+
+  // Enterprise Technology Badge in bottom-right corner
+  const bx = 348;
+  const by = 160;
+  const bw = 138;
+  const bh = 38;
+  const br = 6;
+
+  // Dark navy badge backing
+  ctx.fillStyle = '#0a1020';
+  ctx.beginPath();
+  ctx.roundRect(bx, by, bw, bh, br);
+  ctx.fill();
+
+  // Cyan top accent line
+  ctx.fillStyle = '#00a0e9';
+  ctx.fillRect(bx + 4, by + 2, bw - 8, 3);
+
+  // Color ink droplet dots (Cyan, Magenta, Yellow)
+  const dots = ['#00a0e9', '#e4007f', '#ffed00'];
+  for (let i = 0; i < dots.length; i++) {
+    ctx.fillStyle = dots[i];
+    ctx.beginPath();
+    ctx.arc(bx + 16 + i * 11, by + 21, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Badge text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('INKJET TECH', bx + 54, by + 18);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '700 8px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('ENTERPRISE CORE', bx + 54, by + 29);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
+/**
+ * Procedural Articulated Touchscreen UI Texture for the Enterprise Multifunction Printer (512x320).
+ * Replicates the authentic Epson WorkForce Enterprise touchscreen UI (media_1794021878159_397ab72c.jpg):
+ * - Top Status Bar (#22262b) with Home icon, time, and toner status
+ * - Main Bright Workspace (#f8fafc) with 3x4 grid of royal-blue square app tiles (#2470c6)
+ * - Bottom Footer Bar (#22262b) with "Job/Status" pill button
+ */
+function createPrinterTouchscreenTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 320;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Top Status Bar (height: 36px)
+  ctx.fillStyle = '#22262b';
+  ctx.fillRect(0, 0, 512, 36);
+
+  // Left: Home icon + "Home"
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.moveTo(18, 20);
+  ctx.lineTo(26, 12);
+  ctx.lineTo(34, 20);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(20, 20, 12, 9);
+  ctx.clearRect(24, 23, 4, 6);
+
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 15px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('Home', 40, 19);
+
+  // Right status icons: CMYK toner levels, LAN signal, clock
+  const tonerColors = ['#00a0e9', '#e4007f', '#ffed00', '#111111'];
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(340 + i * 14, 11, 10, 16);
+    ctx.fillStyle = tonerColors[i];
+    ctx.fillRect(341 + i * 14, 13, 8, 12);
+  }
+
+  // Network bars
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = '#38bdf8';
+    ctx.fillRect(406 + i * 5, 24 - (i + 1) * 3, 3.5, (i + 1) * 3);
+  }
+
+  // Clock
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('14:28', 496, 19);
+
+  // 2. Main White Workspace (y = 36 to 270)
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(0, 36, 512, 234);
+
+  // 3x4 Grid of Royal-Blue Square Tiles
+  const tiles = [
+    // Row 0
+    { col: 0, row: 0, label: 'Copy', icon: 'copy' },
+    { col: 1, row: 0, label: 'Scan', icon: 'scan' },
+    { col: 2, row: 0, label: 'Fax', icon: 'fax' },
+    { col: 3, row: 0, label: 'Preset', icon: 'preset' },
+    // Row 1
+    { col: 0, row: 1, label: 'Storage', icon: 'storage' },
+    { col: 1, row: 1, label: 'Fax Box', icon: 'faxbox' },
+    { col: 2, row: 1, label: 'Print Stored', icon: 'print' },
+    { col: 3, row: 1, label: 'Quick Dial', icon: 'dial' },
+    // Row 2
+    { col: 0, row: 2, label: 'Auto Cleaning', icon: 'clean' },
+    { col: 1, row: 2, label: 'Settings', icon: 'settings' }
+  ];
+
+  const tileW = 104;
+  const tileH = 64;
+  const startX = 22;
+  const startY = 48;
+  const gapX = 18;
+  const gapY = 12;
+
+  for (const t of tiles) {
+    const tx = startX + t.col * (tileW + gapX);
+    const ty = startY + t.row * (tileH + gapY);
+
+    // Blue tile background with subtle gradient
+    const grad = ctx.createLinearGradient(tx, ty, tx, ty + tileH);
+    grad.addColorStop(0, '#297ad6');
+    grad.addColorStop(1, '#1e64b8');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(tx, ty, tileW, tileH, 8);
+    ctx.fill();
+
+    // Top subtle highlight edge
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(tx + 1, ty + 1, tileW - 2, tileH - 2, 7);
+    ctx.stroke();
+
+    // Icon glyph (drawn vector in white)
+    ctx.fillStyle = '#ffffff';
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    const cx = tx + tileW / 2;
+    const cy = ty + 24;
+
+    if (t.icon === 'copy') {
+      ctx.strokeRect(cx - 10, cy - 10, 14, 16);
+      ctx.fillRect(cx - 6, cy - 6, 14, 16);
+      ctx.fillStyle = '#1e64b8';
+      ctx.fillRect(cx - 3, cy - 2, 8, 2);
+      ctx.fillRect(cx - 3, cy + 2, 8, 2);
+    } else if (t.icon === 'scan') {
+      ctx.strokeRect(cx - 12, cy - 4, 24, 12);
+      ctx.beginPath();
+      ctx.moveTo(cx - 14, cy - 4);
+      ctx.lineTo(cx + 8, cy - 14);
+      ctx.stroke();
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(cx - 8, cy - 1, 16, 2);
+    } else if (t.icon === 'fax') {
+      ctx.strokeRect(cx - 5, cy - 10, 14, 16);
+      ctx.beginPath();
+      ctx.arc(cx - 7, cy + 2, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (t.icon === 'preset') {
+      ctx.strokeRect(cx - 10, cy - 9, 14, 16);
+      ctx.fillStyle = '#ffed00';
+      ctx.beginPath();
+      ctx.arc(cx + 4, cy + 3, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (t.icon === 'storage') {
+      ctx.strokeRect(cx - 12, cy - 8, 24, 16);
+      ctx.fillRect(cx - 5, cy - 2, 10, 3);
+    } else if (t.icon === 'faxbox') {
+      ctx.beginPath();
+      ctx.moveTo(cx - 12, cy + 4);
+      ctx.lineTo(cx - 6, cy + 10);
+      ctx.lineTo(cx + 6, cy + 10);
+      ctx.lineTo(cx + 12, cy + 4);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 9);
+      ctx.lineTo(cx, cy + 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx - 4, cy - 2);
+      ctx.lineTo(cx, cy + 3);
+      ctx.lineTo(cx + 4, cy - 2);
+      ctx.stroke();
+    } else if (t.icon === 'print') {
+      ctx.strokeRect(cx - 11, cy - 4, 22, 10);
+      ctx.fillRect(cx - 7, cy - 10, 14, 6);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(cx - 7, cy + 6, 14, 5);
+    } else if (t.icon === 'dial') {
+      ctx.strokeRect(cx - 11, cy - 9, 22, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(cx - 7, cy - 4, 5, 5);
+      ctx.fillRect(cx + 1, cy - 4, 7, 2);
+      ctx.fillRect(cx + 1, cy - 1, 7, 2);
+    } else if (t.icon === 'clean') {
+      ctx.fillRect(cx - 8, cy - 8, 16, 7);
+      ctx.fillStyle = '#38bdf8';
+      for (let s = -2; s <= 2; s++) {
+        ctx.beginPath();
+        ctx.arc(cx + s * 4, cy + 4 + Math.abs(s) * 2, 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else if (t.icon === 'settings') {
+      ctx.beginPath();
+      ctx.arc(cx, cy, 6, 0, Math.PI * 2);
+      ctx.stroke();
+      for (let g = 0; g < 6; g++) {
+        const ga = (g * Math.PI) / 3;
+        ctx.fillRect(cx + Math.cos(ga) * 7 - 1.5, cy + Math.sin(ga) * 7 - 1.5, 3, 3);
+      }
+    }
+
+    // Label underneath
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(t.label, cx, ty + 49);
+  }
+
+  // 3. Bottom Footer Bar (y = 270 to 320, height: 50px)
+  ctx.fillStyle = '#22262b';
+  ctx.fillRect(0, 270, 512, 50);
+
+  // Left pill button "Job/Status"
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.roundRect(18, 279, 134, 32, 16);
+  ctx.fill();
+
+  // Active green status dot
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.arc(36, 295, 4.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#1e293b';
+  ctx.font = 'bold 13px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Job / Status', 48, 295);
+
+  // Pagination indicator in center
+  ctx.fillStyle = '#94a3b8';
+  ctx.beginPath();
+  ctx.arc(248, 295, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(264, 295, 3.5, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Right date
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '12px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'right';
+  ctx.fillText('2026-11-07', 496, 295);
+
+  // Outer side edge strips in matching bezel charcoal (#22262b)
+  ctx.fillStyle = '#22262b';
+  ctx.fillRect(0, 0, 2, 320);
+  ctx.fillRect(510, 0, 2, 320);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  return tex;
+}
+
 function createRunningManExitSignTextures() {
   const w = 512;
   const h = 256;
@@ -11440,6 +11769,40 @@ float rackHash(vec2 p) {
       envMapIntensity: 0.10,
     });
 
+    // Enterprise Multifunction Printer Materials
+    this.printerBadgeTexture = createPrinterBadgeTexture();
+    this.printerScreenTexture = createPrinterTouchscreenTexture();
+
+    // Calibrated matte cool-gray white plastic to eliminate over-exposure / glowing
+    this.printerWhiteMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9ca3af,
+      roughness: 0.62,
+      metalness: 0.03,
+    });
+
+    this.printerCharcoalMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1a1d22,
+      roughness: 0.55,
+      metalness: 0.15,
+    });
+
+    this.printerBadgeMaterial = new THREE.MeshStandardMaterial({
+      map: this.printerBadgeTexture,
+      roughness: 0.62,
+      metalness: 0.03,
+    });
+
+    this.printerScreenMaterial = new THREE.MeshBasicMaterial({
+      map: this.printerScreenTexture,
+      toneMapped: false,
+    });
+
+    this.printerPaperMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd1d5db,
+      roughness: 0.90,
+      metalness: 0.0,
+    });
+
     // Closed Double Balcony Door & Exterior Skyline Materials
     this.runningManExitSignTextures = createRunningManExitSignTextures();
     this.runningManExitSignTexture = this.runningManExitSignTextures.diffuse;
@@ -11752,6 +12115,11 @@ float rackHash(vec2 p) {
       patioUmbrella: [],
       patioCeramic: [],
       patioTray: [],
+      printerWhite: [],
+      printerCharcoal: [],
+      printerBadge: [],
+      printerScreen: [],
+      printerPaper: [],
       runningManExitSign: [],
       skylineTowerA: [],
       skylineTowerB: [],
@@ -12156,6 +12524,13 @@ float rackHash(vec2 p) {
       this._buildSplitAC(addVisual, registerCollider, visualBuckets, 9.845, 3.42, acZ);
     }
 
+    // E. Hero-Scale Enterprise Multifunction Printer & Brushed Stainless-Steel Trash Bin
+    // Backed up against East AC wall (X = 10.0m) between 3rd AC unit (Z = 4.7m) and Balcony Door (Z = 13.0m):
+    // - Printer at X = 9.53m, Z = 7.15m (facing -X into room)
+    // - Trash Bin at X = 9.62m, Z = 8.15m
+    this._buildEnterprisePrinter(addVisual, registerCollider, visualBuckets, 9.53, 0.0, 7.15, -Math.PI / 2);
+    this._buildCylindricalTrashBin(addVisual, registerCollider, visualBuckets, 9.62, 8.15);
+
     // Zone B: 42U Server Racks & Tempered Glass Server Containment Pod
     // Front Wall Server Racks: Full row of 8 massive cabinets across Z = -9.02 facing +Z!
     // Stood directly ON TOP of the relocated raised platform at baseY = platH (0.35m), with 8cm rear wall clearance from Z = -9.50m!
@@ -12318,6 +12693,11 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.patioUmbrella, material: this.patioUmbrellaMaterial, name: 'DC_PatioUmbrella' },
       { bucket: visualBuckets.patioCeramic, material: this.patioCeramicMaterial, name: 'DC_PatioCeramic' },
       { bucket: visualBuckets.patioTray, material: this.patioTrayMaterial, name: 'DC_PatioTray' },
+      { bucket: visualBuckets.printerWhite, material: this.printerWhiteMaterial, name: 'DC_PrinterWhite' },
+      { bucket: visualBuckets.printerCharcoal, material: this.printerCharcoalMaterial, name: 'DC_PrinterCharcoal' },
+      { bucket: visualBuckets.printerBadge, material: this.printerBadgeMaterial, name: 'DC_PrinterBadge' },
+      { bucket: visualBuckets.printerScreen, material: this.printerScreenMaterial, name: 'DC_PrinterScreen' },
+      { bucket: visualBuckets.printerPaper, material: this.printerPaperMaterial, name: 'DC_PrinterPaper' },
       { bucket: visualBuckets.runningManExitSign, material: this.runningManExitSignMaterial, name: 'DC_BalconyExitSign' },
       { bucket: visualBuckets.skylineTowerA, material: this.skylineTowerAMaterial, name: 'DC_SkylineTowerA' },
       { bucket: visualBuckets.skylineTowerB, material: this.skylineTowerBMaterial, name: 'DC_SkylineTowerB' },
@@ -13657,6 +14037,607 @@ float rackHash(vec2 p) {
    * 4. Eye-level (Y ≈ 1.78m) procedural "NO ENTRY / STAFF ONLY" sign plaque (0.38m wide x 0.25m tall).
    * 5. Full physics & weapon hitscan collider registration for bullet decals & sparks.
    */
+  /**
+   * Builds an authentic Hero-Scale Brushed Stainless-Steel Cylindrical Office Trash Bin
+   * with black rubber floor ring, cylindrical stainless body, polished chrome top collar,
+   * dark recessed dome top with center swing-flap opening, and BVH collider.
+   */
+  _buildCylindricalTrashBin(addVisual, registerCollider, visualBuckets, binX, binZ) {
+    const binR = 0.21;
+    const binH = 0.68;
+
+    // 1. Black Rubber Floor Base Ring
+    const binBaseGeo = new THREE.CylinderGeometry(binR + 0.004, binR + 0.006, 0.025, 24);
+    addVisual(visualBuckets.elevatorPortal, binBaseGeo, binX, 0.013, binZ);
+    binBaseGeo.dispose();
+
+    // 2. Brushed Stainless-Steel Cylindrical Body
+    const binBodyGeo = new THREE.CylinderGeometry(binR, binR, binH - 0.056, 28);
+    addVisual(visualBuckets.elevatorStainless, binBodyGeo, binX, 0.026 + (binH - 0.056) * 0.5, binZ);
+    binBodyGeo.dispose();
+
+    // 3. Polished Chrome Upper Rim Collar
+    const binRimGeo = new THREE.CylinderGeometry(binR + 0.005, binR + 0.005, 0.030, 28);
+    addVisual(visualBuckets.vestibuleChrome, binRimGeo, binX, binH - 0.015, binZ);
+    binRimGeo.dispose();
+
+    // 4. Recessed Black Swing-Top Dome Lid
+    const binSwingFlapGeo = new THREE.SphereGeometry(binR * 0.86, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.38);
+    binSwingFlapGeo.scale(1, 0.42, 1);
+    addVisual(visualBuckets.elevatorPortal, binSwingFlapGeo, binX, binH - 0.018, binZ);
+    binSwingFlapGeo.dispose();
+
+    // 5. Trash Bin Collider
+    const binColliderGeo = new THREE.CylinderGeometry(binR + 0.01, binR + 0.01, binH, 16);
+    registerCollider(binColliderGeo, binX, binH * 0.5, binZ);
+    binColliderGeo.dispose();
+  }
+
+  /**
+   * Builds the 3D Hero-Scale Enterprise Multifunction Printer (~0.84m W x 1.44m H x 0.78m D)
+   * modeled after the Epson WorkForce Enterprise MFP:
+   * - Recessed Roller Base (Y = 0.00m to 0.05m) with charcoal frame and 4 corner casters
+   * - Lower Paper Cassette Tower (Y = 0.05m to 0.62m) with 4 pull-out drawers, recessed handles, and paper size slots
+   * - Middle Print Engine Cover (Y = 0.62m to 0.98m) with EPSON & PrecisionCore tech badges, side jam handle & louvers
+   * - Recessed Charcoal Output Bay / C-Cavity (Y = 0.90m to 1.18m) with angled ribbed tray, paper guides, and printed paper sheets
+   * - Top Flatbed Scanner & Automatic Document Feeder - ADF (Y = 1.18m to 1.44m) with platen lift lip, intake cowl, document tray & queued paper
+   * - Articulated Tilt-Up Touchscreen Control Panel (Y ≈ 1.16m to 1.32m) with angled neck, power button, Home icon, USB port & high-res procedural UI
+   * - Watertight BVH colliders for both player movement and hitscan raycasting
+   */
+  _buildEnterprisePrinter(addVisual, registerCollider, visualBuckets, posX = 9.53, posY = 0.0, posZ = 7.15, rotY = -Math.PI / 2) {
+    const printerPos = new THREE.Vector3(posX, posY, posZ);
+    const printerQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rotY, 0));
+    const printerScale = new THREE.Vector3(1, 1, 1);
+    const printerMatrix = new THREE.Matrix4().compose(printerPos, printerQuat, printerScale);
+
+    const applyPrinterPart = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+      const localMat = new THREE.Matrix4().compose(
+        new THREE.Vector3(lx, ly, lz),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)),
+        new THREE.Vector3(1, 1, 1)
+      );
+      const worldMat = printerMatrix.clone().multiply(localMat);
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      g.applyMatrix4(worldMat);
+      bucket.push(g);
+    };
+
+    const w = 0.84;
+    const d = 0.78;
+
+    // -------------------------------------------------------------------------
+    // 1. RECESSED ROLLER BASE (Y = 0.00m to 0.05m)
+    // -------------------------------------------------------------------------
+    const basePlinthGeo = new THREE.BoxGeometry(0.80, 0.045, 0.72);
+    applyPrinterPart(visualBuckets.printerCharcoal, basePlinthGeo, 0, 0.0225, 0);
+    basePlinthGeo.dispose();
+
+    // 4 Corner Swivel Casters
+    const casterBracketGeo = new THREE.BoxGeometry(0.045, 0.025, 0.045);
+    const casterWheelGeo = new THREE.CylinderGeometry(0.020, 0.020, 0.020, 12);
+    casterWheelGeo.rotateZ(Math.PI / 2);
+    const casterPositions = [
+      [-0.35, -0.31],
+      [ 0.35, -0.31],
+      [-0.35,  0.31],
+      [ 0.35,  0.31]
+    ];
+    for (const [cx, cz] of casterPositions) {
+      applyPrinterPart(visualBuckets.printerCharcoal, casterBracketGeo, cx, 0.035, cz);
+      applyPrinterPart(visualBuckets.printerCharcoal, casterWheelGeo, cx, 0.020, cz);
+    }
+    casterBracketGeo.dispose();
+    casterWheelGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 2. LOWER PAPER CASSETTE TOWER — 4 STACKED DRAWERS (Y = 0.05m to 0.62m)
+    // Non-overlapping depth hierarchy: inner carcass stops at Z = +0.370m!
+    // Drawer fronts sit at Z = +0.380m (thickness 0.016m -> front face at Z = +0.388m).
+    // -------------------------------------------------------------------------
+    const lowerTowerH = 0.57;
+    // Inner carcass recessed back by 20mm so drawer faces and seams never z-fight with it!
+    const lowerTowerCarcass = new THREE.BoxGeometry(w, lowerTowerH, d - 0.020);
+    applyPrinterPart(visualBuckets.printerWhite, lowerTowerCarcass, 0, 0.05 + lowerTowerH / 2, -0.010);
+    lowerTowerCarcass.dispose();
+
+    // 4 Stacked Drawers (Trays 1 to 4)
+    const drawerH = 0.136;
+    const drawerGap = 0.005;
+    const drawerFrontGeo = new THREE.BoxGeometry(w - 0.004, drawerH, 0.016);
+    const drawerSeamGeo = new THREE.BoxGeometry(w, drawerGap, 0.014);
+    const handleRecessGeo = new THREE.BoxGeometry(0.18, 0.036, 0.012);
+    const handleGripGeo = new THREE.BoxGeometry(0.16, 0.016, 0.008);
+    const indicatorSlotGeo = new THREE.BoxGeometry(0.046, 0.022, 0.012);
+    const indicatorBadgeGeo = new THREE.BoxGeometry(0.038, 0.016, 0.014);
+
+    const drawerYLevels = [
+      0.05 + 0.004 + drawerH * 0.5,
+      0.05 + 0.004 + (drawerH + drawerGap) + drawerH * 0.5,
+      0.05 + 0.004 + (drawerH + drawerGap) * 2 + drawerH * 0.5,
+      0.05 + 0.004 + (drawerH + drawerGap) * 3 + drawerH * 0.5
+    ];
+
+    for (let i = 0; i < 4; i++) {
+      const dy = drawerYLevels[i];
+      // Front drawer face (center at Z = 0.380m, front face at +0.388m)
+      applyPrinterPart(visualBuckets.printerWhite, drawerFrontGeo, 0, dy, 0.380);
+
+      // Horizontal shadow seam above drawer (recessed at Z = 0.378m)
+      if (i < 3) {
+        applyPrinterPart(visualBuckets.printerCharcoal, drawerSeamGeo, 0, dy + drawerH / 2 + drawerGap / 2, 0.378);
+      }
+
+      // Center recessed finger-pull handle pocket (inset into drawer face)
+      applyPrinterPart(visualBuckets.printerCharcoal, handleRecessGeo, 0, dy + 0.012, 0.384);
+      applyPrinterPart(visualBuckets.silverTrim, handleGripGeo, 0, dy + 0.018, 0.388);
+
+      // Right paper-size indicator slot (cleanly proud at Z = 0.388m)
+      applyPrinterPart(visualBuckets.printerCharcoal, indicatorSlotGeo, 0.34, dy, 0.385);
+      applyPrinterPart(visualBuckets.printerWhite, indicatorBadgeGeo, 0.34, dy, 0.389);
+    }
+    drawerFrontGeo.dispose();
+    drawerSeamGeo.dispose();
+    handleRecessGeo.dispose();
+    handleGripGeo.dispose();
+    indicatorSlotGeo.dispose();
+    indicatorBadgeGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 3. MIDDLE PRINT ENGINE COVER & SIDE PANELS (Y = 0.62m to 0.90m)
+    // Non-overlapping: strictly ends at Y = 0.90m where C-cavity starts!
+    // -------------------------------------------------------------------------
+    const midEngineH = 0.28;
+    const midEngineCarcass = new THREE.BoxGeometry(w, midEngineH, d - 0.020);
+    applyPrinterPart(visualBuckets.printerWhite, midEngineCarcass, 0, 0.62 + midEngineH / 2, -0.010);
+    midEngineCarcass.dispose();
+
+    // Front access door panel (flush with drawer fronts at Z = 0.380m)
+    const midDoorGeo = new THREE.BoxGeometry(w - 0.004, midEngineH - 0.006, 0.016);
+    applyPrinterPart(visualBuckets.printerWhite, midDoorGeo, 0, 0.62 + midEngineH / 2, 0.380);
+    midDoorGeo.dispose();
+
+    // Horizontal seam separating drawers and engine door
+    const midSeamGeo = new THREE.BoxGeometry(w, 0.006, 0.014);
+    applyPrinterPart(visualBuckets.printerCharcoal, midSeamGeo, 0, 0.62, 0.378);
+    midSeamGeo.dispose();
+
+    // Left vertical door seam line (x = -0.16m)
+    const vertDoorSeamGeo = new THREE.BoxGeometry(0.004, midEngineH, 0.018);
+    applyPrinterPart(visualBuckets.printerCharcoal, vertDoorSeamGeo, -0.16, 0.62 + midEngineH / 2, 0.381);
+    vertDoorSeamGeo.dispose();
+
+    // Front PRINTER Badge decal plane (sitting 2mm proud of door face at Z = 0.390m)
+    const badgeDecalGeo = new THREE.BoxGeometry(0.56, 0.24, 0.003);
+    applyPrinterPart(visualBuckets.printerBadge, badgeDecalGeo, 0.04, 0.76, 0.390);
+    badgeDecalGeo.dispose();
+
+    // Right outer side service handle & cooling vents (in middle block Y = 0.65m to 0.88m)
+    const sideHandleRecessGeo = new THREE.BoxGeometry(0.014, 0.10, 0.05);
+    applyPrinterPart(visualBuckets.printerCharcoal, sideHandleRecessGeo, w / 2 - 0.006, 0.77, 0.10);
+    sideHandleRecessGeo.dispose();
+
+    const sideHandleLeverGeo = new THREE.BoxGeometry(0.012, 0.08, 0.022);
+    applyPrinterPart(visualBuckets.silverTrim, sideHandleLeverGeo, w / 2 - 0.004, 0.77, 0.10);
+    sideHandleLeverGeo.dispose();
+
+    const sideLouverGeo = new THREE.BoxGeometry(0.012, 0.006, 0.20);
+    for (let v = 0; v < 5; v++) {
+      const vy = 0.68 + v * 0.020;
+      applyPrinterPart(visualBuckets.printerCharcoal, sideLouverGeo, w / 2 - 0.005, vy, -0.12);
+      applyPrinterPart(visualBuckets.printerCharcoal, sideLouverGeo, -w / 2 + 0.005, vy, -0.12);
+    }
+    sideLouverGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 4. RECESSED CHARCOAL OUTPUT BAY / C-CAVITY (Y = 0.90m to 1.18m)
+    // Zero Z-fighting on right wall:
+    // Right outer casing wall is WHITE (w/2 - 0.025 to w/2), coplanar with entire side!
+    // Charcoal inner cavity liner stays strictly inside (x <= 0.39m)!
+    // -------------------------------------------------------------------------
+    const cavityH = 0.28;
+    const pillarW = 0.26;
+    const rightWallThick = 0.030;
+    const cavityW = w - pillarW - rightWallThick; // 0.55m
+    const cavityMidX = -w / 2 + pillarW + cavityW / 2; // +0.115m
+
+    // Left structural scanner support pillar (white outer casing)
+    const leftPillarGeo = new THREE.BoxGeometry(pillarW, cavityH, d);
+    applyPrinterPart(visualBuckets.printerWhite, leftPillarGeo, -w / 2 + pillarW / 2, 0.90 + cavityH / 2, 0);
+    leftPillarGeo.dispose();
+
+    // Right outer structural side wall (solid WHITE, completely eliminates right-side z-fighting!)
+    const rightSideWallGeo = new THREE.BoxGeometry(rightWallThick, cavityH, d);
+    applyPrinterPart(visualBuckets.printerWhite, rightSideWallGeo, w / 2 - rightWallThick / 2, 0.90 + cavityH / 2, 0);
+    rightSideWallGeo.dispose();
+
+    // Charcoal C-Cavity inner walls and ceiling (strictly internal, never touches x = w/2)
+    const cavityBackGeo = new THREE.BoxGeometry(cavityW, cavityH, 0.05);
+    applyPrinterPart(visualBuckets.printerCharcoal, cavityBackGeo, cavityMidX, 1.04, -d / 2 + 0.035);
+    cavityBackGeo.dispose();
+
+    const cavityFloorGeo = new THREE.BoxGeometry(cavityW, 0.025, d - 0.06);
+    applyPrinterPart(visualBuckets.printerCharcoal, cavityFloorGeo, cavityMidX, 0.9125, 0);
+    cavityFloorGeo.dispose();
+
+    // Inner right charcoal liner (contained inside at x <= 0.39m)
+    const cavityRightGeo = new THREE.BoxGeometry(0.010, cavityH, d - 0.06);
+    applyPrinterPart(visualBuckets.printerCharcoal, cavityRightGeo, w / 2 - rightWallThick - 0.005, 1.04, 0);
+    cavityRightGeo.dispose();
+
+    const cavityCeilingGeo = new THREE.BoxGeometry(cavityW, 0.025, d - 0.06);
+    applyPrinterPart(visualBuckets.printerCharcoal, cavityCeilingGeo, cavityMidX, 1.1675, 0);
+    cavityCeilingGeo.dispose();
+
+    // Angled Ribbed Black Output Catch Tray
+    const trayGeo = new THREE.BoxGeometry(0.44, 0.016, 0.46);
+    applyPrinterPart(visualBuckets.printerCharcoal, trayGeo, cavityMidX, 0.95, 0.04, 0.14, 0, 0);
+    trayGeo.dispose();
+
+    const trayLipGeo = new THREE.BoxGeometry(0.44, 0.035, 0.016);
+    applyPrinterPart(visualBuckets.printerCharcoal, trayLipGeo, cavityMidX, 0.985, 0.26, 0.14, 0, 0);
+    trayLipGeo.dispose();
+
+    const trayGuideGeo = new THREE.BoxGeometry(0.014, 0.032, 0.38);
+    applyPrinterPart(visualBuckets.printerCharcoal, trayGuideGeo, cavityMidX - 0.18, 0.965, 0.06, 0.14, 0, 0);
+    applyPrinterPart(visualBuckets.printerCharcoal, trayGuideGeo, cavityMidX + 0.18, 0.965, 0.06, 0.14, 0, 0);
+    trayGuideGeo.dispose();
+
+    // Stack of Printed Paper Sheets Resting on Tray
+    const printedPaperGeo = new THREE.BoxGeometry(0.22, 0.012, 0.30);
+    applyPrinterPart(visualBuckets.printerPaper, printedPaperGeo, cavityMidX, 0.97, 0.06, 0.14, 0, 0);
+    printedPaperGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 5. TOP FLATBED SCANNER & AUTOMATIC DOCUMENT FEEDER — ADF (Y = 1.18m to 1.45m)
+    // Modeled after the authentic Epson WorkForce Enterprise MFP (reference photo):
+    // - Flatbed Scanner Platen Deck with front 45° chamfer undercut, dark glass reveal,
+    //   recessed handle grip with silver lift trim, and heavy-duty rear hinges
+    // - Swept-back aerodynamic ADF cowl on the left with 35° sloped front wedge,
+    //   curved injection-molded top crown, maintenance parting seam, and status LED
+    // - Sloped intake throat with dark feed slot and 3 rubber separation rollers
+    // - Cantilevered Document Input Tray (tilted ~8.6° upward to the right, raised flared
+    //   side cheek rails, two adjustable dark charcoal sliding paper guides with finger tabs
+    //   and silver alignment indicators, upturned stop lip, and center thumb scoop)
+    // - Authentic queued document paper stack resting neatly between the paper guides
+    // - Recessed Duplex Document Output Return Cavity underneath the input tray with
+    //   recessed dark catch bed, eject roller axle with silver drive tires, and catch stop
+    // - Contoured rear structural spine connecting cowl and tray support
+    // -------------------------------------------------------------------------
+    // A. Flatbed Scanner Platen Deck & Hinges (Y = 1.18m to 1.25m)
+    const platenBedGeo = new THREE.BoxGeometry(w, 0.065, d - 0.02);
+    applyPrinterPart(visualBuckets.printerWhite, platenBedGeo, 0, 1.18 + 0.0325, -0.01);
+    platenBedGeo.dispose();
+
+    // Front lower chamfer undercut (eliminates flat boxy edge)
+    const platenBevelGeo = new THREE.BoxGeometry(w - 0.004, 0.030, 0.030);
+    applyPrinterPart(visualBuckets.printerWhite, platenBevelGeo, 0, 1.195, 0.365, Math.PI / 4, 0, 0);
+    platenBevelGeo.dispose();
+
+    // Dark perimeter glass platen reveal seam
+    const platenSeamGeo = new THREE.BoxGeometry(w - 0.01, 0.006, d - 0.03);
+    applyPrinterPart(visualBuckets.printerCharcoal, platenSeamGeo, 0, 1.248, -0.01);
+    platenSeamGeo.dispose();
+
+    // Front lid lift handle pocket & silver trim
+    const platenLiftGripGeo = new THREE.BoxGeometry(0.22, 0.022, 0.020);
+    applyPrinterPart(visualBuckets.printerCharcoal, platenLiftGripGeo, 0.04, 1.242, d / 2 - 0.015);
+    platenLiftGripGeo.dispose();
+
+    const platenLiftTrimGeo = new THREE.BoxGeometry(0.18, 0.008, 0.008);
+    applyPrinterPart(visualBuckets.silverTrim, platenLiftTrimGeo, 0.04, 1.245, d / 2 - 0.005);
+    platenLiftTrimGeo.dispose();
+
+    // Two heavy-duty rear scanner hinges at Z = -0.35m
+    const hingeCylGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.07, 16);
+    hingeCylGeo.rotateZ(Math.PI / 2);
+    applyPrinterPart(visualBuckets.printerCharcoal, hingeCylGeo, -0.26, 1.25, -0.35);
+    applyPrinterPart(visualBuckets.printerCharcoal, hingeCylGeo,  0.26, 1.25, -0.35);
+    hingeCylGeo.dispose();
+
+    // B. ADF Platen Lid Base (Y = 1.251m to 1.280m)
+    const adfBaseLidGeo = new THREE.BoxGeometry(w - 0.01, 0.026, d - 0.03);
+    applyPrinterPart(visualBuckets.printerWhite, adfBaseLidGeo, 0, 1.264, -0.01);
+    adfBaseLidGeo.dispose();
+
+    // C. Left-Side Feeder Housing / Cowl (Solid injection-molded contours, ZERO floating parts)
+    // 1. Lower main base block (spans Y = 1.264m to 1.344m, sitting flush on platen lid)
+    const cowlBaseGeo = new THREE.BoxGeometry(0.32, 0.080, 0.52);
+    applyPrinterPart(visualBuckets.printerWhite, cowlBaseGeo, -0.24, 1.304, 0.00);
+    cowlBaseGeo.dispose();
+
+    // 2. Upper cowl hood block (spans Y = 1.344m to 1.384m, width 0.30m, depth 0.44m)
+    const cowlUpperHood = new THREE.BoxGeometry(0.30, 0.040, 0.44);
+    applyPrinterPart(visualBuckets.printerWhite, cowlUpperHood, -0.24, 1.364, -0.03);
+    cowlUpperHood.dispose();
+
+    // 3. Swept-back aerodynamic front wedge (sloping 35° from front nose up to hood)
+    const cowlFrontWedge = new THREE.BoxGeometry(0.30, 0.050, 0.12);
+    applyPrinterPart(visualBuckets.printerWhite, cowlFrontWedge, -0.24, 1.348, 0.18, 0.40, 0, 0);
+    cowlFrontWedge.dispose();
+
+    // 4. Crown top beveled cap (spans Y = 1.384m to 1.398m)
+    const cowlCrownGeo = new THREE.BoxGeometry(0.26, 0.014, 0.40);
+    applyPrinterPart(visualBuckets.printerWhite, cowlCrownGeo, -0.24, 1.391, -0.03);
+    cowlCrownGeo.dispose();
+
+    // 5. Inset longitudinal parting seam (2mm dark groove flush in crown cap, ZERO floating)
+    const cowlSeamGeo = new THREE.BoxGeometry(0.003, 0.004, 0.40);
+    applyPrinterPart(visualBuckets.printerCharcoal, cowlSeamGeo, -0.24, 1.398, -0.03);
+    cowlSeamGeo.dispose();
+
+    // 6. Sloped inner intake funnel flange (facing right toward the paper tray)
+    const throatFlangeGeo = new THREE.BoxGeometry(0.045, 0.065, 0.40);
+    applyPrinterPart(visualBuckets.printerWhite, throatFlangeGeo, -0.095, 1.330, -0.01, 0, 0, 0.52);
+    throatFlangeGeo.dispose();
+
+    // 7. Dark paper feed entry aperture slot & rubber separation rollers
+    const intakeMouthGeo = new THREE.BoxGeometry(0.025, 0.016, 0.34);
+    applyPrinterPart(visualBuckets.printerCharcoal, intakeMouthGeo, -0.075, 1.326, -0.01);
+    intakeMouthGeo.dispose();
+
+    const rollerGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.035, 12);
+    rollerGeo.rotateX(Math.PI / 2);
+    applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326, -0.10);
+    applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326,  0.00);
+    applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326, +0.10);
+    rollerGeo.dispose();
+
+    // 8. Front document feeder status LED indicator
+    const adfStatusLedGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.006, 12);
+    adfStatusLedGeo.rotateX(0.40);
+    applyPrinterPart(visualBuckets.sffIceBlueLed, adfStatusLedGeo, -0.16, 1.338, 0.22);
+    adfStatusLedGeo.dispose();
+
+    // D. Cantilevered Document Input Tray (UNIFIED TRAY MATRIX HIERARCHY — 100% immune to floating!)
+    // Tray root coordinates: sits flush against intake mouth at X = -0.06m, Y = 1.326m, Z = -0.01m
+    const trayRootX = -0.06;
+    const trayRootY = 1.326;
+    const trayRootZ = -0.01;
+    const trayTiltZ = -0.12; // ~7° natural ergonomic tray tilt
+
+    const trayLocalMat = new THREE.Matrix4().compose(
+      new THREE.Vector3(trayRootX, trayRootY, trayRootZ),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, trayTiltZ)),
+      new THREE.Vector3(1, 1, 1)
+    );
+    const trayWorldMat = printerMatrix.clone().multiply(trayLocalMat);
+
+    const applyTrayPart = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+      const partLocalMat = new THREE.Matrix4().compose(
+        new THREE.Vector3(lx, ly, lz),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)),
+        new THREE.Vector3(1, 1, 1)
+      );
+      const worldMat = trayWorldMat.clone().multiply(partLocalMat);
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      g.applyMatrix4(worldMat);
+      bucket.push(g);
+    };
+
+    // 1. Molded Tray Floor (length = 0.44m, depth = 0.42m, thickness = 0.008m)
+    // Top surface is EXACTLY at ly = 0.000m!
+    const trayFloorGeo = new THREE.BoxGeometry(0.44, 0.008, 0.42);
+    applyTrayPart(visualBuckets.printerWhite, trayFloorGeo, 0.22, -0.004, 0.00);
+    trayFloorGeo.dispose();
+
+    // 2. Cantilever structural support bracket (ties underside of tray to rear frame)
+    const trayStanchionGeo = new THREE.BoxGeometry(0.24, 0.035, 0.035);
+    applyTrayPart(visualBuckets.printerWhite, trayStanchionGeo, 0.18, -0.024, -0.19);
+    trayStanchionGeo.dispose();
+
+    // 3. Flared side cheek rails (front & rear) — bottom face sits flush at ly = 0.000m!
+    const cheekFrontGeo = new THREE.BoxGeometry(0.44, 0.022, 0.008);
+    applyTrayPart(visualBuckets.printerWhite, cheekFrontGeo, 0.22, 0.011, 0.206);
+    cheekFrontGeo.dispose();
+
+    const cheekRearGeo = new THREE.BoxGeometry(0.44, 0.022, 0.008);
+    applyTrayPart(visualBuckets.printerWhite, cheekRearGeo, 0.22, 0.011, -0.206);
+    cheekRearGeo.dispose();
+
+    // 4. Two adjustable dark charcoal sliding paper width guides — resting flush at ly = 0.000m!
+    const frontGuideGeo = new THREE.BoxGeometry(0.28, 0.022, 0.014);
+    applyTrayPart(visualBuckets.printerCharcoal, frontGuideGeo, 0.18, 0.011, 0.135);
+    frontGuideGeo.dispose();
+
+    const rearGuideGeo = new THREE.BoxGeometry(0.28, 0.022, 0.014);
+    applyTrayPart(visualBuckets.printerCharcoal, rearGuideGeo, 0.18, 0.011, -0.135);
+    rearGuideGeo.dispose();
+
+    // Sliding finger grip tabs
+    const guideTabGeo = new THREE.BoxGeometry(0.038, 0.028, 0.016);
+    applyTrayPart(visualBuckets.printerCharcoal, guideTabGeo, 0.18, 0.014,  0.135);
+    applyTrayPart(visualBuckets.printerCharcoal, guideTabGeo, 0.18, 0.014, -0.135);
+    guideTabGeo.dispose();
+
+    // Silver alignment arrow marks
+    const arrowGeo = new THREE.BoxGeometry(0.012, 0.003, 0.017);
+    applyTrayPart(visualBuckets.silverTrim, arrowGeo, 0.18, 0.0285,  0.135);
+    applyTrayPart(visualBuckets.silverTrim, arrowGeo, 0.18, 0.0285, -0.135);
+    arrowGeo.dispose();
+
+    // 5. Upturned right-end document stop lip & center thumb scoop — resting flush at ly = 0.000m!
+    const endLipFrontGeo = new THREE.BoxGeometry(0.010, 0.024, 0.13);
+    applyTrayPart(visualBuckets.printerWhite, endLipFrontGeo, 0.435, 0.012, 0.135);
+    endLipFrontGeo.dispose();
+
+    const endLipRearGeo = new THREE.BoxGeometry(0.010, 0.024, 0.13);
+    applyTrayPart(visualBuckets.printerWhite, endLipRearGeo, 0.435, 0.012, -0.135);
+    endLipRearGeo.dispose();
+
+    const endScoopSillGeo = new THREE.BoxGeometry(0.010, 0.008, 0.14);
+    applyTrayPart(visualBuckets.printerWhite, endScoopSillGeo, 0.435, 0.004, 0.00);
+    endScoopSillGeo.dispose();
+
+    // 6. Queued document sheets — resting flush on tray floor at ly = 0.000m!
+    const adfPaperGeo = new THREE.BoxGeometry(0.28, 0.006, 0.25);
+    applyTrayPart(visualBuckets.printerPaper, adfPaperGeo, 0.17, 0.003, 0.00);
+    adfPaperGeo.dispose();
+
+    // E. Enclosed Duplex Document Output Return Cavity (Solid white plastic, 100% z-fighting free)
+    // 1. Lower return tray bed base (rests flush on platen lid at Y = 1.264m)
+    const returnBaseGeo = new THREE.BoxGeometry(0.42, 0.012, 0.44);
+    applyPrinterPart(visualBuckets.printerWhite, returnBaseGeo, 0.17, 1.270, -0.01);
+    returnBaseGeo.dispose();
+
+    // 2. Rear vertical wall of return cavity (solid backing enclosing the gap)
+    const returnRearWallGeo = new THREE.BoxGeometry(0.42, 0.075, 0.020);
+    applyPrinterPart(visualBuckets.printerWhite, returnRearWallGeo, 0.17, 1.305, -0.22);
+    returnRearWallGeo.dispose();
+
+    // 3. Right side end wall riser (supports outer edge and prevents hollow floating appearance)
+    const returnRiserGeo = new THREE.BoxGeometry(0.018, 0.045, 0.42);
+    applyPrinterPart(visualBuckets.printerWhite, returnRiserGeo, 0.375, 1.295, -0.01);
+    returnRiserGeo.dispose();
+
+    // 4. Scanned document eject roller axle and silver tires at inner mouth
+    const ejectAxleGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.38, 12);
+    ejectAxleGeo.rotateX(Math.PI / 2);
+    applyPrinterPart(visualBuckets.printerCharcoal, ejectAxleGeo, -0.065, 1.288, -0.01);
+    ejectAxleGeo.dispose();
+
+    const ejectTireGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.020, 12);
+    ejectTireGeo.rotateX(Math.PI / 2);
+    applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288, -0.12);
+    applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288,  0.00);
+    applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288, +0.12);
+    ejectTireGeo.dispose();
+
+    // 5. Right catch stop lip on return bed (in matching printerWhite, zero overlap & zero z-fighting)
+    const returnCatchLipGeo = new THREE.BoxGeometry(0.010, 0.014, 0.38);
+    applyPrinterPart(visualBuckets.printerWhite, returnCatchLipGeo, 0.355, 1.283, -0.01);
+    returnCatchLipGeo.dispose();
+
+    // F. Rear Structural Spine / Wire Loom Housing
+    const rearSpineGeo = new THREE.BoxGeometry(0.64, 0.075, 0.08);
+    applyPrinterPart(visualBuckets.printerWhite, rearSpineGeo, 0.02, 1.320, -0.31);
+    rearSpineGeo.dispose();
+
+    const spineSeamGeo = new THREE.BoxGeometry(0.64, 0.005, 0.008);
+    applyPrinterPart(visualBuckets.printerCharcoal, spineSeamGeo, 0.02, 1.320, -0.268);
+    spineSeamGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 6. ARTICULATED TILT-UP TOUCHSCREEN CONTROL PANEL (Y ≈ 1.16m to 1.34m)
+    // Offset forward to Z = 0.44m so rear tilted edge NEVER intersects scanner platen!
+    // Balanced, authentic bezel margins on ALL FOUR SIDES (User requested: "wheres the other margin"):
+    // - Tablet Housing: 0.32m wide x 0.19m high x 0.024m deep (lx: -0.160m to +0.160m, ly: -0.095m to +0.095m)
+    // - Active Screen Display: 0.192m wide x 0.120m high (exact 1.6:1 aspect ratio matching 512x320 canvas!)
+    // - Screen positioned at lx = +0.040m, ly = 0.000m:
+    //   * Right Bezel Margin: 0.024m (24mm) crisp, bold, dark bezel framing!
+    //   * Top & Bottom Bezel Margins: 0.035m (35mm) uniform top/bottom framing!
+    //   * Left Bezel Margin: 0.104m (104mm) hosting centered hardware controls at lx = -0.108m
+    //     (exactly 52mm from left edge and 52mm from screen, dead-centered!)
+    // - Using PlaneGeometry for the screen quad (ZERO thickness, ZERO edge faces! Completely immune to glitched top edge lines!)
+    // - Power button, Home button & Status LED neatly integrated
+    // -------------------------------------------------------------------------
+    const tx = -0.22;
+    const ty = 1.22;
+    const tz = d / 2 + 0.05; // 0.44m forward clearance
+    const tiltX = -0.45;     // ~26° tilt back toward user
+
+    // Angled Neck Support Arm & Hinge
+    const neckArmGeo = new THREE.BoxGeometry(0.08, 0.08, 0.12);
+    applyPrinterPart(visualBuckets.printerCharcoal, neckArmGeo, tx, 1.16, tz - 0.06);
+    neckArmGeo.dispose();
+
+    const hingeGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.10, 14);
+    hingeGeo.rotateZ(Math.PI / 2);
+    applyPrinterPart(visualBuckets.printerCharcoal, hingeGeo, tx, 1.18, tz - 0.02);
+    hingeGeo.dispose();
+
+    // Tablet coordinate transformation
+    const tabletLocalMat = new THREE.Matrix4().compose(
+      new THREE.Vector3(tx, ty, tz),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(tiltX, 0, 0)),
+      new THREE.Vector3(1, 1, 1)
+    );
+    const tabletWorldMat = printerMatrix.clone().multiply(tabletLocalMat);
+
+    const applyTabletPart = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+      const partLocalMat = new THREE.Matrix4().compose(
+        new THREE.Vector3(lx, ly, lz),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)),
+        new THREE.Vector3(1, 1, 1)
+      );
+      const worldMat = tabletWorldMat.clone().multiply(partLocalMat);
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      g.applyMatrix4(worldMat);
+      bucket.push(g);
+    };
+
+    // Main Tablet Housing Box (0.32m W x 0.19m H x 0.024m D -> front face at z = +0.012m)
+    const tabletBoxGeo = new THREE.BoxGeometry(0.32, 0.19, 0.024);
+    applyTabletPart(visualBuckets.printerCharcoal, tabletBoxGeo, 0, 0, 0);
+    tabletBoxGeo.dispose();
+
+    // Stepped Chamfered Rear Casing
+    const tabletBackGeo = new THREE.BoxGeometry(0.30, 0.17, 0.010);
+    applyTabletPart(visualBuckets.printerCharcoal, tabletBackGeo, 0, 0, -0.016);
+    tabletBackGeo.dispose();
+
+    // Side USB Port Recess on Left Edge
+    const usbRecessGeo = new THREE.BoxGeometry(0.014, 0.024, 0.016);
+    applyTabletPart(visualBuckets.silverTrim, usbRecessGeo, -0.160, -0.04, 0);
+    usbRecessGeo.dispose();
+
+    // Active Screen Display Plane (width: 0.192m, height: 0.120m, z = +0.0122m)
+    // Using PlaneGeometry (0 thickness, ZERO top/bottom/side edge faces: 100% immune to glitched top lines!)
+    // Spans horizontally from lx = -0.056m to +0.136m; vertically from ly = -0.060m to +0.060m.
+    // Perfectly framed with 24mm right bezel, 35mm top/bottom bezels, and 104mm left bezel!
+    const screenQuadGeo = new THREE.PlaneGeometry(0.192, 0.120);
+    applyTabletPart(visualBuckets.printerScreen, screenQuadGeo, 0.040, 0.000, 0.0122);
+    screenQuadGeo.dispose();
+
+    // Left Bezel Hardware Controls (dead-centered at lx = -0.108m, exactly 52mm from edge and 52mm from screen)
+    // 1. Circular Glowing Power Button (silver bezel collar + glowing cyan/ice-blue center)
+    const powerRingGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.004, 16);
+    powerRingGeo.rotateX(Math.PI / 2);
+    applyTabletPart(visualBuckets.silverTrim, powerRingGeo, -0.108, 0.042, 0.013);
+    powerRingGeo.dispose();
+
+    const powerButtonCenterGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.005, 16);
+    powerButtonCenterGeo.rotateX(Math.PI / 2);
+    applyTabletPart(visualBuckets.sffIceBlueLed, powerButtonCenterGeo, -0.108, 0.042, 0.014);
+    powerButtonCenterGeo.dispose();
+
+    // 2. White Home Icon Button (positioned on left bezel at ly = -0.005m)
+    const homeBtnGeo = new THREE.BoxGeometry(0.016, 0.016, 0.004);
+    applyTabletPart(visualBuckets.silverTrim, homeBtnGeo, -0.108, -0.005, 0.0135);
+    homeBtnGeo.dispose();
+
+    // 3. Status LED Strip (positioned on left bezel at ly = -0.048m)
+    const ledStripGeo = new THREE.BoxGeometry(0.022, 0.006, 0.004);
+    applyTabletPart(visualBuckets.sffIceBlueLed, ledStripGeo, -0.108, -0.048, 0.0135);
+    ledStripGeo.dispose();
+
+    // -------------------------------------------------------------------------
+    // 7. WATERTIGHT BVH COLLIDERS (Physics movement & Weapon hitscan bullet decals)
+    // -------------------------------------------------------------------------
+    // Lower Drawer Tower Collider
+    const colBase = new THREE.BoxGeometry(w, 0.62, d);
+    const posBase = new THREE.Vector3(0, 0.31, 0).applyMatrix4(printerMatrix);
+    registerCollider(colBase, posBase.x, posBase.y, posBase.z, 0, rotY, 0);
+    colBase.dispose();
+
+    // Middle Engine Block & Left Pillar Collider
+    const colMid = new THREE.BoxGeometry(w, 0.56, d);
+    const posMid = new THREE.Vector3(0, 0.62 + 0.28, 0).applyMatrix4(printerMatrix);
+    registerCollider(colMid, posMid.x, posMid.y, posMid.z, 0, rotY, 0);
+    colMid.dispose();
+
+    // Top Scanner & ADF Deck Collider
+    const colTop = new THREE.BoxGeometry(w, 0.28, d);
+    const posTop = new THREE.Vector3(0, 1.18 + 0.14, 0).applyMatrix4(printerMatrix);
+    registerCollider(colTop, posTop.x, posTop.y, posTop.z, 0, rotY, 0);
+    colTop.dispose();
+
+    // Articulated Tablet Touchscreen Collider
+    const colTab = new THREE.BoxGeometry(0.33, 0.20, 0.08);
+    const posTab = new THREE.Vector3(tx, ty, tz).applyMatrix4(printerMatrix);
+    registerCollider(colTab, posTab.x, posTab.y, posTab.z, tiltX, rotY, 0);
+    colTab.dispose();
+  }
+
   _buildStaffDoor(addPart, addVisual, arg3, arg4, arg5 = -10.0, arg6 = 0.0, arg7 = -4.0) {
     let registerCollider = null;
     let visualBuckets;
@@ -14747,36 +15728,7 @@ float rackHash(vec2 p) {
 
     // C. Cylindrical Brushed Stainless-Steel Office Trash Bin (Inside Main Office under Glass Window)
     // Positioned at X = -9.72m, Z = +2.10m against the lower half-wall below the glass partition (0.36m from coffee cabinet)
-    const binX = -9.72;
-    const binZ = 2.10;
-    const binR = 0.21;
-    const binH = 0.68;
-
-    // 1. Black Rubber Floor Base Ring
-    const binBaseGeo = new THREE.CylinderGeometry(binR + 0.004, binR + 0.006, 0.025, 24);
-    addVisual(visualBuckets.elevatorPortal, binBaseGeo, binX, 0.013, binZ);
-    binBaseGeo.dispose();
-
-    // 2. Brushed Stainless-Steel Cylindrical Body
-    const binBodyGeo = new THREE.CylinderGeometry(binR, binR, binH - 0.056, 28);
-    addVisual(visualBuckets.elevatorStainless, binBodyGeo, binX, 0.026 + (binH - 0.056) * 0.5, binZ);
-    binBodyGeo.dispose();
-
-    // 3. Polished Chrome Upper Rim Collar
-    const binRimGeo = new THREE.CylinderGeometry(binR + 0.005, binR + 0.005, 0.030, 28);
-    addVisual(visualBuckets.vestibuleChrome, binRimGeo, binX, binH - 0.015, binZ);
-    binRimGeo.dispose();
-
-    // 4. Recessed Black Swing-Top Dome Lid
-    const binSwingFlapGeo = new THREE.SphereGeometry(binR * 0.86, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.38);
-    binSwingFlapGeo.scale(1, 0.42, 1);
-    addVisual(visualBuckets.elevatorPortal, binSwingFlapGeo, binX, binH - 0.018, binZ);
-    binSwingFlapGeo.dispose();
-
-    // 5. Trash Bin Collider
-    const binColliderGeo = new THREE.CylinderGeometry(binR + 0.01, binR + 0.01, binH, 16);
-    registerCollider(binColliderGeo, binX, binH * 0.5, binZ);
-    binColliderGeo.dispose();
+    this._buildCylindricalTrashBin(addVisual, registerCollider, visualBuckets, -9.72, 2.10);
 
     // D. Potted Areca Palm Plant in the North-West Vestibule Corner (next to the Elevator Portal)
     // Scaled (scale = 0.64, frondSpreadScale = 0.50) to harmonize cleanly with the 0.94m corner niche
@@ -16302,6 +17254,8 @@ float rackHash(vec2 p) {
       this.extinguisherStickerTexture,
       this.extinguisherGaugeTexture,
       this.runningManExitSignTexture,
+      this.printerBadgeTexture,
+      this.printerScreenTexture,
       this.moonTexture,
       this.balconyTileTexture,
       this.skylineTowerATexture,
