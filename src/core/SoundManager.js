@@ -13,6 +13,9 @@ export class SoundManager {
     this._fadeRaf = null;
 
     this.audioBuffers = new Map();
+    this._noiseBufferCache = new Map();
+    this._fractureBufferCache = new Map();
+    this._fractureVariantIdx = 0;
     this.activeActionSources = new Set();
     this.isSampleReloadActive = false;
     this.lastDryFireTime = 0;
@@ -215,6 +218,16 @@ export class SoundManager {
         await yieldToBrowser();
       })
     );
+
+    // Pre-warm procedural noise and brittle-fracture buffers at startup so zero AudioBuffer
+    // allocations or CPU synthesis loops ever run on the main thread when shooting!
+    this._createNoiseBuffer(0.014);
+    this._createNoiseBuffer(0.016);
+    this._createNoiseBuffer(0.025);
+    this._createNoiseBuffer(0.25);
+    this._createFractureBurstBuffer(0.12, 34, 18.0);
+    this._createFractureBurstBuffer(0.065, 16, 26.0);
+    this._createFractureBurstBuffer(0.095, 28, 22.0);
   }
 
   async _preloadAudioBuffers() {
@@ -311,18 +324,23 @@ export class SoundManager {
   }
 
   /**
-   * Generates a tiny buffer of white noise.
+   * Generates or returns a cached tiny buffer of white noise (zero runtime allocation).
    */
   _createNoiseBuffer(duration = 0.25) {
     if (!this.ctx) return null;
+    const key = Math.round(duration * 1000);
+    let buffer = this._noiseBufferCache.get(key);
+    if (buffer) return buffer;
+
     const sampleRate = this.ctx.sampleRate;
     const bufferSize = Math.floor(sampleRate * duration);
-    const buffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
+    buffer = this.ctx.createBuffer(1, bufferSize, sampleRate);
     const data = buffer.getChannelData(0);
 
     for (let i = 0; i < bufferSize; i++) {
       data[i] = Math.random() * 2 - 1;
     }
+    this._noiseBufferCache.set(key, buffer);
     return buffer;
   }
 
@@ -1156,42 +1174,54 @@ export class SoundManager {
   }
 
   /**
-   * Generates a realistic granular brittle-fracture AudioBuffer (aperiodic crackle impulses +
-   * decaying pulverized grit, completely free of synthetic sine/triangle pitch sweeps).
+   * Generates or returns a pre-cached realistic granular brittle-fracture AudioBuffer
+   * (aperiodic crackle impulses + decaying pulverized grit + trailing micro-shard ticks,
+   * zero main-thread synthesis during gameplay).
    */
   _createFractureBurstBuffer(duration = 0.14, impulseCount = 28, gritDecay = 22.0) {
     if (!this.ctx) return null;
-    const sr = this.ctx.sampleRate;
-    const len = Math.floor(sr * duration);
-    const buffer = this.ctx.createBuffer(1, len, sr);
-    const data = buffer.getChannelData(0);
+    const key = `${Math.round(duration * 1000)}_${impulseCount}`;
+    let variants = this._fractureBufferCache.get(key);
+    if (!variants) {
+      variants = [];
+      const sr = this.ctx.sampleRate;
+      const len = Math.floor(sr * duration);
 
-    // 1. Base pulverized crystalline grit bed with fast exponential decay
-    for (let i = 0; i < len; i++) {
-      const tNorm = i / len;
-      const env = Math.exp(-tNorm * gritDecay);
-      data[i] = (Math.random() * 2 - 1) * 0.32 * env;
-    }
+      for (let v = 0; v < 4; v++) {
+        const buffer = this.ctx.createBuffer(1, len, sr);
+        const data = buffer.getChannelData(0);
 
-    // 2. Stochastic micro-fracture stress-release spikes (short damped bipolar crackles)
-    for (let k = 0; k < impulseCount; k++) {
-      // Cluster more fractures near the initial impact, with trailing shard snaps
-      const progress = Math.pow(Math.random(), 1.65);
-      const startIdx = Math.floor(progress * (len - 64));
-      const spikeLen = 14 + Math.floor(Math.random() * 38); // ~0.3ms to 1.1ms micro-transient
-      const amp = (0.45 + Math.random() * 0.55) * (1.0 - progress * 0.55);
-      const sign = Math.random() < 0.5 ? 1 : -1;
-      const freqRad = 0.35 + Math.random() * 0.65;
+        // 1. Base pulverized crystalline grit bed with fast exponential decay
+        for (let i = 0; i < len; i++) {
+          const tNorm = i / len;
+          const env = Math.exp(-tNorm * gritDecay);
+          data[i] = (Math.random() * 2 - 1) * 0.32 * env;
+        }
 
-      for (let j = 0; j < spikeLen && startIdx + j < len; j++) {
-        const wEnv = Math.exp(-j / (spikeLen * 0.32));
-        const jitter = (Math.random() * 2 - 1) * 0.45;
-        const val = sign * amp * wEnv * (Math.cos(j * freqRad) * 0.65 + jitter);
-        data[startIdx + j] = Math.max(-1.0, Math.min(1.0, data[startIdx + j] + val));
+        // 2. Stochastic micro-fracture stress-release spikes (short damped bipolar crackles)
+        for (let k = 0; k < impulseCount; k++) {
+          const progress = Math.pow(Math.random(), 1.65);
+          const startIdx = Math.floor(progress * (len - 64));
+          const spikeLen = 14 + Math.floor(Math.random() * 38);
+          const amp = (0.45 + Math.random() * 0.55) * (1.0 - progress * 0.55);
+          const sign = Math.random() < 0.5 ? 1 : -1;
+          const freqRad = 0.35 + Math.random() * 0.65;
+
+          for (let j = 0; j < spikeLen && startIdx + j < len; j++) {
+            const wEnv = Math.exp(-j / (spikeLen * 0.32));
+            const jitter = (Math.random() * 2 - 1) * 0.45;
+            const val = sign * amp * wEnv * (Math.cos(j * freqRad) * 0.65 + jitter);
+            data[startIdx + j] = Math.max(-1.0, Math.min(1.0, data[startIdx + j] + val));
+          }
+        }
+
+        variants.push(buffer);
       }
+      this._fractureBufferCache.set(key, variants);
     }
 
-    return buffer;
+    const idx = (this._fractureVariantIdx++) % variants.length;
+    return variants[idx];
   }
 
   /**
@@ -1283,35 +1313,6 @@ export class SoundManager {
       crunchGain.connect(distFilter);
       crunchSrc.start(t + 0.002);
       crunchSrc.stop(t + 0.112);
-    }
-
-    // 3. Staggered Crushed Glass & Plastic Debris Scatter onto Desk (25ms..165ms after impact)
-    const shardBuf = this._createNoiseBuffer(0.016);
-    if (shardBuf) {
-      const shardCount = 6;
-      for (let i = 0; i < shardCount; i++) {
-        const st = t + 0.024 + i * 0.019 + Math.random() * 0.014;
-        const dur = 0.007 + Math.random() * 0.006;
-        const src = this.ctx.createBufferSource();
-        src.buffer = shardBuf;
-
-        const bp = this.ctx.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.setValueAtTime(3600 + Math.random() * 3400, st);
-        bp.Q.setValueAtTime(2.6, st);
-
-        const g = this.ctx.createGain();
-        const peak = (0.16 - i * 0.018) * distAtten;
-        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-        g.gain.setValueAtTime(Math.max(0.02, peak), st);
-        g.gain.exponentialRampToValueAtTime(0.0008, st + dur);
-
-        src.connect(bp);
-        bp.connect(g);
-        g.connect(distFilter);
-        src.start(st);
-        src.stop(st + dur + 0.002);
-      }
     }
   }
 
@@ -1430,35 +1431,6 @@ export class SoundManager {
       gritGain.connect(distFilter);
       gritSrc.start(t + 0.001);
       gritSrc.stop(t + 0.066);
-    }
-
-    // 3. Staggered Fine Glass Shards & Spall Granules Settling (20ms..145ms after impact)
-    const shardBuf = this._createNoiseBuffer(0.014);
-    if (shardBuf) {
-      const numShards = 5;
-      for (let i = 0; i < numShards; i++) {
-        const st = t + 0.020 + i * 0.018 + Math.random() * 0.012;
-        const dur = 0.005 + Math.random() * 0.005;
-        const src = this.ctx.createBufferSource();
-        src.buffer = shardBuf;
-
-        const bp = this.ctx.createBiquadFilter();
-        bp.type = 'bandpass';
-        bp.frequency.setValueAtTime(5200 + Math.random() * 3200, st);
-        bp.Q.setValueAtTime(3.0, st);
-
-        const g = this.ctx.createGain();
-        const peak = (0.14 - i * 0.018) * distAtten;
-        g.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-        g.gain.setValueAtTime(Math.max(0.018, peak), st);
-        g.gain.exponentialRampToValueAtTime(0.0008, st + dur);
-
-        src.connect(bp);
-        bp.connect(g);
-        g.connect(distFilter);
-        src.start(st);
-        src.stop(st + dur + 0.002);
-      }
     }
   }
 

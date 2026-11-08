@@ -12899,7 +12899,7 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.balconyFloor, material: this.balconyFloorMaterial, name: 'DC_BalconyFloor' },
       { bucket: visualBuckets.balconyCurb, material: this.balconyCurbMaterial, name: 'DC_BalconyCurb' },
       { bucket: visualBuckets.balconyRailMetal, material: this.balconyRailMetalMaterial, name: 'DC_BalconyRailMetal' },
-      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2 },
+      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2, isGlass: true },
       { bucket: visualBuckets.balconyExteriorWall, material: this.balconyExteriorWallMaterial, name: 'DC_BalconyExteriorWall' },
       { bucket: visualBuckets.patioMetal, material: this.patioMetalMaterial, name: 'DC_PatioMetal' },
       { bucket: visualBuckets.patioTeak, material: this.patioTeakMaterial, name: 'DC_PatioTeak' },
@@ -13816,9 +13816,15 @@ float rackHash(vec2 p) {
     const brokenMat = (this.monitorScreens.length % 2 === 0) ? this.brokenScreenMaterial1 : this.brokenScreenMaterial2;
 
     const intactGeo = createPlaneFacingPlayer(screenW, screenH, uMin, vMin, uMax, vMax);
+    if (typeof intactGeo.computeBoundsTree === 'function') {
+      intactGeo.computeBoundsTree({ maxLeafTris: 2, strategy: 0 });
+    }
     const brokenGeo = (screenType === 'bsod' || screenType === 2)
       ? createPlaneFacingPlayer(screenW, screenH, 0.0, 0.0, 1.0, 1.0)
       : intactGeo;
+    if (brokenGeo !== intactGeo && typeof brokenGeo.computeBoundsTree === 'function') {
+      brokenGeo.computeBoundsTree({ maxLeafTris: 2, strategy: 0 });
+    }
 
     const screenMesh = new THREE.Mesh(intactGeo, targetMaterial);
     screenMesh.name = `DC_MonitorScreen_${screenType}_${this.monitorScreens.length}`;

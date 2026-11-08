@@ -17,6 +17,8 @@ export class HUD {
     this.maxAmmo = 12;
     this._lastReportedAmmo = null;
     this._lastReportedMax = null;
+    this._ammoScaleObj = { scale: 1.0 };
+    this._ammoScaleTween = null;
     this.isPulsing = false;
     this.onReloadClick = null;
 
@@ -166,6 +168,7 @@ export class HUD {
   // Update readout and bullet pips
   updateAmmo(current, max = 7, force = false) {
     if (!force && this._lastReportedAmmo === current && this._lastReportedMax === max) return;
+    const prevAmmo = this._lastReportedAmmo;
     this._lastReportedAmmo = current;
     this._lastReportedMax = max;
 
@@ -175,8 +178,12 @@ export class HUD {
     if (this.ammoCountEl) {
       this.ammoCountEl.textContent = current;
 
-      // Punchy scale animation on shot
-      new TWEEN.Tween({ scale: 1.25 }, true)
+      // Stop any active scale tween so full-auto fire never stacks competing tweens
+      if (this._ammoScaleTween) {
+        this._ammoScaleTween.stop();
+      }
+      this._ammoScaleObj.scale = 1.25;
+      this._ammoScaleTween = new TWEEN.Tween(this._ammoScaleObj, true)
         .to({ scale: 1.0 }, 140)
         .easing(TWEEN.Easing.Back.Out)
         .onUpdate((obj) => {
@@ -185,15 +192,22 @@ export class HUD {
         .start();
     }
 
-    // Update bullet pips state
-    for (let i = 0; i < this.bulletPips.length; i++) {
-      const pip = this.bulletPips[i];
-      if (i < current) {
-        pip.classList.remove('spent');
-      } else {
-        pip.classList.add('spent');
-        pip.style.opacity = '';
-        pip.style.transform = '';
+    // Update bullet pips state (delta-only when possible to avoid 30-element DOM thrashing)
+    if (!force && prevAmmo !== null && current === prevAmmo - 1 && this.bulletPips[current]) {
+      const pip = this.bulletPips[current];
+      pip.classList.add('spent');
+      pip.style.opacity = '';
+      pip.style.transform = '';
+    } else {
+      for (let i = 0; i < this.bulletPips.length; i++) {
+        const pip = this.bulletPips[i];
+        if (i < current) {
+          pip.classList.remove('spent');
+        } else {
+          pip.classList.add('spent');
+          pip.style.opacity = '';
+          pip.style.transform = '';
+        }
       }
     }
 
