@@ -189,24 +189,26 @@ window.addEventListener('DOMContentLoaded', () => {
       await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera);
       weaponSystem.warmUpGPU(engine.renderer, engine.camera);
       if (warehouse && engine.renderer && typeof engine.renderer.initTexture === 'function') {
-        const texturesToWarm = [
-          warehouse.noEntrySignTexture,
-          warehouse.extinguisherSignTexture,
-          warehouse.extinguisherStickerTexture,
-          warehouse.extinguisherGaugeTexture,
-          warehouse.runningManExitSignTexture,
-          warehouse.printerBadgeTexture,
-          warehouse.printerScreenTexture,
-          warehouse.printerBadgeTexture,
-          warehouse.printerScreenTexture,
-          warehouse.moonTexture,
-          warehouse.balconyTileTexture,
-          warehouse.balconyFlakeBumpMap,
-          warehouse.skylineTowerATexture,
-          warehouse.skylineTowerBTexture,
-          warehouse.skylineTowerCTexture,
-          warehouse.skylineTowerDTexture,
-        ];
+        const texturesToWarm = typeof warehouse.getPreloadTextures === 'function'
+          ? warehouse.getPreloadTextures()
+          : [
+            warehouse.noEntrySignTexture,
+            warehouse.extinguisherSignTexture,
+            warehouse.extinguisherStickerTexture,
+            warehouse.extinguisherGaugeTexture,
+            warehouse.runningManExitSignTexture,
+            warehouse.printerBadgeTexture,
+            warehouse.printerScreenTexture,
+            warehouse.fireHoseHeaderTexture,
+            warehouse.fireHoseCoilTexture,
+            warehouse.moonTexture,
+            warehouse.balconyTileTexture,
+            warehouse.balconyFlakeBumpMap,
+            warehouse.skylineTowerATexture,
+            warehouse.skylineTowerBTexture,
+            warehouse.skylineTowerCTexture,
+            warehouse.skylineTowerDTexture,
+          ];
         for (const tex of texturesToWarm) {
           if (tex) {
             try { engine.renderer.initTexture(tex); } catch (e) {}

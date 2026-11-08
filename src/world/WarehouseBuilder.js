@@ -3788,6 +3788,171 @@ function createRunningManExitSignTextures() {
 }
 
 /**
+ * Procedural Inscribed Safety-Red Lettering Texture for Fire Hose Cabinet (1024x256).
+ * Features a 100% transparent background with bold safety-red uppercase lettering
+ * split into "INCÊ" on the left door leaf and "NDIO" on the right door leaf,
+ * so the inscription is printed directly on the cabinet metal and respects the physical door seam.
+ */
+function createFireHoseHeaderTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // 100% transparent background - text is inscribed directly on the cabinet inox metal
+  ctx.clearRect(0, 0, 1024, 256);
+
+  // Large, bold, industrial typeface
+  ctx.font = '900 135px "Arial Black", Impact, "Segoe UI Black", sans-serif';
+  ctx.textBaseline = 'middle';
+
+  const drawInscribedWord = (word, x, align) => {
+    ctx.textAlign = align;
+
+    // 1. Subtle drop shadow for stamped/engraved depth into the metal
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.55)';
+    ctx.shadowBlur = 5;
+    ctx.shadowOffsetX = 2;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = '#b71212';
+    ctx.fillText(word, x, 128);
+
+    // Reset shadow
+    ctx.shadowColor = 'transparent';
+
+    // 2. Subtle top-edge light highlight for embossed metal stamp look
+    ctx.fillStyle = 'rgba(255, 180, 180, 0.45)';
+    ctx.fillText(word, x, 126);
+
+    // 3. Crisp safety-red face
+    ctx.fillStyle = '#d81313';
+    ctx.fillText(word, x, 128);
+  };
+
+  // Left half (x = 0 to 512): "INCÊ" right-aligned toward center seam (x = 490)
+  drawInscribedWord('INCÊ', 490, 'right');
+
+  // Right half (x = 512 to 1024): "NDIO" left-aligned toward center seam (x = 534)
+  drawInscribedWord('NDIO', 534, 'left');
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  return tex;
+}
+
+/**
+ * Procedural Multi-Layer Coiled Fire Hose Texture (512x512).
+ * Draws 14 tightly wound concentric layers of off-white woven canvas fire hose (#f1f3f5 to #dcdfe4)
+ * separated by dark spiral shadow grooves (#4b525c) and subtle diagonal fabric weave lines,
+ * plus a dark hollow center hub.
+ */
+function createFireHoseCoilTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+  const cx = 256;
+  const cy = 256;
+
+  // Background: clean off-white woven canvas
+  ctx.fillStyle = '#e8ebed';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // 14 concentric woven hose layers
+  const innerR = 48;
+  const outerR = 250;
+  const totalLayers = 14;
+  const dr = (outerR - innerR) / totalLayers; // ~14.43px per layer
+
+  const layerColors = [
+    '#f5f6f8', '#eceef1', '#e2e5e9', '#f2f4f6', '#e9ecf0',
+    '#dfdfe4', '#f6f7f9', '#edeff2', '#e4e6eb', '#f1f3f6',
+    '#e7eaee', '#dcdee3', '#f3f5f8', '#ebedf2'
+  ];
+
+  for (let i = 0; i < totalLayers; i++) {
+    const r0 = innerR + i * dr;
+    const r1 = innerR + (i + 1) * dr;
+    const midR = (r0 + r1) * 0.5;
+
+    // Fill ring layer
+    ctx.fillStyle = layerColors[i % layerColors.length];
+    ctx.beginPath();
+    ctx.arc(cx, cy, r1, 0, Math.PI * 2);
+    ctx.arc(cx, cy, r0, Math.PI * 2, 0, true);
+    ctx.fill();
+
+    // Subtle diagonal fabric weave lines across layer
+    const numTicks = Math.floor(midR * 1.6);
+    const dTheta = (Math.PI * 2) / numTicks;
+    for (let t = 0; t < numTicks; t++) {
+      const th = t * dTheta;
+      const x0 = cx + Math.cos(th) * (r0 + 1);
+      const y0 = cy + Math.sin(th) * (r0 + 1);
+      const x1 = cx + Math.cos(th + 0.04) * (r1 - 1);
+      const y1 = cy + Math.sin(th + 0.04) * (r1 - 1);
+
+      ctx.strokeStyle = (t % 2 === 0) ? 'rgba(0, 0, 0, 0.05)' : 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+
+    // Dark shadow groove separating layers
+    ctx.strokeStyle = '#4b525c';
+    ctx.lineWidth = 2.0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner 1px light highlight
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.lineWidth = 1.0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r0 + 1.2, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Outer groove rim
+  ctx.strokeStyle = '#383e48';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, outerR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Center hub hole (r < 44)
+  ctx.fillStyle = '#1e2227';
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR - 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Chrome hub ring rim (44 to 48)
+  ctx.fillStyle = '#8a929e';
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR, 0, Math.PI * 2);
+  ctx.arc(cx, cy, innerR - 4, Math.PI * 2, 0, true);
+  ctx.fill();
+
+  ctx.strokeStyle = '#d4dae2';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, innerR - 2, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.generateMipmaps = true;
+  return tex;
+}
+
+/**
  * Procedural Soft Anti-Aliased Circular Alpha Texture for Stars (16x16).
  * Ensures WebGL points render as smooth tiny round circles rather than harsh square pixels.
  */
@@ -11803,6 +11968,46 @@ float rackHash(vec2 p) {
       metalness: 0.0,
     });
 
+    // Wall-Mounted Hero-Scale Fire Hose Cabinet ("Abrigo de Incêndio") Materials
+    this.fireHoseHeaderTexture = createFireHoseHeaderTexture();
+    this.fireHoseCoilTexture = createFireHoseCoilTexture();
+
+    this.fireHoseInoxMaterial = new THREE.MeshStandardMaterial({
+      color: 0xd4dae2,
+      metalness: 0.88,
+      roughness: 0.20,
+      envMapIntensity: 0.70,
+    });
+
+    this.fireHoseBackplateMaterial = new THREE.MeshStandardMaterial({
+      color: 0x7a828c,
+      roughness: 0.45,
+      metalness: 0.70,
+      envMapIntensity: 0.40,
+    });
+
+    this.fireHoseHeaderMaterial = new THREE.MeshStandardMaterial({
+      map: this.fireHoseHeaderTexture,
+      transparent: true,
+      alphaTest: 0.15,
+      roughness: 0.25,
+      metalness: 0.85,
+      envMapIntensity: 0.60,
+    });
+
+    this.fireHoseCoilMaterial = new THREE.MeshStandardMaterial({
+      map: this.fireHoseCoilTexture,
+      roughness: 0.82,
+      metalness: 0.05,
+    });
+
+    this.fireHoseBrassMaterial = new THREE.MeshStandardMaterial({
+      color: 0xc89d28,
+      metalness: 0.85,
+      roughness: 0.24,
+      envMapIntensity: 0.60,
+    });
+
     // Closed Double Balcony Door & Exterior Skyline Materials
     this.runningManExitSignTextures = createRunningManExitSignTextures();
     this.runningManExitSignTexture = this.runningManExitSignTextures.diffuse;
@@ -12120,6 +12325,11 @@ float rackHash(vec2 p) {
       printerBadge: [],
       printerScreen: [],
       printerPaper: [],
+      fireHoseInox: [],
+      fireHoseBackplate: [],
+      fireHoseHeader: [],
+      fireHoseCoil: [],
+      fireHoseBrass: [],
       runningManExitSign: [],
       skylineTowerA: [],
       skylineTowerB: [],
@@ -12588,6 +12798,10 @@ float rackHash(vec2 p) {
     this._buildExteriorBalcony(addPart, addVisual, registerCollider, visualBuckets, addPartMatrix);
     this._buildNightCitySkyline(addVisual, visualBuckets, this.exteriorVistaGroup);
 
+    // Wall-Mounted Hero-Scale Stainless-Steel Fire Hose Cabinet ("Abrigo de Incêndio")
+    // Mounted centered on wall panel seam at X = -7.00m, Y = 1.571m (bottom edge aligned with windowsill at Y = 1.081m), Z = 12.90m (facing -Z into room)
+    this._buildFireHoseCabinet(addVisual, registerCollider, registerPlayerOnlyCollider, visualBuckets, -7.00, 1.571, 12.90);
+
     // Batch Merge Geometry Buckets
     const bucketDefs = [
       { bucket: visualBuckets.wall, material: this.wallMaterial, name: 'DC_Walls' },
@@ -12698,6 +12912,11 @@ float rackHash(vec2 p) {
       { bucket: visualBuckets.printerBadge, material: this.printerBadgeMaterial, name: 'DC_PrinterBadge' },
       { bucket: visualBuckets.printerScreen, material: this.printerScreenMaterial, name: 'DC_PrinterScreen' },
       { bucket: visualBuckets.printerPaper, material: this.printerPaperMaterial, name: 'DC_PrinterPaper' },
+      { bucket: visualBuckets.fireHoseInox, material: this.fireHoseInoxMaterial, name: 'DC_FireHoseInox' },
+      { bucket: visualBuckets.fireHoseBackplate, material: this.fireHoseBackplateMaterial, name: 'DC_FireHoseBackplate' },
+      { bucket: visualBuckets.fireHoseHeader, material: this.fireHoseHeaderMaterial, name: 'DC_FireHoseHeader' },
+      { bucket: visualBuckets.fireHoseCoil, material: this.fireHoseCoilMaterial, name: 'DC_FireHoseCoil' },
+      { bucket: visualBuckets.fireHoseBrass, material: this.fireHoseBrassMaterial, name: 'DC_FireHoseBrass' },
       { bucket: visualBuckets.runningManExitSign, material: this.runningManExitSignMaterial, name: 'DC_BalconyExitSign' },
       { bucket: visualBuckets.skylineTowerA, material: this.skylineTowerAMaterial, name: 'DC_SkylineTowerA' },
       { bucket: visualBuckets.skylineTowerB, material: this.skylineTowerBMaterial, name: 'DC_SkylineTowerB' },
@@ -16155,6 +16374,388 @@ float rackHash(vec2 p) {
   }
 
   /**
+   * Builds the Hero-Scale Wall-Mounted Stainless-Steel Fire Hose Cabinet ("Abrigo de Mangueira de Incêndio")
+   * with a detailed 3D interior, bold red "INCÊNDIO" header lettering, and tempered glass viewing windows
+   * mounted on the solid wall section between the Panoramic Window and the Access Vestibule door (Z = +13.0m).
+   */
+  _buildFireHoseCabinet(
+    addVisual,
+    registerCollider,
+    registerPlayerOnlyCollider,
+    visualBuckets,
+    posX = -7.00,
+    posY = 1.571,
+    posZ = 12.90
+  ) {
+    const addPart = (bucket, geo, x, y, z, rx = 0, ry = 0, rz = 0, collidable = true) => {
+      addVisual(bucket, geo, x, y, z, rx, ry, rz);
+      if (collidable) {
+        registerCollider(geo, x, y, z, rx, ry, rz);
+      }
+    };
+
+    // =========================================================================
+    // 1. OUTER STAINLESS-STEEL ("INOX") BOX & RECESSED INNER CAVITY
+    // Dimensions: 0.94m Wide x 0.98m Tall x 0.20m Deep.
+    // Cavity: 0.88m Wide x 0.92m Tall x 0.14m Deep (from Z = posZ - 0.08 to posZ + 0.06).
+    // Flush against back wall drywall at Z = 13.00m (posZ + 0.10m).
+    // =========================================================================
+
+    // A. Outer Perimeter Box (color: 0xd4dae2, metalness: 0.88, roughness: 0.20)
+    const topOuterGeo = new THREE.BoxGeometry(0.94, 0.03, 0.20);
+    addPart(visualBuckets.fireHoseInox, topOuterGeo, posX, posY + 0.475, posZ, 0, 0, 0, true);
+    topOuterGeo.dispose();
+
+    const bottomOuterGeo = new THREE.BoxGeometry(0.94, 0.03, 0.20);
+    addPart(visualBuckets.fireHoseInox, bottomOuterGeo, posX, posY - 0.475, posZ, 0, 0, 0, true);
+    bottomOuterGeo.dispose();
+
+    const leftOuterGeo = new THREE.BoxGeometry(0.03, 0.92, 0.20);
+    addPart(visualBuckets.fireHoseInox, leftOuterGeo, posX - 0.455, posY, posZ, 0, 0, 0, true);
+    leftOuterGeo.dispose();
+
+    const rightOuterGeo = new THREE.BoxGeometry(0.03, 0.92, 0.20);
+    addPart(visualBuckets.fireHoseInox, rightOuterGeo, posX + 0.455, posY, posZ, 0, 0, 0, true);
+    rightOuterGeo.dispose();
+
+    // B. Inner Cavity Stainless Walls (ceiling, floor, side liners)
+    const innerCeilGeo = new THREE.BoxGeometry(0.88, 0.005, 0.14);
+    addPart(visualBuckets.fireHoseInox, innerCeilGeo, posX, posY + 0.4575, posZ - 0.01, 0, 0, 0, true);
+    innerCeilGeo.dispose();
+
+    const innerFloorGeo = new THREE.BoxGeometry(0.88, 0.005, 0.14);
+    addPart(visualBuckets.fireHoseInox, innerFloorGeo, posX, posY - 0.4575, posZ - 0.01, 0, 0, 0, true);
+    innerFloorGeo.dispose();
+
+    const innerLeftGeo = new THREE.BoxGeometry(0.005, 0.915, 0.14);
+    addPart(visualBuckets.fireHoseInox, innerLeftGeo, posX - 0.4375, posY, posZ - 0.01, 0, 0, 0, true);
+    innerLeftGeo.dispose();
+
+    const innerRightGeo = new THREE.BoxGeometry(0.005, 0.915, 0.14);
+    addPart(visualBuckets.fireHoseInox, innerRightGeo, posX + 0.4375, posY, posZ - 0.01, 0, 0, 0, true);
+    innerRightGeo.dispose();
+
+    // C. Darker Steel Inner Backplate (0x7a828c, roughness: 0.45, metalness: 0.70)
+    // Sits at back of cavity (posZ + 0.08m) for high visual contrast with interior equipment
+    const backplateGeo = new THREE.BoxGeometry(0.88, 0.92, 0.04);
+    addPart(visualBuckets.fireHoseBackplate, backplateGeo, posX, posY, posZ + 0.08, 0, 0, 0, true);
+    backplateGeo.dispose();
+
+    // =========================================================================
+    // 2. FRONT FLUSH DOUBLE DOORS & VIEWING WINDOW CUTOUTS
+    // Inset double doors at Z ≈ posZ - 0.10m (12.80m) facing -Z into room.
+    // Divided at horizontal center by thin vertical dark shadow seam.
+    // Two tall viewing cutouts (0.30m W x 0.68m H) with smooth rounded corners.
+    // =========================================================================
+
+    // Helper to generate a single door leaf shape with a rounded rectangle window cutout
+    const makeDoorLeafGeo = (isLeft) => {
+      const shape = new THREE.Shape();
+      const w = 0.436; // 0.88m / 2 - 2mm seam
+      const h = 0.92;
+      const hw = w * 0.5;
+      const hh = h * 0.5;
+      shape.moveTo(-hw, -hh);
+      shape.lineTo(hw, -hh);
+      shape.lineTo(hw, hh);
+      shape.lineTo(-hw, hh);
+      shape.closePath();
+
+      const hole = new THREE.Path();
+      const r = 0.035; // 3.5cm smooth corner radius
+      const cutW = 0.300;
+      const cutH = 0.680;
+      // Window centered slightly toward outer edge to leave generous meeting stiles
+      const cutCenterX = isLeft ? -0.010 : 0.010;
+      const cutCenterY = -0.020;
+      const hx = cutCenterX - cutW * 0.5;
+      const hy = cutCenterY - cutH * 0.5;
+
+      hole.moveTo(hx + r, hy);
+      hole.lineTo(hx + cutW - r, hy);
+      hole.quadraticCurveTo(hx + cutW, hy, hx + cutW, hy + r);
+      hole.lineTo(hx + cutW, hy + cutH - r);
+      hole.quadraticCurveTo(hx + cutW, hy + cutH, hx + cutW - r, hy + cutH);
+      hole.lineTo(hx + r, hy + cutH);
+      hole.quadraticCurveTo(hx, hy + cutH, hx, hy + cutH - r);
+      hole.lineTo(hx, hy + r);
+      hole.quadraticCurveTo(hx, hy, hx + r, hy);
+      hole.closePath();
+      shape.holes.push(hole);
+
+      const geo = new THREE.ShapeGeometry(shape, 8);
+      geo.rotateY(Math.PI); // Orient front normal to face -Z into room
+      return geo;
+    };
+
+    // Front door faces
+    const leftDoorGeo = makeDoorLeafGeo(true);
+    addVisual(visualBuckets.fireHoseInox, leftDoorGeo, posX - 0.220, posY, posZ - 0.10);
+    leftDoorGeo.dispose();
+
+    const rightDoorGeo = makeDoorLeafGeo(false);
+    addVisual(visualBuckets.fireHoseInox, rightDoorGeo, posX + 0.220, posY, posZ - 0.10);
+    rightDoorGeo.dispose();
+
+    // Dark vertical center seam between doors (2mm width)
+    const centerSeamGeo = new THREE.BoxGeometry(0.003, 0.92, 0.012);
+    addVisual(visualBuckets.extinguisherHose, centerSeamGeo, posX, posY, posZ - 0.095);
+    centerSeamGeo.dispose();
+
+    // Solid inner door frame boxes surrounding window cutouts (bullet collider + thickness)
+    // Top header rail (Y = 2.00m to 2.14m)
+    const headerRailGeo = new THREE.BoxGeometry(0.88, 0.14, 0.015);
+    addPart(visualBuckets.fireHoseInox, headerRailGeo, posX, posY + 0.39, posZ - 0.0925, 0, 0, 0, true);
+    headerRailGeo.dispose();
+
+    // Bottom rail (Y = 1.22m to 1.32m)
+    const bottomRailGeo = new THREE.BoxGeometry(0.88, 0.10, 0.015);
+    addPart(visualBuckets.fireHoseInox, bottomRailGeo, posX, posY - 0.41, posZ - 0.0925, 0, 0, 0, true);
+    bottomRailGeo.dispose();
+
+    // Outer side stiles
+    const outerStileGeo = new THREE.BoxGeometry(0.06, 0.68, 0.015);
+    addPart(visualBuckets.fireHoseInox, outerStileGeo, posX - 0.410, posY - 0.02, posZ - 0.0925, 0, 0, 0, true);
+    addPart(visualBuckets.fireHoseInox, outerStileGeo, posX + 0.410, posY - 0.02, posZ - 0.0925, 0, 0, 0, true);
+    outerStileGeo.dispose();
+
+    // Center meeting stiles (between windows)
+    const centerStileGeo = new THREE.BoxGeometry(0.156, 0.68, 0.015);
+    addPart(visualBuckets.fireHoseInox, centerStileGeo, posX, posY - 0.02, posZ - 0.0925, 0, 0, 0, true);
+    centerStileGeo.dispose();
+
+    // =========================================================================
+    // 3. BOLD SAFETY-RED "INCÊNDIO" INSCRIBED DIRECTLY ON CABINET DOOR METAL
+    // Split across the double doors: "INCÊ" on left door leaf, "NDIO" on right door leaf.
+    // 100% transparent background with alphaTest - no rectangular sign or patch!
+    // The physical 2mm vertical door seam cuts cleanly between the two words.
+    // =========================================================================
+    const quadW = 0.32;
+    const quadH = 0.115;
+
+    // Left door leaf inscription ("INCÊ"): UV range u ∈ [0.0, 0.5]
+    const leftHeaderGeo = new THREE.PlaneGeometry(quadW, quadH);
+    leftHeaderGeo.rotateY(Math.PI); // Face -Z into room
+    const uvL = leftHeaderGeo.getAttribute('uv');
+    if (uvL) {
+      for (let i = 0; i < uvL.count; i++) {
+        uvL.setX(i, uvL.getX(i) * 0.5);
+      }
+      uvL.needsUpdate = true;
+    }
+    // Sits flush on the left door metal at Y = 2.07m (posX + 0.168m leaves 8mm gap to seam)
+    addPart(visualBuckets.fireHoseHeader, leftHeaderGeo, posX + 0.168, posY + 0.39, posZ - 0.1006, 0, 0, 0, true);
+    leftHeaderGeo.dispose();
+
+    // Right door leaf inscription ("NDIO"): UV range u ∈ [0.5, 1.0]
+    const rightHeaderGeo = new THREE.PlaneGeometry(quadW, quadH);
+    rightHeaderGeo.rotateY(Math.PI); // Face -Z into room
+    const uvR = rightHeaderGeo.getAttribute('uv');
+    if (uvR) {
+      for (let i = 0; i < uvR.count; i++) {
+        uvR.setX(i, 0.5 + uvR.getX(i) * 0.5);
+      }
+      uvR.needsUpdate = true;
+    }
+    // Sits flush on the right door metal at Y = 2.07m (posX - 0.168m leaves 8mm gap to seam)
+    addPart(visualBuckets.fireHoseHeader, rightHeaderGeo, posX - 0.168, posY + 0.39, posZ - 0.1006, 0, 0, 0, true);
+    rightHeaderGeo.dispose();
+
+    // =========================================================================
+    // 4. TEMPERED GLASS VIEWING WINDOW PANES
+    // Routed into visualBuckets.vestibuleGlass with NO collider covering them so
+    // shooting the hose-box windows spawns shattered spiderweb glass bullet decals and SFX!
+    // =========================================================================
+    const glassPaneGeo = new THREE.PlaneGeometry(0.305, 0.685);
+    glassPaneGeo.rotateY(Math.PI); // Face -Z into room
+    // Left viewing glass
+    addVisual(visualBuckets.vestibuleGlass, glassPaneGeo, posX - 0.230, posY - 0.02, posZ - 0.088);
+    // Right viewing glass
+    addVisual(visualBuckets.vestibuleGlass, glassPaneGeo, posX + 0.230, posY - 0.02, posZ - 0.088);
+    glassPaneGeo.dispose();
+
+    // =========================================================================
+    // 5. DUAL GLOSSY RED CIRCULAR DOOR KNOB HANDLES
+    // Mounted at mid-height (Y ≈ 1.62m) on meeting stiles with short chrome stems
+    // =========================================================================
+    const knobStemGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.022, 12);
+    knobStemGeo.rotateX(Math.PI * 0.5);
+    const knobRedGeo = new THREE.SphereGeometry(0.026, 16, 12);
+    knobRedGeo.scale(1, 1, 0.65);
+
+    // Left door handle (X ≈ posX - 0.035m)
+    addPart(visualBuckets.extinguisherMetal, knobStemGeo, posX - 0.035, posY - 0.06, posZ - 0.111, 0, 0, 0, true);
+    addPart(visualBuckets.extinguisherRed, knobRedGeo, posX - 0.035, posY - 0.06, posZ - 0.123, 0, 0, 0, true);
+
+    // Right door handle (X ≈ posX + 0.035m)
+    addPart(visualBuckets.extinguisherMetal, knobStemGeo, posX + 0.035, posY - 0.06, posZ - 0.111, 0, 0, 0, true);
+    addPart(visualBuckets.extinguisherRed, knobRedGeo, posX + 0.035, posY - 0.06, posZ - 0.123, 0, 0, 0, true);
+
+    knobStemGeo.dispose();
+    knobRedGeo.dispose();
+
+    // =========================================================================
+    // 6. 3D INTERIOR FIRE HOSE REEL COIL (Center-Right of Cavity)
+    // Cylindrical hose reel disc (radius = 0.305m, thickness = 0.095m at X ≈ -7.16m, Y ≈ 1.66m)
+    // 14 concentric woven canvas layers with dark shadow grooves & diagonal fabric weave
+    // =========================================================================
+    const hoseCoilX = posX + 0.09; // -7.16m
+    const hoseCoilY = posY - 0.02; // 1.66m
+    const hoseCoilZ = posZ - 0.01; // 12.89m (centered in 0.14m cavity)
+    const hoseR = 0.305;
+    const hoseThick = 0.095;
+
+    // Front textured circular face of the coiled hose
+    const hoseFrontGeo = new THREE.CircleGeometry(hoseR, 32);
+    hoseFrontGeo.rotateY(Math.PI); // Face -Z
+    addPart(visualBuckets.fireHoseCoil, hoseFrontGeo, hoseCoilX, hoseCoilY, hoseCoilZ - hoseThick * 0.5, 0, 0, 0, true);
+    hoseFrontGeo.dispose();
+
+    // Outer cylindrical wrap of the fire hose coil (sample off-white woven canvas)
+    const hoseWrapGeo = new THREE.CylinderGeometry(hoseR, hoseR, hoseThick, 32, 1, true);
+    hoseWrapGeo.rotateX(Math.PI * 0.5);
+    const wrapUv = hoseWrapGeo.getAttribute('uv');
+    if (wrapUv) {
+      for (let i = 0; i < wrapUv.count; i++) {
+        wrapUv.setY(i, 0.95);
+      }
+      wrapUv.needsUpdate = true;
+    }
+    addPart(visualBuckets.fireHoseCoil, hoseWrapGeo, hoseCoilX, hoseCoilY, hoseCoilZ, 0, 0, 0, true);
+    hoseWrapGeo.dispose();
+
+    // Polished chrome center support pin & hub bracket
+    const centerPinGeo = new THREE.CylinderGeometry(0.026, 0.026, hoseThick + 0.02, 16);
+    centerPinGeo.rotateX(Math.PI * 0.5);
+    addPart(visualBuckets.extinguisherMetal, centerPinGeo, hoseCoilX, hoseCoilY, hoseCoilZ, 0, 0, 0, true);
+    centerPinGeo.dispose();
+
+    const centerCapGeo = new THREE.CylinderGeometry(0.038, 0.038, 0.012, 16);
+    centerCapGeo.rotateX(Math.PI * 0.5);
+    addPart(visualBuckets.extinguisherMetal, centerCapGeo, hoseCoilX, hoseCoilY, hoseCoilZ - hoseThick * 0.5 - 0.006, 0, 0, 0, true);
+    centerCapGeo.dispose();
+
+    // =========================================================================
+    // 7. HEAVY CAST-BRASS ANGLE GLOBE HYDRANT VALVE WITH RED HANDWHEEL (Bottom-Left)
+    // Sits in bottom-left corner at X ≈ posX - 0.28m (-7.53m), Y ≈ 1.33m
+    // =========================================================================
+    const valveX = posX - 0.280; // -7.530m (moved right with generous clearance from hose)
+    const valveY = posY - 0.35; // 1.33m
+    const valveZ = posZ - 0.01; // 12.89m
+
+    // Horizontal brass valve body along X
+    const valveBodyGeo = new THREE.CylinderGeometry(0.036, 0.036, 0.10, 16);
+    valveBodyGeo.rotateZ(Math.PI * 0.5);
+    addPart(visualBuckets.fireHoseBrass, valveBodyGeo, valveX, valveY, valveZ, 0, 0, 0, true);
+    valveBodyGeo.dispose();
+
+    // Hex collar ring on brass body
+    const valveHexGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.025, 6);
+    valveHexGeo.rotateZ(Math.PI * 0.5);
+    addPart(visualBuckets.fireHoseBrass, valveHexGeo, valveX - 0.032, valveY, valveZ, 0, 0, 0, true);
+    valveHexGeo.dispose();
+
+    // Rear wall-supply pipe coupling extending into backplate
+    const valveSupplyGeo = new THREE.CylinderGeometry(0.030, 0.030, 0.07, 16);
+    valveSupplyGeo.rotateX(Math.PI * 0.5);
+    addPart(visualBuckets.fireHoseBrass, valveSupplyGeo, valveX - 0.025, valveY, valveZ + 0.045, 0, 0, 0, true);
+    valveSupplyGeo.dispose();
+
+    // Silver metallic Storz coupling on right side of valve (connecting toward hose)
+    const valveCouplingGeo = new THREE.CylinderGeometry(0.037, 0.037, 0.065, 16);
+    valveCouplingGeo.rotateZ(Math.PI * 0.5);
+    addPart(visualBuckets.extinguisherMetal, valveCouplingGeo, valveX + 0.075, valveY, valveZ, 0, 0, 0, true);
+    valveCouplingGeo.dispose();
+
+    const valveLugGeo = new THREE.CylinderGeometry(0.043, 0.043, 0.022, 16);
+    valveLugGeo.rotateZ(Math.PI * 0.5);
+    addPart(visualBuckets.extinguisherMetal, valveLugGeo, valveX + 0.095, valveY, valveZ, 0, 0, 0, true);
+    valveLugGeo.dispose();
+
+    // Vertical valve bonnet, hex gland nut & stem
+    const valveBonnetGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.035, 12);
+    addPart(visualBuckets.fireHoseBrass, valveBonnetGeo, valveX, valveY + 0.035, valveZ, 0, 0, 0, true);
+    valveBonnetGeo.dispose();
+
+    const valveGlandGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.015, 6);
+    addPart(visualBuckets.fireHoseBrass, valveGlandGeo, valveX, valveY + 0.055, valveZ, 0, 0, 0, true);
+    valveGlandGeo.dispose();
+
+    const valveStemGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.040, 12);
+    addPart(visualBuckets.fireHoseBrass, valveStemGeo, valveX, valveY + 0.080, valveZ, 0, 0, 0, true);
+    valveStemGeo.dispose();
+
+    // Horizontal red circular handwheel at Y ≈ 1.43m (0xd11515)
+    const wheelRimGeo = new THREE.TorusGeometry(0.046, 0.007, 8, 20);
+    wheelRimGeo.rotateX(Math.PI * 0.5);
+    addPart(visualBuckets.extinguisherRed, wheelRimGeo, valveX, valveY + 0.100, valveZ, 0, 0, 0, true);
+    wheelRimGeo.dispose();
+
+    const wheelHubGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.012, 12);
+    addPart(visualBuckets.extinguisherRed, wheelHubGeo, valveX, valveY + 0.100, valveZ, 0, 0, 0, true);
+    wheelHubGeo.dispose();
+
+    const wheelSpoke1Geo = new THREE.BoxGeometry(0.092, 0.007, 0.012);
+    addPart(visualBuckets.extinguisherRed, wheelSpoke1Geo, valveX, valveY + 0.100, valveZ, 0, 0, 0, true);
+    wheelSpoke1Geo.dispose();
+
+    const wheelSpoke2Geo = new THREE.BoxGeometry(0.012, 0.007, 0.092);
+    addPart(visualBuckets.extinguisherRed, wheelSpoke2Geo, valveX, valveY + 0.100, valveZ, 0, 0, 0, true);
+    wheelSpoke2Geo.dispose();
+
+    // =========================================================================
+    // 8. VERTICAL RED & BRASS FIRE NOZZLE / BRANCHPIPE (Left Side of Cavity)
+    // Mounted vertically at X ≈ posX - 0.345m (-7.595m), Y spans 1.48m to 1.88m
+    // =========================================================================
+    const nozzleX = posX - 0.345; // -7.595m (moved right with generous clearance from hose)
+    const nozzleZ = posZ - 0.01; // 12.89m
+
+    // A. Lower chrome quick-connect coupling (Y = 1.48m to 1.53m)
+    const nozzleCouplingGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.05, 16);
+    addPart(visualBuckets.extinguisherMetal, nozzleCouplingGeo, nozzleX, posY - 0.175, nozzleZ, 0, 0, 0, true);
+    nozzleCouplingGeo.dispose();
+
+    // B. Ribbed brass grip collar (Y = 1.53m to 1.58m)
+    const nozzleGripGeo = new THREE.CylinderGeometry(0.025, 0.025, 0.05, 16);
+    addPart(visualBuckets.fireHoseBrass, nozzleGripGeo, nozzleX, posY - 0.125, nozzleZ, 0, 0, 0, true);
+    nozzleGripGeo.dispose();
+
+    const nozzleRingGeo = new THREE.CylinderGeometry(0.027, 0.027, 0.008, 16);
+    addPart(visualBuckets.fireHoseBrass, nozzleRingGeo, nozzleX, posY - 0.135, nozzleZ, 0, 0, 0, true);
+    addPart(visualBuckets.fireHoseBrass, nozzleRingGeo, nozzleX, posY - 0.115, nozzleZ, 0, 0, 0, true);
+    nozzleRingGeo.dispose();
+
+    // C. Tapered bright-red nozzle barrel (Y = 1.58m to 1.82m)
+    const nozzleBarrelGeo = new THREE.CylinderGeometry(0.015, 0.024, 0.24, 16);
+    addPart(visualBuckets.extinguisherRed, nozzleBarrelGeo, nozzleX, posY + 0.020, nozzleZ, 0, 0, 0, true);
+    nozzleBarrelGeo.dispose();
+
+    // D. Top brass spray tip & knurled ring (Y = 1.82m to 1.88m)
+    const nozzleTipGeo = new THREE.CylinderGeometry(0.011, 0.015, 0.06, 12);
+    addPart(visualBuckets.fireHoseBrass, nozzleTipGeo, nozzleX, posY + 0.170, nozzleZ, 0, 0, 0, true);
+    nozzleTipGeo.dispose();
+
+    const nozzleKnurlGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.014, 14);
+    addPart(visualBuckets.fireHoseBrass, nozzleKnurlGeo, nozzleX, posY + 0.148, nozzleZ, 0, 0, 0, true);
+    nozzleKnurlGeo.dispose();
+
+    // E. Stainless mounting spring clips attaching nozzle to left inner wall
+    const nozzleClipGeo = new THREE.BoxGeometry(0.085, 0.014, 0.02);
+    addPart(visualBuckets.extinguisherMetal, nozzleClipGeo, nozzleX - 0.042, posY - 0.12, nozzleZ, 0, 0, 0, true);
+    addPart(visualBuckets.extinguisherMetal, nozzleClipGeo, nozzleX - 0.042, posY + 0.08, nozzleZ, 0, 0, 0, true);
+    nozzleClipGeo.dispose();
+
+    // =========================================================================
+    // 9. SOLID PLAYER COLLIDER BARRIER
+    // Solid barrier so player cannot walk through the cabinet into the wall,
+    // while weapon bullet raycasts pass through window cutouts to hit DC_VestibuleGlass!
+    // =========================================================================
+    const playerCabinetGeo = new THREE.BoxGeometry(0.94, 0.98, 0.20);
+    registerPlayerOnlyCollider(playerCabinetGeo, posX, posY, posZ);
+    playerCabinetGeo.dispose();
+  }
+
+  /**
    * Builds the Closed Double Aluminum-Glass Balcony Door (Hero Scale ~2.00m wide x 2.649m tall)
    * with illuminated green emergency exit sign mounted directly above the top header.
    */
@@ -17256,6 +17857,8 @@ float rackHash(vec2 p) {
       this.runningManExitSignTexture,
       this.printerBadgeTexture,
       this.printerScreenTexture,
+      this.fireHoseHeaderTexture,
+      this.fireHoseCoilTexture,
       this.moonTexture,
       this.balconyTileTexture,
       this.skylineTowerATexture,
