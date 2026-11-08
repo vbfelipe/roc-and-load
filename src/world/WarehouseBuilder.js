@@ -2818,11 +2818,14 @@ function createBrushedStainlessTexture() {
 }
 
 /**
- * Procedural Elevator Digital Floor Indicator Textures (256x128).
+ * Procedural Elevator Digital Floor Indicator & Hall Call Buttons Atlas (512x512).
+ * - Top half (y = 0..256, v = 0.5..1.0): Digital '⬇ 30' Floor Indicator Screen
+ * - Bottom-left quadrant (cx = 128, cy = 384, u = 0..0.5, v = 0..0.5): Tactile '▲' UP Call Button
+ * - Bottom-right quadrant (cx = 384, cy = 384, u = 0.5..1.0, v = 0..0.5): Illuminated '▼' DOWN Call Button
  */
 function createElevatorDisplayTextures() {
-  const w = 256;
-  const h = 128;
+  const w = 512;
+  const h = 512;
   const diffCanvas = document.createElement('canvas');
   diffCanvas.width = w;
   diffCanvas.height = h;
@@ -2833,50 +2836,150 @@ function createElevatorDisplayTextures() {
   emCanvas.height = h;
   const eCtx = emCanvas.getContext('2d');
 
+  // Clear full 512x512 atlas
   ctx.fillStyle = '#090b0f';
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#333942';
-  ctx.lineWidth = 6;
-  ctx.strokeRect(3, 3, w - 6, h - 6);
-
   eCtx.fillStyle = '#000000';
   eCtx.fillRect(0, 0, w, h);
 
+  // =========================================================================
+  // 1. TOP HALF (y = 0..256): DIGITAL FLOOR INDICATOR SCREEN ('⬇ 30')
+  // =========================================================================
+  ctx.strokeStyle = '#333942';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(6, 6, w - 12, 256 - 12);
+
   const drawDisplayGlyphs = (targetCtx, color) => {
     targetCtx.fillStyle = color;
-    // Down arrow on left (shaft on top y=36..62, arrowhead at bottom y=60..88 pointing down)
-    targetCtx.fillRect(82, 36, 12, 26);
+    // Down arrow on left
+    targetCtx.fillRect(140, 72, 24, 52);
 
     targetCtx.beginPath();
-    targetCtx.moveTo(70, 60);
-    targetCtx.lineTo(106, 60);
-    targetCtx.lineTo(88, 88);
+    targetCtx.moveTo(116, 120);
+    targetCtx.lineTo(188, 120);
+    targetCtx.lineTo(152, 176);
     targetCtx.closePath();
     targetCtx.fill();
 
-    // Digital floor readout '3'
-    targetCtx.font = 'bold 62px monospace';
+    // Digital floor readout '30'
+    targetCtx.font = 'bold 124px monospace';
     targetCtx.textAlign = 'center';
     targetCtx.textBaseline = 'middle';
-    targetCtx.fillText('3', 162, 65);
+    targetCtx.fillText('30', 324, 130);
   };
 
   drawDisplayGlyphs(ctx, '#ff5522');
   drawDisplayGlyphs(eCtx, '#ff4510');
 
+  // =========================================================================
+  // 2. BOTTOM HALF (y = 256..512): MACHINED ELEVATOR CALL PUSHBUTTONS ('▲' & '▼')
+  // =========================================================================
+  const drawCallButton = (cx, cy, isUp, isActive) => {
+    // A. Outer dark recessed collar shadow
+    ctx.fillStyle = '#11151c';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 122, 0, Math.PI * 2);
+    ctx.fill();
+
+    // B. Machined stainless outer chamfer ring
+    const ringGrad = ctx.createLinearGradient(cx - 110, cy - 110, cx + 110, cy + 110);
+    ringGrad.addColorStop(0.0, '#d8e0ea');
+    ringGrad.addColorStop(0.5, '#8c96a4');
+    ringGrad.addColorStop(1.0, '#49525e');
+    ctx.fillStyle = ringGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 114, 0, Math.PI * 2);
+    ctx.fill();
+
+    // C. Illuminated LED Halo Ring (r = 86..106)
+    ctx.fillStyle = isActive ? '#ff5522' : '#cdd6e2';
+    ctx.beginPath();
+    ctx.arc(cx, cy, 105, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (isActive) {
+      const emHalo = eCtx.createRadialGradient(cx, cy, 80, cx, cy, 110);
+      emHalo.addColorStop(0.0, '#000000');
+      emHalo.addColorStop(0.35, '#ff4510');
+      emHalo.addColorStop(0.75, '#ff5522');
+      emHalo.addColorStop(1.0, '#000000');
+      eCtx.fillStyle = emHalo;
+      eCtx.beginPath();
+      eCtx.arc(cx, cy, 110, 0, Math.PI * 2);
+      eCtx.fill();
+    } else {
+      eCtx.strokeStyle = '#2a3442';
+      eCtx.lineWidth = 14;
+      eCtx.beginPath();
+      eCtx.arc(cx, cy, 95, 0, Math.PI * 2);
+      eCtx.stroke();
+    }
+
+    // D. Tactile Brushed Dark Stainless Center Cap (r = 85)
+    const capGrad = ctx.createLinearGradient(cx - 60, cy - 85, cx + 60, cy + 85);
+    capGrad.addColorStop(0.0, '#4a5360');
+    capGrad.addColorStop(0.48, '#2d333d');
+    capGrad.addColorStop(1.0, '#1c2027');
+    ctx.fillStyle = capGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 85, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Subtle horizontal brushed-metal grain across the tactile cap
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 84, 0, Math.PI * 2);
+    ctx.clip();
+    for (let y = cy - 84; y <= cy + 84; y += 3) {
+      ctx.fillStyle = (y % 6 === 0) ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.045)';
+      ctx.fillRect(cx - 85, y, 170, 1.5);
+    }
+    ctx.restore();
+
+    // E. Center Engraved / Backlit Directional Chevron ('▲' or '▼')
+    const drawChevron = (targetCtx, strokeColor) => {
+      targetCtx.strokeStyle = strokeColor;
+      targetCtx.lineWidth = 14;
+      targetCtx.lineCap = 'round';
+      targetCtx.lineJoin = 'round';
+      targetCtx.beginPath();
+      if (isUp) {
+        targetCtx.moveTo(cx - 34, cy + 16);
+        targetCtx.lineTo(cx, cy - 22);
+        targetCtx.lineTo(cx + 34, cy + 16);
+      } else {
+        targetCtx.moveTo(cx - 34, cy - 16);
+        targetCtx.lineTo(cx, cy + 22);
+        targetCtx.lineTo(cx + 34, cy - 16);
+      }
+      targetCtx.stroke();
+    };
+
+    drawChevron(ctx, isActive ? '#ff6633' : '#e6edf5');
+    drawChevron(eCtx, isActive ? '#ff4510' : '#334155');
+  };
+
+  // Bottom-Left: UP Button ('▲', standby)
+  drawCallButton(128, 384, true, false);
+  // Bottom-Right: DOWN Button ('▼', active/lit)
+  drawCallButton(384, 384, false, true);
+
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
+  diffuse.anisotropy = 8;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
+  emissive.anisotropy = 8;
   return { diffuse, emissive };
 }
 
 /**
- * Procedural Illuminated Green Emergency EXIT Sign Textures (256x128).
+ * Procedural ISO 7010 / ABNT Emergency Exit Down-Stairs Sign Textures (1024x512).
+ * Matches the Running-Man + Descending Stairs + Diagonal Arrow reference graphic.
  */
 function createExitSignTextures() {
-  const w = 256;
-  const h = 128;
+  const w = 1024;
+  const h = 512;
   const diffCanvas = document.createElement('canvas');
   diffCanvas.width = w;
   diffCanvas.height = h;
@@ -2887,28 +2990,133 @@ function createExitSignTextures() {
   emCanvas.height = h;
   const eCtx = emCanvas.getContext('2d');
 
+  const drawRoundedRect = (c, x, y, width, height, radius) => {
+    c.beginPath();
+    c.moveTo(x + radius, y);
+    c.lineTo(x + width - radius, y);
+    c.quadraticCurveTo(x + width, y, x + width, y + radius);
+    c.lineTo(x + width, y + height - radius);
+    c.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    c.lineTo(x + radius, y + height);
+    c.quadraticCurveTo(x, y + height, x, y + height - radius);
+    c.lineTo(x, y + radius);
+    c.quadraticCurveTo(x, y, x + radius, y);
+    c.closePath();
+  };
+
   const drawSign = (c, isEmissive) => {
-    c.fillStyle = isEmissive ? '#0b6e36' : '#e8f5ee';
+    const greenColor = isEmissive ? '#005c25' : '#007934';
+    const whiteColor = isEmissive ? '#eef8f2' : '#ffffff';
+
+    // 1. Crisp White Outer Sign Border
+    c.fillStyle = whiteColor;
     c.fillRect(0, 0, w, h);
 
-    c.fillStyle = isEmissive ? '#18c964' : '#109848';
-    c.fillRect(10, 10, w - 20, h - 20);
+    // 2. Deep Safety-Green Rounded Field (inset 14px, 16px corner radius)
+    c.fillStyle = greenColor;
+    drawRoundedRect(c, 14, 14, w - 28, h - 28, 16);
+    c.fill();
 
-    c.fillStyle = '#ffffff';
-    c.font = 'bold 46px sans-serif';
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.fillText('EXIT', 112, 66);
-
-    // Directional arrow pointing toward stairs
+    // 3. Left Graphic: Solid White Doorway with 45° Perspective Threshold Extension
+    c.fillStyle = whiteColor;
     c.beginPath();
-    c.moveTo(192, 64);
-    c.lineTo(218, 44);
-    c.lineTo(218, 56);
-    c.lineTo(234, 56);
-    c.lineTo(234, 72);
-    c.lineTo(218, 72);
-    c.lineTo(218, 84);
+    c.moveTo(132, 60);
+    c.lineTo(398, 60);
+    c.lineTo(398, 414);
+    c.lineTo(362, 450);
+    c.lineTo(96, 450);
+    c.lineTo(132, 414);
+    c.closePath();
+    c.fill();
+
+    // White outline extension on the left of the doorway where the runner's rear foot kicks out
+    c.beginPath();
+    c.moveTo(133, 311);
+    c.lineTo(106, 311);
+    c.lineTo(86, 362);
+    c.lineTo(133, 362);
+    c.closePath();
+    c.fill();
+
+    // 4. Green Running Man Silhouette (Running RIGHT toward the stairs)
+    c.fillStyle = greenColor;
+
+    // Circular Head
+    c.beginPath();
+    c.arc(314, 114, 33, 0, Math.PI * 2);
+    c.fill();
+
+    // Connected Torso, Arms, Front Leg, and Rear Kicking Leg
+    c.beginPath();
+    c.moveTo(180, 160);
+    c.lineTo(298, 160);
+    c.lineTo(352, 204);
+    c.lineTo(400, 204);
+    c.lineTo(400, 232);
+    c.lineTo(340, 232);
+    c.lineTo(290, 190);
+    c.lineTo(262, 248);
+    c.lineTo(360, 412);
+    c.lineTo(318, 412);
+    c.lineTo(234, 268);
+    c.lineTo(224, 354);
+    c.lineTo(96, 354);
+    c.lineTo(112, 319);
+    c.lineTo(192, 319);
+    c.lineTo(202, 244);
+    c.lineTo(236, 190);
+    c.lineTo(196, 190);
+    c.lineTo(175, 231);
+    c.arc(162, 224, 15, 0.48, Math.PI + 0.48, false);
+    c.closePath();
+    c.fill();
+
+    // Green 45° Perspective Floor Shadow Under Front Foot
+    c.beginPath();
+    c.moveTo(316, 419);
+    c.lineTo(358, 419);
+    c.lineTo(324, 451);
+    c.lineTo(282, 451);
+    c.closePath();
+    c.fill();
+
+    // 5. Right Graphic: White Descending Staircase (5 treads, 4 risers, 36px bar thickness)
+    c.fillStyle = whiteColor;
+    c.beginPath();
+    c.moveTo(498, 84);
+    c.lineTo(604, 84);
+    c.lineTo(604, 166);
+    c.lineTo(690, 166);
+    c.lineTo(690, 248);
+    c.lineTo(776, 248);
+    c.lineTo(776, 330);
+    c.lineTo(862, 330);
+    c.lineTo(862, 412);
+    c.lineTo(914, 412);
+    c.lineTo(914, 448);
+    c.lineTo(826, 448);
+    c.lineTo(826, 366);
+    c.lineTo(740, 366);
+    c.lineTo(740, 284);
+    c.lineTo(654, 284);
+    c.lineTo(654, 202);
+    c.lineTo(568, 202);
+    c.lineTo(568, 120);
+    c.lineTo(498, 120);
+    c.closePath();
+    c.fill();
+
+    // 6. Diagonal 45° Down-Right Directional Arrow Above the Stairs
+    c.beginPath();
+    c.moveTo(770, 98);
+    c.lineTo(856, 184);
+    c.lineTo(856, 122);
+    c.lineTo(888, 154);
+    c.lineTo(888, 238);
+    c.lineTo(804, 238);
+    c.lineTo(772, 206);
+    c.lineTo(834, 206);
+    c.lineTo(748, 120);
     c.closePath();
     c.fill();
   };
@@ -2918,8 +3126,10 @@ function createExitSignTextures() {
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
+  diffuse.anisotropy = 8;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
+  emissive.anisotropy = 8;
   return { diffuse, emissive };
 }
 
@@ -3677,8 +3887,8 @@ function createPrinterTouchscreenTexture() {
 }
 
 function createRunningManExitSignTextures() {
-  const w = 512;
-  const h = 256;
+  const w = 1024;
+  const h = 512;
   const diffCanvas = document.createElement('canvas');
   diffCanvas.width = w;
   diffCanvas.height = h;
@@ -3689,90 +3899,121 @@ function createRunningManExitSignTextures() {
   emCanvas.height = h;
   const eCtx = emCanvas.getContext('2d');
 
+  const drawRoundedRect = (c, x, y, width, height, radius) => {
+    c.beginPath();
+    c.moveTo(x + radius, y);
+    c.lineTo(x + width - radius, y);
+    c.quadraticCurveTo(x + width, y, x + width, y + radius);
+    c.lineTo(x + width, y + height - radius);
+    c.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    c.lineTo(x + radius, y + height);
+    c.quadraticCurveTo(x, y + height, x, y + height - radius);
+    c.lineTo(x, y + radius);
+    c.quadraticCurveTo(x, y, x + radius, y);
+    c.closePath();
+  };
+
   const drawExitSign = (c, isEmissive) => {
-    // Outer casing / bezel margin
-    c.fillStyle = isEmissive ? '#00361a' : '#005429';
+    const greenColor = isEmissive ? '#005c25' : '#007934';
+    const whiteColor = isEmissive ? '#eef8f2' : '#ffffff';
+
+    // 1. Crisp White Outer Sign Border
+    c.fillStyle = whiteColor;
     c.fillRect(0, 0, w, h);
 
-    // Emerald Green Background (#007a3d)
-    c.fillStyle = isEmissive ? '#00c853' : '#007a3d';
-    c.fillRect(8, 8, w - 16, h - 16);
-
-    // Inner White Margin Border
-    c.strokeStyle = isEmissive ? '#a7f3d0' : '#ffffff';
-    c.lineWidth = 6;
-    c.strokeRect(18, 18, w - 36, h - 36);
-
-    // 1. Left Graphic: Doorway & Running Person (ISO 7010)
-    // Darker green recessed door opening
-    c.fillStyle = isEmissive ? '#004d25' : '#005c2e';
-    c.fillRect(56, 42, 72, 172);
-
-    // White doorway frame
-    c.strokeStyle = isEmissive ? '#a7f3d0' : '#ffffff';
-    c.lineWidth = 6;
-    c.strokeRect(56, 42, 72, 172);
-
-    // Running Person (crisp white silhouette)
-    c.fillStyle = '#ffffff';
-    c.strokeStyle = '#ffffff';
-
-    // Head
-    c.beginPath();
-    c.arc(162, 78, 18, 0, Math.PI * 2);
+    // 2. Deep Safety-Green Rounded Field (inset 14px, 16px corner radius)
+    c.fillStyle = greenColor;
+    drawRoundedRect(c, 14, 14, w - 28, h - 28, 16);
     c.fill();
 
-    // Torso (angled forward towards the doorway)
-    c.lineWidth = 14;
-    c.lineCap = 'round';
+    // 3. Left Graphic: Solid White Doorway with 45° Perspective Threshold Extension
+    c.fillStyle = whiteColor;
     c.beginPath();
-    c.moveTo(160, 96);
-    c.lineTo(142, 148);
-    c.stroke();
-
-    // Arms
-    // Left arm reaching forward toward door opening
-    c.lineWidth = 10;
-    c.beginPath();
-    c.moveTo(158, 106);
-    c.lineTo(130, 114);
-    c.lineTo(110, 110);
-    c.stroke();
-
-    // Right arm trailing back
-    c.beginPath();
-    c.moveTo(158, 106);
-    c.lineTo(186, 120);
-    c.lineTo(182, 142);
-    c.stroke();
-
-    // Legs
-    // Front leg stepping into doorway
-    c.lineWidth = 12;
-    c.beginPath();
-    c.moveTo(142, 148);
-    c.lineTo(118, 172);
-    c.lineTo(118, 202);
-    c.stroke();
-
-    // Rear leg kicking back
-    c.beginPath();
-    c.moveTo(142, 148);
-    c.lineTo(172, 168);
-    c.lineTo(198, 158);
-    c.stroke();
-
-    // 2. Right Graphic: Directional Arrow (->)
-    // Arrow shaft
-    c.beginPath();
-    c.rect(260, 112, 105, 32);
+    c.moveTo(132, 60);
+    c.lineTo(398, 60);
+    c.lineTo(398, 414);
+    c.lineTo(362, 450);
+    c.lineTo(96, 450);
+    c.lineTo(132, 414);
+    c.closePath();
     c.fill();
 
-    // Arrow head
+    // White outline extension on the left of the doorway where the runner's rear foot kicks out
     c.beginPath();
-    c.moveTo(360, 76);
-    c.lineTo(440, 128);
-    c.lineTo(360, 180);
+    c.moveTo(133, 311);
+    c.lineTo(106, 311);
+    c.lineTo(86, 362);
+    c.lineTo(133, 362);
+    c.closePath();
+    c.fill();
+
+    // 4. Green Running Man Silhouette (Running RIGHT toward the arrow)
+    c.fillStyle = greenColor;
+
+    // Circular Head
+    c.beginPath();
+    c.arc(314, 114, 33, 0, Math.PI * 2);
+    c.fill();
+
+    // Connected Torso, Arms, Front Leg, and Rear Kicking Leg
+    c.beginPath();
+    // Rear (left) upper arm + shoulder top edge
+    c.moveTo(180, 160);
+    c.lineTo(298, 160);
+    // Front (right) arm angling down-right to elbow and horizontally to right doorway edge
+    c.lineTo(352, 204);
+    c.lineTo(400, 204);
+    c.lineTo(400, 232);
+    c.lineTo(340, 232);
+    c.lineTo(290, 190);
+    // Chest angling down-left to hip, then straight down-right along front leg to toe
+    c.lineTo(262, 248);
+    c.lineTo(360, 412);
+    // Flat horizontal sole of front foot
+    c.lineTo(318, 412);
+    // Back edge of front leg up-left to crotch
+    c.lineTo(234, 268);
+    // Back of rear thigh down-left to lower knee corner
+    c.lineTo(224, 354);
+    // Bottom of horizontal rear calf/foot kicking left outside doorway
+    c.lineTo(96, 354);
+    // Angled rear foot tip going up-right
+    c.lineTo(112, 319);
+    // Top of rear calf going right to inner knee bend
+    c.lineTo(192, 319);
+    // Front of rear thigh + back of torso going up-right to left armpit
+    c.lineTo(202, 244);
+    c.lineTo(236, 190);
+    // Under rear upper arm to inner elbow
+    c.lineTo(196, 190);
+    // Inner rear forearm down-left to hand
+    c.lineTo(175, 231);
+    // Rounded rear hand cap & outer rear forearm back to (180, 160)
+    c.arc(162, 224, 15, 0.48, Math.PI + 0.48, false);
+    c.closePath();
+    c.fill();
+
+    // Green 45° Perspective Floor Shadow Under Front Foot (separated by white gap line y=412..419)
+    c.beginPath();
+    c.moveTo(316, 419);
+    c.lineTo(358, 419);
+    c.lineTo(324, 451);
+    c.lineTo(282, 451);
+    c.closePath();
+    c.fill();
+
+    // 5. Right Graphic: Bold White Right-Pointing Directional Arrow (->)
+    c.fillStyle = whiteColor;
+    c.beginPath();
+    c.moveTo(600, 223);
+    c.lineTo(792, 223);
+    c.lineTo(736, 146);
+    c.lineTo(804, 146);
+    c.lineTo(914, 256);
+    c.lineTo(804, 366);
+    c.lineTo(736, 366);
+    c.lineTo(792, 289);
+    c.lineTo(600, 289);
     c.closePath();
     c.fill();
   };
@@ -3782,8 +4023,10 @@ function createRunningManExitSignTextures() {
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
+  diffuse.anisotropy = 8;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
+  emissive.anisotropy = 8;
   return { diffuse, emissive };
 }
 
@@ -11817,9 +12060,9 @@ float rackHash(vec2 p) {
       map: exitSignTex.diffuse,
       emissiveMap: exitSignTex.emissive,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 1.05,
-      roughness: 0.25,
-      metalness: 0.15,
+      emissiveIntensity: 0.24,
+      roughness: 0.42,
+      metalness: 0.04,
     });
 
     this.vestibuleCeilingLightMaterial = new THREE.MeshStandardMaterial({
@@ -12015,9 +12258,9 @@ float rackHash(vec2 p) {
       map: this.runningManExitSignTextures.diffuse,
       emissiveMap: this.runningManExitSignTextures.emissive,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 1.05,
-      roughness: 0.35,
-      metalness: 0.10,
+      emissiveIntensity: 0.24,
+      roughness: 0.42,
+      metalness: 0.04,
     });
 
     this.nightSkyBackdropMaterial = new THREE.MeshBasicMaterial({
@@ -12605,18 +12848,18 @@ float rackHash(vec2 p) {
     rightWallGeo.dispose();
 
     // 3D Batched Brazilian NBR 14136 Outlet Plates along cable raceway (Y = 1.49m)
-    // Spaced every 4.0m along left and right walls (Z = -6.0, -2.0, 2.0, 6.0, 10.0)
-    const outletGeo = createOutletBoxGeometry(0.27, 0.095, 0.008);
+    // Sleek 2.4mm flush relief (front face 2.6mm off wall < 5.0mm decal offset) so wall & outlet decals never clip or z-fight!
+    const outletGeo = createOutletBoxGeometry(0.27, 0.095, 0.0024);
     const outletZPositions = [-6.0, -2.0, 2.0, 6.0, 10.0];
     const outletY = 1.49;
 
     for (const oz of outletZPositions) {
       // Left Wall (X = -10.0, faces +X into room): only place on intact solid front-left wall (Z < 1.0)
       if (oz < 1.0) {
-        addVisual(visualBuckets.wallOutlets, outletGeo, -9.995, outletY, oz, 0, Math.PI / 2, 0);
+        addPart(visualBuckets.wallOutlets, outletGeo, -9.9986, outletY, oz, 0, Math.PI / 2, 0);
       }
       // Right Wall (X = +10.0, faces -X into room, rotY = -Math.PI / 2)
-      addVisual(visualBuckets.wallOutlets, outletGeo, 9.995, outletY, oz, 0, -Math.PI / 2, 0);
+      addPart(visualBuckets.wallOutlets, outletGeo, 9.9986, outletY, oz, 0, -Math.PI / 2, 0);
     }
     outletGeo.dispose();
 
@@ -15914,41 +16157,96 @@ float rackHash(vec2 p) {
     addVisual(visualBuckets.vestibuleVoid, centerSeamGeo, elevCenterX, elevDoorH * 0.5 + 0.002, elevWallZ - 0.025);
     centerSeamGeo.dispose();
 
-    // Top Digital Floor Indicator Display ('▼ 3') above the elevator frame (Housed in dark metallic bezel)
+    // Top Digital Floor Indicator Display ('▼ 30') above the elevator frame (Housed in dark metallic bezel)
     const displayY = elevDoorH + portalFrameW + 0.15;
     const displayBezelGeo = new THREE.BoxGeometry(0.336, 0.148, 0.026);
     addVisual(visualBuckets.elevatorPortal, displayBezelGeo, elevCenterX, displayY, elevWallZ - 0.015);
     displayBezelGeo.dispose();
 
-    const displayScreenGeo = filterBoxFaces(
-      new THREE.BoxGeometry(0.312, 0.126, 0.008),
-      { px: true, nx: true, py: true, ny: true, pz: true }
-    );
-    addVisual(visualBuckets.elevatorDisplay, displayScreenGeo, elevCenterX, displayY, elevWallZ - 0.026);
+    const displayScreenGeo = new THREE.PlaneGeometry(0.312, 0.126);
+    const dispUv = displayScreenGeo.attributes.uv;
+    for (let i = 0; i < dispUv.count; i++) {
+      dispUv.setY(i, dispUv.getY(i) * 0.5 + 0.5);
+    }
+    dispUv.needsUpdate = true;
+    displayScreenGeo.rotateY(Math.PI);
+    addVisual(visualBuckets.elevatorDisplay, displayScreenGeo, elevCenterX, displayY, elevWallZ - 0.029);
     displayScreenGeo.dispose();
 
-    // Right-side Brushed Metal Call-Button Faceplate & Glowing Button (Proud of northWall at Z = 11.288)
+    // Right-side Brushed Stainless Hall Call Station with Tactile '▲' UP & Illuminated '▼' DOWN Pushbuttons
+    // Ultra-flush <3.8mm profile so decals on the panel or adjacent wall never clip or z-fight
     const callPlateX = elevCenterX + elevDoorW * 0.5 + portalFrameW + 0.14;
-    const callPlateY = 1.12;
-    const callPlateGeo = new THREE.BoxGeometry(0.085, 0.21, 0.014);
-    addVisual(visualBuckets.elevatorStainless, callPlateGeo, callPlateX, callPlateY, elevWallZ - 0.010);
+    const callPlateY = 1.30;
+
+    // Dark anodized recessed wall-mount backing bezel
+    const callBackBezelGeo = new THREE.BoxGeometry(0.094, 0.226, 0.0014);
+    addVisual(visualBuckets.elevatorPortal, callBackBezelGeo, callPlateX, callPlateY, elevWallZ - 0.0007);
+    callBackBezelGeo.dispose();
+
+    // Brushed stainless-steel main faceplate
+    const callPlateGeo = new THREE.BoxGeometry(0.086, 0.218, 0.0022);
+    addVisual(visualBuckets.elevatorStainless, callPlateGeo, callPlateX, callPlateY, elevWallZ - 0.0015);
     callPlateGeo.dispose();
 
-    const callBtnGeo = new THREE.CylinderGeometry(0.013, 0.013, 0.010, 12);
-    callBtnGeo.rotateX(Math.PI * 0.5);
-    addVisual(visualBuckets.vestibuleChrome, callBtnGeo, callPlateX, callPlateY + 0.028, elevWallZ - 0.020);
-    addVisual(visualBuckets.elevatorDisplay, callBtnGeo, callPlateX, callPlateY - 0.028, elevWallZ - 0.020);
-    callBtnGeo.dispose();
+    // Unified front-plane hitscan collider (front face at elevWallZ - 0.0038)
+    const callColliderGeo = new THREE.BoxGeometry(0.094, 0.226, 0.0038);
+    registerCollider(callColliderGeo, callPlateX, callPlateY, elevWallZ - 0.0019);
+    callColliderGeo.dispose();
 
-    // B. Illuminated Green Emergency EXIT Sign on Vestibule Wall (Proud of westWall X = -14.200)
-    const exitY = 3.05;
+    // Top & bottom countersunk security mounting screws
+    const screwGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 0.001, 10);
+    screwGeo.rotateX(Math.PI * 0.5);
+    addVisual(visualBuckets.elevatorPortal, screwGeo, callPlateX, callPlateY + 0.092, elevWallZ - 0.0025);
+    addVisual(visualBuckets.elevatorPortal, screwGeo, callPlateX, callPlateY - 0.092, elevWallZ - 0.0025);
+    screwGeo.dispose();
+
+    // Flush-profile 3D Chrome Outer Bezel Rings + Tactile Pushbutton Barrels
+    const btnBezelGeo = new THREE.CylinderGeometry(0.020, 0.021, 0.001, 20);
+    btnBezelGeo.rotateX(Math.PI * 0.5);
+    addVisual(visualBuckets.vestibuleChrome, btnBezelGeo, callPlateX, callPlateY + 0.036, elevWallZ - 0.0029);
+    addVisual(visualBuckets.vestibuleChrome, btnBezelGeo, callPlateX, callPlateY - 0.036, elevWallZ - 0.0029);
+    btnBezelGeo.dispose();
+
+    const btnBarrelGeo = new THREE.CylinderGeometry(0.0165, 0.0165, 0.0012, 20);
+    btnBarrelGeo.rotateX(Math.PI * 0.5);
+    addVisual(visualBuckets.elevatorPortal, btnBarrelGeo, callPlateX, callPlateY + 0.036, elevWallZ - 0.0031);
+    addVisual(visualBuckets.elevatorPortal, btnBarrelGeo, callPlateX, callPlateY - 0.036, elevWallZ - 0.0031);
+    btnBarrelGeo.dispose();
+
+    // Helper to build circular button cap mapped to the UP or DOWN quadrant of elevatorDisplay atlas
+    const buildCallBtnFace = (uOffset) => {
+      const faceGeo = new THREE.CircleGeometry(0.0162, 24);
+      const uv = faceGeo.attributes.uv;
+      for (let i = 0; i < uv.count; i++) {
+        uv.setXY(i, uv.getX(i) * 0.46 + uOffset, uv.getY(i) * 0.46 + 0.02);
+      }
+      uv.needsUpdate = true;
+      faceGeo.rotateY(Math.PI);
+      return faceGeo;
+    };
+
+    const upBtnFaceGeo = buildCallBtnFace(0.02);
+    addVisual(visualBuckets.elevatorDisplay, upBtnFaceGeo, callPlateX, callPlateY + 0.036, elevWallZ - 0.0038);
+    upBtnFaceGeo.dispose();
+
+    const downBtnFaceGeo = buildCallBtnFace(0.52);
+    addVisual(visualBuckets.elevatorDisplay, downBtnFaceGeo, callPlateX, callPlateY - 0.036, elevWallZ - 0.0038);
+    downBtnFaceGeo.dispose();
+
+    // B. Emergency Exit Down-Stairs Sign on Vestibule Wall (50%+ Larger Hero Scale, 0.58m W x 0.29m H, flush <3.5mm relief)
+    const exitY = 3.00;
     const exitZ = 9.05;
-    const exitHousingGeo = new THREE.BoxGeometry(0.024, 0.185, 0.39);
-    addVisual(visualBuckets.vestibuleAlumFrame, exitHousingGeo, vestXWest + 0.015, exitY, exitZ);
+    const exitSignW = 0.58;
+    const exitSignH = 0.29;
+    const exitSignD = 0.0028;
+
+    const exitHousingGeo = new THREE.BoxGeometry(exitSignD, exitSignH, exitSignW);
+    addPart(visualBuckets.printerWhite, exitHousingGeo, vestXWest + exitSignD / 2, exitY, exitZ);
     exitHousingGeo.dispose();
 
-    const exitFaceGeo = new THREE.BoxGeometry(0.012, 0.162, 0.366);
-    addVisual(visualBuckets.exitSign, exitFaceGeo, vestXWest + 0.034, exitY, exitZ);
+    const exitFaceGeo = new THREE.PlaneGeometry(exitSignW, exitSignH);
+    exitFaceGeo.rotateY(Math.PI / 2);
+    addVisual(visualBuckets.exitSign, exitFaceGeo, vestXWest + exitSignD + 0.0004, exitY, exitZ);
     exitFaceGeo.dispose();
 
     // C. Cylindrical Brushed Stainless-Steel Office Trash Bin (Inside Main Office under Glass Window)
@@ -16882,21 +17180,21 @@ float rackHash(vec2 p) {
     // Right Leaf (X < doorX)
     buildDoorLeaf(doorX - 0.003 - leafW / 2, false);
 
-    // 3. Illuminated Green Emergency Exit Sign Above Door Header
+    // 3. Emergency Exit Sign Above Door Header (50%+ Larger Hero Scale, 2:1 Aspect Ratio, flush <3.5mm relief)
     const signX = doorX;
-    const signY = 2.82;
-    const signZ = 12.988;
-    const signW = 0.36;
-    const signH = 0.17;
-    const signD = 0.024;
+    const signY = 2.88;
+    const signZ = 12.9986;
+    const signW = 0.58;
+    const signH = 0.29;
+    const signD = 0.0028;
 
     const signHousingGeo = new THREE.BoxGeometry(signW, signH, signD);
-    addVisual(visualBuckets.staffDoorFrame, signHousingGeo, signX, signY, signZ);
+    addPart(visualBuckets.printerWhite, signHousingGeo, signX, signY, signZ);
     signHousingGeo.dispose();
 
-    const signFaceGeo = new THREE.PlaneGeometry(signW - 0.02, signH - 0.02);
+    const signFaceGeo = new THREE.PlaneGeometry(signW, signH);
     signFaceGeo.rotateY(Math.PI);
-    addVisual(visualBuckets.runningManExitSign, signFaceGeo, signX, signY, signZ - signD / 2 - 0.001);
+    addVisual(visualBuckets.runningManExitSign, signFaceGeo, signX, signY, signZ - signD / 2 - 0.0004);
     signFaceGeo.dispose();
   }
 

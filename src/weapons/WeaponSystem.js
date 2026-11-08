@@ -598,6 +598,7 @@ export class WeaponSystem {
     ];
     this.decalTexture = this.decalTextures[0];
     this._lastDecalVariantIdx = -1;
+    this._decalLayerSeq = 0;
     this.glassDecalTexture = createGlassBulletDecalTexture(false);
     this.heavyGlassDecalTexture = createGlassBulletDecalTexture(true);
 
@@ -1618,8 +1619,10 @@ export class WeaponSystem {
     decal.renderOrder = isGlass ? 3 : 1;
 
     // Ensure surfaceNormal is unit length and position decal slightly offset toward shooter to avoid z-fighting
+    // Includes a tiny cyclic depth step so multiple overlapping decals on the same spot never z-fight each other
+    const layerStep = ((this._decalLayerSeq++) % 32) * 0.00012;
     _scratchVec3.copy(surfaceNormal).normalize();
-    decal.position.copy(hitPoint).addScaledVector(_scratchVec3, isGlass ? 0.004 : 0.005);
+    decal.position.copy(hitPoint).addScaledVector(_scratchVec3, (isGlass ? 0.004 : 0.005) + layerStep);
 
     // Orient decal via unit-vector quaternion alignment (prevents lookAt() collinearity on flat ceilings & floors)
     decal.quaternion.setFromUnitVectors(_decalUnitZ, _scratchVec3);
