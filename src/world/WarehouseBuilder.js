@@ -91,6 +91,30 @@ function createPlaneFacingRear(w, h, uMin = 0, vMin = 0, uMax = 1, vMax = 1) {
 }
 
 /**
+ * Creates a BoxGeometry(w, h, d) with unseen faces culled by local normal key
+ * ('+x', '-x', '+y', '-y', '+z', '-z').
+ */
+function createBoxWithoutFaces(w, h, d, excludeNormals = []) {
+  const box = new THREE.BoxGeometry(w, h, d);
+  // BoxGeometry face order: 0: +x, 1: -x, 2: +y, 3: -y, 4: +z, 5: -z
+  const faceOrder = ['+x', '-x', '+y', '-y', '+z', '-z'];
+  const excludeSet = new Set(excludeNormals);
+  const srcIndex = box.getIndex().array;
+  const keptIndices = [];
+  for (let f = 0; f < 6; f++) {
+    if (!excludeSet.has(faceOrder[f])) {
+      const base = f * 6;
+      for (let i = 0; i < 6; i++) {
+        keptIndices.push(srcIndex[base + i]);
+      }
+    }
+  }
+  box.setIndex(keptIndices);
+  box.clearGroups();
+  return box;
+}
+
+/**
  * Procedural Clean Solid Anti-Static Tile Textures for the Main Room Lower Floor (1024x1024).
  * Modular 2x2 grid of clean, uniform solid anthracite anti-static access tiles (each 512x512px).
  * - Balanced architectural anthracite slate palette (#252933 base with #13171d recessed gasket seams).
@@ -4870,20 +4894,22 @@ function createTowerGeometries(w, h, d, uScale = null, vScale = 45.0) {
 }
 
 /**
- * Procedural Enterprise 42U Server Cabinet Textures (1024x2048).
+ * Procedural Enterprise 42U Server Cabinet Textures (512x1024 — 2x supersampled from 1024x2048 space).
  * Generates high-resolution Diffuse Map and Emissive Map inspired by Dell PowerEdge and Cisco Nexus racks.
- * Precision enterprise-scale SMD LED light guides with clean, harmonized illumination.
+ * Precision enterprise-scale SMD LED light guides with baked multi-intensity optical depth (zero per-frame shader overhead).
  */
 function createServerCabinetTextures() {
   const diffCanvas = document.createElement('canvas');
-  diffCanvas.width = 1024;
-  diffCanvas.height = 2048;
+  diffCanvas.width = 512;
+  diffCanvas.height = 1024;
   const dCtx = diffCanvas.getContext('2d');
+  dCtx.scale(0.5, 0.5);
 
   const emisCanvas = document.createElement('canvas');
-  emisCanvas.width = 1024;
-  emisCanvas.height = 2048;
+  emisCanvas.width = 512;
+  emisCanvas.height = 1024;
   const eCtx = emisCanvas.getContext('2d');
+  eCtx.scale(0.5, 0.5);
 
   // 1. Base dark anodized gunmetal cabinet bezel (#14171e)
   dCtx.fillStyle = '#14171e';
@@ -4892,7 +4918,7 @@ function createServerCabinetTextures() {
   eCtx.fillStyle = '#000000';
   eCtx.fillRect(0, 0, 1024, 2048);
 
-  // Helper: Draw Precision Clean Enterprise SMD LED Light Guide
+  // Helper: Draw Precision Clean Enterprise SMD LED Light Guide (with baked optical intensity variance)
   const drawSMDLed = (x, y, w = 7, h = 3.5, type = 'green') => {
     const cx = x + w / 2;
     const cy = y + h / 2;
@@ -4914,6 +4940,10 @@ function createServerCabinetTextures() {
       emisCol = '#ff2222'; // Pure zero-blue red
     }
 
+    // Deterministic per-LED brightness variance (simulates natural frozen mid-traffic optical states)
+    const ledHash = Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+    const emisAlpha = 0.52 + 0.48 * ledHash;
+
     // --- 1. Diffuse Map (map) ---
     // Recessed dark bezel housing (1px frame)
     dCtx.fillStyle = '#0a0e14';
@@ -4930,6 +4960,8 @@ function createServerCabinetTextures() {
     }
 
     // --- 2. Emissive Map (emissiveMap) ---
+    eCtx.save();
+    eCtx.globalAlpha = emisAlpha;
     // Tight 1.5px soft edge for distance mipmap retention without bleeding or blur
     const haloPad = 1.5;
     const grad = eCtx.createRadialGradient(cx, cy, Math.min(w, h) * 0.35, cx, cy, Math.max(w, h) * 0.5 + haloPad);
@@ -4941,6 +4973,7 @@ function createServerCabinetTextures() {
     // Solid crisp LED core on emissiveMap
     eCtx.fillStyle = emisCol;
     eCtx.fillRect(x, y, w, h);
+    eCtx.restore();
   };
 
   // Helper: Draw OLED iDRAC telemetry display strip (High-Definition Cybernetic Readout)
@@ -11514,11 +11547,7 @@ export class WarehouseBuilder {
       metalness: 0.25,
     });
 
-    // Enterprise 42U Server Cabinet Front Face (MeshStandardMaterial with Emissive & GPU Blinking)
-    this.serverRackBladeUniforms = {
-      uTime: { value: 0.0 },
-    };
-
+    // Enterprise 42U Server Cabinet Front Face (Baked multi-intensity emissive map — zero per-frame shader overhead)
     this.serverRackBladeMaterial = new THREE.MeshStandardMaterial({
       map: this.serverBladeDiffuseTexture,
       emissiveMap: this.serverBladeEmissiveTexture,
@@ -11527,136 +11556,6 @@ export class WarehouseBuilder {
       roughness: 0.40,
       metalness: 0.60,
     });
-
-    this.serverRackBladeMaterial.customProgramCacheKey = () => 'EnterpriseRackBladeShader';
-
-    this.serverRackBladeMaterial.onBeforeCompile = (shader) => {
-      shader.uniforms.uTime = this.serverRackBladeUniforms.uTime;
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <common>',
-        `#include <common>
-varying vec3 vRackWorldPos;`
-      );
-
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <project_vertex>',
-        `vRackWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;
-#include <project_vertex>`
-      );
-
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <common>',
-        `#include <common>
-uniform float uTime;
-varying vec3 vRackWorldPos;
-
-float rackHash(vec2 p) {
-  p = fract(p * vec2(123.34, 456.21));
-  p += dot(p, p + 45.32);
-  return fract(p.x * p.y);
-}`
-      );
-
-      shader.fragmentShader = shader.fragmentShader.replace(
-        '#include <emissivemap_fragment>',
-        `#include <emissivemap_fragment>
-#ifdef USE_EMISSIVEMAP
-  vec2 pix = vec2(vEmissiveMapUv.x * 1024.0, (1.0 - vEmissiveMapUv.y) * 2048.0);
-
-  // 1. ABSOLUTE SCREEN & INSCRIPTION GUARD:
-  // - OLED Telemetry Displays: strictly at X > 685.0 in 2U servers (Y: 234 to 974)
-  // - UPS Battery Load Window: strictly at Y >= 1800.0
-  // - All Cyan Text & Display Graphics: have B > 0.15
-  // These NEVER blink under any circumstances - characters remain 100% steady, razor-sharp & static!
-  bool isScreenOrText = (pix.y >= 1800.0) || 
-                        (pix.y >= 234.0 && pix.y < 974.0 && pix.x > 685.0) ||
-                        (emissiveColor.b > 0.15);
-
-  if (!isScreenOrText && (emissiveColor.g > 0.15 || emissiveColor.r > 0.15)) {
-    vec2 ledId;
-    bool isUpperPowerLed = false;
-
-    if (pix.y < 234.0) {
-      // Zone 1: Switches (Canvas Y: 48 to 234)
-      float swRow = floor((pix.y - 48.0) / 46.0);
-      float swCol = floor((pix.x - 76.0) / 25.0);
-      ledId = vec2(swCol, swRow);
-    } else if (pix.y < 974.0) {
-      // Zone 2: 2U Compute / NVMe Caddies (Canvas Y: 234 to 974)
-      float s = floor((pix.y - 234.0) / 92.5);
-      float localY = mod(pix.y - 234.0, 92.5);
-      float c = floor((pix.x - 100.0) / 58.0);
-      // Top LED is at localY ~ 21..24.5; Bottom LED is at localY ~ 33..36.5
-      // Split at 28.5 is strictly in the black gap between LEDs (ZERO slicing glitch!)
-      float r = (localY < 28.5) ? 0.0 : 1.0;
-      if (r < 0.5) {
-        isUpperPowerLed = true;
-      }
-      ledId = vec2(c, s * 2.0 + r + 10.0);
-    } else if (pix.y < 1618.0) {
-      // Zone 3: 1U Compute Blades (Canvas Y: 974 to 1618)
-      float b = floor((pix.y - 974.0) / 46.0);
-      float li = floor((pix.x - 680.0) / 24.0);
-      if (li < 0.5) {
-        isUpperPowerLed = true; // Blade PWR status indicator
-      }
-      ledId = vec2(li, b + 40.0);
-    } else {
-      // Zone 4: SAN Storage / Fans (Canvas Y: 1618 to 1802)
-      float r = floor((pix.y - 1618.0) / 28.0);
-      float c = floor((pix.x - 76.0) / 44.0);
-      ledId = vec2(c, r + 70.0);
-    }
-
-    vec2 rackSeed = floor(vRackWorldPos.xz * 2.0);
-    float h = rackHash(ledId + rackSeed * 17.31);
-    float h2 = rackHash(ledId * 2.3 + rackSeed * 31.7);
-
-    float ledMultiplier = 1.0;
-    if (isUpperPowerLed) {
-      // Upper Power / Presence indicators:
-      // 70% Steady Solid Green (authentic hardware power)
-      // 30% Smooth Breathing Heartbeat (calm, elegant, zero-jitter)
-      if (h < 0.70) {
-        ledMultiplier = 1.0;
-      } else {
-        float breath = 0.5 + 0.5 * sin(uTime * 2.5 + h * 6.28);
-        ledMultiplier = mix(0.30, 1.30, breath);
-      }
-    } else {
-      // Lower LEDs: Drive Activity / Network / Bus Traffic
-      // Smooth, natural optical waveforms (eliminates harsh 1-frame strobe noise)
-      if (h < 0.15) {
-        // 15% Steady idle link
-        ledMultiplier = 1.0;
-      } else if (h < 0.60) {
-        // 45% Dynamic Traffic Bursts: rhythmic burst envelope + smooth optical pulse train
-        float cyclePeriod = 1.2 + fract(h * 3.71) * 0.8;
-        float burstPhase = fract((uTime + h * 13.0) / cyclePeriod);
-        float inBurst = smoothstep(0.0, 0.05, burstPhase) * (1.0 - smoothstep(0.35, 0.42, burstPhase));
-        float pulseSpeed = 6.0 + fract(h2 * 5.1) * 4.0;
-        float pulse = 0.5 + 0.5 * sin(uTime * pulseSpeed);
-        float wave = inBurst * pulse;
-        ledMultiplier = mix(0.18, 1.45, wave);
-      } else if (h < 0.85) {
-        // 25% Continuous Data Streaming (smooth continuous optical wave)
-        float speed = 3.5 + fract(h * 4.3) * 3.0;
-        float pulse = 0.5 + 0.5 * sin(uTime * speed + h * 6.28);
-        pulse = pulse * pulse;
-        ledMultiplier = mix(0.18, 1.40, pulse);
-      } else {
-        // 15% System Heartbeat / Sync
-        float pulse = 0.5 + 0.5 * sin(uTime * 3.0 + h * 6.28);
-        ledMultiplier = mix(0.20, 1.35, pulse);
-      }
-    }
-
-    totalEmissiveRadiance *= ledMultiplier;
-  }
-#endif`
-      );
-    };
 
     // Monitor screen displays (Self-Illuminating!)
     // Preserved classic BSOD material
@@ -12084,7 +11983,7 @@ float rackHash(vec2 p) {
     this.serverPodGlassMaterial = new THREE.MeshStandardMaterial({
       color: 0x0f161e,
       transparent: true,
-      opacity: 0.64,
+      opacity: 0.72,
       roughness: 0.08,
       metalness: 0.28,
       envMapIntensity: 1.05,
@@ -12986,8 +12885,8 @@ float rackHash(vec2 p) {
 
     // Zone B: 42U Server Racks & Tempered Glass Server Containment Pod
     // Front Wall Server Racks: Full row of 8 massive cabinets across Z = -9.02 facing +Z!
-    // Stood directly ON TOP of the relocated raised platform at baseY = platH (0.35m), with 8cm rear wall clearance from Z = -9.50m!
-    const frontRackX = [-5.6, -4.0, -2.4, -0.8, 0.8, 2.4, 4.0, 5.6];
+    // Symmetrically centered inside each of the 8 equal-width glass bays of the 14.0m Server Containment Pod!
+    const frontRackX = [-6.087, -4.353, -2.619, -0.871, 0.871, 2.619, 4.353, 6.087];
     const frontRackZ = -9.02; // Rear face at Z = -9.42, wall at Z = -9.50 -> Clean, unclipped 8cm clearance
     for (const rx of frontRackX) {
       this._buildServerCabinet(addPart, addVisual, visualBuckets, rx, frontRackZ, Math.PI, platH); // rotY = Math.PI faces +Z into the room!
@@ -13209,11 +13108,6 @@ float rackHash(vec2 p) {
           if (def.renderOrder !== undefined) {
             mesh.renderOrder = def.renderOrder;
           }
-          if (def.name === 'DC_ServerBlades') {
-            mesh.onBeforeRender = () => {
-              this.serverRackBladeUniforms.uTime.value = performance.now() * 0.001;
-            };
-          }
           const exteriorMeshNames = new Set([
             'DC_BalconyFloor',
             'DC_BalconyCurb',
@@ -13312,30 +13206,31 @@ float rackHash(vec2 p) {
     const d = 0.80;
     const centerY = baseY + h / 2;
 
-    // 1. Cabinet Chassis (Dark brushed steel rack side panels #1c2028, roughness: 0.45, metalness: 0.55)
-    const chassisGeo = new THREE.BoxGeometry(w, h, d);
-    addPart(visualBuckets.serverCabinet, chassisGeo, x, centerY, z, 0, rotY, 0, true);
+    // 1. Cabinet Chassis (Dark brushed steel rack side panels #1c2028 — visual-only inside sealed pod, bottom & rear faces culled)
+    const chassisGeo = createBoxWithoutFaces(w, h, d, ['-y', '+z']);
+    addVisual(visualBuckets.serverCabinet, chassisGeo, x, centerY, z, 0, rotY, 0);
     chassisGeo.dispose();
 
-    // 2. Brushed Silver-Grey Frame Trim around front door (0x6c7685)
+    // 2. Brushed Silver-Grey Frame Trim around front door (0x6c7685 — non-overlapping corners, rear face culled)
     const trimThick = 0.04;
     const trimDepth = 0.03;
-    const topTrim = new THREE.BoxGeometry(w, trimThick, trimDepth);
+    const topTrim = createBoxWithoutFaces(w, trimThick, trimDepth, ['+z']);
     topTrim.translate(0, h / 2 - trimThick / 2, -d / 2 - trimDepth / 2);
     addVisual(visualBuckets.silverTrim, topTrim, x, centerY, z, 0, rotY, 0);
     topTrim.dispose();
 
-    const btmTrim = new THREE.BoxGeometry(w, trimThick, trimDepth);
+    const btmTrim = createBoxWithoutFaces(w, trimThick, trimDepth, ['+z']);
     btmTrim.translate(0, -h / 2 + trimThick / 2, -d / 2 - trimDepth / 2);
     addVisual(visualBuckets.silverTrim, btmTrim, x, centerY, z, 0, rotY, 0);
     btmTrim.dispose();
 
-    const sideTrim = new THREE.BoxGeometry(trimThick, h, trimDepth);
+    const sideTrimH = h - trimThick * 2;
+    const sideTrim = createBoxWithoutFaces(trimThick, sideTrimH, trimDepth, ['+z', '+y', '-y']);
     sideTrim.translate(-w / 2 + trimThick / 2, 0, -d / 2 - trimDepth / 2);
     addVisual(visualBuckets.silverTrim, sideTrim, x, centerY, z, 0, rotY, 0);
     sideTrim.dispose();
 
-    const sideTrimR = new THREE.BoxGeometry(trimThick, h, trimDepth);
+    const sideTrimR = createBoxWithoutFaces(trimThick, sideTrimH, trimDepth, ['+z', '+y', '-y']);
     sideTrimR.translate(w / 2 - trimThick / 2, 0, -d / 2 - trimDepth / 2);
     addVisual(visualBuckets.silverTrim, sideTrimR, x, centerY, z, 0, rotY, 0);
     sideTrimR.dispose();
@@ -16301,8 +16196,8 @@ float rackHash(vec2 p) {
 
     // 2 Back-Wall Vertical Jambs sealing flush against Front Wall inner surface (Z = -9.500m)
     const wallJambGeo = new THREE.BoxGeometry(0.060, podH, 0.048);
-    addPart(visualBuckets.serverPodAlumFrame, wallJambGeo, xLeft, podMidY, -9.476);
-    addPart(visualBuckets.serverPodAlumFrame, wallJambGeo, xRight, podMidY, -9.476);
+    addVisual(visualBuckets.serverPodAlumFrame, wallJambGeo, xLeft, podMidY, -9.476);
+    addVisual(visualBuckets.serverPodAlumFrame, wallJambGeo, xRight, podMidY, -9.476);
     wallJambGeo.dispose();
 
     // =========================================================================
@@ -16318,19 +16213,21 @@ float rackHash(vec2 p) {
     const sideMullionGeo = new THREE.BoxGeometry(0.052, paneH, 0.044);
 
     const sideBaySpanZ = (sideSpanZ - 0.044 - 0.004) * 0.5; // 1.4175m per side bay
-    const sideGlassGeo = new THREE.BoxGeometry(glassThick, paneH - 0.002, sideBaySpanZ);
+    // Single-sheet outward-facing PlaneGeometry (eliminates multi-layer BoxGeometry transparent overdraw)
+    const sideGlassGeo = new THREE.PlaneGeometry(sideBaySpanZ, paneH - 0.002);
     const sideRearBayMidZ = sideZStart + 0.001 + sideBaySpanZ * 0.5;
     const sideFrontBayMidZ = sideZEnd - 0.001 - sideBaySpanZ * 0.5;
 
     for (const sx of [xLeft, xRight]) {
+      const sideRotY = sx < 0 ? -Math.PI * 0.5 : Math.PI * 0.5;
       // Bottom platform track & top ceiling header channel
       addPart(visualBuckets.serverPodAlumFrame, sideBottomTrackGeo, sx, yBottom + trackH * 0.5, sideMidZ);
       addPart(visualBuckets.serverPodAlumFrame, sideTopHeaderGeo, sx, yTop - headerH * 0.5, sideMidZ);
       // Center vertical side mullion dividing side wall into 2 modular bays
       addPart(visualBuckets.serverPodAlumFrame, sideMullionGeo, sx, paneMidY, sideMidZ);
-      // 2 Smoked Tempered Glass Side Bays
-      addVisual(visualBuckets.serverPodGlass, sideGlassGeo, sx, paneMidY, sideRearBayMidZ);
-      addVisual(visualBuckets.serverPodGlass, sideGlassGeo, sx, paneMidY, sideFrontBayMidZ);
+      // 2 Smoked Tempered Glass Side Bays (outward-facing normals: -X on left, +X on right)
+      addVisual(visualBuckets.serverPodGlass, sideGlassGeo, sx, paneMidY, sideRearBayMidZ, 0, sideRotY, 0);
+      addVisual(visualBuckets.serverPodGlass, sideGlassGeo, sx, paneMidY, sideFrontBayMidZ, 0, sideRotY, 0);
     }
     sideBottomTrackGeo.dispose();
     sideTopHeaderGeo.dispose();
@@ -16345,59 +16242,63 @@ float rackHash(vec2 p) {
     addPart(visualBuckets.serverPodAlumFrame, frontTopHeaderGeo, 0, yTop - headerH * 0.5, zFront);
     frontTopHeaderGeo.dispose();
 
-    // Heavy Anodized Aluminum Door Portal Posts at X = -1.60m and X = +1.60m
-    // (Exact midpoints between Rack 3 & 4 on the left, and Rack 5 & 6 on the right!)
+    // 8 Equal Symmetrical Bays across the 13.930m Pod Width (bayStride = 6.965 / 4 = 1.74125m)
+    // Heavy Anodized Aluminum Door Portal Posts at X = ±1.74125m (exact 1/4-span points)
+    const portalX = xRight * 0.25; // 1.74125m
     const portalPostW = 0.064;
     const portalPostH = yTop - headerH - yBottom - 0.002; // 3.393m (Y = 0.353 to 3.746)
     const portalPostMidY = yBottom + portalPostH * 0.5;
     const portalPostGeo = new THREE.BoxGeometry(portalPostW, portalPostH, 0.068);
-    addPart(visualBuckets.serverPodAlumFrame, portalPostGeo, -1.60, portalPostMidY, zFront);
-    addPart(visualBuckets.serverPodAlumFrame, portalPostGeo, 1.60, portalPostMidY, zFront);
+    addPart(visualBuckets.serverPodAlumFrame, portalPostGeo, -portalX, portalPostMidY, zFront);
+    addPart(visualBuckets.serverPodAlumFrame, portalPostGeo, portalX, portalPostMidY, zFront);
     portalPostGeo.dispose();
 
-    // Left & Right Fixed Wing Bottom Tracks (X = ±1.633m to ±6.932m, span = 5.299m)
-    const wingInnerX = 1.60 + portalPostW * 0.5 + 0.001; // 1.633m
-    const wingOuterX = xRight - 0.032 - 0.001;           // 6.932m
-    const wingSpanX = wingOuterX - wingInnerX;           // 5.299m
-    const wingMidX = (wingInnerX + wingOuterX) * 0.5;    // 4.2825m
+    // Left & Right Fixed Wing Bottom Tracks (X = ±1.77425m to ±6.932m, span = 5.15775m)
+    const wingInnerX = portalX + portalPostW * 0.5 + 0.001; // 1.77425m
+    const wingOuterX = xRight - 0.032 - 0.001;              // 6.932m
+    const wingSpanX = wingOuterX - wingInnerX;              // 5.15775m
+    const wingMidX = (wingInnerX + wingOuterX) * 0.5;       // 4.353125m
 
     const wingBottomTrackGeo = new THREE.BoxGeometry(wingSpanX, trackH, 0.056);
     addPart(visualBuckets.serverPodAlumFrame, wingBottomTrackGeo, -wingMidX, yBottom + trackH * 0.5, zFront);
     addPart(visualBuckets.serverPodAlumFrame, wingBottomTrackGeo, wingMidX, yBottom + trackH * 0.5, zFront);
     wingBottomTrackGeo.dispose();
 
-    // Slim Vertical Aluminum Mullions on Left & Right Wings aligned with Server Rack gaps (X = ±3.20m, ±4.80m)
+    // Slim Vertical Aluminum Mullions trisecting Left & Right Wings into 3 IDENTICAL equal-width bays (1.688m each)
     const mullionW = 0.044;
+    const equalWingBayW = (wingSpanX - 2 * mullionW - 0.006) / 3; // 1.6879m
+    const mullion1X = wingInnerX + 0.001 + equalWingBayW + 0.001 + mullionW * 0.5; // 3.486m
+    const mullion2X = mullion1X + mullionW * 0.5 + 0.001 + equalWingBayW + 0.001 + mullionW * 0.5; // 5.220m
     const frontMullionGeo = new THREE.BoxGeometry(mullionW, paneH, 0.052);
-    for (const mx of [-4.80, -3.20, 3.20, 4.80]) {
+    for (const mx of [-mullion2X, -mullion1X, mullion1X, mullion2X]) {
       addPart(visualBuckets.serverPodAlumFrame, frontMullionGeo, mx, paneMidY, zFront);
     }
     frontMullionGeo.dispose();
 
-    // 6 Modular Smoked Glass Bays across Left & Right Fixed Wings (3 on Left Wing, 3 on Right Wing)
+    // 6 Identical-Width Modular Smoked Glass Bays across Left & Right Fixed Wings (3 on Left Wing, 3 on Right Wing)
     const wingBayBounds = [
-      // Left Wing (Racks 1, 2, 3)
-      [-wingOuterX + 0.001, -4.80 - mullionW * 0.5 - 0.001],
-      [-4.80 + mullionW * 0.5 + 0.001, -3.20 - mullionW * 0.5 - 0.001],
-      [-3.20 + mullionW * 0.5 + 0.001, -wingInnerX - 0.001],
-      // Right Wing (Racks 6, 7, 8)
-      [wingInnerX + 0.001, 3.20 - mullionW * 0.5 - 0.001],
-      [3.20 + mullionW * 0.5 + 0.001, 4.80 - mullionW * 0.5 - 0.001],
-      [4.80 + mullionW * 0.5 + 0.001, wingOuterX - 0.001],
+      // Left Wing (Racks 1, 2, 3 — all 3 bays strictly equal width!)
+      [-wingOuterX + 0.001, -mullion2X - mullionW * 0.5 - 0.001],
+      [-mullion2X + mullionW * 0.5 + 0.001, -mullion1X - mullionW * 0.5 - 0.001],
+      [-mullion1X + mullionW * 0.5 + 0.001, -wingInnerX - 0.001],
+      // Right Wing (Racks 6, 7, 8 — all 3 bays strictly equal width!)
+      [wingInnerX + 0.001, mullion1X - mullionW * 0.5 - 0.001],
+      [mullion1X + mullionW * 0.5 + 0.001, mullion2X - mullionW * 0.5 - 0.001],
+      [mullion2X + mullionW * 0.5 + 0.001, wingOuterX - 0.001],
     ];
     for (const [bxMin, bxMax] of wingBayBounds) {
       const bw = bxMax - bxMin;
       const bMidX = (bxMin + bxMax) * 0.5;
-      const bayGlassGeo = new THREE.BoxGeometry(bw, paneH - 0.002, glassThick);
+      const bayGlassGeo = new THREE.PlaneGeometry(bw, paneH - 0.002);
       addVisual(visualBuckets.serverPodGlass, bayGlassGeo, bMidX, paneMidY, zFront);
       bayGlassGeo.dispose();
     }
 
     // =========================================================================
-    // 4. CENTERED DOUBLE ALUMINUM-GLASS DOORS & TOP TRANSOM (X = -1.568m to +1.568m)
+    // 4. CENTERED DOUBLE ALUMINUM-GLASS DOORS & TOP TRANSOM (X = -1.709m to +1.709m)
     // =========================================================================
-    const portalClearHalfW = 1.60 - portalPostW * 0.5; // 1.568m
-    const portalClearFullW = portalClearHalfW * 2;     // 3.136m
+    const portalClearHalfW = portalX - portalPostW * 0.5; // 1.70925m
+    const portalClearFullW = portalClearHalfW * 2;        // 3.4185m
 
     // A. Horizontal Door Portal Transom Header Bar (Y = 3.132m to 3.190m, aligned with server rack tops at 3.15m)
     const transomBarH = 0.058;
@@ -16420,7 +16321,7 @@ float rackHash(vec2 p) {
 
     const transomGlassW = portalClearHalfW - mullionW * 0.5 - 0.002; // 1.544m
     const transomGlassMidX = mullionW * 0.5 + 0.001 + transomGlassW * 0.5;
-    const transomGlassGeo = new THREE.BoxGeometry(transomGlassW, transomPaneH - 0.002, glassThick);
+    const transomGlassGeo = new THREE.PlaneGeometry(transomGlassW, transomPaneH - 0.002);
     addVisual(visualBuckets.serverPodGlass, transomGlassGeo, -transomGlassMidX, transomPaneMidY, zFront);
     addVisual(visualBuckets.serverPodGlass, transomGlassGeo, transomGlassMidX, transomPaneMidY, zFront);
     transomGlassGeo.dispose();
@@ -16452,7 +16353,7 @@ float rackHash(vec2 p) {
     const doorStileGeo = new THREE.BoxGeometry(doorStileW, doorLeafH, doorLeafThick);
     const doorBottomRailGeo = new THREE.BoxGeometry(leafInnerGlassW, doorBottomRailH, doorLeafThick);
     const doorTopRailGeo = new THREE.BoxGeometry(leafInnerGlassW, doorTopRailH, doorLeafThick);
-    const doorGlassPaneGeo = new THREE.BoxGeometry(leafInnerGlassW, leafInnerGlassH, glassThick);
+    const doorGlassPaneGeo = new THREE.PlaneGeometry(leafInnerGlassW, leafInnerGlassH);
 
     for (const sign of [-1, 1]) {
       const outerStileX = sign * (leafXOuter - doorStileW * 0.5);
@@ -16475,7 +16376,7 @@ float rackHash(vec2 p) {
 
     // Center Meeting Seam Astragal Gasket at X = 0.000m
     const astragalGeo = new THREE.BoxGeometry(0.006, doorLeafH - 0.002, 0.036);
-    addPart(visualBuckets.elevatorPortal, astragalGeo, 0, doorLeafMidY, zFront);
+    addVisual(visualBuckets.elevatorPortal, astragalGeo, 0, doorLeafMidY, zFront);
     astragalGeo.dispose();
 
     // E. Symmetrical Brushed-Chrome Vertical Pull Handles, Standoffs, Lock Cylinders & Barrel Hinges
@@ -16485,33 +16386,31 @@ float rackHash(vec2 p) {
     const handleMidY = (handleYMin + handleYMax) * 0.5; // 1.45m
     const handleXOffset = 0.105; // Mounted symmetrically on left (-0.105m) & right (+0.105m) door leaves
 
-    const pullBarGeo = new THREE.CylinderGeometry(0.014, 0.014, handleLen, 14);
+    const pullBarGeo = new THREE.CylinderGeometry(0.014, 0.014, handleLen, 10);
     const standoffGeo = new THREE.BoxGeometry(0.022, 0.022, 0.036);
-    const lockEscutcheonGeo = new THREE.CylinderGeometry(0.018, 0.018, doorLeafThick + 0.012, 14);
+    const lockEscutcheonGeo = new THREE.CylinderGeometry(0.018, 0.018, doorLeafThick + 0.012, 10);
     lockEscutcheonGeo.rotateX(Math.PI * 0.5);
 
+    const barZ = zFront + doorLeafThick * 0.5 + 0.038;
+    const standZ = zFront + doorLeafThick * 0.5 + 0.019;
     for (const doorSign of [-1, 1]) {
       const hx = doorSign * handleXOffset;
-      // Keyhole lock cylinder on inner lock stile at Y = 0.96m
-      addPart(visualBuckets.vestibuleChrome, lockEscutcheonGeo, doorSign * 0.043, 0.96, zFront);
+      // Keyhole lock cylinder on inner lock stile at Y = 0.96m (visual-only)
+      addVisual(visualBuckets.vestibuleChrome, lockEscutcheonGeo, doorSign * 0.043, 0.96, zFront);
 
-      // Pull handles on both exterior (+Z) and interior (-Z) sides of each door leaf
-      for (const zSign of [-1, 1]) {
-        const barZ = zFront + zSign * (doorLeafThick * 0.5 + 0.038);
-        const standZ = zFront + zSign * (doorLeafThick * 0.5 + 0.019);
-        addPart(visualBuckets.vestibuleChrome, pullBarGeo, hx, handleMidY, barZ);
-        addPart(visualBuckets.vestibuleChrome, standoffGeo, hx, handleYMin + 0.06, standZ);
-        addPart(visualBuckets.vestibuleChrome, standoffGeo, hx, handleYMax - 0.06, standZ);
-      }
+      // Exterior (+Z) pull handles & standoffs on each door leaf (visual-only)
+      addVisual(visualBuckets.vestibuleChrome, pullBarGeo, hx, handleMidY, barZ);
+      addVisual(visualBuckets.vestibuleChrome, standoffGeo, hx, handleYMin + 0.06, standZ);
+      addVisual(visualBuckets.vestibuleChrome, standoffGeo, hx, handleYMax - 0.06, standZ);
     }
     pullBarGeo.dispose();
     standoffGeo.dispose();
     lockEscutcheonGeo.dispose();
 
-    // 6 Chrome Barrel Hinges (3 on left portal jamb X = -1.566m, 3 on right portal jamb X = +1.566m)
+    // 6 Chrome Barrel Hinges (3 on left portal jamb, 3 on right portal jamb)
     const barrelHingeGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.095, 12);
     for (const sideSign of [-1, 1]) {
-      const hingeX = sideSign * 1.566;
+      const hingeX = sideSign * (portalClearHalfW - 0.002);
       for (const hy of [0.72, 1.74, 2.76]) {
         addVisual(visualBuckets.vestibuleChrome, barrelHingeGeo, hingeX, hy, zFront + 0.024);
       }
@@ -18154,6 +18053,8 @@ float rackHash(vec2 p) {
    */
   getPreloadTextures() {
     return [
+      this.serverBladeDiffuseTexture,
+      this.serverBladeEmissiveTexture,
       this.noEntrySignTexture,
       this.extinguisherSignTexture,
       this.extinguisherStickerTexture,
