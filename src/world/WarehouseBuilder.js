@@ -11343,6 +11343,337 @@ function createMonitorBackTexture() {
   return texture;
 }
 
+/**
+ * Procedural Commercial Janitor Cart Folded "CUIDADO / CAUTION / PISO MOLHADO / WET FLOOR"
+ * Wet Floor Sign Texture (256x512) — maps onto the tapered main graphic panel below the 3D handle cutout.
+ */
+function createJanitorCautionSignTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Vivid Safety-Yellow Molded Plastic Base (#ffd000 -> #f5c000)
+  const bgGrad = ctx.createLinearGradient(0, 0, 256, 512);
+  bgGrad.addColorStop(0.0, '#ffda1a');
+  bgGrad.addColorStop(0.5, '#f9c700');
+  bgGrad.addColorStop(1.0, '#eab500');
+  ctx.fillStyle = bgGrad;
+  ctx.fillRect(0, 0, 256, 512);
+
+  // Subtle molded recessed graphic panel border (matching reference photo)
+  ctx.strokeStyle = '#d4a300';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(12, 10, 232, 468, 10);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#ffe55c';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(15, 13, 226, 462, 8);
+  ctx.stroke();
+
+  // Bottom horizontal molded panel lip shadow & highlight
+  ctx.fillStyle = '#cf9e00';
+  ctx.fillRect(14, 476, 228, 4);
+  ctx.fillStyle = '#ffe55c';
+  ctx.fillRect(14, 480, 228, 3);
+
+  // 2. Top Bilingual Header: "CUIDADO" (bold) / "CAUTION" (medium)
+  ctx.fillStyle = '#111317';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = '900 42px Arial, Helvetica, sans-serif';
+  ctx.fillText('CUIDADO', 128, 56);
+
+  ctx.font = '700 28px Arial, Helvetica, sans-serif';
+  ctx.fillText('CAUTION', 128, 96);
+
+  // 3. Center Bold Black Equilateral Warning Triangle (Y = 132 to 316)
+  const txTop = 128;
+  const tyTop = 134;
+  const txLeft = 34;
+  const tyBot = 312;
+  const txRight = 222;
+
+  ctx.strokeStyle = '#111317';
+  ctx.lineWidth = 14;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(txTop, tyTop);
+  ctx.lineTo(txRight, tyBot);
+  ctx.lineTo(txLeft, tyBot);
+  ctx.closePath();
+  ctx.stroke();
+
+  // 4. Slipping-Person Silhouette + Wavy Water Lines Inside Warning Triangle
+  ctx.fillStyle = '#111317';
+  ctx.strokeStyle = '#111317';
+
+  // Head
+  ctx.beginPath();
+  ctx.arc(108, 206, 9.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Reclining torso (falling backward)
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.moveTo(112, 220);
+  ctx.lineTo(131, 254);
+  ctx.stroke();
+
+  // Left arm (bent backward/downward)
+  ctx.lineWidth = 7.5;
+  ctx.beginPath();
+  ctx.moveTo(111, 221);
+  ctx.lineTo(91, 232);
+  ctx.lineTo(86, 250);
+  ctx.stroke();
+
+  // Right arm (reaching forward/up for balance)
+  ctx.beginPath();
+  ctx.moveTo(115, 221);
+  ctx.lineTo(135, 224);
+  ctx.lineTo(149, 213);
+  ctx.stroke();
+
+  // Upper leg (raised forward)
+  ctx.lineWidth = 8.5;
+  ctx.beginPath();
+  ctx.moveTo(131, 252);
+  ctx.lineTo(169, 239);
+  ctx.stroke();
+
+  // Lower slipping leg (kicked out over wet floor)
+  ctx.beginPath();
+  ctx.moveTo(131, 255);
+  ctx.lineTo(175, 273);
+  ctx.stroke();
+
+  // Wavy wet-floor slip lines beneath person
+  ctx.lineWidth = 3.5;
+  ctx.beginPath();
+  ctx.moveTo(106, 275);
+  ctx.bezierCurveTo(116, 270, 124, 282, 134, 279);
+  ctx.bezierCurveTo(144, 276, 150, 287, 162, 284);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(112, 286);
+  ctx.bezierCurveTo(124, 282, 132, 293, 144, 290);
+  ctx.bezierCurveTo(154, 287, 162, 296, 174, 293);
+  ctx.stroke();
+
+  // 5. Bottom Bilingual Text: "PISO" / "MOLHADO" / "WET FLOOR"
+  ctx.fillStyle = '#111317';
+  ctx.font = '900 38px Arial, Helvetica, sans-serif';
+  ctx.fillText('PISO', 128, 354);
+  ctx.fillText('MOLHADO', 128, 394);
+
+  ctx.font = '700 25px Arial, Helvetica, sans-serif';
+  ctx.fillText('WET FLOOR', 128, 432);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 8;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Fine Synthetic Bristle Texture (256x256) for the Janitor Cart Push Broom.
+ * Renders hundreds of vertical/fanned charcoal & slate-gray synthetic fibers with
+ * dark socket root shading at the bottom (v=0) and feathered flagged bristle tips at the top (v=1).
+ */
+function createJanitorBroomBristleTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Base vertical gradient from dark socket roots (bottom) to lighter flagged tips (top)
+  const baseGrad = ctx.createLinearGradient(0, 256, 0, 0);
+  baseGrad.addColorStop(0.0, '#272c35');
+  baseGrad.addColorStop(0.18, '#3f4754');
+  baseGrad.addColorStop(0.78, '#556070');
+  baseGrad.addColorStop(1.0, '#788496');
+  ctx.fillStyle = baseGrad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Deterministic pseudo-random helper for dense synthetic fiber strands
+  let seed = 48271;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+
+  const palette = ['#252a32', '#323944', '#434c59', '#586373', '#6c788a', '#8390a2'];
+  for (let i = 0; i < 480; i++) {
+    const x0 = rand() * 256;
+    ctx.strokeStyle = palette[Math.floor(rand() * palette.length)];
+    ctx.lineWidth = 0.8 + rand() * 1.3;
+    ctx.globalAlpha = 0.55 + rand() * 0.40;
+    ctx.beginPath();
+    ctx.moveTo(x0, 256);
+    ctx.lineTo(x0, 0);
+    ctx.stroke();
+  }
+
+  // Subtle tuft bundle shadow grooves
+  ctx.globalAlpha = 0.28;
+  for (let tx = 4; tx < 256; tx += 8) {
+    ctx.fillStyle = '#1b1f26';
+    ctx.fillRect(tx, 16, 1.5, 240);
+  }
+  ctx.globalAlpha = 1.0;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Heavy-Duty Yellow Vinyl Refuse Bag Texture (256x256) with subtle ripstop
+ * nylon weave and soft vertical cloth drape shading (eliminating hard geometric box edges).
+ */
+function createJanitorYellowVinylTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Base warm safety-yellow vinyl fill
+  ctx.fillStyle = '#f2b718';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Soft sinusoidal vertical fabric drape shading across U (0..256)
+  for (let x = 0; x < 256; x++) {
+    const u = (x / 256) * Math.PI * 2;
+    const wave =
+      Math.sin(u * 4.0) * 0.45 +
+      Math.sin(u * 8.0 + 0.9) * 0.30 +
+      Math.cos(u * 12.0 - 0.4) * 0.25;
+    const shade = Math.round(wave * 18);
+    if (shade > 0) {
+      ctx.fillStyle = `rgba(255, 232, 120, ${(shade / 18) * 0.22})`;
+    } else {
+      ctx.fillStyle = `rgba(145, 96, 0, ${(-shade / 18) * 0.24})`;
+    }
+    ctx.fillRect(x, 0, 1, 256);
+  }
+
+  // Top collar hem shadow & bottom sewn seam shading
+  const vGrad = ctx.createLinearGradient(0, 0, 0, 256);
+  vGrad.addColorStop(0.0, 'rgba(90, 60, 0, 0.26)');
+  vGrad.addColorStop(0.07, 'rgba(0, 0, 0, 0.0)');
+  vGrad.addColorStop(0.88, 'rgba(0, 0, 0, 0.0)');
+  vGrad.addColorStop(1.0, 'rgba(110, 72, 0, 0.28)');
+  ctx.fillStyle = vGrad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Fine ripstop vinyl micro-grid
+  ctx.strokeStyle = 'rgba(160, 110, 0, 0.08)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 256; i += 4) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, 256);
+    ctx.moveTo(0, i);
+    ctx.lineTo(256, i);
+    ctx.stroke();
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+/**
+ * Procedural Plush Microfiber Terry-Cloth Towel Texture (256x256) with soft fabric
+ * fold shading, looped terry micro-pile grain, and stitched overlock hem border.
+ */
+function createJanitorTowelTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+
+  // Warm tan/taupe microfiber base (#a89682)
+  ctx.fillStyle = '#a89682';
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Soft vertical cloth fold shading across U (0..256)
+  for (let x = 0; x < 256; x++) {
+    const u = (x / 256) * Math.PI * 3.0;
+    const fold = Math.sin(u) * 0.55 + Math.cos(u * 2.0 + 0.6) * 0.35;
+    if (fold > 0) {
+      ctx.fillStyle = `rgba(235, 220, 200, ${fold * 0.22})`;
+    } else {
+      ctx.fillStyle = `rgba(75, 60, 45, ${-fold * 0.25})`;
+    }
+    ctx.fillRect(x, 0, 1, 256);
+  }
+
+  // Subtle darkening at the top caddy-rim bend (v ~ 0.40)
+  const bendGrad = ctx.createLinearGradient(0, 0, 0, 256);
+  bendGrad.addColorStop(0.0, 'rgba(65, 50, 38, 0.18)');
+  bendGrad.addColorStop(0.32, 'rgba(245, 232, 215, 0.16)');
+  bendGrad.addColorStop(0.45, 'rgba(65, 50, 38, 0.20)');
+  bendGrad.addColorStop(0.85, 'rgba(0, 0, 0, 0.0)');
+  bendGrad.addColorStop(1.0, 'rgba(60, 48, 36, 0.22)');
+  ctx.fillStyle = bendGrad;
+  ctx.fillRect(0, 0, 256, 256);
+
+  // Deterministic terry-cloth microfiber pile speckles
+  let seed = 91823;
+  const rand = () => {
+    seed = (seed * 16807) % 2147483647;
+    return (seed - 1) / 2147483646;
+  };
+  for (let i = 0; i < 3600; i++) {
+    const px = Math.floor(rand() * 256);
+    const py = Math.floor(rand() * 256);
+    ctx.fillStyle = rand() > 0.5 ? 'rgba(240, 228, 212, 0.18)' : 'rgba(82, 68, 54, 0.18)';
+    ctx.fillRect(px, py, 2, 2);
+  }
+
+  // Stitched overlock hem border around perimeter
+  ctx.strokeStyle = '#7d6b58';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(6, 6, 244, 244);
+  ctx.strokeStyle = '#c4b29e';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  ctx.strokeRect(10, 10, 236, 236);
+  ctx.setLineDash([]);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.anisotropy = 4;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 export class WarehouseBuilder {
   constructor(scene) {
     this.scene = scene;
@@ -12260,6 +12591,82 @@ export class WarehouseBuilder {
       metalness: 0.15,
     });
 
+    // Hero-Scale Commercial Janitor Cleaning Cart ("Carrinho de Limpeza Funcional") Materials
+    this.janitorCautionSignTexture = createJanitorCautionSignTexture();
+    this.janitorBroomBristleTexture = createJanitorBroomBristleTexture();
+    this.janitorYellowVinylTexture = createJanitorYellowVinylTexture();
+    this.janitorTowelTexture = createJanitorTowelTexture();
+
+    this.janitorBlackPlasticMaterial = new THREE.MeshStandardMaterial({
+      color: 0x181a1e,
+      roughness: 0.55,
+      metalness: 0.08,
+    });
+
+    this.janitorGrayRubberMaterial = new THREE.MeshStandardMaterial({
+      color: 0x646e78,
+      roughness: 0.62,
+      metalness: 0.18,
+    });
+
+    this.janitorYellowPlasticMaterial = new THREE.MeshStandardMaterial({
+      color: 0xf5b800,
+      roughness: 0.32,
+      metalness: 0.04,
+    });
+
+    this.janitorYellowVinylMaterial = new THREE.MeshStandardMaterial({
+      map: this.janitorYellowVinylTexture,
+      roughness: 0.46,
+      metalness: 0.02,
+    });
+
+    this.janitorBroomBristleMaterial = new THREE.MeshStandardMaterial({
+      map: this.janitorBroomBristleTexture,
+      roughness: 0.88,
+      metalness: 0.04,
+    });
+
+    this.janitorCautionSignMaterial = new THREE.MeshStandardMaterial({
+      map: this.janitorCautionSignTexture,
+      roughness: 0.34,
+      metalness: 0.04,
+    });
+
+    this.janitorSoapyWaterMaterial = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      transparent: true,
+      opacity: 0.34,
+      roughness: 0.10,
+      metalness: 0.08,
+      depthWrite: false,
+    });
+
+    this.janitorBluePlasticMaterial = new THREE.MeshStandardMaterial({
+      color: 0x1d4ed8,
+      roughness: 0.36,
+      metalness: 0.05,
+    });
+
+    this.janitorCyanBottleMaterial = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      roughness: 0.25,
+      metalness: 0.05,
+    });
+
+    this.janitorGreenPlasticMaterial = new THREE.MeshStandardMaterial({
+      color: 0x65b71e,
+      roughness: 0.38,
+      metalness: 0.05,
+    });
+
+    this.janitorTowelTanMaterial = new THREE.MeshStandardMaterial({
+      map: this.janitorTowelTexture,
+      roughness: 0.88,
+      metalness: 0.0,
+      side: THREE.DoubleSide,
+    });
+
     const skylineFacades = createSkyscraperFacadeTextures();
     this.skylineTowerATexture = skylineFacades.facadeA;
     this.skylineTowerBTexture = skylineFacades.facadeB;
@@ -12479,6 +12886,17 @@ export class WarehouseBuilder {
       skylineTowerD: [],
       skylineTowerRoofs: [],
       skylineRoofTrim: [],
+      janitorBlackPlastic: [],
+      janitorGrayRubber: [],
+      janitorYellowPlastic: [],
+      janitorYellowVinyl: [],
+      janitorCautionSign: [],
+      janitorSoapyWater: [],
+      janitorBluePlastic: [],
+      janitorCyanBottle: [],
+      janitorGreenPlastic: [],
+      janitorTowelTan: [],
+      janitorBroomBristle: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -12877,11 +13295,11 @@ export class WarehouseBuilder {
     }
 
     // E. Hero-Scale Enterprise Multifunction Printer & Brushed Stainless-Steel Trash Bin
-    // Backed up against East AC wall (X = 10.0m) between 3rd AC unit (Z = 4.7m) and Balcony Door (Z = 13.0m):
-    // - Printer at X = 9.53m, Z = 7.15m (facing -X into room)
-    // - Trash Bin at X = 9.62m, Z = 8.15m
-    this._buildEnterprisePrinter(addVisual, registerCollider, visualBuckets, 9.53, 0.0, 7.15, -Math.PI / 2);
-    this._buildCylindricalTrashBin(addVisual, registerCollider, visualBuckets, 9.62, 8.15);
+    // Backed up against East AC wall (X = 10.0m) directly below the middle AC unit (Z = 1.0m):
+    // - Printer at X = 9.53m, Z = 1.00m (facing -X into room)
+    // - Trash Bin at X = 9.62m, Z = 2.00m
+    this._buildEnterprisePrinter(addVisual, registerCollider, visualBuckets, 9.53, 0.0, 1.00, -Math.PI / 2);
+    this._buildCylindricalTrashBin(addVisual, registerCollider, visualBuckets, 9.62, 2.00);
 
     // Zone B: 42U Server Racks & Tempered Glass Server Containment Pod
     // Front Wall Server Racks: Full row of 8 massive cabinets across Z = -9.02 facing +Z!
@@ -12931,7 +13349,8 @@ export class WarehouseBuilder {
       registerCollider,
       registerPlayerOnlyCollider,
       visualBuckets,
-      group
+      group,
+      addPartMatrix
     );
 
     // Zone E: Back Wall Transformation (Closed Double Balcony Door, Panoramic Window, Exterior Balcony & 3D Skyline)
@@ -13066,6 +13485,17 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.skylineTowerD, material: this.skylineTowerDMaterial, name: 'DC_SkylineTowerD' },
       { bucket: visualBuckets.skylineTowerRoofs, material: this.skylineTowerRoofMaterial, name: 'DC_SkylineTowerRoofs' },
       { bucket: visualBuckets.skylineRoofTrim, material: this.skylineRoofTrimMaterial, name: 'DC_SkylineRoofTrim' },
+      { bucket: visualBuckets.janitorBlackPlastic, material: this.janitorBlackPlasticMaterial, name: 'DC_JanitorBlackPlastic' },
+      { bucket: visualBuckets.janitorGrayRubber, material: this.janitorGrayRubberMaterial, name: 'DC_JanitorGrayRubber' },
+      { bucket: visualBuckets.janitorYellowPlastic, material: this.janitorYellowPlasticMaterial, name: 'DC_JanitorYellowPlastic' },
+      { bucket: visualBuckets.janitorYellowVinyl, material: this.janitorYellowVinylMaterial, name: 'DC_JanitorYellowVinyl' },
+      { bucket: visualBuckets.janitorCautionSign, material: this.janitorCautionSignMaterial, name: 'DC_JanitorCautionSign' },
+      { bucket: visualBuckets.janitorSoapyWater, material: this.janitorSoapyWaterMaterial, name: 'DC_JanitorSoapyWater', renderOrder: 1 },
+      { bucket: visualBuckets.janitorBluePlastic, material: this.janitorBluePlasticMaterial, name: 'DC_JanitorBluePlastic' },
+      { bucket: visualBuckets.janitorCyanBottle, material: this.janitorCyanBottleMaterial, name: 'DC_JanitorCyanBottle' },
+      { bucket: visualBuckets.janitorGreenPlastic, material: this.janitorGreenPlasticMaterial, name: 'DC_JanitorGreenPlastic' },
+      { bucket: visualBuckets.janitorTowelTan, material: this.janitorTowelTanMaterial, name: 'DC_JanitorTowelTan' },
+      { bucket: visualBuckets.janitorBroomBristle, material: this.janitorBroomBristleMaterial, name: 'DC_JanitorBroomBristle' },
     ];
 
     for (const def of bucketDefs) {
@@ -15493,7 +15923,8 @@ export class WarehouseBuilder {
     registerCollider,
     registerPlayerOnlyCollider,
     visualBuckets,
-    group
+    group,
+    addPartMatrix
   ) {
     // =========================================================================
     // 1. GLASS PARTITION WINDOW & STONE WINDOWSILL (Z = +1.70 to +9.50, Y = 1.08 to 2.65m)
@@ -16152,6 +16583,1009 @@ export class WarehouseBuilder {
     // Scaled (scale = 0.64, frondSpreadScale = 0.50) to harmonize cleanly with the 0.94m corner niche
     // between the elevator left portal jamb (X = -13.26) and the west wall (X = -14.20) at Z = 10.83.
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -13.73, 0.0, 10.83, 0.64, 0.50);
+
+    // E. Hero-Scale Commercial Janitor Cleaning Cart ("Carrinho de Limpeza Funcional")
+    // Abandoned in a rush on the black marble floor beneath the green stairwell exit sign (Z = 8.98m, X = -13.56m),
+    // rotated at a dynamic organic angle (~16° / +0.28 rad yaw away from the west wall) with mop bucket pointing
+    // toward the elevator/vestibule doorway and yellow refuse bag toward the stairwell.
+    this._buildJanitorCart(addPartMatrix, registerPlayerOnlyCollider, visualBuckets, -13.56, 0.0, 8.98, 0.28);
+  }
+
+  /**
+   * Builds the Hero-Scale Commercial Janitor Cleaning Cart ("Carrinho de Limpeza Funcional")
+   * across 6 detailed component groups:
+   *  1. Black Molded-Plastic 3-Tier Frame, Front Deck & Wheel Assembly
+   *  2. Front Platform: Bright Yellow Mop Bucket & Side-Press Wringer
+   *  3. Rear Frame: Hanging Yellow Vinyl Refuse Bag & Hinged Black Lid
+   *  4. Front-Mounted Yellow "CAUTION / CUIDADO" Folded Wet Floor Sign
+   *  5. 3 Tall Clipped Cleaning Tools & Draped Microfiber Rag (Rising to Y ~ 1.85m)
+   *  6. Stocked Cleaning Supplies on Top Caddy & Lower Shelves
+   */
+  _buildJanitorCart(
+    addPartMatrix,
+    registerPlayerOnlyCollider,
+    visualBuckets,
+    cartX,
+    cartY,
+    cartZ,
+    cartYaw = 0.28
+  ) {
+    const cartPos = new THREE.Vector3(cartX, cartY, cartZ);
+    const cartQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, cartYaw, 0));
+    const cartScale = new THREE.Vector3(1, 1, 1);
+    const cartMatrix = new THREE.Matrix4().compose(cartPos, cartQuat, cartScale);
+
+    const localPos = new THREE.Vector3();
+    const localEuler = new THREE.Euler();
+    const localQuat = new THREE.Quaternion();
+    const localMatrix = new THREE.Matrix4();
+    const worldMatrix = new THREE.Matrix4();
+
+    // Helper: transforms local cart space (lx, ly, lz, rx, ry, rz) into world space
+    // and routes into merged visualBuckets + weapon hitscan BVH collider
+    const addLocal = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0, collidable = true) => {
+      localPos.set(lx, ly, lz);
+      localEuler.set(rx, ry, rz);
+      localQuat.setFromEuler(localEuler);
+      localMatrix.compose(localPos, localQuat, cartScale);
+      worldMatrix.multiplyMatrices(cartMatrix, localMatrix);
+      addPartMatrix(bucket, geo, worldMatrix, collidable);
+    };
+
+    // =========================================================================
+    // 1. BLACK MOLDED-PLASTIC 3-TIER FRAME, FRONT DECK & WHEEL ASSEMBLY
+    // =========================================================================
+    // Local coordinate orientation:
+    //   +Z = Front (Mop bucket deck, front swivel casters, caution sign)
+    //   -Z = Rear  (Hanging yellow vinyl refuse bag, large rear wheels)
+    //   +X = Right / East (Room-facing side with clipped broom, flat mop, draped rag)
+    //   -X = Left / West  (Wall-facing side)
+    // Total Footprint: ~1.42m long (Z = -0.68 to +0.74) x 0.66m wide (X = -0.33 to +0.33)
+
+    // A. Base Deck & Front Tray (Y = 0.09m to 0.16m)
+    const deckSlabGeo = new THREE.BoxGeometry(0.62, 0.045, 1.18);
+    addLocal(visualBuckets.janitorBlackPlastic, deckSlabGeo, 0, 0.1125, 0.13);
+    deckSlabGeo.dispose();
+
+    // Raised perimeter lip around front bucket platform (Z = +0.16 to +0.72, Y = 0.135 to 0.168)
+    const frontLipGeo = new THREE.BoxGeometry(0.64, 0.036, 0.032);
+    addLocal(visualBuckets.janitorBlackPlastic, frontLipGeo, 0, 0.148, 0.71);
+    frontLipGeo.dispose();
+
+    const sideLipGeo = new THREE.BoxGeometry(0.032, 0.036, 1.18);
+    addLocal(visualBuckets.janitorBlackPlastic, sideLipGeo, -0.304, 0.148, 0.13);
+    addLocal(visualBuckets.janitorBlackPlastic, sideLipGeo, 0.304, 0.148, 0.13);
+    sideLipGeo.dispose();
+
+    const midDividerLipGeo = new THREE.BoxGeometry(0.58, 0.028, 0.026);
+    addLocal(visualBuckets.janitorBlackPlastic, midDividerLipGeo, 0, 0.144, 0.16);
+    midDividerLipGeo.dispose();
+
+    // B. 2 Large Rear Wheels (radius = 0.14m, centered at Y = 0.14m, Z = -0.36m, X = +-0.325m)
+    const rearTireGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.046, 16);
+    rearTireGeo.rotateZ(Math.PI / 2);
+    const rearRimGeo = new THREE.CylinderGeometry(0.102, 0.102, 0.050, 12);
+    rearRimGeo.rotateZ(Math.PI / 2);
+    const rearSpokeGeo = new THREE.BoxGeometry(0.054, 0.19, 0.022);
+    const rearHubCapGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.058, 10);
+    rearHubCapGeo.rotateZ(Math.PI / 2);
+    const rearFenderGeo = new THREE.CylinderGeometry(0.162, 0.162, 0.068, 12, 1, false, -Math.PI * 0.42, Math.PI * 0.84);
+    rearFenderGeo.rotateZ(Math.PI / 2);
+
+    for (const sideX of [-0.325, 0.325]) {
+      addLocal(visualBuckets.janitorGrayRubber, rearTireGeo, sideX, 0.14, -0.36);
+      addLocal(visualBuckets.janitorBlackPlastic, rearRimGeo, sideX, 0.14, -0.36);
+      for (let sp = 0; sp < 5; sp++) {
+        addLocal(visualBuckets.janitorBlackPlastic, rearSpokeGeo, sideX, 0.14, -0.36, (sp * Math.PI) / 5, 0, 0, false);
+      }
+      addLocal(visualBuckets.vestibuleChrome, rearHubCapGeo, sideX, 0.14, -0.36, 0, 0, 0, false);
+      addLocal(visualBuckets.janitorBlackPlastic, rearFenderGeo, sideX * 0.96, 0.155, -0.36);
+    }
+    rearTireGeo.dispose();
+    rearRimGeo.dispose();
+    rearSpokeGeo.dispose();
+    rearHubCapGeo.dispose();
+    rearFenderGeo.dispose();
+
+    // Rear solid steel axle rod
+    const rearAxleGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.66, 8);
+    rearAxleGeo.rotateZ(Math.PI / 2);
+    addLocal(visualBuckets.vestibuleChrome, rearAxleGeo, 0, 0.14, -0.36, 0, 0, 0, false);
+    rearAxleGeo.dispose();
+
+    // C. 2 Front Swivel Casters (radius = 0.055m at Y = 0.055m, Z = +0.65m, X = +-0.24m)
+    const casterPlateGeo = new THREE.BoxGeometry(0.065, 0.012, 0.065);
+    const casterForkGeo = new THREE.BoxGeometry(0.046, 0.052, 0.048);
+    const casterWheelGeo = new THREE.CylinderGeometry(0.055, 0.055, 0.028, 12);
+    casterWheelGeo.rotateZ(Math.PI / 2);
+    const casterHubGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.032, 10);
+    casterHubGeo.rotateZ(Math.PI / 2);
+
+    const casterConfigs = [
+      { cx: -0.24, cz: 0.65, yaw: 0.38 },
+      { cx: 0.24, cz: 0.65, yaw: -0.24 },
+    ];
+    for (const c of casterConfigs) {
+      addLocal(visualBuckets.vestibuleChrome, casterPlateGeo, c.cx, 0.088, c.cz, 0, c.yaw, 0, false);
+      addLocal(visualBuckets.vestibuleChrome, casterForkGeo, c.cx, 0.066, c.cz - 0.012, 0, c.yaw, 0, false);
+      addLocal(visualBuckets.janitorGrayRubber, casterWheelGeo, c.cx, 0.055, c.cz - 0.018, 0, c.yaw, 0);
+      addLocal(visualBuckets.janitorBlackPlastic, casterHubGeo, c.cx, 0.055, c.cz - 0.018, 0, c.yaw, 0, false);
+    }
+    casterPlateGeo.dispose();
+    casterForkGeo.dispose();
+    casterWheelGeo.dispose();
+    casterHubGeo.dispose();
+
+    // D. 3-Tier Central Shelving Tower (Y = 0.16m to 1.28m, Z = -0.38m to +0.16m)
+    const postH = 1.06;
+    const postGeo = new THREE.BoxGeometry(0.046, postH, 0.046);
+    const postXList = [-0.265, 0.265];
+    const postZList = [-0.33, 0.11];
+    const boltHeadGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.052, 8);
+    boltHeadGeo.rotateZ(Math.PI / 2);
+
+    for (const px of postXList) {
+      for (const pz of postZList) {
+        addLocal(visualBuckets.janitorBlackPlastic, postGeo, px, 0.14 + postH * 0.5, pz);
+        // Silver structural bolt heads at Middle Shelf & lower brace joints
+        addLocal(visualBuckets.vestibuleChrome, boltHeadGeo, px, 0.68, pz, 0, 0, 0, false);
+        addLocal(visualBuckets.vestibuleChrome, boltHeadGeo, px, 0.61, pz, 0, 0, 0, false);
+      }
+    }
+    postGeo.dispose();
+    boltHeadGeo.dispose();
+
+    // Middle Shelf (Y = 0.68m) with raised side & rear retention ledges
+    const midShelfBaseGeo = new THREE.BoxGeometry(0.58, 0.032, 0.50);
+    addLocal(visualBuckets.janitorBlackPlastic, midShelfBaseGeo, 0, 0.675, -0.11);
+    midShelfBaseGeo.dispose();
+
+    const midShelfSideRimGeo = new THREE.BoxGeometry(0.024, 0.048, 0.50);
+    addLocal(visualBuckets.janitorBlackPlastic, midShelfSideRimGeo, -0.278, 0.698, -0.11);
+    addLocal(visualBuckets.janitorBlackPlastic, midShelfSideRimGeo, 0.278, 0.698, -0.11);
+    midShelfSideRimGeo.dispose();
+
+    const midShelfFBGeo = new THREE.BoxGeometry(0.58, 0.048, 0.024);
+    addLocal(visualBuckets.janitorBlackPlastic, midShelfFBGeo, 0, 0.698, 0.128);
+    addLocal(visualBuckets.janitorBlackPlastic, midShelfFBGeo, 0, 0.698, -0.348);
+    midShelfFBGeo.dispose();
+
+    // Top Deep Caddy Tray (Y = 1.18m to 1.28m) with molded side tool-holder notches
+    const topTrayFloorGeo = new THREE.BoxGeometry(0.58, 0.028, 0.52);
+    addLocal(visualBuckets.janitorBlackPlastic, topTrayFloorGeo, 0, 1.194, -0.11);
+    topTrayFloorGeo.dispose();
+
+    const topTrayWallSideGeo = new THREE.BoxGeometry(0.028, 0.095, 0.52);
+    addLocal(visualBuckets.janitorBlackPlastic, topTrayWallSideGeo, -0.276, 1.232, -0.11);
+    addLocal(visualBuckets.janitorBlackPlastic, topTrayWallSideGeo, 0.276, 1.232, -0.11);
+    topTrayWallSideGeo.dispose();
+
+    const topTrayWallFBGeo = new THREE.BoxGeometry(0.58, 0.115, 0.028);
+    addLocal(visualBuckets.janitorBlackPlastic, topTrayWallFBGeo, 0, 1.222, 0.136);
+    addLocal(visualBuckets.janitorBlackPlastic, topTrayWallFBGeo, 0, 1.222, -0.356);
+    topTrayWallFBGeo.dispose();
+
+    // Molded front sign-hanger hook & backing plate on front wall of Top Caddy
+    // (Covers the full width of the Wet Floor Sign handle cutout hole so no shelf items show through)
+    const signHookGeo = new THREE.BoxGeometry(0.145, 0.095, 0.032);
+    addLocal(visualBuckets.janitorBlackPlastic, signHookGeo, 0, 1.188, 0.148);
+    signHookGeo.dispose();
+
+    // Molded side tool-holder clip blocks along the +X and front-right edges of the Top Caddy
+    // Front mop clip moved to X = +0.238m so the mop handle clears BOTH the Wet Floor Sign and the right wringer cheek!
+    const toolClipGeo = new THREE.BoxGeometry(0.052, 0.046, 0.052);
+    addLocal(visualBuckets.janitorBlackPlastic, toolClipGeo, 0.302, 1.242, 0.075);
+    addLocal(visualBuckets.janitorBlackPlastic, toolClipGeo, 0.302, 1.242, -0.155);
+    addLocal(visualBuckets.janitorBlackPlastic, toolClipGeo, 0.238, 1.242, 0.165);
+    // Lower mid-shelf broom/mop clip bracket on +X side
+    addLocal(visualBuckets.janitorBlackPlastic, toolClipGeo, 0.302, 0.695, 0.075);
+    addLocal(visualBuckets.janitorBlackPlastic, toolClipGeo, 0.302, 0.695, -0.155);
+    toolClipGeo.dispose();
+
+    // =========================================================================
+    // 2. FRONT PLATFORM: BRIGHT YELLOW MOP BUCKET & OPEN-TOP SIDE-PRESS WRINGER
+    // =========================================================================
+    const bktCenterZ = 0.44;
+    const bktBottomY = 0.162;
+
+    // 4 Small Chrome Caster Sockets under the yellow mop bucket
+    const bktSocketGeo = new THREE.CylinderGeometry(0.020, 0.020, 0.028, 8);
+    for (const sx of [-0.16, 0.16]) {
+      for (const sz of [bktCenterZ - 0.18, bktCenterZ + 0.18]) {
+        addLocal(visualBuckets.vestibuleChrome, bktSocketGeo, sx, 0.148, sz, 0, 0, 0, false);
+      }
+    }
+    bktSocketGeo.dispose();
+
+    // Yellow Rolling Bucket Tub (~0.40m W x 0.35m H x 0.50m L, Y = 0.162m to 0.512m)
+    const bktBottomSlabGeo = new THREE.BoxGeometry(0.38, 0.028, 0.48);
+    addLocal(visualBuckets.janitorYellowPlastic, bktBottomSlabGeo, 0, bktBottomY + 0.014, bktCenterZ);
+    bktBottomSlabGeo.dispose();
+
+    const bktSideWallGeo = new THREE.BoxGeometry(0.022, 0.34, 0.49);
+    addLocal(visualBuckets.janitorYellowPlastic, bktSideWallGeo, -0.188, bktBottomY + 0.17, bktCenterZ, 0, 0, 0.03);
+    addLocal(visualBuckets.janitorYellowPlastic, bktSideWallGeo, 0.188, bktBottomY + 0.17, bktCenterZ, 0, 0, -0.03);
+    bktSideWallGeo.dispose();
+
+    const bktFrontBackWallGeo = new THREE.BoxGeometry(0.39, 0.34, 0.022);
+    addLocal(visualBuckets.janitorYellowPlastic, bktFrontBackWallGeo, 0, bktBottomY + 0.17, bktCenterZ + 0.238, 0.03, 0, 0);
+    addLocal(visualBuckets.janitorYellowPlastic, bktFrontBackWallGeo, 0, bktBottomY + 0.17, bktCenterZ - 0.238, -0.03, 0, 0);
+    bktFrontBackWallGeo.dispose();
+
+    // Top Molded Rim Lip around the yellow bucket (Y = 0.505m)
+    const bktRimSideGeo = new THREE.BoxGeometry(0.036, 0.024, 0.52);
+    addLocal(visualBuckets.janitorYellowPlastic, bktRimSideGeo, -0.198, 0.505, bktCenterZ);
+    addLocal(visualBuckets.janitorYellowPlastic, bktRimSideGeo, 0.198, 0.505, bktCenterZ);
+    bktRimSideGeo.dispose();
+
+    const bktRimFBGeo = new THREE.BoxGeometry(0.43, 0.024, 0.036);
+    addLocal(visualBuckets.janitorYellowPlastic, bktRimFBGeo, 0, 0.505, bktCenterZ + 0.252);
+    addLocal(visualBuckets.janitorYellowPlastic, bktRimFBGeo, 0, 0.505, bktCenterZ - 0.252);
+    bktRimFBGeo.dispose();
+
+    // Translucent Aqua-Blue Soapy Water Surface Plane inside bucket (Y = 0.33m, deep inside yellow tub)
+    const waterPlaneGeo = new THREE.PlaneGeometry(0.34, 0.44);
+    waterPlaneGeo.rotateX(-Math.PI / 2);
+    addLocal(visualBuckets.janitorSoapyWater, waterPlaneGeo, 0, 0.33, bktCenterZ, 0, 0, 0, false);
+    waterPlaneGeo.dispose();
+
+    // Mounted Open-Top Yellow Side-Press Wringer Hopper (Y = 0.50m to 0.84m, seated on rear half of bucket rim)
+    const wringerZ = bktCenterZ - 0.10; // +0.34m (leaves front 0.24m of bucket wide open for the wet mop!)
+
+    // Recessed perforated bottom drain floor of the open wringer hopper
+    const wringerFloorGeo = new THREE.BoxGeometry(0.255, 0.022, 0.21);
+    addLocal(visualBuckets.janitorYellowPlastic, wringerFloorGeo, 0, 0.525, wringerZ);
+    wringerFloorGeo.dispose();
+
+    // Rear wall of open wringer hopper
+    const wringerRearWallGeo = new THREE.BoxGeometry(0.285, 0.24, 0.024);
+    addLocal(visualBuckets.janitorYellowPlastic, wringerRearWallGeo, 0, 0.635, wringerZ - 0.102);
+    wringerRearWallGeo.dispose();
+
+    // Dark-gray rubber protective top trim along rear wringer lip (matching reference photo)
+    const wringerRearTrimGeo = new THREE.BoxGeometry(0.290, 0.022, 0.030);
+    addLocal(visualBuckets.janitorBlackPlastic, wringerRearTrimGeo, 0, 0.755, wringerZ - 0.102);
+    wringerRearTrimGeo.dispose();
+
+    // Curved high side cheeks of wringer (X = +-0.138m, outer face at X = +-0.154m so mop pole at X = +0.185m clears cleanly!)
+    const wringerCheekLowGeo = new THREE.BoxGeometry(0.032, 0.22, 0.225);
+    const wringerCheekTopGeo = new THREE.CylinderGeometry(0.112, 0.112, 0.032, 12);
+    wringerCheekTopGeo.rotateZ(Math.PI / 2);
+    for (const wx of [-0.138, 0.138]) {
+      addLocal(visualBuckets.janitorYellowPlastic, wringerCheekLowGeo, wx, 0.62, wringerZ);
+      addLocal(visualBuckets.janitorYellowPlastic, wringerCheekTopGeo, wx, 0.73, wringerZ);
+    }
+    wringerCheekLowGeo.dispose();
+    wringerCheekTopGeo.dispose();
+
+    // Slotted vertical louver front press wall of wringer
+    const wringerFrontPlateGeo = new THREE.BoxGeometry(0.255, 0.18, 0.020);
+    addLocal(visualBuckets.janitorYellowPlastic, wringerFrontPlateGeo, 0, 0.60, wringerZ + 0.105);
+    wringerFrontPlateGeo.dispose();
+
+    const wringerLouverGeo = new THREE.BoxGeometry(0.008, 0.135, 0.014);
+    for (let li = -4; li <= 4; li++) {
+      addLocal(visualBuckets.janitorBlackPlastic, wringerLouverGeo, li * 0.023, 0.60, wringerZ + 0.112, 0, 0, 0, false);
+    }
+    wringerLouverGeo.dispose();
+
+    // Movable Angled Squeeze Paddle Plate INSIDE the open wringer hopper + Chrome Torque Shaft
+    const wringerPaddleGeo = new THREE.BoxGeometry(0.235, 0.15, 0.022);
+    addLocal(visualBuckets.janitorYellowPlastic, wringerPaddleGeo, 0, 0.61, wringerZ - 0.015, 0.36, 0, 0);
+    wringerPaddleGeo.dispose();
+
+    const wringerShaftGeo = new THREE.CylinderGeometry(0.013, 0.013, 0.33, 8);
+    wringerShaftGeo.rotateZ(Math.PI / 2);
+    addLocal(visualBuckets.vestibuleChrome, wringerShaftGeo, -0.01, 0.70, wringerZ - 0.035, 0, 0, 0, false);
+    wringerShaftGeo.dispose();
+
+    // Side-Mounted Wringer Press Lever Handle on the LEFT outside cheek (X = -0.168m)
+    const wringerLeverShaftGeo = new THREE.CylinderGeometry(0.009, 0.009, 0.20, 8);
+    addLocal(visualBuckets.janitorBlackPlastic, wringerLeverShaftGeo, -0.168, 0.79, wringerZ - 0.015, 0.22, 0, 0.06);
+    wringerLeverShaftGeo.dispose();
+
+    const wringerGripGeo = new THREE.CylinderGeometry(0.0135, 0.0135, 0.115, 8);
+    addLocal(visualBuckets.janitorBluePlastic, wringerGripGeo, -0.174, 0.90, wringerZ + 0.012, 0.22, 0, 0.06);
+    wringerGripGeo.dispose();
+
+    // =========================================================================
+    // 3. REAR FRAME: HANGING YELLOW VINYL REFUSE BAG & HINGED BLACK LID
+    // =========================================================================
+    const bagCenterZ = -0.52;
+    // Rectangular black plastic bag-holder frame at Y = 1.24m
+    const bagRimSideGeo = new THREE.BoxGeometry(0.034, 0.040, 0.36);
+    addLocal(visualBuckets.janitorBlackPlastic, bagRimSideGeo, -0.245, 1.24, bagCenterZ);
+    addLocal(visualBuckets.janitorBlackPlastic, bagRimSideGeo, 0.245, 1.24, bagCenterZ);
+    bagRimSideGeo.dispose();
+
+    const bagRimRearGeo = new THREE.BoxGeometry(0.524, 0.040, 0.036);
+    addLocal(visualBuckets.janitorBlackPlastic, bagRimRearGeo, 0, 1.24, -0.685);
+    bagRimRearGeo.dispose();
+
+    // Continuous Molded Ergonomic Rear Push-Handle U-Loop extending to Z = -0.75m
+    const pushArmGeo = new THREE.BoxGeometry(0.032, 0.034, 0.075);
+    addLocal(visualBuckets.janitorBlackPlastic, pushArmGeo, -0.215, 1.24, -0.72);
+    addLocal(visualBuckets.janitorBlackPlastic, pushArmGeo, 0.215, 1.24, -0.72);
+    pushArmGeo.dispose();
+
+    const pushCrossBarGeo = new THREE.CylinderGeometry(0.016, 0.016, 0.46, 10);
+    pushCrossBarGeo.rotateZ(Math.PI / 2);
+    addLocal(visualBuckets.janitorBlackPlastic, pushCrossBarGeo, 0, 1.24, -0.75);
+    pushCrossBarGeo.dispose();
+
+    // Closed Cohesive Matte-Black Hinged Rectangular Cover Lid (Y = 1.26m to 1.285m)
+    const bagLidOuterGeo = new THREE.BoxGeometry(0.49, 0.022, 0.335);
+    addLocal(visualBuckets.janitorBlackPlastic, bagLidOuterGeo, 0, 1.264, bagCenterZ);
+    bagLidOuterGeo.dispose();
+
+    // Molded raised outer rim border on top of black lid (100% cohesive black plastic)
+    const bagLidRimLRGeo = new THREE.BoxGeometry(0.036, 0.008, 0.31);
+    addLocal(visualBuckets.janitorBlackPlastic, bagLidRimLRGeo, -0.21, 1.278, bagCenterZ, 0, 0, 0, false);
+    addLocal(visualBuckets.janitorBlackPlastic, bagLidRimLRGeo, 0.21, 1.278, bagCenterZ, 0, 0, 0, false);
+    bagLidRimLRGeo.dispose();
+
+    const bagLidRimFBGeo = new THREE.BoxGeometry(0.45, 0.008, 0.036);
+    addLocal(visualBuckets.janitorBlackPlastic, bagLidRimFBGeo, 0, 1.278, bagCenterZ + 0.138, 0, 0, 0, false);
+    addLocal(visualBuckets.janitorBlackPlastic, bagLidRimFBGeo, 0, 1.278, bagCenterZ - 0.138, 0, 0, 0, false);
+    bagLidRimFBGeo.dispose();
+
+    // Rear lid hinge knuckles (attaching lid to top caddy rear wall)
+    const lidHingeGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.065, 8);
+    lidHingeGeo.rotateZ(Math.PI / 2);
+    addLocal(visualBuckets.janitorBlackPlastic, lidHingeGeo, -0.14, 1.268, -0.352, 0, 0, 0, false);
+    addLocal(visualBuckets.janitorBlackPlastic, lidHingeGeo, 0.14, 1.268, -0.352, 0, 0, 0, false);
+    lidHingeGeo.dispose();
+
+    // Suspended Bright Yellow Heavy-Duty Vinyl Refuse Bag (Y = 0.28m to 1.238m)
+    // Single continuous smooth-normal lofted rounded-rectangle sack (zero glued-on stick boxes!)
+    {
+      const segY = 18;
+      const segP = 40;
+      const yBot = 0.285;
+      const yTop = 1.238;
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      // Helper: smooth rounded-rectangle perimeter point (theta in 0..2PI)
+      const sampleRoundedRect = (theta, halfW, halfD, cornerR) => {
+        const c = Math.cos(theta);
+        const s = Math.sin(theta);
+        // Superellipse exponent n = 4.5 produces a rectangular sack with soft rounded corners
+        const exp = 0.42;
+        const rx = Math.sign(c) * Math.pow(Math.abs(c), exp) * (halfW - cornerR * 0.15);
+        const rz = Math.sign(s) * Math.pow(Math.abs(s), exp) * (halfD - cornerR * 0.15);
+        return [rx, rz];
+      };
+
+      for (let j = 0; j <= segY; j++) {
+        const v = j / segY; // 0 = bottom seam, 1 = top collar rim
+        const y = yBot + v * (yTop - yBot);
+
+        // Top collar conforms to frame; lower-middle swells gently; bottom tapers slightly into sewn hem
+        const taper = 0.89 + 0.11 * Math.pow(v, 0.45);
+        const belly = Math.sin(Math.pow(v, 0.72) * Math.PI) * 0.016;
+        const halfW = 0.216 * taper + belly;
+        const halfD = 0.144 * taper + belly * 0.85;
+        const drapeEnv = Math.sin(v * Math.PI); // 0 at top & bottom seams, max in middle
+
+        for (let i = 0; i <= segP; i++) {
+          const u = i / segP;
+          const theta = u * Math.PI * 2;
+          const [baseX, baseZ] = sampleRoundedRect(theta, halfW, halfD, 0.042);
+
+          // Gentle continuous cloth drape undulation
+          const wave =
+            drapeEnv *
+            (0.0065 * Math.sin(theta * 4.0 + v * 2.0) +
+              0.0040 * Math.cos(theta * 6.0 - v * 1.6));
+          const nx = Math.cos(theta);
+          const nz = Math.sin(theta);
+
+          positions.push(baseX + nx * wave, y, bagCenterZ + baseZ + nz * wave);
+          uvs.push(u, v);
+        }
+      }
+
+      const ringStride = segP + 1;
+      for (let j = 0; j < segY; j++) {
+        for (let i = 0; i < segP; i++) {
+          const a = j * ringStride + i;
+          const b = a + 1;
+          const c = (j + 1) * ringStride + i;
+          const d = c + 1;
+          indices.push(a, c, b);
+          indices.push(b, c, d);
+        }
+      }
+
+      // Sewn closed bottom cap (fan from center point at yBot - 0.012m to bottom ring j = 0)
+      const bottomCenterIdx = positions.length / 3;
+      positions.push(0, yBot - 0.010, bagCenterZ);
+      uvs.push(0.5, 0.0);
+      for (let i = 0; i < segP; i++) {
+        indices.push(bottomCenterIdx, i, i + 1);
+      }
+
+      const bagLoftGeo = new THREE.BufferGeometry();
+      bagLoftGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      bagLoftGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      bagLoftGeo.setIndex(indices);
+      // Compute smooth vertex normals while indexed so toNonIndexed() preserves silky cloth shading
+      bagLoftGeo.computeVertexNormals();
+
+      addLocal(visualBuckets.janitorYellowVinyl, bagLoftGeo, 0, 0, 0);
+      bagLoftGeo.dispose();
+    }
+
+    // =========================================================================
+    // 4. FRONT-MOUNTED YELLOW "CUIDADO / CAUTION / PISO MOLHADO" WET FLOOR SIGN
+    // =========================================================================
+    // Authentic tapered trapezoidal A-frame sign board (narrower at top, wider at bottom)
+    // with real 3D handle cutout at top, bottom arch feet cutout, and folded rear leaf.
+    {
+      const signPivotY = 1.245;
+      const signPivotZ = 0.164;
+      const totalH = 0.725; // Spans from Y = 0.520m (above wringer rim) to Y = 1.245m
+      const wBot = 0.340;   // Bottom width at y = 0
+      const wTop = 0.246;   // Tapered top width at y = totalH
+      const leafThick = 0.014;
+
+      const widthAtY = (ly) => wBot + (wTop - wBot) * (ly / totalH);
+
+      // Builds a watertight 3D trapezoidal prism section [y0..y1] spanning [xL0..xR0] at y0 to [xL1..xR1] at y1
+      const pushTrapPrism = (posArr, uvArr, idxArr, xL0, xR0, y0, xL1, xR1, y1, zFront, zBack) => {
+        const base = posArr.length / 3;
+        // 8 corners:
+        // 0: front-BL, 1: front-BR, 2: front-TR, 3: front-TL
+        // 4: back-BL,  5: back-BR,  6: back-TR,  7: back-TL
+        const pts = [
+          [xL0, y0, zFront],
+          [xR0, y0, zFront],
+          [xR1, y1, zFront],
+          [xL1, y1, zFront],
+          [xL0, y0, zBack],
+          [xR0, y0, zBack],
+          [xR1, y1, zBack],
+          [xL1, y1, zBack],
+        ];
+        for (const p of pts) {
+          posArr.push(p[0], p[1], p[2]);
+          uvArr.push(0.5, 0.5);
+        }
+        const faces = [
+          [0, 1, 2, 3], // Front (+Z)
+          [5, 4, 7, 6], // Back (-Z)
+          [4, 0, 3, 7], // Left (-X)
+          [1, 5, 6, 2], // Right (+X)
+          [3, 2, 6, 7], // Top (+Y)
+          [4, 5, 1, 0], // Bottom (-Y)
+        ];
+        for (const [a, b, c, d] of faces) {
+          idxArr.push(base + a, base + b, base + c);
+          idxArr.push(base + a, base + c, base + d);
+        }
+      };
+
+      const buildSignLeafGeo = (includeHandleNotch = true) => {
+        const pos = [];
+        const uvs = [];
+        const idx = [];
+        const zF = leafThick * 0.5;
+        const zB = -leafThick * 0.5;
+
+        // 1. Bottom Left & Right A-Frame Feet (y = 0.000 to 0.055) with center arch cutout
+        const y0 = 0.0;
+        const y1 = 0.055;
+        const hw0 = widthAtY(y0) * 0.5;
+        const hw1 = widthAtY(y1) * 0.5;
+        pushTrapPrism(pos, uvs, idx, -hw0, -0.095, y0, -hw1, -0.082, y1, zF, zB);
+        pushTrapPrism(pos, uvs, idx, 0.095, hw0, y0, 0.082, hw1, y1, zF, zB);
+
+        // 2. Main Solid Tapered Graphic Panel (y = 0.055 to 0.605)
+        const y2 = 0.605;
+        const hw2 = widthAtY(y2) * 0.5;
+        pushTrapPrism(pos, uvs, idx, -hw1, hw1, y1, -hw2, hw2, y2, zF, zB);
+
+        // 3. Left & Right Shoulders Flanking Real 3D Handle Cutout Hole (y = 0.605 to 0.672)
+        const y3 = 0.672;
+        const hw3 = widthAtY(y3) * 0.5;
+        const holeHalfWBot = 0.056;
+        const holeHalfWTop = 0.058;
+        pushTrapPrism(pos, uvs, idx, -hw2, -holeHalfWBot, y2, -hw3, -holeHalfWTop, y3, zF, zB);
+        pushTrapPrism(pos, uvs, idx, holeHalfWBot, hw2, y2, holeHalfWTop, hw3, y3, zF, zB);
+
+        // 4. Top Arched Handle Bar (y = 0.672 to 0.725) + Center Ergonomic Finger-Grip Tab
+        const y4 = totalH;
+        const hw4 = widthAtY(y4) * 0.5;
+        pushTrapPrism(pos, uvs, idx, -hw3, hw3, y3, -hw4, hw4, y4, zF, zB);
+        if (includeHandleNotch) {
+          pushTrapPrism(pos, uvs, idx, -0.024, 0.024, y3 - 0.007, -0.028, 0.028, y3, zF, zB);
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(idx);
+        // Convert to non-indexed before computing normals so flat plastic facets remain crisp
+        const nonIdx = geo.toNonIndexed();
+        geo.dispose();
+        nonIdx.computeVertexNormals();
+        // Shift origin to top hinge pivot (y = totalH) so tilting around X keeps all sections 100% locked together
+        nonIdx.translate(0, -totalH, 0);
+        return nonIdx;
+      };
+
+      // Front & Rear folded A-frame leaves hanging from top hinge pivot
+      const frontTiltX = -0.045; // Hangs slightly forward (+Z at bottom)
+      const rearTiltX = 0.015;   // Rear folded leaf tucked behind front leaf
+      const frontLeafGeo = buildSignLeafGeo(true);
+      const rearLeafGeo = buildSignLeafGeo(false);
+
+      addLocal(visualBuckets.janitorYellowPlastic, frontLeafGeo, 0, signPivotY, signPivotZ + 0.010, frontTiltX, 0, 0);
+      addLocal(visualBuckets.janitorYellowPlastic, rearLeafGeo, 0, signPivotY, signPivotZ - 0.010, rearTiltX, 0, 0);
+      frontLeafGeo.dispose();
+      rearLeafGeo.dispose();
+
+      // Small dark molded top hinge latch slots on top bar corners (matching reference photo)
+      const latchSlotGeo = new THREE.BoxGeometry(0.022, 0.022, 0.016);
+      latchSlotGeo.translate(0, -0.026, 0);
+      addLocal(visualBuckets.janitorBlackPlastic, latchSlotGeo, -0.088, signPivotY, signPivotZ + 0.010, frontTiltX, 0, 0, false);
+      addLocal(visualBuckets.janitorBlackPlastic, latchSlotGeo, 0.088, signPivotY, signPivotZ + 0.010, frontTiltX, 0, 0, false);
+      latchSlotGeo.dispose();
+
+      // Tapered Trapezoidal Front Graphic Decal Quad (matches exact taper of y = 0.055..0.605 panel)
+      const yPanelBot = 0.056;
+      const yPanelTop = 0.604;
+      const hwBot = widthAtY(yPanelBot) * 0.5 - 0.004;
+      const hwTop = widthAtY(yPanelTop) * 0.5 - 0.004;
+      const zDecal = leafThick * 0.5 + 0.0012;
+
+      const decalPos = new Float32Array([
+        -hwBot, yPanelBot - totalH, zDecal,
+         hwBot, yPanelBot - totalH, zDecal,
+         hwTop, yPanelTop - totalH, zDecal,
+        -hwBot, yPanelBot - totalH, zDecal,
+         hwTop, yPanelTop - totalH, zDecal,
+        -hwTop, yPanelTop - totalH, zDecal,
+      ]);
+      const decalUvs = new Float32Array([
+        0, 0,
+        1, 0,
+        1, 1,
+        0, 0,
+        1, 1,
+        0, 1,
+      ]);
+      const signDecalGeo = new THREE.BufferGeometry();
+      signDecalGeo.setAttribute('position', new THREE.BufferAttribute(decalPos, 3));
+      signDecalGeo.setAttribute('uv', new THREE.BufferAttribute(decalUvs, 2));
+      signDecalGeo.computeVertexNormals();
+
+      addLocal(visualBuckets.janitorCautionSign, signDecalGeo, 0, signPivotY, signPivotZ + 0.010, frontTiltX, 0, 0, false);
+      signDecalGeo.dispose();
+    }
+
+    // =========================================================================
+    // 5. 3 TALL CLIPPED CLEANING TOOLS & DRAPED MICROFIBER RAG (Y up to ~1.85m)
+    // =========================================================================
+    // Tool 1 — Wet String Mop (Resting in Front-Right of Yellow Bucket, Leaning Outside Right Wringer Cheek)
+    // Mathematically aligned along a single 3D axis from mop jaw clamp (0.156, 0.42, 0.568)
+    // straight through the front-right tool clip (0.238, 1.242, 0.165) up to the lime-green cap!
+    // At Z = 0.44m (wringer front), pole X is +0.182m — completely clearing the right wringer cheek (X <= +0.154m)!
+    {
+      const pJaw = new THREE.Vector3(0.156, 0.42, 0.568);
+      const pClip = new THREE.Vector3(0.238, 1.242, 0.165);
+      const mopDir = new THREE.Vector3().subVectors(pClip, pJaw).normalize();
+      const mopQuat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), mopDir);
+      const mopEuler = new THREE.Euler().setFromQuaternion(mopQuat);
+
+      // Splayed Cotton Yarn Mop Head Bundle resting inside the front-right bucket basin
+      const strandGeo = new THREE.CylinderGeometry(0.009, 0.014, 0.18, 6);
+      for (let ring = 0; ring < 2; ring++) {
+        const count = ring === 0 ? 7 : 11;
+        const spreadR = ring === 0 ? 0.020 : 0.042;
+        for (let ms = 0; ms < count; ms++) {
+          const ang = (ms / count) * Math.PI * 2 + ring * 0.3;
+          const sx = Math.min(0.158, pJaw.x - mopDir.x * 0.065 + Math.cos(ang) * spreadR - 0.018);
+          const sy = pJaw.y - 0.075;
+          const sz = Math.min(0.635, pJaw.z - mopDir.z * 0.065 + Math.sin(ang) * spreadR - 0.015);
+          addLocal(
+            visualBuckets.vestibuleSill,
+            strandGeo,
+            sx,
+            sy,
+            sz,
+            mopEuler.x + Math.sin(ang) * 0.24,
+            mopEuler.y,
+            mopEuler.z - Math.cos(ang) * 0.24,
+            false
+          );
+        }
+      }
+      strandGeo.dispose();
+
+      // Molded gray/blue plastic mop-head jaw clamp collar gripping the cotton strands
+      const mopJawGeo = new THREE.BoxGeometry(0.074, 0.046, 0.034);
+      addLocal(visualBuckets.janitorGrayRubber, mopJawGeo, pJaw.x, pJaw.y, pJaw.z, mopEuler.x, mopEuler.y, mopEuler.z);
+      mopJawGeo.dispose();
+
+      const mopCollarNutGeo = new THREE.CylinderGeometry(0.017, 0.021, 0.044, 8);
+      const pNut = pJaw.clone().addScaledVector(mopDir, 0.036);
+      addLocal(visualBuckets.janitorBluePlastic, mopCollarNutGeo, pNut.x, pNut.y, pNut.z, mopEuler.x, mopEuler.y, mopEuler.z, false);
+      mopCollarNutGeo.dispose();
+
+      // Long silver aluminum handle passing dead-center through the clip at (0.238, 1.242, 0.165)
+      const mopPoleLen = 1.42;
+      const mopPoleGeo = new THREE.CylinderGeometry(0.0115, 0.0115, mopPoleLen, 8);
+      const pPoleMid = pJaw.clone().addScaledVector(mopDir, mopPoleLen * 0.5 + 0.03);
+      addLocal(visualBuckets.silverTrim, mopPoleGeo, pPoleMid.x, pPoleMid.y, pPoleMid.z, mopEuler.x, mopEuler.y, mopEuler.z);
+      mopPoleGeo.dispose();
+
+      // Bright Lime-Green Hanging Grip Cap at top of wet mop (Y ~ 1.82m)
+      const mopGreenCapGeo = new THREE.CylinderGeometry(0.014, 0.013, 0.115, 8);
+      const pCap = pJaw.clone().addScaledVector(mopDir, mopPoleLen + 0.065);
+      addLocal(visualBuckets.janitorGreenPlastic, mopGreenCapGeo, pCap.x, pCap.y, pCap.z, mopEuler.x, mopEuler.y, mopEuler.z);
+      mopGreenCapGeo.dispose();
+    }
+
+    // Tool 2 — Italian-Style Flagged Push Broom (Clipped on +X Side Holder at Z = +0.075m)
+    // Subdivided into 24 vertical strip quads across the trapezoid width so UV interpolation has ZERO diagonal kink!
+    {
+      const broomX = 0.308;
+      const broomZ = 0.075;
+      const broomYaw = 0.0;
+
+      // Lower royal-blue end grip at Y = 0.23m
+      const broomBottomCapGeo = new THREE.CylinderGeometry(0.0135, 0.0135, 0.09, 8);
+      addLocal(visualBuckets.janitorBluePlastic, broomBottomCapGeo, broomX, 0.23, broomZ);
+      broomBottomCapGeo.dispose();
+
+      // Light-gray aluminum shaft (Y = 0.27m to 1.43m)
+      const broomShaftGeo = new THREE.CylinderGeometry(0.0115, 0.0115, 1.16, 8);
+      addLocal(visualBuckets.silverTrim, broomShaftGeo, broomX, 0.85, broomZ);
+      broomShaftGeo.dispose();
+
+      // Threaded royal-blue neck ferrule (Y = 1.415m to 1.465m)
+      const broomFerruleGeo = new THREE.CylinderGeometry(0.019, 0.0135, 0.055, 10);
+      addLocal(visualBuckets.janitorBluePlastic, broomFerruleGeo, broomX, 1.44, broomZ, 0, broomYaw, 0);
+      broomFerruleGeo.dispose();
+
+      // Sculpted Tapered Royal-Blue Plastic Broom Shroud Cap (flares smoothly from neck to 0.20m bristle bar)
+      const buildBroomShroudGeo = () => {
+        const segY = 5;
+        const segP = 24;
+        const h = 0.044;
+        const pos = [];
+        const uvs = [];
+        const idx = [];
+
+        for (let j = 0; j <= segY; j++) {
+          const v = j / segY;
+          const y = v * h;
+          const ease = Math.pow(v, 0.65);
+          const halfW = 0.020 + ease * 0.080;
+          const halfD = 0.018 - ease * 0.002;
+
+          for (let i = 0; i <= segP; i++) {
+            const u = i / segP;
+            const theta = u * Math.PI * 2;
+            const c = Math.cos(theta);
+            const s = Math.sin(theta);
+            const exp = 1.0 - ease * 0.45;
+            const x = Math.sign(s) * Math.pow(Math.abs(s), exp) * halfD;
+            const z = Math.sign(c) * Math.pow(Math.abs(c), exp) * halfW;
+            pos.push(x, y, z);
+            uvs.push(u, v);
+          }
+        }
+
+        const stride = segP + 1;
+        for (let j = 0; j < segY; j++) {
+          for (let i = 0; i < segP; i++) {
+            const a = j * stride + i;
+            const b = a + 1;
+            const c = (j + 1) * stride + i;
+            const d = c + 1;
+            idx.push(a, b, c);
+            idx.push(b, d, c);
+          }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.setIndex(idx);
+        geo.computeVertexNormals();
+        return geo;
+      };
+
+      const broomShroudGeo = buildBroomShroudGeo();
+      addLocal(visualBuckets.janitorBluePlastic, broomShroudGeo, broomX, 1.460, broomZ, 0, broomYaw, 0);
+      broomShroudGeo.dispose();
+
+      // Molded blue lip collar at top of blue shroud (Y = 1.502m)
+      const broomLipGeo = new THREE.BoxGeometry(0.032, 0.010, 0.204);
+      addLocal(visualBuckets.janitorBluePlastic, broomLipGeo, broomX, 1.502, broomZ, 0, broomYaw, 0);
+      broomLipGeo.dispose();
+
+      // Multi-Strip Subdivided Trapezoidal Bristle Wedge (Y = 1.505m to 1.665m)
+      // Subdividing the trapezoid horizontally into 24 narrow vertical quads eliminates affine triangle UV skew!
+      const buildFlaredBristleWedgeGeo = () => {
+        const h = 0.160;
+        const hwBot = 0.098;
+        const hwTop = 0.128;
+        const htBot = 0.013;
+        const htTop = 0.008;
+        const strips = 24;
+
+        const pos = [];
+        const uvs = [];
+
+        const pushTri = (x0, y0, z0, u0, v0, x1, y1, z1, u1, v1, x2, y2, z2, u2, v2) => {
+          pos.push(x0, y0, z0, x1, y1, z1, x2, y2, z2);
+          uvs.push(u0, v0, u1, v1, u2, v2);
+        };
+
+        for (let i = 0; i < strips; i++) {
+          const u0 = i / strips;
+          const u1 = (i + 1) / strips;
+          const zB0 = hwBot - u0 * (hwBot * 2);
+          const zB1 = hwBot - u1 * (hwBot * 2);
+          const zT0 = hwTop - u0 * (hwTop * 2);
+          const zT1 = hwTop - u1 * (hwTop * 2);
+
+          // +X Outer Face strip
+          pushTri(htBot, 0, zB0, u0, 0, htBot, 0, zB1, u1, 0, htTop, h, zT1, u1, 1);
+          pushTri(htBot, 0, zB0, u0, 0, htTop, h, zT1, u1, 1, htTop, h, zT0, u0, 1);
+
+          // -X Inner Face strip
+          pushTri(-htBot, 0, zB1, u1, 0, -htBot, 0, zB0, u0, 0, -htTop, h, zT0, u0, 1);
+          pushTri(-htBot, 0, zB1, u1, 0, -htTop, h, zT0, u0, 1, -htTop, h, zT1, u1, 1);
+        }
+
+        // +Z Front Flare Edge
+        pushTri(-htBot, 0, hwBot, 0, 0, htBot, 0, hwBot, 0.12, 0, htTop, h, hwTop, 0.12, 1);
+        pushTri(-htBot, 0, hwBot, 0, 0, htTop, h, hwTop, 0.12, 1, -htTop, h, hwTop, 0, 1);
+
+        // -Z Rear Flare Edge
+        pushTri(htBot, 0, -hwBot, 0, 0, -htBot, 0, -hwBot, 0.12, 0, -htTop, h, -hwTop, 0.12, 1);
+        pushTri(htBot, 0, -hwBot, 0, 0, -htTop, h, -hwTop, 0.12, 1, htTop, h, -hwTop, 0, 1);
+
+        // +Y Top Sweeping Tip Face
+        pushTri(-htTop, h, hwTop, 0, 0.96, htTop, h, hwTop, 0.1, 0.96, htTop, h, -hwTop, 0.1, 1);
+        pushTri(-htTop, h, hwTop, 0, 0.96, htTop, h, -hwTop, 0.1, 1, -htTop, h, -hwTop, 0, 1);
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.computeVertexNormals();
+        return geo;
+      };
+
+      const bristleFanGeo = buildFlaredBristleWedgeGeo();
+      addLocal(visualBuckets.janitorBroomBristle, bristleFanGeo, broomX, 1.505, broomZ, 0, broomYaw, 0);
+      bristleFanGeo.dispose();
+    }
+
+    // Tool 3 — Flat Microfiber Dust Mop (Standing Vertically on +X Rear-Side Holder at Z = -0.155m, Rising to Y ~ 1.85m)
+    const flatMopX = 0.308;
+    const flatMopZ = -0.155;
+    // Lower olive-tan ergonomic foam grip sleeve (Y = 0.18m to 0.56m)
+    const flatMopGripGeo = new THREE.CylinderGeometry(0.0145, 0.0145, 0.38, 8);
+    addLocal(visualBuckets.janitorTowelTan, flatMopGripGeo, flatMopX, 0.37, flatMopZ);
+    flatMopGripGeo.dispose();
+
+    // Telescopic chrome pole & white locking collars (Y = 0.56m to 1.48m, terminating into central swivel bracket)
+    const flatMopPoleGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.92, 8);
+    addLocal(visualBuckets.vestibuleChrome, flatMopPoleGeo, flatMopX, 1.02, flatMopZ);
+    flatMopPoleGeo.dispose();
+
+    const flatMopCollarGeo = new THREE.CylinderGeometry(0.0155, 0.0155, 0.095, 8);
+    addLocal(visualBuckets.printerWhite, flatMopCollarGeo, flatMopX, 0.88, flatMopZ, 0, 0, 0, false);
+    addLocal(visualBuckets.printerWhite, flatMopCollarGeo, flatMopX, 1.32, flatMopZ, 0, 0, 0, false);
+    flatMopCollarGeo.dispose();
+
+    // Central swivel joint block connecting telescopic pole to the flat mop backing plate (Y = 1.48m)
+    const mopSwivelGeo = new THREE.BoxGeometry(0.028, 0.048, 0.042);
+    addLocal(visualBuckets.janitorGrayRubber, mopSwivelGeo, flatMopX + 0.008, 1.48, flatMopZ, 0, 0, 0, false);
+    mopSwivelGeo.dispose();
+
+    // Tall Vertical Rectangular White Microfiber Mop Pad Frame (~0.145m W x 0.46m H, rising to Y = 1.85m)
+    const mopPadBackingGeo = new THREE.BoxGeometry(0.014, 0.46, 0.145);
+    addLocal(visualBuckets.janitorGrayRubber, mopPadBackingGeo, flatMopX + 0.018, 1.62, flatMopZ);
+    mopPadBackingGeo.dispose();
+
+    const mopPadWhiteGeo = new THREE.BoxGeometry(0.016, 0.44, 0.132);
+    addLocal(visualBuckets.printerWhite, mopPadWhiteGeo, flatMopX + 0.026, 1.62, flatMopZ);
+    mopPadWhiteGeo.dispose();
+
+    // Reworked Soft-Body Draped Tan Microfiber Cleaning Cloth over upper +X lip of Top Caddy Tray (Z = -0.262m)
+    // Smooth-normal sculpted cloth ribbon with rounded top arch, organic hanging pleats, and terry-cloth weave texture!
+    {
+      const segS = 24; // Along the U-drape profile (from inner caddy wall over the rim down outside)
+      const segW = 18; // Across the cloth width (along Z)
+      const clothHalfThick = 0.0035;
+      const centerZ = -0.262; // Cleanly centered between tool clip (-0.181) and rear wall (-0.342)
+      const baseWidth = 0.126;
+
+      // Evaluates the 2D centerline (cx, cy) and outward normal (nx, ny) along the U-shaped cloth drape (s in 0..1)
+      const sampleClothSpine = (s, uW) => {
+        // Caddy wall dimensions: X spans [0.262..0.290], Y top = 1.2795
+        // Cloth arches smoothly over the rim: apex at Y = 1.294 (inner surface Y = 1.2905 > 1.2795)
+        // Outer vertical drape hangs at X >= 0.302 (inner surface X >= 0.2985 > 0.290: zero clipping!)
+        const wave = Math.sin(uW * Math.PI * 3.0 + 0.4) * 0.0035 + Math.cos(uW * Math.PI * 5.0) * 0.0015;
+        const gather = 1.0 - 0.08 * Math.exp(-Math.pow((s - 0.38) * 4.5, 2));
+
+        let cx, cy, tx, ty;
+        if (s < 0.25) {
+          // Inner tail hanging inside the caddy tray (s = 0..0.25 -> Y = 1.215..1.272, X = 0.252..0.254)
+          const t = s / 0.25;
+          const innerFlare = (1.0 - t) * (wave * 0.5 - 0.002);
+          cx = 0.252 + t * 0.002 + innerFlare;
+          cy = 1.215 + t * 0.057;
+          tx = 0.03;
+          ty = 1.0;
+        } else if (s <= 0.50) {
+          // Smooth rounded arch over the top caddy rim (theta from PI down to 0)
+          // Centered at (X = 0.278, Y = 1.272) with radiusX = 0.024, radiusY = 0.022
+          // At corner X = 0.290, cloth centerline Y = 1.291 (inner surface 1.2875 > 1.2795: 8mm clearance)
+          const t = (s - 0.25) / 0.25;
+          const theta = Math.PI * (1.0 - t);
+          cx = 0.278 + Math.cos(theta) * 0.024;
+          cy = 1.272 + Math.sin(theta) * 0.022;
+          tx = 0.024 * Math.sin(theta) * Math.PI;
+          ty = -0.022 * Math.cos(theta) * Math.PI;
+        } else {
+          // Outer drape hanging down the outside of the caddy (s = 0.50..1.0 -> Y = 1.272..1.105, X = 0.302..0.312)
+          // Always X >= 0.302 (inner surface >= 0.2985, black wall ends at X = 0.290: 8.5mm clearance)
+          const t = (s - 0.50) / 0.50;
+          const cornerDroop = Math.pow((uW - 0.5) * 2.0, 2) * 0.010 * t;
+          const pleatX = t * (0.003 + wave);
+          cx = 0.302 + t * 0.008 + pleatX;
+          cy = 1.272 - t * 0.165 - cornerDroop;
+          tx = 0.05;
+          ty = -1.0;
+        }
+
+        const len = Math.hypot(tx, ty) || 1;
+        const nx = -ty / len;
+        const ny = tx / len;
+        return { cx, cy, nx, ny, gather };
+      };
+
+      const pos = [];
+      const uvs = [];
+      const idx = [];
+
+      // Build closed double-sided thickened cloth shell (top/outer surface + inner/under surface)
+      // Cross-section around the cloth width (segW * 2 perimeter points per spine station)
+      const ringCount = segW * 2;
+      for (let j = 0; j <= segS; j++) {
+        const s = j / segS;
+        // Taper thickness slightly at the stitched top/bottom hems
+        const hemTaper = Math.sin(Math.min(1, s * 10) * Math.PI * 0.5) * Math.sin(Math.min(1, (1 - s) * 10) * Math.PI * 0.5);
+        const hThick = clothHalfThick * (0.45 + 0.55 * hemTaper);
+
+        for (let i = 0; i <= ringCount; i++) {
+          const pFrac = i / ringCount; // 0..0.5 = outer face (-Z to +Z), 0.5..1.0 = inner face (+Z to -Z)
+          let uW, sideSign;
+          if (pFrac <= 0.5) {
+            uW = pFrac * 2.0;
+            sideSign = 1.0;
+          } else {
+            uW = (1.0 - pFrac) * 2.0;
+            sideSign = -1.0;
+          }
+          // Taper thickness at left/right side hems (uW near 0 or 1)
+          const edgePinch = Math.sin(uW * Math.PI);
+          const localOff = sideSign * hThick * (0.25 + 0.75 * Math.pow(edgePinch, 0.45));
+
+          const { cx, cy, nx, ny, gather } = sampleClothSpine(s, uW);
+          const z = centerZ + (uW - 0.5) * baseWidth * gather;
+          pos.push(cx + nx * localOff, cy + ny * localOff, z);
+          uvs.push(uW, s);
+        }
+      }
+
+      const stride = ringCount + 1;
+      for (let j = 0; j < segS; j++) {
+        for (let i = 0; i < ringCount; i++) {
+          const a = j * stride + i;
+          const b = a + 1;
+          const c = (j + 1) * stride + i;
+          const d = c + 1;
+          idx.push(a, c, b);
+          idx.push(b, c, d);
+        }
+      }
+
+      const towelLoftGeo = new THREE.BufferGeometry();
+      towelLoftGeo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      towelLoftGeo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      towelLoftGeo.setIndex(idx);
+      towelLoftGeo.computeVertexNormals();
+
+      addLocal(visualBuckets.janitorTowelTan, towelLoftGeo, 0, 0, 0);
+      towelLoftGeo.dispose();
+    }
+
+    // =========================================================================
+    // 6. STOCKED CLEANING SUPPLIES ON TOP CADDY & LOWER SHELVES
+    // =========================================================================
+    // A. Top Caddy Tray (Y = 1.21m): 4 Colorful Plastic Trigger Spray & Cleaner Bottles
+    const bottleBodyGeo = new THREE.CylinderGeometry(0.032, 0.042, 0.16, 10);
+    const bottleNeckGeo = new THREE.CylinderGeometry(0.014, 0.024, 0.045, 8);
+    const triggerHeadGeo = new THREE.BoxGeometry(0.028, 0.032, 0.075);
+    const triggerLeverGeo = new THREE.BoxGeometry(0.012, 0.042, 0.014);
+
+    // 1. Clear/Cyan Glass-Cleaner Spray Bottle (Front-Left of Top Caddy)
+    addLocal(visualBuckets.janitorCyanBottle, bottleBodyGeo, -0.14, 1.285, 0.04);
+    addLocal(visualBuckets.janitorCyanBottle, bottleNeckGeo, -0.14, 1.385, 0.04);
+    addLocal(visualBuckets.printerWhite, triggerHeadGeo, -0.14, 1.418, 0.052, 0, 0.25, 0);
+    addLocal(visualBuckets.printerWhite, triggerLeverGeo, -0.135, 1.392, 0.072, 0.35, 0.25, 0, false);
+
+    // 2. White Bottle with Bright Red Neck & White Trigger Sprayer (Front-Center)
+    addLocal(visualBuckets.printerWhite, bottleBodyGeo, 0.02, 1.285, 0.03);
+    addLocal(visualBuckets.extinguisherRed, bottleNeckGeo, 0.02, 1.385, 0.03);
+    addLocal(visualBuckets.printerWhite, triggerHeadGeo, 0.02, 1.418, 0.042, 0, -0.18, 0);
+    addLocal(visualBuckets.extinguisherRed, triggerLeverGeo, 0.015, 1.392, 0.062, 0.35, -0.18, 0, false);
+
+    // 3. Royal-Blue Cleaner Bottle with White Sprayer (Rear-Left)
+    addLocal(visualBuckets.janitorBluePlastic, bottleBodyGeo, -0.11, 1.285, -0.14);
+    addLocal(visualBuckets.janitorBluePlastic, bottleNeckGeo, -0.11, 1.385, -0.14);
+    addLocal(visualBuckets.printerWhite, triggerHeadGeo, -0.11, 1.418, -0.128, 0, 0.40, 0);
+
+    // 4. Green Disinfectant Bottle with White Cap (Rear-Right)
+    addLocal(visualBuckets.janitorGreenPlastic, bottleBodyGeo, 0.09, 1.285, -0.15);
+    addLocal(visualBuckets.printerWhite, bottleNeckGeo, 0.09, 1.385, -0.15);
+
+    bottleBodyGeo.dispose();
+    bottleNeckGeo.dispose();
+    triggerHeadGeo.dispose();
+    triggerLeverGeo.dispose();
+
+    // B. Middle Shelf (Y = 0.69m): 2 Vertical White Jumbo Paper Towel Rolls with dark inner cores
+    const paperRollGeo = new THREE.CylinderGeometry(0.085, 0.085, 0.26, 14);
+    const paperCoreGeo = new THREE.CylinderGeometry(0.028, 0.028, 0.264, 10);
+    for (const rz of [-0.01, -0.20]) {
+      addLocal(visualBuckets.printerWhite, paperRollGeo, 0.08, 0.82, rz);
+      addLocal(visualBuckets.janitorBlackPlastic, paperCoreGeo, 0.08, 0.82, rz, 0, 0, 0, false);
+    }
+    paperRollGeo.dispose();
+    paperCoreGeo.dispose();
+
+    // C. Bottom Shelf (Y = 0.14m): 2 Large 5-Liter Chemical Jugs filled with Blue Liquid
+    const jugLowerBlueGeo = new THREE.CylinderGeometry(0.092, 0.095, 0.135, 12);
+    const jugUpperWhiteGeo = new THREE.CylinderGeometry(0.082, 0.092, 0.125, 12);
+    const jugShoulderGeo = new THREE.CylinderGeometry(0.026, 0.082, 0.055, 12);
+    const jugCapGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.026, 10);
+    const jugLabelBandGeo = new THREE.CylinderGeometry(0.094, 0.094, 0.036, 12);
+    const jugHandleGeo = new THREE.BoxGeometry(0.022, 0.085, 0.038);
+
+    for (const jz of [-0.01, -0.22]) {
+      const jx = 0.05;
+      addLocal(visualBuckets.janitorBluePlastic, jugLowerBlueGeo, jx, 0.208, jz);
+      addLocal(visualBuckets.janitorYellowPlastic, jugLabelBandGeo, jx, 0.275, jz, 0, 0, 0, false);
+      addLocal(visualBuckets.printerWhite, jugUpperWhiteGeo, jx, 0.338, jz);
+      addLocal(visualBuckets.printerWhite, jugShoulderGeo, jx, 0.428, jz);
+      addLocal(visualBuckets.janitorBluePlastic, jugCapGeo, jx, 0.466, jz);
+      addLocal(visualBuckets.printerWhite, jugHandleGeo, jx + 0.068, 0.395, jz, -0.25, 0, 0, false);
+    }
+    jugLowerBlueGeo.dispose();
+    jugUpperWhiteGeo.dispose();
+    jugShoulderGeo.dispose();
+    jugCapGeo.dispose();
+    jugLabelBandGeo.dispose();
+    jugHandleGeo.dispose();
+
+    // =========================================================================
+    // 7. PLAYER-ONLY BVH COLLIDER BOX (Full cart envelope so player cannot walk through)
+    // =========================================================================
+    const playerColliderGeo = new THREE.BoxGeometry(0.76, 1.85, 1.48);
+    playerColliderGeo.rotateY(cartYaw);
+    registerPlayerOnlyCollider(playerColliderGeo, cartX, cartY + 0.925, cartZ);
+    playerColliderGeo.dispose();
   }
 
   /**
@@ -18064,6 +19498,10 @@ export class WarehouseBuilder {
       this.printerScreenTexture,
       this.fireHoseHeaderTexture,
       this.fireHoseCoilTexture,
+      this.janitorCautionSignTexture,
+      this.janitorBroomBristleTexture,
+      this.janitorYellowVinylTexture,
+      this.janitorTowelTexture,
       this.moonTexture,
       this.balconyTileTexture,
       this.skylineTowerATexture,

@@ -201,6 +201,10 @@ window.addEventListener('DOMContentLoaded', () => {
             warehouse.printerScreenTexture,
             warehouse.fireHoseHeaderTexture,
             warehouse.fireHoseCoilTexture,
+            warehouse.janitorCautionSignTexture,
+            warehouse.janitorBroomBristleTexture,
+            warehouse.janitorYellowVinylTexture,
+            warehouse.janitorTowelTexture,
             warehouse.moonTexture,
             warehouse.balconyTileTexture,
             warehouse.balconyFlakeBumpMap,
@@ -277,6 +281,34 @@ window.addEventListener('DOMContentLoaded', () => {
     fixedUpdate: (subDelta) => {
       if (gameState === 'PLAYING') {
         player.fixedUpdate(subDelta);
+
+        // Player AABB collision box for the abandoned Janitor Cart in the Access Vestibule
+        // (Centered at X = -13.56m, Z = 8.98m; leaves > 2.7m clear walkway to stairwell & vestibule door)
+        const jcMinX = -14.20;
+        const jcMaxX = -12.96;
+        const jcMinZ = 8.08;
+        const jcMaxZ = 9.88;
+        if (
+          player.position.y < 1.85 &&
+          player.position.x > jcMinX &&
+          player.position.x < jcMaxX &&
+          player.position.z > jcMinZ &&
+          player.position.z < jcMaxZ
+        ) {
+          const dRight = jcMaxX - player.position.x;
+          const dFront = jcMaxZ - player.position.z;
+          const dBack = player.position.z - jcMinZ;
+          if (dRight <= dFront && dRight <= dBack) {
+            player.position.x = jcMaxX;
+            if (player.velocity.x < 0) player.velocity.x = 0;
+          } else if (dFront <= dBack) {
+            player.position.z = jcMaxZ;
+            if (player.velocity.z < 0) player.velocity.z = 0;
+          } else {
+            player.position.z = jcMinZ;
+            if (player.velocity.z > 0) player.velocity.z = 0;
+          }
+        }
       }
     }
   });
