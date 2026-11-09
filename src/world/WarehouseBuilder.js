@@ -1934,9 +1934,10 @@ function createDataCenterCeilingTextures() {
   dCtx.fillStyle = '#b8c1cc';
   dCtx.fillRect(0, 0, cw, ch);
 
-  // Calibrated indirect room-bounce ambient fill on emissive so downward-facing ceiling (normal 0,-1,0)
-  // reads as a bright, natural corporate IT office acoustic ceiling alongside the #8c95a0 upper walls
-  eCtx.fillStyle = '#4c535e';
+  // NIGHT bounce: a down-facing ceiling receives no direct light, only floor/desk bounce.
+  // A dim emissive base fakes that bounce so the white tiles read as a dark-grey ceiling
+  // (like the reference photo) instead of a black void. (Material emissiveIntensity = 1.4)
+  eCtx.fillStyle = '#1c2026';
   eCtx.fillRect(0, 0, cw, ch);
 
   // Neutral mid-height bump base
@@ -1972,7 +1973,7 @@ function createDataCenterCeilingTextures() {
       dCtx.fillStyle = '#5c6674'; // Subtle recessed shadow-line reveal channel around tile perimeter
       dCtx.fillRect(x0, y0, w, h);
 
-      eCtx.fillStyle = '#282e37';
+      eCtx.fillStyle = '#101317';
       eCtx.fillRect(x0, y0, w, h);
 
       bCtx.fillStyle = '#484848'; // Recessed groove in bump map
@@ -1982,9 +1983,10 @@ function createDataCenterCeilingTextures() {
       dCtx.fillStyle = `rgb(${r}, ${g}, ${b})`;
       dCtx.fillRect(x0 + rev, y0 + rev, w - rev * 2, h - rev * 2);
 
-      const er = Math.min(255, Math.max(0, 76 + Math.round(delta * 0.5)));
-      const eg = Math.min(255, Math.max(0, 83 + Math.round(delta * 0.5)));
-      const eb = Math.min(255, Math.max(0, 94 + Math.round(delta * 0.5)));
+      // Dim night-bounce on tile face (per-tile variation keeps the grid readable)
+      const er = Math.min(255, Math.max(0, 36 + delta));
+      const eg = Math.min(255, Math.max(0, 40 + delta));
+      const eb = Math.min(255, Math.max(0, 47 + delta));
       eCtx.fillStyle = `rgb(${er}, ${eg}, ${eb})`;
       eCtx.fillRect(x0 + rev, y0 + rev, w - rev * 2, h - rev * 2);
 
@@ -2030,8 +2032,7 @@ function createDataCenterCeilingTextures() {
   bCtx.putImageData(bumpImg, 0, 0);
 
   // 2. Continuous Slim Satin-Aluminum / Off-White 1.0m x 1.0m T-Bar Suspension Grid
-  // Zero corner squares or blobs! Clean continuous main runners and cross-tees.
-  const tBarHalfW = 1.0; // 2.0px slim architectural T-bar flange
+  const tBarHalfW = 1.0;
   for (let wx = -10; wx <= 10; wx++) {
     const px = xToPx(wx);
     dCtx.fillStyle = '#9aa3b0';
@@ -2039,7 +2040,7 @@ function createDataCenterCeilingTextures() {
     dCtx.fillStyle = '#b4bdca';
     dCtx.fillRect(px - 0.4, 0, 0.8, ch);
 
-    eCtx.fillStyle = '#3d434d';
+    eCtx.fillStyle = '#1a1e24';
     eCtx.fillRect(px - tBarHalfW, 0, tBarHalfW * 2, ch);
 
     bCtx.fillStyle = '#747474';
@@ -2053,18 +2054,16 @@ function createDataCenterCeilingTextures() {
     dCtx.fillStyle = '#b4bdca';
     dCtx.fillRect(0, py - 0.4, cw, 0.8);
 
-    eCtx.fillStyle = '#3d434d';
+    eCtx.fillStyle = '#1a1e24';
     eCtx.fillRect(0, py - tBarHalfW, cw, tBarHalfW * 2);
 
     bCtx.fillStyle = '#747474';
     bCtx.fillRect(0, py - tBarHalfW, cw, tBarHalfW * 2);
   }
 
-  // 3. Undivided, Seamless Recessed Architectural LED Flat-Panel Troffers
-  // Drawn AFTER the T-bar grid so that multi-tile (2.0m x 1.0m) fixtures replace the intermediate
-  // cross-tee as a single, whole, unbroken luminaire with ZERO lines cutting through the lamp!
-  const drawUndividedLedPanel = (xMin, xMax, zMin, zMax) => {
-    // Inset strictly inside the surrounding perimeter T-bar flange with a tight reveal
+  // 3. Architectural LED Flat-Panel Troffers — NIGHT MODE:
+  // ~40% of fixtures stay ON (circulation rows), the rest are OFF (opal lens, no glow), like the reference.
+  const drawUndividedLedPanel = (xMin, xMax, zMin, zMax, isLit = false) => {
     const padPx = tBarHalfW + 0.8;
     const x0 = xToPx(xMin) + padPx;
     const x1 = xToPx(xMax) - padPx;
@@ -2076,12 +2075,12 @@ function createDataCenterCeilingTextures() {
     // A. Outer dark recessed shadow gap around fixture perimeter
     dCtx.fillStyle = '#48505d';
     dCtx.fillRect(x0, y0, w, h);
-    eCtx.fillStyle = '#20252d';
+    eCtx.fillStyle = '#0c0e11';
     eCtx.fillRect(x0, y0, w, h);
     bCtx.fillStyle = '#383838';
     bCtx.fillRect(x0, y0, w, h);
 
-    // B. Sleek powder-coated white/silver aluminum luminaire bezel frame (~5.5px wide)
+    // B. Powder-coated aluminum bezel frame
     const frameInset = 1.0;
     const frameW = 5.5;
     const fx = x0 + frameInset;
@@ -2096,26 +2095,23 @@ function createDataCenterCeilingTextures() {
     dCtx.fillStyle = frameGrad;
     dCtx.fillRect(fx, fy, fw, fh);
 
-    eCtx.fillStyle = '#586170';
+    // Lit fixtures spill light onto their own bezel; unlit bezels only get room bounce
+    eCtx.fillStyle = isLit ? '#5a6574' : '#262a31';
     eCtx.fillRect(fx, fy, fw, fh);
 
     bCtx.fillStyle = '#a8a8a8';
     bCtx.fillRect(fx, fy, fw, fh);
 
-    // Subtle 45-degree mitered corner lines on the aluminum bezel frame
+    // Corner miters
     dCtx.strokeStyle = 'rgba(70, 80, 95, 0.45)';
     dCtx.lineWidth = 1.0;
     dCtx.beginPath();
-    // Top-left miter
     dCtx.moveTo(fx, fy);
     dCtx.lineTo(fx + frameW, fy + frameW);
-    // Top-right miter
     dCtx.moveTo(fx + fw, fy);
     dCtx.lineTo(fx + fw - frameW, fy + frameW);
-    // Bottom-left miter
     dCtx.moveTo(fx, fy + fh);
     dCtx.lineTo(fx + frameW, fy + fh - frameW);
-    // Bottom-right miter
     dCtx.moveTo(fx + fw, fy + fh);
     dCtx.lineTo(fx + fw - frameW, fy + fh - frameW);
     dCtx.stroke();
@@ -2131,7 +2127,7 @@ function createDataCenterCeilingTextures() {
     bCtx.fillStyle = '#505050';
     bCtx.fillRect(lx - 1.5, ly - 1.5, lw + 3.0, lh + 3.0);
 
-    // D. Single Undivided Micro-Prismatic Opal LED Diffuser Lens (100% seamless — zero divider bars!)
+    // D. Opal micro-prismatic diffuser lens (white acrylic in both states)
     const diffGrad = dCtx.createLinearGradient(lx, ly, lx, ly + lh);
     diffGrad.addColorStop(0, '#e6f0fa');
     diffGrad.addColorStop(0.18, '#f5f9ff');
@@ -2141,24 +2137,26 @@ function createDataCenterCeilingTextures() {
     dCtx.fillStyle = diffGrad;
     dCtx.fillRect(lx, ly, lw, lh);
 
-    // Soft radial/edge falloff on emissive map so the glowing panel has realistic depth
-    const emisGrad = eCtx.createLinearGradient(lx, ly, lx, ly + lh);
-    emisGrad.addColorStop(0, '#c8daf0');
-    emisGrad.addColorStop(0.15, '#eaf3ff');
-    emisGrad.addColorStop(0.50, '#ffffff');
-    emisGrad.addColorStop(0.85, '#eaf3ff');
-    emisGrad.addColorStop(1, '#c8daf0');
-    eCtx.fillStyle = emisGrad;
+    if (isLit) {
+      // Cool-white 6000K glow (x1.4 intensity -> just above bloom threshold = soft halo)
+      const emisGrad = eCtx.createLinearGradient(lx, ly, lx, ly + lh);
+      emisGrad.addColorStop(0, '#b4cbe6');
+      emisGrad.addColorStop(0.15, '#e2edfa');
+      emisGrad.addColorStop(0.50, '#ffffff');
+      emisGrad.addColorStop(0.85, '#e2edfa');
+      emisGrad.addColorStop(1, '#b4cbe6');
+      eCtx.fillStyle = emisGrad;
+    } else {
+      // Switched-off panel: opal lens slightly lighter than the surrounding tiles, no glow
+      eCtx.fillStyle = '#373d47';
+    }
     eCtx.fillRect(lx, ly, lw, lh);
 
-    // Flat recessed lens surface in bump map
     bCtx.fillStyle = '#686868';
     bCtx.fillRect(lx, ly, lw, lh);
   };
 
-  // Lighting Z-bands (each spanning exactly 1.0m [zMin, zMax] between horizontal T-bars):
-  // - Inside Server Containment Pod (Z = -9.5 to -6.5m): centered row [-8.5, -7.5] (1.0m clear of Z = -6.5m pod frame!)
-  // - Across Main Office (Z = -6.5 to +13.5m): every 3.0m ([-5.5,-4.5], [-2.5,-1.5], [0.5,1.5], [3.5,4.5], [6.5,7.5], [9.5,10.5])
+  // Lighting Z-bands:
   const lightZBands = [
     [-8.5, -7.5],
     [-5.5, -4.5],
@@ -2170,14 +2168,18 @@ function createDataCenterCeilingTextures() {
   ];
 
   for (const [zMin, zMax] of lightZBands) {
-    // 3 Central Undivided 2.0m x 1.0m Recessed LED Troffers (2.0m clear of X = ±7.0m pod walls!)
-    drawUndividedLedPanel(-5.0, -3.0, zMin, zMax);
-    drawUndividedLedPanel(-1.0, 1.0, zMin, zMax);
-    drawUndividedLedPanel(3.0, 5.0, zMin, zMax);
+    // Night-mode switching (13 of 35 fixtures ON):
+    // - Central circulation column (X = -1..+1): ON in every band (incl. server pod row)
+    // - Flanking columns (X = ±4): ON on alternating bands for a natural, sparse rhythm
+    // - Side aisles (X = ±8.5): OFF
+    const flankLit = (zMin === -5.5 || zMin === 0.5 || zMin === 6.5);
 
-    // 2 Side-Aisle Undivided 1.0m x 1.0m Recessed LED Troffers (1.0m clear of X = ±7.0m pod walls & X = ±10.0m outer walls!)
-    drawUndividedLedPanel(-9.0, -8.0, zMin, zMax);
-    drawUndividedLedPanel(8.0, 9.0, zMin, zMax);
+    drawUndividedLedPanel(-5.0, -3.0, zMin, zMax, flankLit);
+    drawUndividedLedPanel(-1.0, 1.0, zMin, zMax, true);
+    drawUndividedLedPanel(3.0, 5.0, zMin, zMax, flankLit);
+
+    drawUndividedLedPanel(-9.0, -8.0, zMin, zMax, false);
+    drawUndividedLedPanel(8.0, 9.0, zMin, zMax, false);
   }
 
   // Diffuse texture (1:1 full-room mapping)
@@ -2402,8 +2404,8 @@ function createBlackMarbleTextures() {
   bCtx.fillStyle = '#808080';
   bCtx.fillRect(0, 0, size, size);
 
-  // Polished stone base roughness (~0.13 -> rgb 33)
-  rCtx.fillStyle = '#212121';
+  // Polished architectural marble base roughness (~0.23 -> rgb 58) for silky specular sheen
+  rCtx.fillStyle = '#3a3a3a';
   rCtx.fillRect(0, 0, size, size);
 
   let seed = 104729;
@@ -2579,8 +2581,8 @@ function createBlackMarbleTextures() {
       ctx.fillStyle = slabGrad;
       ctx.fillRect(xMin, yMin, curW, slabH);
 
-      // Slight per-slab base roughness variation (11% to 15%)
-      const rVal = 28 + Math.floor(rand() * 10);
+      // Slight per-slab base roughness variation (21% to 25%)
+      const rVal = 54 + Math.floor(rand() * 10);
       rCtx.fillStyle = `rgb(${rVal}, ${rVal}, ${rVal})`;
       rCtx.fillRect(xMin, yMin, curW, slabH);
 
@@ -11788,7 +11790,7 @@ export class WarehouseBuilder {
       bumpScale: 0.002,
       emissive: new THREE.Color(0xffffff),
       emissiveMap: this.ceilingEmissiveTexture,
-      emissiveIntensity: 0.65,
+      emissiveIntensity: 1.0,
       roughness: 0.78,
       metalness: 0.08,
     });
@@ -12229,26 +12231,28 @@ export class WarehouseBuilder {
     this.vestibuleBlackMarbleMaterial = new THREE.MeshStandardMaterial({
       map: marbleTextures.diffuse,
       bumpMap: marbleTextures.bump,
-      bumpScale: 0.0018,
+      bumpScale: 0.0012,
       roughnessMap: marbleTextures.roughness,
       roughness: 1.0,
-      metalness: 0.08,
-      envMapIntensity: 0.72,
+      metalness: 0.04,
+      envMapIntensity: 0.0,
     });
 
+    // Vestibule "lights ON" (cool artificial downlights): instead of extra per-pixel point lights,
+    // vestibule-only surfaces get a stronger IBL response than the dim main office. Zero runtime cost.
     this.vestibuleWhiteWallMaterial = new THREE.MeshStandardMaterial({
       map: this.vestibulePlasterTex,
       color: 0xffffff,
       roughness: 0.86,
       metalness: 0.02,
-      envMapIntensity: 0.42,
+      envMapIntensity: 1.15,
     });
 
     this.vestibuleHalfWallMaterial = new THREE.MeshStandardMaterial({
       map: this.vestibuleHalfWallTex,
       roughness: 0.72,
       metalness: 0.04,
-      envMapIntensity: 0.45,
+      envMapIntensity: 1.10,
     });
 
     this.vestibuleVoidMaterial = new THREE.MeshBasicMaterial({
@@ -12296,11 +12300,11 @@ export class WarehouseBuilder {
     });
 
     this.vestibuleCeilingLightMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcbd5e1,
-      emissive: new THREE.Color(0x94a3b8),
-      emissiveIntensity: 0.45,
-      roughness: 0.30,
-      metalness: 0.10,
+      color: 0xe2e8f0,
+      emissive: new THREE.Color(0xd0e2f5),
+      emissiveIntensity: 1.15,
+      roughness: 0.35,
+      metalness: 0.05,
     });
 
     // Server Containment Pod (Platform-to-Ceiling Tempered Glass Enclosure & Double Doors) Materials
@@ -16155,11 +16159,6 @@ export class WarehouseBuilder {
     }
     downlightRingGeo.dispose();
     downlightDiskGeo.dispose();
-
-    // 1 Subtle Static Fill PointLight (Calibrated to 1.4 intensity so the vestibule is naturally lit without blooming)
-    const vestFillLight = new THREE.PointLight(0xe2e8f0, 1.4, 9.5, 1.8);
-    vestFillLight.position.set(-12.0, 3.30, 8.20);
-    group.add(vestFillLight);
 
     // B. Vestibule-Side Cladding of the Partition Wall (Occupies X = -10.185 to -10.210, 5mm clear of office wall X = -10.180)
     // Uniform matte off-white plaster cladding across ALL vestibule partition wall segments (including lower half-wall!)

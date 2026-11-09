@@ -7,6 +7,7 @@ import { PlayerController } from './player/PlayerController.js';
 import { WeaponViewmodel } from './weapons/WeaponViewmodel.js';
 import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
+import { LightingTuner } from './ui/LightingTuner.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -68,6 +69,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.__rocPlayer = player;
 
   const viewmodel = new WeaponViewmodel(engine.camera, sound);
+  viewmodel.setEnvironmentMap(engine.viewmodelEnvironment);
 
   const weaponSystem = new WeaponSystem(
     engine.scene,
@@ -81,6 +83,10 @@ window.addEventListener('DOMContentLoaded', () => {
   weaponSystem.setMonitorScreens(warehouse.monitorScreens);
   weaponSystem.setPlayer(player);
   weaponSystem.setHUD(hud);
+
+  const lightingTuner = new LightingTuner(engine, warehouse);
+  window.__rocWarehouse = warehouse;
+  window.__rocTuner = lightingTuner;
 
   let gameState = 'MAIN_MENU';
 

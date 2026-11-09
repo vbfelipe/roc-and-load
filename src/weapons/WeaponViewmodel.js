@@ -265,6 +265,11 @@ export class WeaponViewmodel {
     this.camera.add(this.root);
     if (typeof window !== 'undefined') window.__rocViewmodel = this;
 
+    // Dedicated viewmodel IBL (RoomEnvironment PMREM, injected by Engine via setEnvironmentMap).
+    // Weapons & hands keep the studio reflections their PBR textures were authored for,
+    // while the world uses the dark NightOfficeEnvironment. Zero extra lights = zero per-pixel cost.
+    this.viewmodelEnvMap = null;
+
     // Active weapon type ('hk_usp' = Slot 1 9mm Pistol, 'pistol' = Slot 2 Desert Eagle .50 AE, 'shotgun' = Slot 3 Remington 870, 'hk_mp5' = Slot 4)
     this.currentWeapon = 'hk_usp';
 
@@ -691,11 +696,37 @@ export class WeaponViewmodel {
 
     this._loadModelsPromise = Promise.all(modelDefs.map(loadSingle)).then(async () => {
       this._isLoaded = true;
+      this._applyViewmodelEnvironment();
       this.selectWeapon('hk_usp', { silent: true });
       await yieldToBrowser();
     });
 
     return this._loadModelsPromise;
+  }
+
+  /**
+   * Assigns the dedicated viewmodel IBL texture (overrides scene.environment for weapons & hands only).
+   */
+  setEnvironmentMap(envTexture) {
+    this.viewmodelEnvMap = envTexture || null;
+    this._applyViewmodelEnvironment();
+  }
+
+  _applyViewmodelEnvironment() {
+    if (!this.viewmodelEnvMap) return;
+    this.root.traverse((child) => {
+      if (!(child.isMesh || child.isSkinnedMesh) || !child.material) return;
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const m of mats) {
+        // Only PBR materials: MeshBasicMaterial (muzzle flash) would turn envMap into a mirror reflection
+        if (!m.isMeshStandardMaterial) continue;
+        if (m.envMap !== this.viewmodelEnvMap) {
+          m.envMap = this.viewmodelEnvMap;
+          m.needsUpdate = true;
+        }
+        m.envMapIntensity = m.userData.vmEnvIntensity !== undefined ? m.userData.vmEnvIntensity : 1.0;
+      }
+    });
   }
 
   _loadWeaponModels() {
@@ -904,8 +935,13 @@ export class WeaponViewmodel {
         child.frustumCulled = false;
         child.castShadow = false;
         child.receiveShadow = true;
-        if (child.material && child.material.map) {
-          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        if (child.material) {
+          if (child.material.map) {
+            child.material.map.colorSpace = THREE.SRGBColorSpace;
+          }
+          // Desert Eagle ONLY: its bright silver base texture blows out under RoomEnvironment.
+          // Tame just its reflection strength (never touch the dark USP/Shotgun/MP5 materials!).
+          child.material.userData.vmEnvIntensity = 0.55;
         }
       }
     });
@@ -1074,6 +1110,7 @@ export class WeaponViewmodel {
    */
   async warmUpGPU(renderer, scene, camera) {
     if (!renderer) return;
+    this._applyViewmodelEnvironment();
     const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
     // 1. Pre-upload all viewmodel texture maps to the GPU

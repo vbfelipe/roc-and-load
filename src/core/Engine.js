@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { NightOfficeEnvironment } from './NightOfficeEnvironment.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   EffectComposer,
@@ -37,13 +38,13 @@ export class Engine {
     this.renderer.setPixelRatio(1.0);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.NoToneMapping;
-    this.renderer.toneMappingExposure = 0.85;
-    this.renderer.shadowMap.enabled = false; // Zero shadow map overhead - scene uses PBR RoomEnvironment IBL
+    this.renderer.toneMappingExposure = 0.9;
+    this.renderer.shadowMap.enabled = false; // Zero shadow map overhead - scene uses PBR NightOfficeEnvironment IBL
 
-    // 4. Offline PBR Environment via RoomEnvironment + PMREMGenerator
+    // 4. Offline PBR Environment via NightOfficeEnvironment + PMREMGenerator
     this._initEnvironment();
 
-    // 5. Lighting Setup (Strictly 1 HemisphereLight + 1 DirectionalLight + RoomEnvironment IBL)
+    // 5. Lighting Setup: Cool Night Office Atmosphere (Hemisphere + Overhead Key)
     this._initLighting();
 
     // 6. Post-Processing Pipeline (Zero-AO, half-res bloom)
@@ -69,27 +70,38 @@ export class Engine {
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     pmremGenerator.compileEquirectangularShader();
 
-    const roomEnv = new RoomEnvironment();
-    const envTexture = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+    // A. WORLD IBL: smooth night-office gradient (no hot boxes -> no phantom blobs on marble/chrome)
+    const nightEnv = new NightOfficeEnvironment();
+    this.scene.environment = pmremGenerator.fromScene(nightEnv, 0.04).texture;
+    nightEnv.dispose();
 
-    this.scene.environment = envTexture;
+    // B. VIEWMODEL IBL: RoomEnvironment, assigned per-material to weapons & hands only.
+    // USP / Shotgun / MP5 have dark textures authored for this studio IBL; the Desert Eagle
+    // is tamed individually in WeaponViewmodel (never darken all weapons globally!).
+    const roomEnv = new RoomEnvironment();
+    this.viewmodelEnvironment = pmremGenerator.fromScene(roomEnv, 0.04).texture;
+    roomEnv.dispose();
 
     pmremGenerator.dispose();
-    roomEnv.dispose();
   }
 
   _initLighting() {
-    // Hemisphere ambient light (Warm overhead warehouse glow + cool concrete floor bounce)
-    const hemiLight = new THREE.HemisphereLight(0xfff5ea, 0x1e293b, 0.60);
-    hemiLight.position.set(0, 10, 0);
-    this.scene.add(hemiLight);
+    // Budget: 1 hemisphere + 1 directional (cheap, no shadows, optimal framerate).
 
-    // Main key light angling down from overhead (calibrated to avoid metal burnout)
-    const keyLight = new THREE.DirectionalLight(0xffeedd, 1.25);
-    keyLight.position.set(6, 16, 5);
-    keyLight.target.position.set(0, 0, 8);
-    this.scene.add(keyLight);
-    this.scene.add(keyLight.target);
+    // 1. Ambient fill: cool lit-ceiling sky / charcoal floor bounce
+    this.hemiLight = new THREE.HemisphereLight(0xa9bcd8, 0x161c26, 0.9);
+    this.hemiLight.position.set(0, 10, 0);
+    this.scene.add(this.hemiLight);
+
+    // 2. Overhead "troffer" key: cool-white, near-vertical (slight tilt so desks/walls get form)
+    this.keyLight = new THREE.DirectionalLight(0xdce8f7, 0.9);
+    this.keyLight.position.set(2.5, 10, 1.5);
+    this.keyLight.target.position.set(0, 0, 0);
+    this.scene.add(this.keyLight);
+    this.scene.add(this.keyLight.target);
+
+    // Live tuning from DevTools console: __rocEngine.hemiLight.intensity = 0.9, etc.
+    if (typeof window !== 'undefined') window.__rocEngine = this;
   }
 
   _initPostProcessing() {
@@ -105,8 +117,8 @@ export class Engine {
 
     // Pass 2: Lightweight Half-Resolution Bloom (4x faster fill-rate with identical visuals)
     this.bloomEffect = new BloomEffect({
-      luminanceThreshold: 1.1,
-      intensity: 0.5,
+      luminanceThreshold: 1.05,
+      intensity: 0.45,
       mipmapBlur: true,
       resolutionScale: 0.5
     });
@@ -117,8 +129,8 @@ export class Engine {
 
     this.vignetteEffect = new VignetteEffect({
       eskil: false,
-      offset: 0.18,
-      darkness: 0.65
+      offset: 0.20,
+      darkness: 0.58
     });
 
     const combinedEffectPass = new EffectPass(
