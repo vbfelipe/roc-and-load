@@ -2,7 +2,7 @@
  * LightingTuner.js
  *
  * Real-time In-Game GUI + Browser Console Controller for ROC & LOAD illumination.
- * - Press F7 or 'L' to toggle the in-game GUI panel with live sliders.
+ * - Press F7 to toggle the in-game GUI panel with live sliders.
  * - Or type `lights.help()` in the browser developer console (F12).
  */
 export class LightingTuner {
@@ -96,7 +96,35 @@ export class LightingTuner {
     this.setKey(p.key);
     this.setCeiling(p.ceiling);
     this.setExposure(p.exposure);
+    this._highlightPreset(name);
     console.log(`[LightingTuner] Applied preset "${p.label}":`, this.values);
+  }
+
+  _highlightPreset(activeName) {
+    if (!this.overlay) return;
+    const map = {
+      balanced: '#lt-pre-balanced',
+      default: '#lt-pre-balanced',
+      dim: '#lt-pre-dim',
+      bright: '#lt-pre-bright',
+    };
+    ['#lt-pre-balanced', '#lt-pre-dim', '#lt-pre-bright'].forEach((sel) => {
+      const btn = this.overlay.querySelector(sel);
+      if (btn) {
+        btn.style.background = '#1e293b';
+        btn.style.color = '#94a3b8';
+        btn.style.fontWeight = 'normal';
+      }
+    });
+    const activeSel = map[activeName];
+    if (activeSel) {
+      const btn = this.overlay.querySelector(activeSel);
+      if (btn) {
+        btn.style.background = '#1e3a8a';
+        btn.style.color = '#fff';
+        btn.style.fontWeight = 'bold';
+      }
+    }
   }
 
   toggle() {
@@ -109,19 +137,36 @@ export class LightingTuner {
 
   open() {
     this.isOpen = true;
+    window.isLightingTunerOpen = true;
+    if (window.__rocViewmodelTuner?.isOpen) {
+      window.__rocViewmodelTuner.close();
+    }
     if (this.overlay) {
       this.overlay.style.display = 'block';
     }
     if (document.pointerLockElement) {
       document.exitPointerLock();
     }
+    const startModal = document.getElementById('start-modal');
+    if (startModal) {
+      startModal.classList.add('hidden');
+    }
+    if (window.__rocViewmodel && window.__rocViewmodel.root) {
+      window.__rocViewmodel.root.visible = true;
+    }
     this._refreshAllSliders();
   }
 
   close() {
     this.isOpen = false;
+    window.isLightingTunerOpen = false;
     if (this.overlay) {
       this.overlay.style.display = 'none';
+    }
+    if (!window.isViewmodelTunerOpen && typeof window.getGameState === 'function' && window.getGameState() === 'MAIN_MENU') {
+      const startModal = document.getElementById('start-modal');
+      if (startModal) startModal.classList.remove('hidden');
+      return;
     }
     const canvas = document.getElementById('game-canvas');
     if (canvas && canvas.requestPointerLock && !window.isViewmodelTunerOpen) {
@@ -139,25 +184,26 @@ export class LightingTuner {
     overlay.id = 'lighting-tuner-overlay';
     overlay.style.cssText = `
       position: fixed;
-      top: 16px;
-      right: 16px;
+      bottom: 16px;
+      left: 16px;
       width: 320px;
-      background: rgba(12, 17, 26, 0.96);
-      border: 1px solid #3b485e;
+      background: rgba(15, 20, 28, 0.96);
+      border: 1px solid #4a5568;
       border-radius: 8px;
-      padding: 14px 16px;
+      padding: 12px;
       color: #e2e8f0;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
       font-size: 11px;
-      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-      z-index: 100000;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.75);
+      z-index: 99999;
       display: none;
+      pointer-events: auto;
       user-select: none;
     `;
 
     overlay.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #283344; padding-bottom:6px;">
-        <strong style="color:#60a5fa; font-size:12px; letter-spacing:0.5px;">LIGHTING TUNER (F7 / L)</strong>
+        <strong style="color:#60a5fa; font-size:12px; letter-spacing:0.5px;">LIGHTING TUNER (F7)</strong>
         <span style="color:#94a3b8; font-size:10px;">Esc to close</span>
       </div>
 
@@ -266,12 +312,9 @@ export class LightingTuner {
 
   _attachKeyListeners() {
     window.addEventListener('keydown', (e) => {
-      // Toggle on F7 or 'L' (when not typing in an input)
-      if (e.key === 'F7' || (e.key === 'l' && !e.ctrlKey && !e.altKey && !e.metaKey && document.activeElement?.tagName !== 'INPUT')) {
+      if (e.key === 'F7') {
         e.preventDefault();
         this.toggle();
-      } else if (e.key === 'Escape' && this.isOpen) {
-        this.close();
       }
     });
   }
@@ -291,7 +334,7 @@ Commands:
   lights.ceiling(val)     // Set Ceiling Troffer Glow (default: 0.0)
   lights.exposure(val)    // Set Tone Mapping Exposure (default: 0.9)
   lights.preset('name')   // 'default' | 'balanced' | 'dim' | 'bright'
-  lights.open()           // Open In-Game UI Overlay (or press F7 or 'L')
+  lights.open()           // Open In-Game UI Overlay (or press F7)
   lights.close()          // Close In-Game UI Overlay
   lights.status()         // Print current values table
 `,
@@ -327,10 +370,8 @@ Commands:
     // Log helpful invitation once to console
     setTimeout(() => {
       console.log(
-        '%c[rocAndLoad] %cLighting Tuner Ready! Press %cF7%c or %cL%c in-game, or type %clights.help()%c here in the console.',
+        '%c[rocAndLoad] %cLighting Tuner Ready! Press %cF7%c in-game, or type %clights.help()%c here in the console.',
         'color:#38bdf8; font-weight:bold;',
-        'color:#94a3b8;',
-        'color:#f59e0b; font-weight:bold;',
         'color:#94a3b8;',
         'color:#f59e0b; font-weight:bold;',
         'color:#94a3b8;',

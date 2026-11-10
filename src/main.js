@@ -8,6 +8,7 @@ import { WeaponViewmodel } from './weapons/WeaponViewmodel.js';
 import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
 import { LightingTuner } from './ui/LightingTuner.js';
+import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -85,8 +86,10 @@ window.addEventListener('DOMContentLoaded', () => {
   weaponSystem.setHUD(hud);
 
   const lightingTuner = new LightingTuner(engine, warehouse);
+  const viewmodelTuner = new ViewmodelTuner(viewmodel, weaponSystem);
   window.__rocWarehouse = warehouse;
   window.__rocTuner = lightingTuner;
+  window.__rocViewmodelTuner = viewmodelTuner;
 
   let gameState = 'MAIN_MENU';
 
@@ -489,11 +492,12 @@ window.addEventListener('DOMContentLoaded', () => {
     setGameState('PLAYING');
   });
 
-  // Global flag for F8 viewmodel tuner to prevent pause menu interference
+  // Global flags for F7 lighting tuner and F8 viewmodel tuner to prevent pause menu interference
   window.isViewmodelTunerOpen = false;
+  window.isLightingTunerOpen = false;
 
   input.onUnlock(() => {
-    if (window.isViewmodelTunerOpen) {
+    if (window.isViewmodelTunerOpen || window.isLightingTunerOpen) {
       // Tuner is open: DO NOT pause the game, keep playing state and live viewmodel rendering!
       return;
     }
@@ -506,11 +510,11 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.key === 'Escape' || e.code === 'KeyP') {
       if (window.isViewmodelTunerOpen) {
-        const overlay = document.getElementById('hand-tuner-overlay');
-        if (overlay) overlay.style.display = 'none';
-        window.isViewmodelTunerOpen = false;
-        if (viewmodel) viewmodel.tunerForceADS = null;
-        input.requestLock();
+        viewmodelTuner.close();
+        return;
+      }
+      if (window.isLightingTunerOpen) {
+        lightingTuner.close();
         return;
       }
       if (gameState === 'PLAYING') {
