@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { NightOfficeEnvironment } from './NightOfficeEnvironment.js';
+import { ZombieEnemy } from '../enemies/ZombieEnemy.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   EffectComposer,
@@ -50,7 +51,14 @@ export class Engine {
     // 6. Post-Processing Pipeline (Zero-AO, half-res bloom)
     this._initPostProcessing();
 
-    // 7. Loop & Physics Timing
+    // 7. NPC Entities
+    this.zombie = new ZombieEnemy(this.scene, {
+      spawnPosition: new THREE.Vector3(0.0, 0.0, 2.5),
+      lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
+    });
+    if (typeof window !== 'undefined') window.__rocZombie = this.zombie;
+
+    // 8. Loop & Physics Timing
     this.clock = new THREE.Clock();
     this.physicsUpdatables = [];
     this.visualUpdatables = [];
@@ -142,6 +150,10 @@ export class Engine {
     this.composer.addPass(combinedEffectPass);
   }
 
+  loadEnemies(onProgress) {
+    return this.zombie ? this.zombie.load(onProgress) : Promise.resolve();
+  }
+
   addPhysicsUpdatable(obj) {
     this.physicsUpdatables.push(obj);
   }
@@ -191,9 +203,12 @@ export class Engine {
       }
     }
 
-    // 2. Visual frame updates (camera transforms, head bob, springs, viewmodels)
+    // 2. Visual frame updates (camera transforms, head bob, springs, viewmodels, NPCs)
     for (let i = 0; i < this.visualUpdatables.length; i++) {
       this.visualUpdatables[i].update(delta);
+    }
+    if (this.zombie) {
+      this.zombie.update(delta);
     }
 
     // 3. Render Post-Processing Pipeline

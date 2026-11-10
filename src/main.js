@@ -160,9 +160,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
     let audioFrac = 0;
     let modelFrac = 0;
+    let zombieFrac = 0;
     let heroFrac = 0;
     const syncAssetProgress = (statusMsg) => {
-      const weighted = 10 + (0.10 * audioFrac + 0.85 * modelFrac + 0.05 * heroFrac) * 76;
+      const weighted = 10 + (0.08 * audioFrac + 0.45 * modelFrac + 0.43 * zombieFrac + 0.04 * heroFrac) * 76;
       updateBootProgress(weighted, statusMsg);
     };
 
@@ -179,7 +180,14 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress(label);
     });
 
-    // 3. Parallel loading: WebP UI hero art
+    // 3. Parallel loading: NPC Zombie Woman (FBX rig + 5 clips + GLB PBR maps)
+    const zombiePromise = engine.loadEnemies((fraction, key) => {
+      zombieFrac = fraction;
+      const label = key === 'complete' ? 'ENTITIES READY' : `STREAMING NPC: ${key.toUpperCase()}...`;
+      syncAssetProgress(label);
+    });
+
+    // 4. Parallel loading: WebP UI hero art
     const heroImagePromise = new Promise((resolve) => {
       const img = new Image();
       img.src = './roc_hero.webp';
@@ -194,19 +202,20 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress();
     });
 
-    await Promise.all([audioPromise, modelsPromise, heroImagePromise]);
+    await Promise.all([audioPromise, modelsPromise, zombiePromise, heroImagePromise]);
     const assetsMs = Math.round(performance.now() - bootStart);
 
-    // 4. Unified WebGL2 & EffectComposer Warm-Up (textures, VBOs, Skeleton.boneTextures, MSAA HalfFloat PSOs)
+    // 5. Unified WebGL2 & EffectComposer Warm-Up (textures, VBOs, Skeleton.boneTextures, MSAA HalfFloat PSOs)
     updateBootProgress(88, 'WARMING UP GPU SHADERS & TEXTURES...');
     await nextFrame();
 
     const warmupStart = performance.now();
     try {
-      if (warehouse && engine.renderer && typeof engine.renderer.initTexture === 'function') {
-        const texturesToWarm = typeof warehouse.getPreloadTextures === 'function'
-          ? warehouse.getPreloadTextures()
-          : [];
+      if (engine.renderer && typeof engine.renderer.initTexture === 'function') {
+        const texturesToWarm = [
+          ...(warehouse && typeof warehouse.getPreloadTextures === 'function' ? warehouse.getPreloadTextures() : []),
+          ...(engine.zombie && typeof engine.zombie.getPreloadTextures === 'function' ? engine.zombie.getPreloadTextures() : []),
+        ];
         for (const tex of texturesToWarm) {
           if (tex) {
             try { engine.renderer.initTexture(tex); } catch (e) {}
@@ -420,6 +429,7 @@ window.addEventListener('DOMContentLoaded', () => {
       player.reset(0, 0.1, -3.0, Math.PI, 0);
       weaponSystem.reset();
       warehouse.resetMonitors();
+      if (engine.zombie) engine.zombie.reset();
       setGameState('MAIN_MENU');
     });
   }
