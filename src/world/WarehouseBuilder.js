@@ -4823,9 +4823,9 @@ function createSkyscraperFacadeTextures() {
 }
 
 /**
- * Creates separate facade geometry (4 vertical sides with seamless world UVs)
+ * Creates separate facade geometry (3 visible vertical sides: -Z front and ±X flanks, with seamless world UVs)
  * and roof geometry (top horizontal cap) for a skyscraper tower.
- * Discards underground bottom face.
+ * Discards underground bottom (-Y) and unseen away-facing (+Z) faces.
  */
 function createTowerGeometries(w, h, d, uScale = null, vScale = 45.0) {
   const geo = new THREE.BoxGeometry(w, h, d).toNonIndexed();
@@ -4842,7 +4842,8 @@ function createTowerGeometries(w, h, d, uScale = null, vScale = 45.0) {
 
   for (let i = 0; i < pos.count; i += 3) {
     const ny = norm.getY(i);
-    if (ny < -0.5) continue; // Skip bottom underground face
+    // Skip underground bottom (-Y) and far-side back (+Z) faces never visible from office/balcony (Z <= 13m)
+    if (ny < -0.5 || norm.getZ(i) > 0.5) continue;
 
     const isRoof = ny > 0.5;
     for (let j = 0; j < 3; j++) {
@@ -4866,9 +4867,7 @@ function createTowerGeometries(w, h, d, uScale = null, vScale = 45.0) {
         const scaleX = uScale !== null ? uScale : w;
         const scaleZ = uScale !== null ? uScale : d;
 
-        if (nz > 0.5) {
-          u = (x + w / 2) / scaleX;
-        } else if (nz < -0.5) {
+        if (nz < -0.5) {
           u = (w - (x + w / 2)) / scaleX;
         } else if (nx > 0.5) {
           u = (z + d / 2) / scaleZ;
@@ -19185,9 +19184,9 @@ export class WarehouseBuilder {
 
   /**
    * Constructs the Alive 3D Parallax Nighttime City Skyline:
-   * - Layer A: Curved Panoramic Sky Backdrop (Radius = 115m, Height = 95m, unlit fog-free)
-   * - Layer B: Dedicated 3D Luminous Glowing Moon (10m x 10m at X = -6.5m, Y = 16.5m, Z = 108m)
-   * - Layer C: 32 3D High-Rise Skyscraper Towers across 3 True Depth Tiers (Z = 38m to 125m, Y = -35m to +15m)
+   * - Layer A: Pure Pitch-Black Unlit Sky Dome (Radius = 220m, 360° Surrounding)
+   * - Layer B: Dedicated 3D Luminous Moon & Starfield
+   * - Layer C: 13 Uniformly Spaced Radial 3D Skyscraper Towers across 2 Depth Tiers (Z = 30.4m to 65.1m)
    * - Layer D: Stepped Rooftop Crowns, Illuminated Roof Trims & Pulsing Red Aviation Warning Beacons
    */
   _buildNightCitySkyline(addVisual, visualBuckets, group) {
@@ -19295,58 +19294,29 @@ export class WarehouseBuilder {
     group.add(moonMesh);
 
     // -------------------------------------------------------------------------
-    // Layer D: 37 3D Skyscraper Towers Horizontally Distributed (X = -65m to +65m)
-    // - Foreground towers (Z = 40m–55m) spaced with 4.0m to 8.5m of open sky between them
-    // - Midground (Z = 62m–86m) and Distant (Z = 92m–125m) towers staggered behind gaps
-    // - All towers feature complete architectural crowns, penthouses, trims & beacons
+    // Layer D: 13 Uniformly Spaced Radial 3D Skyscraper Towers (-64° to +65° arc)
+    // - Even ~10.8° angular spacing from dead-center out to both corners (eliminates center voids & corner clusters)
+    // - 7 Foreground (R ≈ 35–42m, hBot = -18m) interleaved with 6 taller Midground (R ≈ 54–56m, hBot = -22m)
+    // - Clean 1°–2.3° starry avenues, alternating A/B/C/D facades, stepped crowns & pulsing beacons
     // -------------------------------------------------------------------------
     const towers = [
-      // Tier 1 — Foreground (Z = 40m to 54m): 9 towers across X = -56m to +60m
-      { x: -56.0, z: 46.0, w: 6.8, d: 6.0, hTop: 9.5, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.8, penthouse: true, roofTrim: true, cornerBeacons: true },
-      { x: -42.0, z: 43.0, w: 6.2, d: 5.6, hTop: 10.2, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true, cornerBeacons: true },
-      { x: -28.0, z: 45.0, w: 6.5, d: 5.8, hTop: 9.0, hBot: -35.0, facade: 'B', beacon: true, spireH: 3.5, penthouse: true, roofTrim: true, cornerBeacons: true },
-      // Restored Tower: Full penthouse crown, roof trim, spire antenna & red warning beacons
-      { x: -9.5, z: 44.0, w: 6.0, d: 5.5, hTop: 9.8, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true, cornerBeacons: true },
+      // Tier 1 — Foreground Arc (7 towers spanning right-to-left across the window & balcony door)
+      { x: -37.7, z: 30.4, w: 5.0, d: 4.6, hTop: 9.4,  hBot: -18.0, facade: 'B', beacon: true, spireH: 3.4, penthouse: true,  roofTrim: true, cornerBeacons: true },
+      { x: -25.7, z: 40.0, w: 5.0, d: 4.6, hTop: 10.4, hBot: -18.0, facade: 'C', beacon: true, spireH: 3.8, penthouse: true,  roofTrim: true, cornerBeacons: true },
+      { x: -13.1, z: 45.5, w: 5.2, d: 4.8, hTop: 9.2,  hBot: -18.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true,  roofTrim: true, cornerBeacons: true },
+      { x: 0.2,   z: 47.0, w: 5.2, d: 4.8, hTop: 10.2, hBot: -18.0, facade: 'B', beacon: true, spireH: 4.0, crownSteps: 2,    roofTrim: true, cornerBeacons: true },
       // Landmark Diagrid Tower (Slender, gold diagrid lines, 3-tier stepped crown, and spire)
-      { x: 8.5, z: 50.0, w: 6.5, d: 6.0, hTop: 13.0, hBot: -35.0, facade: 'D', beacon: true, spireH: 4.8, crownSteps: 3, roofTrim: true, cornerBeacons: true },
-      { x: 22.0, z: 43.0, w: 6.2, d: 5.8, hTop: 8.8, hBot: -35.0, facade: 'B', beacon: true, spireH: 3.2, penthouse: true, roofTrim: true, cornerBeacons: true },
-      { x: 35.0, z: 47.0, w: 6.6, d: 6.0, hTop: 10.8, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.2, penthouse: true, roofTrim: true, cornerBeacons: true },
-      { x: 48.0, z: 44.0, w: 6.2, d: 5.8, hTop: 9.2, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true, roofTrim: true, cornerBeacons: true },
-      { x: 60.0, z: 48.0, w: 7.0, d: 6.5, hTop: 8.5, hBot: -35.0, facade: 'B', beacon: false, penthouse: true, roofTrim: true },
+      { x: 7.7,   z: 50.2, w: 6.0, d: 5.4, hTop: 13.0, hBot: -18.0, facade: 'D', beacon: true, spireH: 4.8, crownSteps: 3,    roofTrim: true, cornerBeacons: true },
+      { x: 19.8,  z: 42.1, w: 5.2, d: 4.8, hTop: 9.6,  hBot: -18.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true,  roofTrim: true, cornerBeacons: true },
+      { x: 31.0,  z: 34.0, w: 5.0, d: 4.6, hTop: 10.6, hBot: -18.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true,  roofTrim: true, cornerBeacons: true },
 
-      // Tier 2 — Midground (Z = 62m to 86m): 13 towers filling corridors and creating 3D parallax
-      { x: -64.0, z: 66.0, w: 8.0, d: 7.5, hTop: 11.5, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true },
-      { x: -49.0, z: 62.0, w: 7.5, d: 7.0, hTop: 12.2, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.5, crownSteps: 2, roofTrim: true },
-      { x: -35.0, z: 68.0, w: 7.8, d: 7.2, hTop: 13.0, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.8, penthouse: true, roofTrim: true },
-      { x: -20.0, z: 64.0, w: 7.2, d: 6.8, hTop: 12.5, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.2, crownSteps: 2, roofTrim: true },
-      // Restored Midground Tower: Stepped crown, roof trim, spire antenna & red warning beacon
-      { x: -7.0, z: 76.0, w: 6.5, d: 6.0, hTop: 12.8, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.5, crownSteps: 2, roofTrim: true },
-      { x: 0.0, z: 65.0, w: 7.2, d: 6.8, hTop: 12.8, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.6, crownSteps: 3, roofTrim: true },
-      { x: 15.0, z: 63.0, w: 7.5, d: 7.0, hTop: 11.8, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true },
-      { x: 28.5, z: 67.0, w: 8.0, d: 7.5, hTop: 13.5, hBot: -35.0, facade: 'A', beacon: true, spireH: 5.0, crownSteps: 2, roofTrim: true },
-      { x: 42.0, z: 64.0, w: 7.6, d: 7.2, hTop: 12.0, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.2, penthouse: true, roofTrim: true },
-      { x: 54.0, z: 68.0, w: 8.0, d: 7.5, hTop: 13.2, hBot: -35.0, facade: 'C', beacon: false, penthouse: true, roofTrim: true },
-      { x: 65.0, z: 62.0, w: 8.2, d: 7.6, hTop: 11.0, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.8, penthouse: true, roofTrim: true },
-      { x: -27.0, z: 82.0, w: 8.5, d: 7.8, hTop: 13.8, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.5, crownSteps: 2, roofTrim: true },
-      { x: 35.0, z: 82.0, w: 8.5, d: 8.0, hTop: 13.5, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.6, penthouse: true, roofTrim: true },
-
-      // Tier 3 — Distant Horizon (Z = 92m to 125m): 15 towers creating a vast sprawling skyline
-      { x: -62.0, z: 95.0, w: 10.0, d: 9.0, hTop: 13.5, hBot: -35.0, facade: 'A', beacon: false },
-      { x: -48.0, z: 100.0, w: 9.5, d: 8.5, hTop: 14.2, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0 },
-      { x: -34.0, z: 96.0, w: 9.0, d: 8.0, hTop: 13.8, hBot: -35.0, facade: 'B', beacon: false },
-      { x: -18.0, z: 102.0, w: 9.2, d: 8.2, hTop: 14.0, hBot: -35.0, facade: 'A', beacon: true, spireH: 4.2 },
-      // Restored Distant Tower: Spire antenna & red warning beacon
-      { x: -5.0, z: 98.0, w: 8.8, d: 8.0, hTop: 14.0, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.0 },
-      { x: 8.0, z: 95.0, w: 9.0, d: 8.2, hTop: 14.5, hBot: -35.0, facade: 'B', beacon: true, spireH: 4.0 },
-      { x: 22.0, z: 100.0, w: 9.5, d: 8.5, hTop: 13.8, hBot: -35.0, facade: 'A', beacon: false },
-      { x: 38.0, z: 96.0, w: 9.2, d: 8.2, hTop: 14.2, hBot: -35.0, facade: 'C', beacon: true, spireH: 4.5 },
-      { x: 52.0, z: 98.0, w: 9.8, d: 8.6, hTop: 13.5, hBot: -35.0, facade: 'B', beacon: false },
-      { x: 64.0, z: 94.0, w: 10.0, d: 8.8, hTop: 13.0, hBot: -35.0, facade: 'A', beacon: false },
-      { x: -42.0, z: 118.0, w: 11.5, d: 10.0, hTop: 14.5, hBot: -35.0, facade: 'B', beacon: false },
-      { x: -20.0, z: 120.0, w: 11.0, d: 9.5, hTop: 14.8, hBot: -35.0, facade: 'A', beacon: true, spireH: 3.5 },
-      { x: 2.0, z: 122.0, w: 11.0, d: 9.5, hTop: 14.2, hBot: -35.0, facade: 'C', beacon: false },
-      { x: 25.0, z: 118.0, w: 11.5, d: 10.0, hTop: 14.6, hBot: -35.0, facade: 'B', beacon: false },
-      { x: 48.0, z: 120.0, w: 11.8, d: 10.2, hTop: 13.8, hBot: -35.0, facade: 'A', beacon: false },
+      // Tier 2 — Midground Arc (6 taller towers interleaved in the corridors between foreground towers)
+      { x: -44.8, z: 45.5, w: 6.4, d: 5.8, hTop: 12.6, hBot: -22.0, facade: 'A', beacon: true, spireH: 4.4, crownSteps: 2,    roofTrim: true },
+      { x: -29.3, z: 58.5, w: 6.4, d: 5.8, hTop: 13.2, hBot: -22.0, facade: 'B', beacon: true, spireH: 4.6, crownSteps: 2,    roofTrim: true },
+      { x: -9.6,  z: 65.1, w: 6.4, d: 5.8, hTop: 12.2, hBot: -22.0, facade: 'C', beacon: true, spireH: 4.2, penthouse: true,  roofTrim: true },
+      { x: 20.5,  z: 62.0, w: 6.4, d: 5.8, hTop: 11.8, hBot: -22.0, facade: 'C', beacon: true, spireH: 4.2, crownSteps: 2,    roofTrim: true },
+      { x: 38.3,  z: 51.4, w: 6.4, d: 5.8, hTop: 13.4, hBot: -22.0, facade: 'B', beacon: true, spireH: 4.8, crownSteps: 2,    roofTrim: true },
+      { x: 49.8,  z: 35.2, w: 6.4, d: 5.8, hTop: 12.4, hBot: -22.0, facade: 'A', beacon: true, spireH: 4.0, crownSteps: 2,    roofTrim: true },
     ];
 
     this.skylineBeacons = [];
