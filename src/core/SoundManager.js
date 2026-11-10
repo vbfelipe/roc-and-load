@@ -182,7 +182,6 @@ export class SoundManager {
     const entries = Object.entries(soundFiles);
     let completed = 0;
     const total = entries.length;
-    const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
     await Promise.all(
       entries.map(async ([key, url]) => {
@@ -215,7 +214,6 @@ export class SoundManager {
         }
         completed++;
         if (onProgress) onProgress(completed / total, key);
-        await yieldToBrowser();
       })
     );
 

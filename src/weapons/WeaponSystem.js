@@ -1749,38 +1749,28 @@ export class WeaponSystem {
   }
 
   /**
-   * Pre-uploads weapon effect textures and pre-compiles effect shaders (decals,
-   * tracers, shell casings, and muzzle flash light).
+   * Uploads effect textures and activates one sample per pool + muzzleLight for unified GPU warmup.
+   * Returns an opaque state handle to pass to finishWarmUp().
    */
-  warmUpGPU(renderer, camera) {
-    if (!renderer) return;
-
-    // 1. Upload effect textures (including all procedural wall decal variations) to GPU
-    if (this.decalTextures && this.decalTextures.length > 0) {
-      for (const tex of this.decalTextures) {
+  prepareWarmUp(renderer) {
+    if (renderer) {
+      const texLists = [this.decalTextures, this.heavyDecalTextures];
+      for (const list of texLists) {
+        if (!list) continue;
+        for (const tex of list) {
+          if (tex) {
+            try { renderer.initTexture(tex); } catch (e) {}
+          }
+        }
+      }
+      const singles = [this.decalTexture, this.glassDecalTexture, this.heavyGlassDecalTexture];
+      for (const tex of singles) {
         if (tex) {
           try { renderer.initTexture(tex); } catch (e) {}
         }
       }
     }
-    if (this.heavyDecalTextures && this.heavyDecalTextures.length > 0) {
-      for (const tex of this.heavyDecalTextures) {
-        if (tex) {
-          try { renderer.initTexture(tex); } catch (e) {}
-        }
-      }
-    }
-    if (this.decalTexture) {
-      try { renderer.initTexture(this.decalTexture); } catch (e) {}
-    }
-    if (this.glassDecalTexture) {
-      try { renderer.initTexture(this.glassDecalTexture); } catch (e) {}
-    }
-    if (this.heavyGlassDecalTexture) {
-      try { renderer.initTexture(this.heavyGlassDecalTexture); } catch (e) {}
-    }
 
-    // 2. Temporarily acquire 1 sample from each pool and set visible = true for shader compilation
     const pools = [
       this.decalPool,
       this.tracerPool,
@@ -1794,37 +1784,58 @@ export class WeaponSystem {
       if (pool && typeof pool.acquire === 'function') {
         const item = pool.acquire();
         if (item) {
+          const prevCulled = item.frustumCulled;
+          item.frustumCulled = false;
           item.visible = true;
-          samples.push({ pool, item });
+          samples.push({ pool, item, prevCulled });
         }
       }
     }
 
-    // 3. Temporarily set muzzle light intensity > 0 to guarantee shaders with active point lights compile
     const prevIntensity = this.muzzleLight ? this.muzzleLight.intensity : 0;
     if (this.muzzleLight) {
       this.muzzleLight.intensity = 1.0;
     }
 
-    // 4. Compile shaders with scene & camera
+    return { samples, prevIntensity };
+  }
+
+  /**
+   * Restores pool items and muzzle light after GPU warmup rendering completes.
+   */
+  finishWarmUp(state) {
+    if (!state) return;
+    if (this.muzzleLight) {
+      this.muzzleLight.intensity = state.prevIntensity;
+    }
+    for (const { pool, item, prevCulled } of state.samples) {
+      item.visible = false;
+      item.frustumCulled = prevCulled;
+      pool.release(item);
+    }
+  }
+
+  /**
+   * Pre-uploads weapon effect textures and pre-compiles effect shaders (decals,
+   * tracers, shell casings, and muzzle flash light).
+   */
+  warmUpGPU(renderer, camera, composer = null) {
+    if (!renderer) return;
+    const state = this.prepareWarmUp(renderer);
+
     if (this.scene && camera) {
       try {
         renderer.compile(this.scene, camera);
-        // Force 1 render frame to warm the GPU pipeline
-        renderer.render(this.scene, camera);
+        if (composer) {
+          composer.render();
+        } else {
+          renderer.render(this.scene, camera);
+        }
       } catch (err) {
         console.warn('[WeaponSystem] warmUpGPU compile warning:', err);
       }
     }
 
-    // 5. Restore muzzle light intensity and release pool items
-    if (this.muzzleLight) {
-      this.muzzleLight.intensity = prevIntensity;
-    }
-
-    for (const { pool, item } of samples) {
-      item.visible = false;
-      pool.release(item);
-    }
+    this.finishWarmUp(state);
   }
 }

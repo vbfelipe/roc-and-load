@@ -256,9 +256,10 @@ function buildSubGeometryFromTriangles(origGeo, triangleIndices) {
  * Slot 4 (H&K MP5 Submachine Gun), and Rigged First-Person Hands.
  */
 export class WeaponViewmodel {
-  constructor(camera, soundManager) {
+  constructor(camera, soundManager, options = {}) {
     this.camera = camera;
     this.sound = soundManager;
+    this._autoLoad = options.autoLoad !== undefined ? !!options.autoLoad : true;
 
     this.root = new THREE.Group();
     this.root.name = 'WeaponViewmodel';
@@ -446,10 +447,13 @@ export class WeaponViewmodel {
     this._buildMP5Mesh();
     this._buildMuzzleFlashRig();
 
-    // Load 3D GLTF models asynchronously
+    // Load 3D GLTF models asynchronously (deferred when orchestrated by boot pipeline)
     this._loadModelsPromise = null;
     this._isLoaded = false;
-    this.loadAllModels();
+    this._filteredHandGeoCache = { R: null, L: null };
+    if (this._autoLoad) {
+      this.loadAllModels();
+    }
     this._setupHandTuner();
   }
 
@@ -594,12 +598,14 @@ export class WeaponViewmodel {
     const shellHullGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.056, 16);
     shellHullGeo.rotateX(Math.PI / 2);
     const shellHullMesh = new THREE.Mesh(shellHullGeo, this.shellHullMaterial);
+    shellHullMesh.frustumCulled = false;
     this.shotgunReloadShell.add(shellHullMesh);
 
     const brassRimGeo = new THREE.CylinderGeometry(0.0106, 0.0106, 0.018, 16);
     brassRimGeo.rotateX(Math.PI / 2);
     const brassRimMesh = new THREE.Mesh(brassRimGeo, this.brassMaterial);
     brassRimMesh.position.set(0, 0, 0.022);
+    brassRimMesh.frustumCulled = false;
     this.shotgunReloadShell.add(brassRimMesh);
 
     this.shotgunGroup.add(this.shotgunReloadShell);
@@ -644,21 +650,25 @@ export class WeaponViewmodel {
       return this._loadModelsPromise;
     }
 
-    const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
     const loader = new GLTFLoader();
     const modelDefs = [
-      { key: 'hk_usp', url: './models/hk_usp.glb', setup: (gltf) => this._setupUSPModel(gltf) },
-      { key: 'desert_eagle', url: './models/desert_eagle.glb', setup: (gltf) => this._setupPistolModel(gltf) },
-      { key: 'remington_870', url: './models/remington_870.glb', setup: (gltf) => this._setupShotgunModel(gltf) },
-      { key: 'hk_mp5', url: './models/hk_mp5.glb', setup: (gltf) => this._setupMP5Model(gltf) },
-      { key: 'fps_hands', url: './models/fps_hands.glb', setup: (gltf) => this._setupHandsModel(gltf) },
+      { key: 'hk_usp', url: './models/hk_usp.glb', bytes: 1983076, setup: (gltf) => this._setupUSPModel(gltf) },
+      { key: 'desert_eagle', url: './models/desert_eagle.glb', bytes: 4298716, setup: (gltf) => this._setupPistolModel(gltf) },
+      { key: 'remington_870', url: './models/remington_870.glb', bytes: 2620892, setup: (gltf) => this._setupShotgunModel(gltf) },
+      { key: 'hk_mp5', url: './models/hk_mp5.glb', bytes: 3069496, setup: (gltf) => this._setupMP5Model(gltf) },
+      { key: 'fps_hands', url: './models/fps_hands.glb', bytes: 827564, setup: (gltf) => this._setupHandsModel(gltf) },
     ];
 
-    let loadedCount = 0;
-    const total = modelDefs.length;
+    const weights = modelDefs.map((d) => d.bytes);
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    const modelFractions = new Float64Array(modelDefs.length);
 
     const notifyProgress = (key) => {
-      const fraction = loadedCount / total;
+      let weightedSum = 0;
+      for (let i = 0; i < modelDefs.length; i++) {
+        weightedSum += modelFractions[i] * weights[i];
+      }
+      const fraction = totalWeight > 0 ? weightedSum / totalWeight : 0;
       if (this._progressCallbacks) {
         for (const cb of this._progressCallbacks) {
           try { cb(fraction, key); } catch (e) { console.error(e); }
@@ -666,39 +676,43 @@ export class WeaponViewmodel {
       }
     };
 
-    const loadSingle = async (def) => {
+    const loadSingle = (def, index) => {
       return new Promise((resolve) => {
         loader.load(
           def.url,
-          async (gltf) => {
-            await yieldToBrowser();
+          (gltf) => {
             try {
               def.setup(gltf);
             } catch (err) {
               console.error(`Error configuring model ${def.key}:`, err);
             }
-            loadedCount++;
+            modelFractions[index] = 1.0;
             notifyProgress(def.key);
-            await yieldToBrowser();
             resolve(gltf);
           },
-          undefined,
-          async (err) => {
+          (xhr) => {
+            const total = xhr.lengthComputable && xhr.total > 0 ? xhr.total : def.bytes;
+            const dlFrac = Math.min(0.92, (xhr.loaded / total) * 0.92);
+            if (dlFrac > modelFractions[index]) {
+              modelFractions[index] = dlFrac;
+              notifyProgress(def.key);
+            }
+          },
+          (err) => {
             console.error(`Failed to load ${def.url}:`, err);
-            loadedCount++;
+            modelFractions[index] = 1.0;
             notifyProgress(def.key);
-            await yieldToBrowser();
             resolve(null);
           }
         );
       });
     };
 
-    this._loadModelsPromise = Promise.all(modelDefs.map(loadSingle)).then(async () => {
+    this._loadModelsPromise = Promise.all(modelDefs.map((def, idx) => loadSingle(def, idx))).then(() => {
       this._isLoaded = true;
       this._applyViewmodelEnvironment();
       this.selectWeapon('hk_usp', { silent: true });
-      await yieldToBrowser();
+      notifyProgress('complete');
     });
 
     return this._loadModelsPromise;
@@ -1105,15 +1119,15 @@ export class WeaponViewmodel {
   }
 
   /**
-   * Performs an ahead-of-time WebGL GPU Texture and Shader pre-compilation pass.
-   * Eliminates runtime frame drops when switching weapons or drawing hands for the first time.
+   * Performs an ahead-of-time WebGL GPU Texture, VBO, Skeleton BoneTexture, and EffectComposer PSO warmup pass.
+   * Executes real rendered frames through EffectComposer for every weapon & rigged hand while hidden behind
+   * the loading screen, eliminating the first-equip FPS drop when switching weapons in-game.
    */
-  async warmUpGPU(renderer, scene, camera) {
+  async warmUpGPU(renderer, scene, camera, composer = null, weaponSystem = null) {
     if (!renderer) return;
     this._applyViewmodelEnvironment();
-    const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
 
-    // 1. Pre-upload all viewmodel texture maps to the GPU
+    // 1. Pre-upload all unique viewmodel texture maps to the GPU
     const uploadedTextures = new Set();
     const initTex = (tex) => {
       if (tex && tex.isTexture && !uploadedTextures.has(tex)) {
@@ -1143,39 +1157,69 @@ export class WeaponViewmodel {
       }
     });
 
-    await yieldToBrowser();
-
-    // 2. Temporarily set all weapon models & rigged hands visible for shader compilation
+    // 2. Temporarily make ALL 4 weapons, rigged hands, shell & FX visible for real GPU draw warmup
     const prevUspVis = this.uspGroup ? this.uspGroup.visible : false;
     const prevGunVis = this.gunGroup ? this.gunGroup.visible : false;
     const prevShotgunVis = this.shotgunGroup ? this.shotgunGroup.visible : false;
     const prevMp5Vis = this.mp5Group ? this.mp5Group.visible : false;
     const prevMuzzleVis = this.muzzleFlashGroup ? this.muzzleFlashGroup.visible : false;
+    const prevShellVis = this.shotgunReloadShell ? this.shotgunReloadShell.visible : false;
     const prevRootVis = this.root.visible;
+    const prevRootPos = this.root.position.clone();
 
+    const wsState = weaponSystem && typeof weaponSystem.prepareWarmUp === 'function'
+      ? weaponSystem.prepareWarmUp(renderer)
+      : null;
+
+    this.root.position.set(0.05, -0.1, -0.35);
     this.root.visible = true;
     if (this.uspGroup) this.uspGroup.visible = true;
     if (this.gunGroup) this.gunGroup.visible = true;
     if (this.shotgunGroup) this.shotgunGroup.visible = true;
     if (this.mp5Group) this.mp5Group.visible = true;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = true;
+    if (this.shotgunReloadShell) this.shotgunReloadShell.visible = true;
 
     if (scene && camera) {
       try {
+        scene.updateMatrixWorld(true);
         renderer.compile(scene, camera);
+
+        // Pass A: Render actual HalfFloat MSAA frame with ALL weapons, Skeleton.boneTextures & muzzle FX active
+        if (composer) {
+          composer.render();
+        } else {
+          renderer.render(scene, camera);
+        }
+
+        // Wait 1 display frame so parallel GPU shader/PSO compilation completes cleanly, then render idle state
+        await new Promise((r) => requestAnimationFrame(r));
+
+        if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
+        if (weaponSystem && weaponSystem.muzzleLight) {
+          weaponSystem.muzzleLight.intensity = 0;
+        }
+        if (composer) {
+          composer.render();
+        } else {
+          renderer.render(scene, camera);
+        }
       } catch (err) {
         console.warn('[WeaponViewmodel] warmUpGPU compile warning:', err);
       }
     }
 
-    await yieldToBrowser();
-
     // 3. Restore visibility states to their designated defaults
+    if (weaponSystem && typeof weaponSystem.finishWarmUp === 'function') {
+      weaponSystem.finishWarmUp(wsState);
+    }
     if (this.uspGroup) this.uspGroup.visible = prevUspVis;
     if (this.gunGroup) this.gunGroup.visible = prevGunVis;
     if (this.shotgunGroup) this.shotgunGroup.visible = prevShotgunVis;
     if (this.mp5Group) this.mp5Group.visible = prevMp5Vis;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = prevMuzzleVis;
+    if (this.shotgunReloadShell) this.shotgunReloadShell.visible = prevShellVis;
+    this.root.position.copy(prevRootPos);
     this.root.visible = prevRootVis;
   }
 
@@ -1206,47 +1250,60 @@ export class WeaponViewmodel {
     const targetSideTag = side === 'R' ? '_R' : '_L';
     const oppositeSideTag = side === 'R' ? '_L' : '_R';
 
-    // Clone SkinnedMesh geometry and filter index buffer so opposite arm has exactly 0 triangles
+    // Share cached filtered geometry per hand side ('R' used by USP/Pistol/MP5, 'L' by Shotgun)
+    // Preserves static GPU VBOs & artist GLTF normals across all clones without recomputing normals 4x.
     clone.traverse((child) => {
       if (child.isSkinnedMesh) {
-        const geo = child.geometry.clone();
-        child.geometry = geo;
+        if (this._filteredHandGeoCache && this._filteredHandGeoCache[side]) {
+          child.geometry = this._filteredHandGeoCache[side];
+        } else {
+          const origGeo = child.geometry;
+          const skinIndex = origGeo.attributes.skinIndex;
+          const skinWeight = origGeo.attributes.skinWeight;
+          const oldIndex = origGeo.index;
 
-        const skinIndex = geo.attributes.skinIndex;
-        const skinWeight = geo.attributes.skinWeight;
-        const oldIndex = geo.index;
-
-        if (skinIndex && skinWeight && oldIndex) {
-          const targetJointIndices = new Set();
-          child.skeleton.bones.forEach((bone, bIdx) => {
-            if (bone.name.includes(targetSideTag)) {
-              targetJointIndices.add(bIdx);
-            }
-          });
-
-          const newIndices = [];
-          for (let i = 0; i < oldIndex.count; i += 3) {
-            const a = oldIndex.getX(i);
-            const b = oldIndex.getX(i + 1);
-            const c = oldIndex.getX(i + 2);
-
-            const isTargetVert = (v) => {
-              for (let j = 0; j < 4; j++) {
-                const jIdx = skinIndex.getComponent(v, j);
-                const w = skinWeight.getComponent(v, j);
-                if (w > 0.01 && targetJointIndices.has(jIdx)) return true;
+          if (skinIndex && skinWeight && oldIndex) {
+            const targetJointIndices = new Set();
+            child.skeleton.bones.forEach((bone, bIdx) => {
+              if (bone.name.includes(targetSideTag)) {
+                targetJointIndices.add(bIdx);
               }
-              return false;
-            };
+            });
 
-            if (isTargetVert(a) || isTargetVert(b) || isTargetVert(c)) {
-              newIndices.push(a, b, c);
+            const newIndices = [];
+            for (let i = 0; i < oldIndex.count; i += 3) {
+              const a = oldIndex.getX(i);
+              const b = oldIndex.getX(i + 1);
+              const c = oldIndex.getX(i + 2);
+
+              const isTargetVert = (v) => {
+                for (let j = 0; j < 4; j++) {
+                  const jIdx = skinIndex.getComponent(v, j);
+                  const w = skinWeight.getComponent(v, j);
+                  if (w > 0.01 && targetJointIndices.has(jIdx)) return true;
+                }
+                return false;
+              };
+
+              if (isTargetVert(a) || isTargetVert(b) || isTargetVert(c)) {
+                newIndices.push(a, b, c);
+              }
             }
-          }
 
-          const IndexArrayType = geo.attributes.position.count > 65535 ? Uint32Array : Uint16Array;
-          geo.setIndex(new THREE.BufferAttribute(new IndexArrayType(newIndices), 1));
-          geo.computeVertexNormals();
+            const filteredGeo = new THREE.BufferGeometry();
+            for (const attrName of Object.keys(origGeo.attributes)) {
+              filteredGeo.setAttribute(attrName, origGeo.getAttribute(attrName));
+            }
+            const IndexArrayType = origGeo.attributes.position.count > 65535 ? Uint32Array : Uint16Array;
+            filteredGeo.setIndex(new THREE.BufferAttribute(new IndexArrayType(newIndices), 1));
+            filteredGeo.boundingBox = origGeo.boundingBox ? origGeo.boundingBox.clone() : null;
+            filteredGeo.boundingSphere = origGeo.boundingSphere ? origGeo.boundingSphere.clone() : null;
+
+            if (this._filteredHandGeoCache) {
+              this._filteredHandGeoCache[side] = filteredGeo;
+            }
+            child.geometry = filteredGeo;
+          }
         }
       }
 
@@ -2392,6 +2449,7 @@ export class WeaponViewmodel {
     const discGeo = new THREE.PlaneGeometry(0.15, 0.15);
     const discMesh = new THREE.Mesh(discGeo, this.muzzleFlashMaterial);
     discMesh.position.set(0, 0, -0.005);
+    discMesh.frustumCulled = false;
     this.muzzleFlashGroup.add(discMesh);
 
     // Crossed lengthwise flame cones jutting forward
@@ -2400,11 +2458,13 @@ export class WeaponViewmodel {
 
     const coneH = new THREE.Mesh(coneGeo, this.muzzleFlashMaterial);
     coneH.rotation.x = -Math.PI / 2;
+    coneH.frustumCulled = false;
     this.muzzleFlashGroup.add(coneH);
 
     const coneV = new THREE.Mesh(coneGeo, this.muzzleFlashMaterial);
     coneV.rotation.x = -Math.PI / 2;
     coneV.rotation.y = Math.PI / 2;
+    coneV.frustumCulled = false;
     this.muzzleFlashGroup.add(coneV);
   }
 

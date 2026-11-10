@@ -17,28 +17,28 @@ export class LightingTuner {
         label: 'Current Defaults',
         hemi: 0.90,
         key: 0.90,
-        ceiling: 1.00,
+        ceiling: 0.00,
         exposure: 0.90,
       },
       balanced: {
         label: 'Balanced Night',
         hemi: 0.90,
         key: 0.90,
-        ceiling: 1.00,
+        ceiling: 0.00,
         exposure: 0.90,
       },
       dim: {
         label: 'Dim & Moody',
         hemi: 0.65,
         key: 0.70,
-        ceiling: 0.80,
+        ceiling: 0.00,
         exposure: 0.85,
       },
       bright: {
         label: 'Bright Office',
         hemi: 1.10,
         key: 1.20,
-        ceiling: 1.30,
+        ceiling: 0.50,
         exposure: 1.00,
       },
     };
@@ -53,7 +53,7 @@ export class LightingTuner {
     return {
       hemi: this.engine?.hemiLight ? Number(this.engine.hemiLight.intensity.toFixed(2)) : 0.90,
       key: this.engine?.keyLight ? Number(this.engine.keyLight.intensity.toFixed(2)) : 0.90,
-      ceiling: this.warehouse?.ceilingMaterial ? Number(this.warehouse.ceilingMaterial.emissiveIntensity.toFixed(2)) : 1.00,
+      ceiling: this.warehouse?.ceilingMaterial ? Number(this.warehouse.ceilingMaterial.emissiveIntensity.toFixed(2)) : 0.00,
       exposure: this.engine?.renderer ? Number(this.engine.renderer.toneMappingExposure.toFixed(2)) : 0.90,
     };
   }
@@ -288,7 +288,7 @@ export class LightingTuner {
 Commands:
   lights.ambient(val)     // Set Ambient Fill (default: 0.9)
   lights.key(val)         // Set Main Overhead Key (default: 0.9)
-  lights.ceiling(val)     // Set Ceiling Troffer Glow (default: 1.0)
+  lights.ceiling(val)     // Set Ceiling Troffer Glow (default: 0.0)
   lights.exposure(val)    // Set Tone Mapping Exposure (default: 0.9)
   lights.preset('name')   // 'default' | 'balanced' | 'dim' | 'bright'
   lights.open()           // Open In-Game UI Overlay (or press F7 or 'L')

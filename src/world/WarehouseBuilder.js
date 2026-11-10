@@ -11790,7 +11790,7 @@ export class WarehouseBuilder {
       bumpScale: 0.002,
       emissive: new THREE.Color(0xffffff),
       emissiveMap: this.ceilingEmissiveTexture,
-      emissiveIntensity: 1.0,
+      emissiveIntensity: 0.0,
       roughness: 0.78,
       metalness: 0.08,
     });
@@ -13071,22 +13071,22 @@ export class WarehouseBuilder {
       // 2. Far-Left solid corner wall (X = +7.50 to +10.00, Y = 0.00 to 2.649m)
       {
         w: 2.50, h: 2.649, d: backWallThick, x: 8.75, yBottom: 0.00, z: backWallZCenter, horizStart: 17.50,
-        hide: { pz: true, py: true, ny: true, px: true }
+        hide: { pz: true, py: true, ny: true, px: true, nx: true }
       },
       // 3. Solid center-left pillar between Balcony Door and Window (X = +4.50 to +5.50, Y = 0.00 to 2.649m)
       {
         w: 1.00, h: 2.649, d: backWallThick, x: 5.00, yBottom: 0.00, z: backWallZCenter, horizStart: 14.50,
-        hide: { pz: true, py: true, ny: true }
+        hide: { pz: true, py: true, ny: true, px: true, nx: true }
       },
       // 4. Lower half-wall below Panoramic Window (X = -4.50 to +4.50, Y = 0.00 to 1.081m)
       {
         w: 9.00, h: 1.081, d: backWallThick, x: 0.00, yBottom: 0.00, z: backWallZCenter, horizStart: 5.50,
-        hide: { pz: true, py: true, ny: true }
+        hide: { pz: true, py: true, ny: true, px: true, nx: true }
       },
       // 5. Far-Right solid corner wall (X = -10.00 to -4.50, Y = 0.00 to 2.649m)
       {
         w: 5.50, h: 2.649, d: backWallThick, x: -7.25, yBottom: 0.00, z: backWallZCenter, horizStart: 0.00,
-        hide: { pz: true, py: true, ny: true, nx: true }
+        hide: { pz: true, py: true, ny: true, px: true, nx: true }
       },
     ];
 
@@ -13358,8 +13358,8 @@ export class WarehouseBuilder {
     );
 
     // Zone E: Back Wall Transformation (Closed Double Balcony Door, Panoramic Window, Exterior Balcony & 3D Skyline)
-    this._buildDoubleBalconyDoor(addPart, addVisual, visualBuckets, group);
-    this._buildPanoramicExteriorWindow(addPart, addVisual, visualBuckets);
+    this._buildDoubleBalconyDoor(addPart, addVisual, registerCollider, visualBuckets, group);
+    this._buildPanoramicExteriorWindow(addPart, addVisual, registerCollider, visualBuckets);
     this._buildExteriorBalcony(addPart, addVisual, registerCollider, visualBuckets, addPartMatrix);
     this._buildNightCitySkyline(addVisual, visualBuckets, this.exteriorVistaGroup);
 
@@ -16558,20 +16558,23 @@ export class WarehouseBuilder {
     addVisual(visualBuckets.elevatorDisplay, downBtnFaceGeo, callPlateX, callPlateY - 0.036, elevWallZ - 0.0038);
     downBtnFaceGeo.dispose();
 
-    // B. Emergency Exit Down-Stairs Sign on Vestibule Wall (50%+ Larger Hero Scale, 0.58m W x 0.29m H, flush <3.5mm relief)
+    // B. Emergency Exit Down-Stairs Sign on Vestibule Wall (0.58m W x 0.29m H x 0.016m housing, zero Z-fighting)
     const exitY = 3.00;
     const exitZ = 9.05;
     const exitSignW = 0.58;
     const exitSignH = 0.29;
-    const exitSignD = 0.0028;
+    const exitSignD = 0.016; // 16mm lightbox relief clears depth-buffer Z-fighting at all distances
 
-    const exitHousingGeo = new THREE.BoxGeometry(exitSignD, exitSignH, exitSignW);
-    addPart(visualBuckets.printerWhite, exitHousingGeo, vestXWest + exitSignD / 2, exitY, exitZ);
+    // Register solid box collider and strip -X (wall-touching) and +X (behind face graphic) faces
+    const rawExitHousingGeo = new THREE.BoxGeometry(exitSignD, exitSignH, exitSignW);
+    registerCollider(rawExitHousingGeo, vestXWest + exitSignD / 2, exitY, exitZ);
+    const exitHousingGeo = filterBoxFaces(rawExitHousingGeo, { nx: true, px: true });
+    addVisual(visualBuckets.printerWhite, exitHousingGeo, vestXWest + exitSignD / 2, exitY, exitZ);
     exitHousingGeo.dispose();
 
     const exitFaceGeo = new THREE.PlaneGeometry(exitSignW, exitSignH);
     exitFaceGeo.rotateY(Math.PI / 2);
-    addVisual(visualBuckets.exitSign, exitFaceGeo, vestXWest + exitSignD + 0.0004, exitY, exitZ);
+    addVisual(visualBuckets.exitSign, exitFaceGeo, vestXWest + exitSignD, exitY, exitZ);
     exitFaceGeo.dispose();
 
     // C. Cylindrical Brushed Stainless-Steel Office Trash Bin (Inside Main Office under Glass Window)
@@ -18395,7 +18398,7 @@ export class WarehouseBuilder {
    * Builds the Closed Double Aluminum-Glass Balcony Door (Hero Scale ~2.00m wide x 2.649m tall)
    * with illuminated green emergency exit sign mounted directly above the top header.
    */
-  _buildDoubleBalconyDoor(addPart, addVisual, visualBuckets, group) {
+  _buildDoubleBalconyDoor(addPart, addVisual, registerCollider, visualBuckets, group) {
     const doorX = 6.50;
     const doorZ = 13.10;
     const doorW = 2.00;
@@ -18403,14 +18406,17 @@ export class WarehouseBuilder {
     const frameThick = 0.045;
     const frameDepth = 0.22;
 
-    // 1. Anodized Aluminum Outer Perimeter Frame
+    // 1. Anodized Aluminum Outer Perimeter Frame (stepped jambs + stripped caps -> zero Z-fighting)
     const jambH = doorH - frameThick;
-    const jambGeo = new THREE.BoxGeometry(frameThick, jambH, frameDepth);
-    // Left jamb (X = 7.50 - frameThick/2 = 7.4775)
-    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, doorX + doorW / 2 - frameThick / 2, jambH / 2, doorZ);
-    // Right jamb (X = 5.50 + frameThick/2 = 5.5225)
-    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, doorX - doorW / 2 + frameThick / 2, jambH / 2, doorZ);
-    jambGeo.dispose();
+    const jambDepth = frameDepth - 0.004;
+    const jambPositions = [doorX + doorW / 2 - frameThick / 2, doorX - doorW / 2 + frameThick / 2];
+    for (const jx of jambPositions) {
+      const rawJambGeo = new THREE.BoxGeometry(frameThick, jambH, jambDepth);
+      registerCollider(rawJambGeo, jx, jambH / 2, doorZ);
+      const jambGeo = filterBoxFaces(rawJambGeo, { py: true, ny: true });
+      addVisual(visualBuckets.vestibuleAlumFrame, jambGeo, jx, jambH / 2, doorZ);
+      jambGeo.dispose();
+    }
 
     // Top Header Channel
     const headerGeo = new THREE.BoxGeometry(doorW, frameThick, frameDepth);
@@ -18445,18 +18451,24 @@ export class WarehouseBuilder {
       addPart(visualBuckets.vestibuleAlumFrame, stileGeo, meetStileX, leafY, doorZ);
       stileGeo.dispose();
 
-      // Top Rail
-      const topRailGeo = new THREE.BoxGeometry(glassW, topRailH, leafThick);
-      addPart(visualBuckets.vestibuleAlumFrame, topRailGeo, leafX, 0.010 + leafH - topRailH / 2, doorZ);
+      // Top Rail (strip stile-touching X caps to eliminate coplanar rail/stile seams)
+      const topRailY = 0.010 + leafH - topRailH / 2;
+      const rawTopRailGeo = new THREE.BoxGeometry(glassW, topRailH, leafThick);
+      registerCollider(rawTopRailGeo, leafX, topRailY, doorZ);
+      const topRailGeo = filterBoxFaces(rawTopRailGeo, { px: true, nx: true });
+      addVisual(visualBuckets.vestibuleAlumFrame, topRailGeo, leafX, topRailY, doorZ);
       topRailGeo.dispose();
 
-      // Bottom Rail
-      const botRailGeo = new THREE.BoxGeometry(glassW, botRailH, leafThick);
-      addPart(visualBuckets.vestibuleAlumFrame, botRailGeo, leafX, 0.010 + botRailH / 2, doorZ);
+      // Bottom Rail (strip stile-touching X caps)
+      const botRailY = 0.010 + botRailH / 2;
+      const rawBotRailGeo = new THREE.BoxGeometry(glassW, botRailH, leafThick);
+      registerCollider(rawBotRailGeo, leafX, botRailY, doorZ);
+      const botRailGeo = filterBoxFaces(rawBotRailGeo, { px: true, nx: true });
+      addVisual(visualBuckets.vestibuleAlumFrame, botRailGeo, leafX, botRailY, doorZ);
       botRailGeo.dispose();
 
-      // Clear Tempered Glass Panel
-      const glassGeo = new THREE.BoxGeometry(glassW, glassH, 0.012);
+      // Clear Tempered Glass Panel (single double-sided plane tucked 2mm inside stiles/rails -> zero Z-fighting)
+      const glassGeo = new THREE.PlaneGeometry(glassW + 0.004, glassH + 0.004);
       addVisual(visualBuckets.vestibuleGlass, glassGeo, leafX, glassY, doorZ);
       glassGeo.dispose();
 
@@ -18512,21 +18524,23 @@ export class WarehouseBuilder {
     // Right Leaf (X < doorX)
     buildDoorLeaf(doorX - 0.003 - leafW / 2, false);
 
-    // 3. Emergency Exit Sign Above Door Header (50%+ Larger Hero Scale, 2:1 Aspect Ratio, flush <3.5mm relief)
+    // 3. Emergency Exit Sign Above Door Header (0.58m W x 0.29m H x 0.016m housing, zero Z-fighting)
     const signX = doorX;
     const signY = 2.88;
-    const signZ = 12.9986;
+    const wallFaceZ = 13.000;
     const signW = 0.58;
     const signH = 0.29;
-    const signD = 0.0028;
+    const signD = 0.016; // 16mm lightbox relief clears depth-buffer Z-fighting at all distances
 
-    const signHousingGeo = new THREE.BoxGeometry(signW, signH, signD);
-    addPart(visualBuckets.printerWhite, signHousingGeo, signX, signY, signZ);
+    // Strip +Z (wall-touching) and -Z (behind face graphic) faces so zero coplanar polygons overlap
+    const rawSignHousingGeo = new THREE.BoxGeometry(signW, signH, signD);
+    const signHousingGeo = filterBoxFaces(rawSignHousingGeo, { pz: true, nz: true });
+    addVisual(visualBuckets.printerWhite, signHousingGeo, signX, signY, wallFaceZ - signD / 2);
     signHousingGeo.dispose();
 
     const signFaceGeo = new THREE.PlaneGeometry(signW, signH);
     signFaceGeo.rotateY(Math.PI);
-    addVisual(visualBuckets.runningManExitSign, signFaceGeo, signX, signY, signZ - signD / 2 - 0.0004);
+    addPart(visualBuckets.runningManExitSign, signFaceGeo, signX, signY, wallFaceZ - signD);
     signFaceGeo.dispose();
   }
 
@@ -18534,7 +18548,7 @@ export class WarehouseBuilder {
    * Builds the Panoramic Exterior Glass Window Partition (9.0m wide x 1.568m clear glass height)
    * with stone windowsill ledge (Y = 1.081m to 1.125m) and 5 modular vertical glass panes.
    */
-  _buildPanoramicExteriorWindow(addPart, addVisual, visualBuckets) {
+  _buildPanoramicExteriorWindow(addPart, addVisual, registerCollider, visualBuckets) {
     const winX = 0.00;
     const winZ = 13.10;
     const winW = 9.00;
@@ -18551,13 +18565,17 @@ export class WarehouseBuilder {
     addPart(visualBuckets.vestibuleSill, sillGeo, winX, sillBottomY + sillH / 2, winZ);
     sillGeo.dispose();
 
-    // 2. Anodized Aluminum Perimeter Frame
+    // 2. Anodized Aluminum Perimeter Frame (stepped jambs + stripped mating caps -> zero Z-fighting)
     const clearH = winTopY - sillTopY;
     const innerH = clearH - frameThick * 2;
+    const vertDepth = frameDepth - 0.004;
 
-    // Bottom U-channel on sill
-    const botChannelGeo = new THREE.BoxGeometry(winW, frameThick, frameDepth);
-    addPart(visualBuckets.vestibuleAlumFrame, botChannelGeo, winX, sillTopY + frameThick / 2, winZ);
+    // Bottom U-channel sitting on sill (strip sill-touching bottom face)
+    const botY = sillTopY + frameThick / 2;
+    const rawBotGeo = new THREE.BoxGeometry(winW, frameThick, frameDepth);
+    registerCollider(rawBotGeo, winX, botY, winZ);
+    const botChannelGeo = filterBoxFaces(rawBotGeo, { ny: true });
+    addVisual(visualBuckets.vestibuleAlumFrame, botChannelGeo, winX, botY, winZ);
     botChannelGeo.dispose();
 
     // Top U-channel under upper header
@@ -18565,11 +18583,16 @@ export class WarehouseBuilder {
     addPart(visualBuckets.vestibuleAlumFrame, topChannelGeo, winX, winTopY - frameThick / 2, winZ);
     topChannelGeo.dispose();
 
-    // Left and Right Jamb Channels
-    const jambGeo = new THREE.BoxGeometry(frameThick, innerH, frameDepth);
-    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, winX + winW / 2 - frameThick / 2, sillTopY + frameThick + innerH / 2, winZ);
-    addPart(visualBuckets.vestibuleAlumFrame, jambGeo, winX - winW / 2 + frameThick / 2, sillTopY + frameThick + innerH / 2, winZ);
-    jambGeo.dispose();
+    // Left and Right Jamb Channels (stepped 2mm in Z inside top/bot channels, top/bottom caps stripped)
+    const paneY = sillTopY + frameThick + innerH / 2;
+    const jambXPositions = [winX + winW / 2 - frameThick / 2, winX - winW / 2 + frameThick / 2];
+    for (const jx of jambXPositions) {
+      const rawJambGeo = new THREE.BoxGeometry(frameThick, innerH, vertDepth);
+      registerCollider(rawJambGeo, jx, paneY, winZ);
+      const jambGeo = filterBoxFaces(rawJambGeo, { py: true, ny: true });
+      addVisual(visualBuckets.vestibuleAlumFrame, jambGeo, jx, paneY, winZ);
+      jambGeo.dispose();
+    }
 
     // 3. 5 Modular Tempered Glass Panes & 4 Slim Aluminum Mullions
     const innerW = winW - frameThick * 2;
@@ -18577,11 +18600,11 @@ export class WarehouseBuilder {
     const mullionW = 0.035;
     const totalMullionW = (numPanes - 1) * mullionW;
     const paneW = (innerW - totalMullionW) / numPanes; // ~1.759m
-    const paneH = innerH - 0.004;
-    const paneY = sillTopY + frameThick + innerH / 2;
 
-    const paneGeo = new THREE.BoxGeometry(paneW, paneH, 0.014);
-    const mullionGeo = new THREE.BoxGeometry(mullionW, innerH, frameDepth - 0.004);
+    // Single double-sided glass plane tucked 2mm cleanly inside mullions/jambs/channels -> zero coplanar edge faces
+    const paneGeo = new THREE.PlaneGeometry(paneW + 0.004, innerH + 0.004);
+    const rawMullionGeo = new THREE.BoxGeometry(mullionW, innerH, vertDepth);
+    const filteredMullionGeo = filterBoxFaces(rawMullionGeo.clone(), { py: true, ny: true });
 
     const startX = winX - innerW / 2;
     for (let i = 0; i < numPanes; i++) {
@@ -18590,11 +18613,13 @@ export class WarehouseBuilder {
 
       if (i < numPanes - 1) {
         const mx = px + paneW / 2 + mullionW / 2;
-        addPart(visualBuckets.vestibuleAlumFrame, mullionGeo, mx, paneY, winZ);
+        registerCollider(rawMullionGeo, mx, paneY, winZ);
+        addVisual(visualBuckets.vestibuleAlumFrame, filteredMullionGeo, mx, paneY, winZ);
       }
     }
     paneGeo.dispose();
-    mullionGeo.dispose();
+    rawMullionGeo.dispose();
+    filteredMullionGeo.dispose();
   }
 
   /**

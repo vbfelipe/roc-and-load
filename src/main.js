@@ -68,7 +68,7 @@ window.addEventListener('DOMContentLoaded', () => {
   player.pitch = 0.0;
   window.__rocPlayer = player;
 
-  const viewmodel = new WeaponViewmodel(engine.camera, sound);
+  const viewmodel = new WeaponViewmodel(engine.camera, sound, { autoLoad: false });
   viewmodel.setEnvironmentMap(engine.viewmodelEnvironment);
 
   const weaponSystem = new WeaponSystem(
@@ -148,102 +148,89 @@ window.addEventListener('DOMContentLoaded', () => {
   // Initial menu state: hide HUD and gun viewmodel
   setGameState('MAIN_MENU');
 
-  const yieldToBrowser = () => new Promise((r) => requestAnimationFrame(() => setTimeout(r, 0)));
+  const nextFrame = () => new Promise((r) => requestAnimationFrame(r));
 
   async function runBootPipeline() {
-    updateBootProgress(5, 'INITIALIZING GAME SUBSYSTEMS...');
-    await yieldToBrowser();
+    const bootStart = performance.now();
+    updateBootProgress(8, 'INITIALIZING ENGINE & ENVIRONMENT...');
+    await nextFrame();
 
-    // 1. Parallel loading of authentic weapon audio samples (0% -> 25%)
-    const audioPromise = sound.preloadAllAudio(async (fraction, key) => {
-      const pct = 5 + fraction * 20;
-      updateBootProgress(pct, `DECODING AUDIO: ${key.toUpperCase()}...`);
-      await yieldToBrowser();
+    let audioFrac = 0;
+    let modelFrac = 0;
+    let heroFrac = 0;
+    const syncAssetProgress = (statusMsg) => {
+      const weighted = 10 + (0.10 * audioFrac + 0.85 * modelFrac + 0.05 * heroFrac) * 76;
+      updateBootProgress(weighted, statusMsg);
+    };
+
+    // 1. Parallel loading: weapon SFX audio clips
+    const audioPromise = sound.preloadAllAudio((fraction, key) => {
+      audioFrac = fraction;
+      syncAssetProgress(`DECODING AUDIO: ${key.toUpperCase()}...`);
     });
 
-    // 2. Parallel loading of 3D weapon models & rigged FPS hands (25% -> 75%)
-    const modelsPromise = viewmodel.loadAllModels(async (fraction, key) => {
-      const pct = 25 + fraction * 50;
-      updateBootProgress(pct, `STREAMING ARSENAL: ${key.toUpperCase()}...`);
-      await yieldToBrowser();
+    // 2. Parallel loading: byte-weighted 3D weapon models & rigged FPS hands
+    const modelsPromise = viewmodel.loadAllModels((fraction, key) => {
+      modelFrac = fraction;
+      const label = key === 'complete' ? 'ARSENAL ASSEMBLED' : `STREAMING ARSENAL: ${key.toUpperCase()}...`;
+      syncAssetProgress(label);
     });
 
-    // 3. Preload UI hero art (75% -> 85%)
+    // 3. Parallel loading: WebP UI hero art
     const heroImagePromise = new Promise((resolve) => {
       const img = new Image();
-      img.src = './roc_hero.png';
+      img.src = './roc_hero.webp';
       if (img.decode) {
         img.decode().then(resolve).catch(resolve);
       } else {
         img.onload = () => resolve();
         img.onerror = () => resolve();
       }
-    }).then(async () => {
-      updateBootProgress(85, 'INTERFACE ARTWORK LOADED');
-      await yieldToBrowser();
+    }).then(() => {
+      heroFrac = 1.0;
+      syncAssetProgress();
     });
 
-    // Await all parallel asset pipelines
     await Promise.all([audioPromise, modelsPromise, heroImagePromise]);
-    await yieldToBrowser();
+    const assetsMs = Math.round(performance.now() - bootStart);
 
-    // 4. WebGL GPU Texture & Shader Compilation Warm-Up (85% -> 100%)
-    updateBootProgress(88, 'COMPILING GPU SHADERS & TEXTURES...');
-    await yieldToBrowser();
+    // 4. Unified WebGL2 & EffectComposer Warm-Up (textures, VBOs, Skeleton.boneTextures, MSAA HalfFloat PSOs)
+    updateBootProgress(88, 'WARMING UP GPU SHADERS & TEXTURES...');
+    await nextFrame();
 
+    const warmupStart = performance.now();
     try {
-      await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera);
-      weaponSystem.warmUpGPU(engine.renderer, engine.camera);
       if (warehouse && engine.renderer && typeof engine.renderer.initTexture === 'function') {
         const texturesToWarm = typeof warehouse.getPreloadTextures === 'function'
           ? warehouse.getPreloadTextures()
-          : [
-            warehouse.noEntrySignTexture,
-            warehouse.extinguisherSignTexture,
-            warehouse.extinguisherStickerTexture,
-            warehouse.extinguisherGaugeTexture,
-            warehouse.runningManExitSignTexture,
-            warehouse.printerBadgeTexture,
-            warehouse.printerScreenTexture,
-            warehouse.fireHoseHeaderTexture,
-            warehouse.fireHoseCoilTexture,
-            warehouse.janitorCautionSignTexture,
-            warehouse.janitorBroomBristleTexture,
-            warehouse.janitorYellowVinylTexture,
-            warehouse.janitorTowelTexture,
-            warehouse.moonTexture,
-            warehouse.balconyTileTexture,
-            warehouse.balconyFlakeBumpMap,
-            warehouse.skylineTowerATexture,
-            warehouse.skylineTowerBTexture,
-            warehouse.skylineTowerCTexture,
-            warehouse.skylineTowerDTexture,
-          ];
+          : [];
         for (const tex of texturesToWarm) {
           if (tex) {
             try { engine.renderer.initTexture(tex); } catch (e) {}
           }
         }
       }
+      await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera, engine.composer, weaponSystem);
     } catch (err) {
       console.warn('GPU warm-up warning:', err);
     }
+    const warmupMs = Math.round(performance.now() - warmupStart);
 
-    await yieldToBrowser();
     updateBootProgress(100, 'SYSTEMS NOMINAL - ARSENAL READY');
+    console.info(
+      `[rocAndLoad] Boot ready in ${Math.round(performance.now() - bootStart)}ms (assets: ${assetsMs}ms, GPU warmup: ${warmupMs}ms)`
+    );
 
-    // Smooth transition from loading screen to main menu
-    await new Promise((r) => setTimeout(r, 260));
-
-    // Preloader is 100% complete: unblock audio playback
+    // Preloader is 100% complete: start render loop & unlock menu
     isPreloading = false;
     sound.setPreloading(false);
+    engine.start();
 
     if (loadingScreen) {
       loadingScreen.classList.add('hidden');
       setTimeout(() => {
         loadingScreen.style.display = 'none';
-      }, 500);
+      }, 450);
     }
 
     if (startBtn) {
@@ -255,7 +242,7 @@ window.addEventListener('DOMContentLoaded', () => {
       statusVal.textContent = 'READY';
     }
 
-    // Start menu music strictly after the loading screen completes and fades out
+    // Start menu music strictly after loading finishes
     playMenuMusicOnReady();
   }
 
@@ -574,6 +561,5 @@ window.addEventListener('DOMContentLoaded', () => {
   window.updateSfxUi = updateSfxUi;
   window.getGameState = () => gameState;
   window.setGameState = setGameState;
-
-  engine.start();
+  // Note: engine.start() is invoked at the end of runBootPipeline() after GPU warmup completes.
 });
