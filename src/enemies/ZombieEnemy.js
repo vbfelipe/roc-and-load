@@ -14,6 +14,44 @@ const ZOMBIE_ASSETS = [
 ];
 
 const TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap'];
+const MAX_TEXTURE_SIZE = 1024;
+
+/**
+ * Downscales oversized textures (> 1024px) onto an offscreen 1024x1024 canvas
+ * at load time and releases the original decoded ImageBitmap/image memory.
+ */
+function downscaleTextureIfNeeded(tex, maxSize = MAX_TEXTURE_SIZE) {
+  if (!tex || !tex.isTexture || !tex.image) return;
+
+  const origImage = tex.image;
+  const width = origImage.width || origImage.naturalWidth || 0;
+  const height = origImage.height || origImage.naturalHeight || 0;
+  if (width <= maxSize && height <= maxSize) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = maxSize;
+  canvas.height = maxSize;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(origImage, 0, 0, maxSize, maxSize);
+
+  tex.image = canvas;
+  tex.mipmaps = [];
+  tex.needsUpdate = true;
+
+  if (typeof origImage.close === 'function') {
+    origImage.close();
+  } else if (
+    typeof HTMLImageElement !== 'undefined' &&
+    origImage instanceof HTMLImageElement &&
+    origImage.src?.startsWith('blob:')
+  ) {
+    URL.revokeObjectURL(origImage.src);
+  }
+}
 
 /**
  * Strips Blender-style numeric suffixes (e.g. ".001") and normalizes for case-insensitive matching.
@@ -116,19 +154,38 @@ function lockHipsRootMotionXZ(clip) {
 }
 
 /**
- * Disposes temporary geometries and materials on an unused loaded hierarchy while keeping textures intact.
+ * Disposes geometries, skeletons, and materials on a temporary or retired hierarchy.
+ * When `preservedTextures` is provided, textures in that set are kept alive.
  */
-function disposeTemporaryHierarchy(rootObj) {
+function disposeTemporaryHierarchy(rootObj, preservedTextures = null) {
   if (!rootObj) return;
   rootObj.traverse((child) => {
     if (child.geometry) child.geometry.dispose();
+    if (child.skeleton && typeof child.skeleton.dispose === 'function') {
+      child.skeleton.dispose();
+    }
     if (child.material) {
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       for (const m of mats) {
-        if (m && typeof m.dispose === 'function') m.dispose();
+        if (!m) continue;
+        if (preservedTextures) {
+          for (const slot of TEXTURE_SLOTS) {
+            const tex = m[slot];
+            if (tex && tex.isTexture && !preservedTextures.has(tex)) {
+              tex.dispose();
+            }
+          }
+        }
+        if (typeof m.dispose === 'function') m.dispose();
       }
     }
   });
+  if (typeof rootObj.clear === 'function') {
+    rootObj.clear();
+  }
+  if (Array.isArray(rootObj.animations)) {
+    rootObj.animations.length = 0;
+  }
 }
 
 /**
@@ -187,16 +244,19 @@ function resolveGlbMaterial(fbxMesh, meshIndex, glbRecords) {
 export class ZombieEnemy {
   constructor(scene, options = {}) {
     this.scene = scene;
+    this.assets = options.assets ?? ZOMBIE_ASSETS;
+    this.logTag = options.logTag ?? 'ZombieEnemy';
+    this.idleAssetLabel = options.idleAssetLabel ?? 'Zombie_Idle.fbx';
     this.spawnPosition = options.spawnPosition
       ? options.spawnPosition.clone()
       : new THREE.Vector3(0.0, 0.0, 2.5);
     this.lookAtPosition = options.lookAtPosition
       ? options.lookAtPosition.clone()
       : new THREE.Vector3(0.0, 0.0, -3.0);
-    this.targetHeight = options.targetHeight ?? 1.72;
+    this.targetHeight = options.targetHeight ?? 2.00;
 
     this.root = new THREE.Group();
-    this.root.name = 'NPC_ZombieWoman';
+    this.root.name = options.rootName ?? 'NPC_ZombieWoman';
     this.root.position.copy(this.spawnPosition);
     this.root.lookAt(this.lookAtPosition);
 
@@ -237,13 +297,14 @@ export class ZombieEnemy {
     const fbxLoader = new FBXLoader();
     const gltfLoader = createZombieGLTFLoader();
 
-    const weights = ZOMBIE_ASSETS.map((a) => a.bytes);
+    const assets = this.assets;
+    const weights = assets.map((a) => a.bytes);
     const totalWeight = weights.reduce((acc, b) => acc + b, 0);
-    const fractions = new Float64Array(ZOMBIE_ASSETS.length);
+    const fractions = new Float64Array(assets.length);
 
     const notifyProgress = (label) => {
       let weightedSum = 0;
-      for (let i = 0; i < ZOMBIE_ASSETS.length; i++) {
+      for (let i = 0; i < assets.length; i++) {
         weightedSum += fractions[i] * weights[i];
       }
       const overall = totalWeight > 0 ? weightedSum / totalWeight : 0;
@@ -280,10 +341,12 @@ export class ZombieEnemy {
     };
 
     this._loadPromise = Promise.all(
-      ZOMBIE_ASSETS.map((def, idx) => loadSingleAsset(def, idx))
+      assets.map((def, idx) => loadSingleAsset(def, idx))
     ).then((loadedItems) => {
       const byKey = new Map(loadedItems.map((item) => [item.def.key, item.result]));
       this._assembleCharacter(byKey);
+      byKey.clear();
+      loadedItems.length = 0;
       this.isLoaded = true;
       notifyProgress('complete');
       return this;
@@ -319,30 +382,42 @@ export class ZombieEnemy {
       });
     }
 
-    // 2. Scale to exact 1.72m in initial pose & align feet to floor (Y = 0.00m)
+    // 2. Scale once at load time to 2.00m un-hunched base height (~1.75m hunched) & align feet to Y = 0.00m.
+    //    Never call Box3.setFromObject() on a SkinnedMesh after initialization or inside update(delta).
+    idleFbx.position.set(0, 0, 0);
+    idleFbx.scale.set(1, 1, 1);
     idleFbx.updateMatrixWorld(true);
     const unscaledBox = new THREE.Box3().setFromObject(idleFbx);
     const unscaledHeight = unscaledBox.max.y - unscaledBox.min.y;
     const uniformScale = unscaledHeight > 0.0001 ? this.targetHeight / unscaledHeight : 0.01;
     idleFbx.scale.setScalar(uniformScale);
+    idleFbx.position.set(0, -unscaledBox.min.y * uniformScale, 0);
     idleFbx.updateMatrixWorld(true);
 
-    const scaledBox = new THREE.Box3().setFromObject(idleFbx);
-    idleFbx.position.set(0, -scaledBox.min.y, 0);
-
-    // 3. Transfer & tune PBR materials onto FBX SkinnedMeshes
+    // 3. Transfer & tune PBR materials onto FBX SkinnedMeshes (downscaling >1024px textures to 1024x1024)
     const uploadedTextures = new Set();
     const registerTexture = (tex) => {
       if (tex && tex.isTexture && !uploadedTextures.has(tex)) {
         uploadedTextures.add(tex);
+        downscaleTextureIfNeeded(tex, MAX_TEXTURE_SIZE);
         if (tex.anisotropy !== undefined) tex.anisotropy = Math.max(tex.anisotropy || 1, 4);
         this._textures.push(tex);
       }
     };
 
     let meshIndex = 0;
+    let totalVertices = 0;
+    let totalTriangles = 0;
     idleFbx.traverse((child) => {
       if (!child.isMesh && !child.isSkinnedMesh) return;
+
+      const posAttr = child.geometry?.attributes?.position;
+      const vertCount = posAttr ? posAttr.count : 0;
+      const triCount = child.geometry?.index
+        ? Math.floor(child.geometry.index.count / 3)
+        : Math.floor(vertCount / 3);
+      totalVertices += vertCount;
+      totalTriangles += triCount;
 
       child.frustumCulled = false;
       child.castShadow = false;
@@ -380,19 +455,31 @@ export class ZombieEnemy {
       }
 
       mat.needsUpdate = true;
+      const oldMats = child.material
+        ? (Array.isArray(child.material) ? child.material : [child.material])
+        : [];
       child.material = mat;
+      for (const oldMat of oldMats) {
+        if (oldMat && oldMat !== mat && typeof oldMat.dispose === 'function') {
+          oldMat.dispose();
+        }
+      }
       this._materials.push(mat);
     });
 
-    // Dispose temporary GLB geometries & uncloned source materials without freeing cloned textures
+    console.info(
+      `[${this.logTag}] ${this.idleAssetLabel} loaded: ${meshIndex} SkinnedMeshes, ${totalVertices} vertices, ${totalTriangles} triangles`
+    );
+
+    // Dispose temporary GLB geometries & uncloned source materials without freeing transferred textures
     if (glbRoot) {
-      glbRoot.traverse((child) => {
-        if (child.geometry) child.geometry.dispose();
-      });
-      for (const m of glbSourceMaterials) {
-        if (m && typeof m.dispose === 'function') m.dispose();
-      }
+      disposeTemporaryHierarchy(glbRoot, uploadedTextures);
     }
+    for (const m of glbSourceMaterials) {
+      if (m && typeof m.dispose === 'function') m.dispose();
+    }
+    glbSourceMaterials.clear();
+    glbRecords.length = 0;
 
     // 4. Attach base character rig to scene root
     this.model = idleFbx;
@@ -407,25 +494,25 @@ export class ZombieEnemy {
     for (const stateName of this.states) {
       const fbxObj = assetsByKey.get(stateName);
       const rawClip = fbxObj?.animations?.[0];
-      if (!rawClip) continue;
+      if (rawClip) {
+        const clip = rawClip.clone();
+        clip.name = stateName;
+        if (stateName === 'Walk' || stateName === 'Run') {
+          lockHipsRootMotionXZ(clip);
+        }
 
-      const clip = rawClip.clone();
-      clip.name = stateName;
-      if (stateName === 'Walk' || stateName === 'Run') {
-        lockHipsRootMotionXZ(clip);
+        this.clips[stateName] = clip;
+        const action = this.mixer.clipAction(clip);
+        if (stateName === 'Death') {
+          action.setLoop(THREE.LoopOnce, 1);
+          action.clampWhenFinished = true;
+        } else {
+          action.setLoop(THREE.LoopRepeat, Infinity);
+        }
+        this.actions[stateName] = action;
       }
 
-      this.clips[stateName] = clip;
-      const action = this.mixer.clipAction(clip);
-      if (stateName === 'Death') {
-        action.setLoop(THREE.LoopOnce, 1);
-        action.clampWhenFinished = true;
-      } else {
-        action.setLoop(THREE.LoopRepeat, Infinity);
-      }
-      this.actions[stateName] = action;
-
-      if (stateName !== 'Idle') {
+      if (stateName !== 'Idle' && fbxObj) {
         disposeTemporaryHierarchy(fbxObj);
       }
     }
@@ -436,6 +523,13 @@ export class ZombieEnemy {
       this.currentState = 'Idle';
       this.mixer.update(0);
     }
+  }
+
+  /**
+   * Returns total byte size of all configured assets for weighted boot progress reporting.
+   */
+  getTotalAssetBytes() {
+    return this.assets.reduce((acc, a) => acc + (a.bytes || 0), 0);
   }
 
   /**
@@ -479,7 +573,7 @@ export class ZombieEnemy {
     const currentIdx = this.states.indexOf(this.currentState);
     const nextState = this.states[(currentIdx + 1) % this.states.length];
     this.playAnimation(nextState, 0.25);
-    console.info(`[ZombieEnemy] Animation -> ${nextState}`);
+    console.info(`[${this.logTag}] Animation -> ${nextState}`);
     return nextState;
   }
 
@@ -519,7 +613,10 @@ export class ZombieEnemy {
     }
     if (this.model) {
       disposeTemporaryHierarchy(this.model);
+      this.model = null;
     }
+    this.actions = {};
+    this.clips = {};
     for (const tex of this._textures) {
       if (tex && typeof tex.dispose === 'function') tex.dispose();
     }

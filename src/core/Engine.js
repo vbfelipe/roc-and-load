@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { NightOfficeEnvironment } from './NightOfficeEnvironment.js';
 import { ZombieEnemy } from '../enemies/ZombieEnemy.js';
+import { ZombieMan } from '../enemies/ZombieMan.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   EffectComposer,
@@ -53,10 +54,18 @@ export class Engine {
 
     // 7. NPC Entities
     this.zombie = new ZombieEnemy(this.scene, {
-      spawnPosition: new THREE.Vector3(0.0, 0.0, 2.5),
+      spawnPosition: new THREE.Vector3(-0.6, 0.0, 2.5),
       lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
     });
-    if (typeof window !== 'undefined') window.__rocZombie = this.zombie;
+    this.zombieMan = new ZombieMan(this.scene, {
+      spawnPosition: new THREE.Vector3(1.6, 0.0, 2.5),
+      lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
+    });
+    this.enemies = [this.zombie, this.zombieMan];
+    if (typeof window !== 'undefined') {
+      window.__rocZombie = this.zombie;
+      window.__rocZombieMan = this.zombieMan;
+    }
 
     // 8. Loop & Physics Timing
     this.clock = new THREE.Clock();
@@ -151,7 +160,55 @@ export class Engine {
   }
 
   loadEnemies(onProgress) {
-    return this.zombie ? this.zombie.load(onProgress) : Promise.resolve();
+    const enemies = this.enemies || [];
+    if (!enemies.length) return Promise.resolve();
+
+    const weights = enemies.map((enemy) =>
+      typeof enemy.getTotalAssetBytes === 'function' ? enemy.getTotalAssetBytes() : 1
+    );
+    const totalWeight = weights.reduce((acc, b) => acc + b, 0) || enemies.length;
+    const fractions = new Float64Array(enemies.length);
+
+    const reportProgress = (label) => {
+      if (!onProgress) return;
+      let weightedSum = 0;
+      for (let i = 0; i < enemies.length; i++) {
+        weightedSum += fractions[i] * weights[i];
+      }
+      const overall = weightedSum / totalWeight;
+      const safeLabel = label === 'complete' && overall < 1 ? 'LOADING' : label;
+      onProgress(overall, safeLabel);
+    };
+
+    return Promise.all(
+      enemies.map((enemy, idx) =>
+        enemy.load((frac, label) => {
+          fractions[idx] = frac;
+          reportProgress(label);
+        })
+      )
+    ).then((res) => {
+      if (onProgress) onProgress(1.0, 'complete');
+      return res;
+    });
+  }
+
+  getEnemyPreloadTextures() {
+    const textures = [];
+    for (const enemy of this.enemies) {
+      if (enemy && typeof enemy.getPreloadTextures === 'function') {
+        textures.push(...enemy.getPreloadTextures());
+      }
+    }
+    return textures;
+  }
+
+  resetEnemies() {
+    for (const enemy of this.enemies) {
+      if (enemy && typeof enemy.reset === 'function') {
+        enemy.reset();
+      }
+    }
   }
 
   addPhysicsUpdatable(obj) {
@@ -207,8 +264,8 @@ export class Engine {
     for (let i = 0; i < this.visualUpdatables.length; i++) {
       this.visualUpdatables[i].update(delta);
     }
-    if (this.zombie) {
-      this.zombie.update(delta);
+    for (let i = 0; i < this.enemies.length; i++) {
+      this.enemies[i].update(delta);
     }
 
     // 3. Render Post-Processing Pipeline

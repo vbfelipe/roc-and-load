@@ -214,7 +214,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (engine.renderer && typeof engine.renderer.initTexture === 'function') {
         const texturesToWarm = [
           ...(warehouse && typeof warehouse.getPreloadTextures === 'function' ? warehouse.getPreloadTextures() : []),
-          ...(engine.zombie && typeof engine.zombie.getPreloadTextures === 'function' ? engine.zombie.getPreloadTextures() : []),
+          ...(typeof engine.getEnemyPreloadTextures === 'function' ? engine.getEnemyPreloadTextures() : []),
         ];
         for (const tex of texturesToWarm) {
           if (tex) {
@@ -429,7 +429,7 @@ window.addEventListener('DOMContentLoaded', () => {
       player.reset(0, 0.1, -3.0, Math.PI, 0);
       weaponSystem.reset();
       warehouse.resetMonitors();
-      if (engine.zombie) engine.zombie.reset();
+      if (typeof engine.resetEnemies === 'function') engine.resetEnemies();
       setGameState('MAIN_MENU');
     });
   }
