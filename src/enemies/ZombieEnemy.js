@@ -267,6 +267,8 @@ export class ZombieEnemy {
     this.states = ZOMBIE_STATES;
     this.currentState = 'Idle';
     this.isLoaded = false;
+    this.isActive = options.active !== undefined ? !!options.active : true;
+    this.root.visible = this.isActive;
 
     this._loadPromise = null;
     this._progressCallbacks = [];
@@ -599,8 +601,15 @@ export class ZombieEnemy {
     this.cycleAnimation();
   }
 
+  setActive(active) {
+    this.isActive = !!active;
+    if (this.root) {
+      this.root.visible = this.isActive;
+    }
+  }
+
   update(delta) {
-    if (!this.isLoaded || !this.mixer) return;
+    if (!this.isActive || !this.isLoaded || !this.mixer) return;
     this.mixer.update(delta);
   }
 

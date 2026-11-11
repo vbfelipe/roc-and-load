@@ -649,6 +649,41 @@ export class WeaponSystem {
     // Strict game state gating (MENU vs PLAYING) and arming cooldown
     this.gameState = 'MENU';
     this.armedAt = 0;
+    this.isUnarmed = false;
+  }
+
+  /**
+   * Enables or disables unarmed exploration mode (hides gun meshes & weapon HUD, blocks switching/firing/reloading).
+   */
+  setUnarmed(enabled) {
+    const next = !!enabled;
+    this.isUnarmed = next;
+    this.isReloading = false;
+    this.wasMouseDown0 = true;
+
+    if (next) {
+      if (this.sound && typeof this.sound.stopActionSounds === 'function') {
+        this.sound.stopActionSounds();
+      }
+      if (this.muzzleLight) {
+        this.muzzleLight.intensity = 0;
+      }
+      if (this.camera && this.camera.fov !== 75) {
+        this.camera.fov = 75;
+        this.camera.updateProjectionMatrix();
+      }
+      if (this.crosshairEl && this._lastCrosshairHidden) {
+        this._lastCrosshairHidden = false;
+        this.crosshairEl.style.opacity = '1';
+      }
+    }
+
+    if (this.viewmodel && typeof this.viewmodel.setUnarmed === 'function') {
+      this.viewmodel.setUnarmed(next);
+    }
+    if (this.hud && typeof this.hud.setUnarmedMode === 'function') {
+      this.hud.setUnarmedMode(next);
+    }
   }
 
   setGameState(state) {
@@ -670,6 +705,9 @@ export class WeaponSystem {
       } else {
         this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
       }
+      if (typeof this.hud.setUnarmedMode === 'function') {
+        this.hud.setUnarmedMode(this.isUnarmed);
+      }
       this.hud.setReloadCallback(() => this.startReload());
     }
   }
@@ -681,6 +719,7 @@ export class WeaponSystem {
    * and Slot 4 ('hk_mp5' - 9mm H&K MP5 Submachine Gun).
    */
   switchWeapon(weaponType, force = false, options = {}) {
+    if (this.isUnarmed && !window.isViewmodelTunerOpen) return;
     let isSilent = false;
     if (typeof force === 'object' && force !== null) {
       options = force;
@@ -744,6 +783,7 @@ export class WeaponSystem {
    * Plays the tactical weapon draw/equip animation and sound when entering gameplay.
    */
   playInitialEquip() {
+    if (this.isUnarmed) return;
     this.fireTimer = 0.22; // Brief equip delay before firing
     if (this.viewmodel && typeof this.viewmodel.playEquipAnimation === 'function') {
       this.viewmodel.playEquipAnimation(this.currentWeapon);
@@ -751,6 +791,7 @@ export class WeaponSystem {
   }
 
   startReload(force = false) {
+    if (this.isUnarmed) return;
     const canReload = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
     if (!canReload) return;
     if (this.currentAmmo >= this.maxAmmo || this.isReloading) return;
@@ -905,6 +946,16 @@ export class WeaponSystem {
   update(delta) {
     // 1. Always update in-flight visual effects (tracers, casings, sparks, decals, light fade)
     this._updateVisualEffects(delta);
+
+    // Block all weapon controls, ADS, and firing while unarmed
+    if (this.isUnarmed) {
+      this.wasMouseDown0 = true;
+      if (this.camera && Math.abs(75 - this.camera.fov) > 0.05) {
+        this.camera.fov += (75 - this.camera.fov) * Math.min(delta * 14.0, 1.0);
+        this.camera.updateProjectionMatrix();
+      }
+      return;
+    }
 
     // 2. Strict Game State Gate: block weapon inputs while in MENU, unlocked, or during 150ms arming cooldown
     const isArmed = this.gameState === 'PLAYING' &&
@@ -1131,6 +1182,7 @@ export class WeaponSystem {
   }
 
   fire() {
+    if (this.isUnarmed) return;
     if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null || performance.now() < this.armedAt) return;
     if (this.isReloading) return;
 

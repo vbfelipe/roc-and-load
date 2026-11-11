@@ -61,17 +61,31 @@ export class ViewmodelTuner {
       this.overlay.style.display = 'none';
     }
     const canvas = document.getElementById('game-canvas');
+    const ws = this.weaponSystem || window.__rocWeaponSystem || window.weaponSystem;
+    if (ws && ws.isUnarmed && this.viewmodel) {
+      this.viewmodel.setUnarmed(true);
+    }
     if (canvas && canvas.requestPointerLock && !window.__rocTuner?.isOpen) {
       canvas.requestPointerLock();
     }
   }
 
+  _switchToUnarmed() {
+    if (this.viewmodel && typeof this.viewmodel.setUnarmed === 'function') {
+      this.viewmodel.setUnarmed(true);
+    }
+    this.refreshSliders();
+  }
+
   _switchSlot(weaponType) {
+    if (this.viewmodel && typeof this.viewmodel.setUnarmed === 'function') {
+      this.viewmodel.setUnarmed(false);
+    }
     const ws = this.weaponSystem || window.__rocWeaponSystem || window.weaponSystem;
     if (ws) {
       ws.switchWeapon(weaponType, true);
     } else if (this.viewmodel) {
-      this.viewmodel.switchWeapon(weaponType);
+      this.viewmodel.switchWeapon(weaponType, { force: true });
     }
     this.refreshSliders();
   }
@@ -109,6 +123,7 @@ export class ViewmodelTuner {
         <span id="ht-weapon-badge" style="color:#f6ad55; font-weight:bold; font-size:11px; text-transform:uppercase;">H&K USP (9MM)</span>
       </div>
       <div style="display:flex; gap:4px; margin-bottom:6px;">
+        <button id="ht-slot0-btn" style="flex:1; padding:4px 2px; background:#b7791f; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">0: Hands</button>
         <button id="ht-slot1-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">1: USP</button>
         <button id="ht-slot2-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">2: .50 AE</button>
         <button id="ht-slot3-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">3: 12G</button>
@@ -120,12 +135,12 @@ export class ViewmodelTuner {
         <button id="ht-reload-btn" style="flex:1; padding:4px 2px; background:#319795; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">Test Reload</button>
         <button id="ht-reset-pose-btn" style="flex:1; padding:4px 2px; background:#4a5568; color:#cbd5e0; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">Reset Pose</button>
       </div>
-      <div style="display:flex; gap:4px; margin-bottom:8px;">
+      <div id="ht-mode-tabs-row" style="display:flex; gap:4px; margin-bottom:8px;">
         <button id="ht-mode-hand" style="flex:1; padding:4px 2px; background:#4a5568; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">HAND RIG</button>
         <button id="ht-mode-hip" style="flex:1; padding:4px 2px; background:#2d3748; color:#a0aec0; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">GUN (HIP)</button>
         <button id="ht-mode-ads" style="flex:1; padding:4px 2px; background:#2d3748; color:#a0aec0; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">GUN (ADS)</button>
       </div>
-      <div id="ht-sliders-container" style="display:flex; flex-direction:column; gap:5px; max-height:280px; overflow-y:auto; padding-right:4px;"></div>
+      <div id="ht-sliders-container" style="display:flex; flex-direction:column; gap:5px; max-height:380px; overflow-y:auto; padding-right:4px;"></div>
       <div style="margin-top:10px; display:flex; gap:8px;">
         <button id="ht-copy-btn" style="flex:1; padding:6px; background:#3182ce; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">Copy Transform</button>
         <button id="ht-close-btn" style="padding:6px 12px; background:#4a5568; color:#fff; border:none; border-radius:4px; cursor:pointer;">Close</button>
@@ -136,6 +151,7 @@ export class ViewmodelTuner {
 
     // Close & Slot buttons
     overlay.querySelector('#ht-close-btn').onclick = () => this.close();
+    overlay.querySelector('#ht-slot0-btn').onclick = () => this._switchToUnarmed();
     overlay.querySelector('#ht-slot1-btn').onclick = () => this._switchSlot('hk_usp');
     overlay.querySelector('#ht-slot2-btn').onclick = () => this._switchSlot('pistol');
     overlay.querySelector('#ht-slot3-btn').onclick = () => this._switchSlot('shotgun');
@@ -233,55 +249,97 @@ export class ViewmodelTuner {
     const vm = this.viewmodel;
     if (!vm) return;
 
-    const isUSP = vm.currentWeapon === 'hk_usp';
-    const isShotgun = vm.currentWeapon === 'shotgun';
-    const isMP5 = vm.currentWeapon === 'hk_mp5';
-    const handPivot = isUSP ? vm.uspHandPivot : (isShotgun ? vm.shotgunHandPivot : (isMP5 ? vm.mp5HandPivot : vm.pistolHandPivot));
-    const wrist = isUSP ? vm.uspWristBone : (isShotgun ? vm.shotgunWristBone : (isMP5 ? vm.mp5WristBone : vm.pistolWristBone));
-    const elbow = isUSP ? vm.uspElbowBone : (isShotgun ? vm.shotgunElbowBone : (isMP5 ? vm.mp5ElbowBone : vm.pistolElbowBone));
-    const hipPos = isUSP ? vm.uspHipPosition : (isShotgun ? vm.shotgunHipPosition : (isMP5 ? vm.mp5HipPosition : vm.pistolHipPosition));
-    const hipRot = isUSP ? vm.uspHipRotation : (isShotgun ? vm.shotgunHipRotation : (isMP5 ? vm.mp5HipRotation : vm.pistolHipRotation));
-    const adsPos = isUSP ? vm.uspAdsPosition : (isShotgun ? vm.shotgunAdsPosition : (isMP5 ? vm.mp5AdsPosition : vm.pistolAdsPosition));
-    const adsRot = isUSP ? vm.uspAdsRotation : (isShotgun ? vm.shotgunAdsRotation : (isMP5 ? vm.mp5AdsRotation : vm.pistolAdsRotation));
+    const round4 = (n) => Number(n.toFixed(4));
+    let config;
 
-    const config = {
-      weapon: vm.currentWeapon,
-      mode: vm.tunerMode,
-      hand: handPivot
-        ? {
-            pos: [
-              Number(handPivot.position.x.toFixed(4)),
-              Number(handPivot.position.y.toFixed(4)),
-              Number(handPivot.position.z.toFixed(4)),
-            ],
-            rot: [
-              Number(handPivot.rotation.x.toFixed(4)),
-              Number(handPivot.rotation.y.toFixed(4)),
-              Number(handPivot.rotation.z.toFixed(4)),
-            ],
-            scale: Number(handPivot.scale.x.toFixed(4)),
-            wristPitch: wrist && wrist.userData.pitch !== undefined ? Number(wrist.userData.pitch.toFixed(4)) : 0,
-            wristRoll: wrist && wrist.userData.roll !== undefined ? Number(wrist.userData.roll.toFixed(4)) : 0,
-            elbowBend: elbow && elbow.userData.bend !== undefined ? Number(elbow.userData.bend.toFixed(4)) : 0,
-          }
-        : null,
-      hip: {
-        pos: hipPos.toArray().map((v) => Number(v.toFixed(4))),
-        rot: [
-          Number(hipRot.x.toFixed(4)),
-          Number(hipRot.y.toFixed(4)),
-          Number(hipRot.z.toFixed(4)),
-        ],
-      },
-      ads: {
-        pos: adsPos.toArray().map((v) => Number(v.toFixed(4))),
-        rot: [
-          Number(adsRot.x.toFixed(4)),
-          Number(adsRot.y.toFixed(4)),
-          Number(adsRot.z.toFixed(4)),
-        ],
-      },
-    };
+    if (vm.isUnarmed) {
+      config = {
+        weapon: 'unarmed',
+        rig: {
+          pos: [
+            round4(vm.unarmedHipPosition.x),
+            round4(vm.unarmedHipPosition.y),
+            round4(vm.unarmedHipPosition.z),
+          ],
+          rot: [
+            round4(vm.unarmedHipRotation.x),
+            round4(vm.unarmedHipRotation.y),
+            round4(vm.unarmedHipRotation.z),
+          ],
+          scale: vm.unarmedGroup ? round4(vm.unarmedGroup.scale.x) : 1,
+        },
+        leftHand: vm.unarmedLeftPivot
+          ? {
+              pos: [
+                round4(vm.unarmedLeftPivot.position.x),
+                round4(vm.unarmedLeftPivot.position.y),
+                round4(vm.unarmedLeftPivot.position.z),
+              ],
+              rot: [
+                round4(vm.unarmedLeftPivot.rotation.x),
+                round4(vm.unarmedLeftPivot.rotation.y),
+                round4(vm.unarmedLeftPivot.rotation.z),
+              ],
+            }
+          : null,
+        rightHand: vm.unarmedRightPivot
+          ? {
+              pos: [
+                round4(vm.unarmedRightPivot.position.x),
+                round4(vm.unarmedRightPivot.position.y),
+                round4(vm.unarmedRightPivot.position.z),
+              ],
+              rot: [
+                round4(vm.unarmedRightPivot.rotation.x),
+                round4(vm.unarmedRightPivot.rotation.y),
+                round4(vm.unarmedRightPivot.rotation.z),
+              ],
+            }
+          : null,
+      };
+    } else {
+      const isUSP = vm.currentWeapon === 'hk_usp';
+      const isShotgun = vm.currentWeapon === 'shotgun';
+      const isMP5 = vm.currentWeapon === 'hk_mp5';
+      const handPivot = isUSP ? vm.uspHandPivot : (isShotgun ? vm.shotgunHandPivot : (isMP5 ? vm.mp5HandPivot : vm.pistolHandPivot));
+      const wrist = isUSP ? vm.uspWristBone : (isShotgun ? vm.shotgunWristBone : (isMP5 ? vm.mp5WristBone : vm.pistolWristBone));
+      const elbow = isUSP ? vm.uspElbowBone : (isShotgun ? vm.shotgunElbowBone : (isMP5 ? vm.mp5ElbowBone : vm.pistolElbowBone));
+      const hipPos = isUSP ? vm.uspHipPosition : (isShotgun ? vm.shotgunHipPosition : (isMP5 ? vm.mp5HipPosition : vm.pistolHipPosition));
+      const hipRot = isUSP ? vm.uspHipRotation : (isShotgun ? vm.shotgunHipRotation : (isMP5 ? vm.mp5HipRotation : vm.pistolHipRotation));
+      const adsPos = isUSP ? vm.uspAdsPosition : (isShotgun ? vm.shotgunAdsPosition : (isMP5 ? vm.mp5AdsPosition : vm.pistolAdsPosition));
+      const adsRot = isUSP ? vm.uspAdsRotation : (isShotgun ? vm.shotgunAdsRotation : (isMP5 ? vm.mp5AdsRotation : vm.pistolAdsRotation));
+
+      config = {
+        weapon: vm.currentWeapon,
+        mode: vm.tunerMode,
+        hand: handPivot
+          ? {
+              pos: [
+                round4(handPivot.position.x),
+                round4(handPivot.position.y),
+                round4(handPivot.position.z),
+              ],
+              rot: [
+                round4(handPivot.rotation.x),
+                round4(handPivot.rotation.y),
+                round4(handPivot.rotation.z),
+              ],
+              scale: round4(handPivot.scale.x),
+              wristPitch: wrist && wrist.userData.pitch !== undefined ? round4(wrist.userData.pitch) : 0,
+              wristRoll: wrist && wrist.userData.roll !== undefined ? round4(wrist.userData.roll) : 0,
+              elbowBend: elbow && elbow.userData.bend !== undefined ? round4(elbow.userData.bend) : 0,
+            }
+          : null,
+        hip: {
+          pos: hipPos.toArray().map(round4),
+          rot: [round4(hipRot.x), round4(hipRot.y), round4(hipRot.z)],
+        },
+        ads: {
+          pos: adsPos.toArray().map(round4),
+          rot: [round4(adsRot.x), round4(adsRot.y), round4(adsRot.z)],
+        },
+      };
+    }
 
     const text = JSON.stringify(config, null, 2);
     console.log('[VIEWMODEL TUNER CONFIG]:\n' + text);
@@ -313,10 +371,16 @@ export class ViewmodelTuner {
 
     const badge = this.overlay.querySelector('#ht-weapon-badge');
     if (badge) {
-      if (isUSP) badge.textContent = 'H&K USP (9MM)';
+      if (vm.isUnarmed) badge.textContent = 'UNARMED / BARE HANDS';
+      else if (isUSP) badge.textContent = 'H&K USP (9MM)';
       else if (isShotgun) badge.textContent = 'REMINGTON 870 (12G)';
       else if (isMP5) badge.textContent = 'H&K MP5 (9MM)';
       else badge.textContent = 'DESERT EAGLE (.50 AE)';
+    }
+
+    const modeTabsRow = this.overlay.querySelector('#ht-mode-tabs-row');
+    if (modeTabsRow) {
+      modeTabsRow.style.display = vm.isUnarmed ? 'none' : 'flex';
     }
 
     const adsBtn = this.overlay.querySelector('#ht-ads-btn');
@@ -328,6 +392,13 @@ export class ViewmodelTuner {
     const container = this.overlay.querySelector('#ht-sliders-container');
     if (!container) return;
     container.innerHTML = '';
+
+    const createSectionHeader = (title) => {
+      const hdr = document.createElement('div');
+      hdr.style.cssText = 'margin-top:4px; padding-top:4px; border-top:1px solid #2d3748; color:#f6ad55; font-size:10px; font-weight:bold; letter-spacing:0.6px;';
+      hdr.textContent = title;
+      container.appendChild(hdr);
+    };
 
     const createSliderRow = (f) => {
       const row = document.createElement('div');
@@ -347,6 +418,54 @@ export class ViewmodelTuner {
       };
       container.appendChild(row);
     };
+
+    if (vm.isUnarmed) {
+      if (!vm.unarmedLeftPivot || !vm.unarmedRightPivot || !vm.unarmedGroup) {
+        container.innerHTML = '<div style="color:#a0aec0; padding:10px 0;">Loading hands 3D model...</div>';
+        return;
+      }
+
+      const snapRigSprings = () => {
+        if (window.isViewmodelTunerOpen) {
+          vm.posSpring.reset(vm.unarmedHipPosition.x, vm.unarmedHipPosition.y, vm.unarmedHipPosition.z);
+          vm.rotSpring.reset(vm.unarmedHipRotation.x, vm.unarmedHipRotation.y, vm.unarmedHipRotation.z);
+        }
+      };
+
+      createSectionHeader('OVERALL RIG');
+      [
+        { id: 'rigPosX', label: 'Rig Pos X', min: -0.4, max: 0.4, step: 0.002, get: () => vm.unarmedHipPosition.x, set: (v) => { vm.unarmedHipPosition.x = v; snapRigSprings(); } },
+        { id: 'rigPosY', label: 'Rig Pos Y', min: -0.4, max: 0.4, step: 0.002, get: () => vm.unarmedHipPosition.y, set: (v) => { vm.unarmedHipPosition.y = v; snapRigSprings(); } },
+        { id: 'rigPosZ', label: 'Rig Pos Z', min: -0.5, max: 0.5, step: 0.002, get: () => vm.unarmedHipPosition.z, set: (v) => { vm.unarmedHipPosition.z = v; snapRigSprings(); } },
+        { id: 'rigRotX', label: 'Rig Rot X', min: -1.5, max: 1.5, step: 0.01, get: () => vm.unarmedHipRotation.x, set: (v) => { vm.unarmedHipRotation.x = v; snapRigSprings(); } },
+        { id: 'rigRotY', label: 'Rig Rot Y', min: -1.5, max: 1.5, step: 0.01, get: () => vm.unarmedHipRotation.y, set: (v) => { vm.unarmedHipRotation.y = v; snapRigSprings(); } },
+        { id: 'rigRotZ', label: 'Rig Rot Z', min: -1.5, max: 1.5, step: 0.01, get: () => vm.unarmedHipRotation.z, set: (v) => { vm.unarmedHipRotation.z = v; snapRigSprings(); } },
+        { id: 'rigScale', label: 'Rig Scale', min: 0.5, max: 1.6, step: 0.01, get: () => vm.unarmedGroup.scale.x, set: (v) => { vm.unarmedGroup.scale.setScalar(v); } },
+      ].forEach(createSliderRow);
+
+      createSectionHeader('LEFT HAND OFFSET');
+      const lp = vm.unarmedLeftPivot;
+      [
+        { id: 'lPosX', label: 'L Pos X', min: -0.45, max: 0.25, step: 0.002, get: () => lp.position.x, set: (v) => { lp.position.x = v; } },
+        { id: 'lPosY', label: 'L Pos Y', min: -0.45, max: 0.25, step: 0.002, get: () => lp.position.y, set: (v) => { lp.position.y = v; } },
+        { id: 'lPosZ', label: 'L Pos Z', min: -0.55, max: 0.25, step: 0.002, get: () => lp.position.z, set: (v) => { lp.position.z = v; } },
+        { id: 'lRotX', label: 'L Rot X', min: -3.14, max: 3.14, step: 0.02, get: () => lp.rotation.x, set: (v) => { lp.rotation.x = v; } },
+        { id: 'lRotY', label: 'L Rot Y', min: -3.14, max: 3.14, step: 0.02, get: () => lp.rotation.y, set: (v) => { lp.rotation.y = v; } },
+        { id: 'lRotZ', label: 'L Rot Z', min: -3.14, max: 3.14, step: 0.02, get: () => lp.rotation.z, set: (v) => { lp.rotation.z = v; } },
+      ].forEach(createSliderRow);
+
+      createSectionHeader('RIGHT HAND OFFSET');
+      const rp = vm.unarmedRightPivot;
+      [
+        { id: 'rPosX', label: 'R Pos X', min: -0.25, max: 0.45, step: 0.002, get: () => rp.position.x, set: (v) => { rp.position.x = v; } },
+        { id: 'rPosY', label: 'R Pos Y', min: -0.45, max: 0.25, step: 0.002, get: () => rp.position.y, set: (v) => { rp.position.y = v; } },
+        { id: 'rPosZ', label: 'R Pos Z', min: -0.55, max: 0.25, step: 0.002, get: () => rp.position.z, set: (v) => { rp.position.z = v; } },
+        { id: 'rRotX', label: 'R Rot X', min: -3.14, max: 3.14, step: 0.02, get: () => rp.rotation.x, set: (v) => { rp.rotation.x = v; } },
+        { id: 'rRotY', label: 'R Rot Y', min: -3.14, max: 3.14, step: 0.02, get: () => rp.rotation.y, set: (v) => { rp.rotation.y = v; } },
+        { id: 'rRotZ', label: 'R Rot Z', min: -3.14, max: 3.14, step: 0.02, get: () => rp.rotation.z, set: (v) => { rp.rotation.z = v; } },
+      ].forEach(createSliderRow);
+      return;
+    }
 
     if (vm.tunerMode === 'HAND RIG') {
       const target = isUSP ? vm.uspHandPivot : (isShotgun ? vm.shotgunHandPivot : (isMP5 ? vm.mp5HandPivot : vm.pistolHandPivot));

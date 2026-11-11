@@ -273,6 +273,14 @@ export class WeaponViewmodel {
 
     // Active weapon type ('hk_usp' = Slot 1 9mm Pistol, 'pistol' = Slot 2 Desert Eagle .50 AE, 'shotgun' = Slot 3 Remington 870, 'hk_mp5' = Slot 4)
     this.currentWeapon = 'hk_usp';
+    this.isUnarmed = false;
+    this.unarmedIdlePhase = 0;
+
+    // Unarmed relaxed bare-hands transforms (user-tuned baseline)
+    this.unarmedHipPosition = new THREE.Vector3(0, -0.022, 0);
+    this.unarmedAdsPosition = this.unarmedHipPosition;
+    this.unarmedHipRotation = new THREE.Euler(-0.04, 0, 0);
+    this.unarmedAdsRotation = this.unarmedHipRotation;
 
     // ADS interpolation flag
     this.isADS = false;
@@ -429,6 +437,11 @@ export class WeaponViewmodel {
     this.shotgunElbowBone = null;
     this.shotgunTriggerFingerGroup = null;
 
+    // Unarmed bare hands assembly
+    this.unarmedGroup = null;
+    this.unarmedRightPivot = null;
+    this.unarmedLeftPivot = null;
+
     this.reloadTweens = [];
     this.reloadTimers = [];
 
@@ -445,6 +458,7 @@ export class WeaponViewmodel {
     this._buildGunMesh();
     this._buildShotgunMesh();
     this._buildMP5Mesh();
+    this._buildUnarmedMesh();
     this._buildMuzzleFlashRig();
 
     // Load 3D GLTF models asynchronously (deferred when orchestrated by boot pipeline)
@@ -1117,6 +1131,7 @@ export class WeaponViewmodel {
     this._buildPistolHand();
     this._buildShotgunHands();
     this._buildMP5Hand();
+    this._buildUnarmedHands();
 
     this._syncTuner();
   }
@@ -1160,11 +1175,12 @@ export class WeaponViewmodel {
       }
     });
 
-    // 2. Temporarily make ALL 4 weapons, rigged hands, shell & FX visible for real GPU draw warmup
+    // 2. Temporarily make ALL 4 weapons, unarmed hands, rigged hands, shell & FX visible for real GPU draw warmup
     const prevUspVis = this.uspGroup ? this.uspGroup.visible : false;
     const prevGunVis = this.gunGroup ? this.gunGroup.visible : false;
     const prevShotgunVis = this.shotgunGroup ? this.shotgunGroup.visible : false;
     const prevMp5Vis = this.mp5Group ? this.mp5Group.visible : false;
+    const prevUnarmedVis = this.unarmedGroup ? this.unarmedGroup.visible : false;
     const prevMuzzleVis = this.muzzleFlashGroup ? this.muzzleFlashGroup.visible : false;
     const prevShellVis = this.shotgunReloadShell ? this.shotgunReloadShell.visible : false;
     const prevRootVis = this.root.visible;
@@ -1180,6 +1196,7 @@ export class WeaponViewmodel {
     if (this.gunGroup) this.gunGroup.visible = true;
     if (this.shotgunGroup) this.shotgunGroup.visible = true;
     if (this.mp5Group) this.mp5Group.visible = true;
+    if (this.unarmedGroup) this.unarmedGroup.visible = true;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = true;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = true;
 
@@ -1216,10 +1233,11 @@ export class WeaponViewmodel {
     if (weaponSystem && typeof weaponSystem.finishWarmUp === 'function') {
       weaponSystem.finishWarmUp(wsState);
     }
-    if (this.uspGroup) this.uspGroup.visible = prevUspVis;
-    if (this.gunGroup) this.gunGroup.visible = prevGunVis;
-    if (this.shotgunGroup) this.shotgunGroup.visible = prevShotgunVis;
-    if (this.mp5Group) this.mp5Group.visible = prevMp5Vis;
+    if (this.uspGroup) this.uspGroup.visible = this.isUnarmed ? false : prevUspVis;
+    if (this.gunGroup) this.gunGroup.visible = this.isUnarmed ? false : prevGunVis;
+    if (this.shotgunGroup) this.shotgunGroup.visible = this.isUnarmed ? false : prevShotgunVis;
+    if (this.mp5Group) this.mp5Group.visible = this.isUnarmed ? false : prevMp5Vis;
+    if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed ? true : prevUnarmedVis;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = prevMuzzleVis;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = prevShellVis;
     this.root.position.copy(prevRootPos);
@@ -1568,10 +1586,142 @@ export class WeaponViewmodel {
     this.mp5HandGroup.add(this.mp5HandPivot);
   }
 
+  _buildUnarmedMesh() {
+    this.unarmedGroup = new THREE.Group();
+    this.unarmedGroup.name = 'UnarmedHands';
+    this.unarmedGroup.visible = this.isUnarmed;
+    this.root.add(this.unarmedGroup);
+  }
+
+  _relaxUnarmedHandFingers(clone, side) {
+    if (!clone) return;
+    const uncurlSign = side === 'R' ? -1 : 1;
+    const qRelaxBase = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, uncurlSign * 0.42, 'XYZ'));
+    const qRelaxMid = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, uncurlSign * 0.40, 'XYZ'));
+    const qRelaxTip = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, uncurlSign * 0.28, 'XYZ'));
+    const qRelaxThumb = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, uncurlSign * 0.22, 'XYZ'));
+    const fingerPrefixes = ['index', 'middle', 'ring', 'pinky'];
+
+    clone.traverse((child) => {
+      if (!child.isBone) return;
+      if (child.name.startsWith(`thumb2_${side}`)) {
+        child.quaternion.multiply(qRelaxThumb);
+        return;
+      }
+      for (const prefix of fingerPrefixes) {
+        if (child.name.startsWith(`${prefix}1_${side}`)) {
+          child.quaternion.multiply(qRelaxBase);
+          break;
+        }
+        if (child.name.startsWith(`${prefix}2_${side}`)) {
+          child.quaternion.multiply(qRelaxMid);
+          break;
+        }
+        if (child.name.startsWith(`${prefix}3_${side}`)) {
+          child.quaternion.multiply(qRelaxTip);
+          break;
+        }
+      }
+    });
+  }
+
+  _buildUnarmedHands() {
+    if (!this.unarmedGroup) return;
+    while (this.unarmedGroup.children.length > 0) {
+      this.unarmedGroup.remove(this.unarmedGroup.children[0]);
+    }
+
+    this.unarmedGroup.position.set(0, 0, 0);
+    this.unarmedGroup.rotation.set(0, 0, 0);
+    this.unarmedGroup.scale.setScalar(1.0);
+    this.unarmedGroup.userData.defaultHipPos = new THREE.Vector3(0, -0.022, 0);
+    this.unarmedGroup.userData.defaultHipRot = new THREE.Euler(-0.04, 0, 0);
+    this.unarmedGroup.userData.defaultScale = 1.0;
+
+    const rightData = this._createPalmCenteredHandClone('R');
+    if (rightData) {
+      this.unarmedRightPivot = rightData.pivotGroup;
+      this.unarmedRightPivot.position.set(0.162, -0.178, -0.208);
+      this.unarmedRightPivot.rotation.set(-1.88, -1.38, -3.14);
+      this.unarmedRightPivot.scale.setScalar(0.96);
+      this._relaxUnarmedHandFingers(rightData.clone, 'R');
+      this.unarmedRightPivot.userData.defaultPos = this.unarmedRightPivot.position.clone();
+      this.unarmedRightPivot.userData.defaultRot = this.unarmedRightPivot.rotation.clone();
+      this.unarmedGroup.add(this.unarmedRightPivot);
+    }
+
+    const leftData = this._createPalmCenteredHandClone('L');
+    if (leftData) {
+      this.unarmedLeftPivot = leftData.pivotGroup;
+      this.unarmedLeftPivot.position.set(-0.13, -0.148, -0.178);
+      this.unarmedLeftPivot.rotation.set(-0.18, 2.36, 1.38);
+      this.unarmedLeftPivot.scale.setScalar(0.96);
+      this._relaxUnarmedHandFingers(leftData.clone, 'L');
+      this.unarmedLeftPivot.userData.defaultPos = this.unarmedLeftPivot.position.clone();
+      this.unarmedLeftPivot.userData.defaultRot = this.unarmedLeftPivot.rotation.clone();
+      this.unarmedGroup.add(this.unarmedLeftPivot);
+    }
+  }
+
+  /**
+   * Switches between armed weapon viewmodels and lowered relaxed bare hands.
+   */
+  setUnarmed(enabled) {
+    const next = !!enabled;
+    this.isUnarmed = next;
+    this.isADS = false;
+    this.isReloading = false;
+    this.isPumping = false;
+
+    if (next) {
+      if (this.uspGroup) this.uspGroup.visible = false;
+      if (this.gunGroup) this.gunGroup.visible = false;
+      if (this.shotgunGroup) this.shotgunGroup.visible = false;
+      if (this.mp5Group) this.mp5Group.visible = false;
+      if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
+      if (this.unarmedGroup) this.unarmedGroup.visible = true;
+
+      this.hipPosition = this.unarmedHipPosition;
+      this.adsPosition = this.unarmedAdsPosition;
+      this.hipRotation = this.unarmedHipRotation;
+      this.adsRotation = this.unarmedAdsRotation;
+      this.posSpring.reset(this.hipPosition.x, this.hipPosition.y, this.hipPosition.z);
+      this.rotSpring.reset(this.hipRotation.x, this.hipRotation.y, this.hipRotation.z);
+      this.bobSpring.reset(0, 0, 0);
+      this.root.position.copy(this.hipPosition);
+      this.root.rotation.copy(this.hipRotation);
+    } else {
+      if (this.unarmedGroup) this.unarmedGroup.visible = false;
+      this.switchWeapon(this.currentWeapon, { silent: true, force: true });
+    }
+  }
+
   /**
    * Restores pristine default hand and bone pose for the active weapon in the F8 tuner.
    */
   resetHandPose() {
+    if (this.isUnarmed) {
+      if (this.unarmedGroup && this.unarmedGroup.userData.defaultHipPos) {
+        this.unarmedHipPosition.copy(this.unarmedGroup.userData.defaultHipPos);
+        this.unarmedHipRotation.copy(this.unarmedGroup.userData.defaultHipRot);
+        this.unarmedGroup.scale.setScalar(this.unarmedGroup.userData.defaultScale ?? 1.0);
+      }
+      if (this.unarmedLeftPivot && this.unarmedLeftPivot.userData.defaultPos) {
+        this.unarmedLeftPivot.position.copy(this.unarmedLeftPivot.userData.defaultPos);
+        this.unarmedLeftPivot.rotation.copy(this.unarmedLeftPivot.userData.defaultRot);
+      }
+      if (this.unarmedRightPivot && this.unarmedRightPivot.userData.defaultPos) {
+        this.unarmedRightPivot.position.copy(this.unarmedRightPivot.userData.defaultPos);
+        this.unarmedRightPivot.rotation.copy(this.unarmedRightPivot.userData.defaultRot);
+      }
+      this.posSpring.reset(this.unarmedHipPosition.x, this.unarmedHipPosition.y, this.unarmedHipPosition.z);
+      this.rotSpring.reset(this.unarmedHipRotation.x, this.unarmedHipRotation.y, this.unarmedHipRotation.z);
+      this.root.position.copy(this.unarmedHipPosition);
+      this.root.rotation.copy(this.unarmedHipRotation);
+      this._syncTuner();
+      return;
+    }
+
     const isUSP = this.currentWeapon === 'hk_usp';
     const isShotgun = this.currentWeapon === 'shotgun';
     const isMP5 = this.currentWeapon === 'hk_mp5';
@@ -1655,6 +1805,7 @@ export class WeaponViewmodel {
   // ===========================================================================
 
   switchWeapon(weaponType, options = {}) {
+    if (this.isUnarmed) return;
     const isSilent = (typeof options === 'object' && options !== null) ? !!options.silent : false;
     const isForce = (typeof options === 'object' && options !== null) ? !!options.force : (typeof options === 'boolean' ? options : false);
 
@@ -1779,6 +1930,7 @@ export class WeaponViewmodel {
    * Called when clicking START on the main menu to enter gameplay.
    */
   playEquipAnimation(weaponType = this.currentWeapon) {
+    if (this.isUnarmed) return;
     const isUSP = weaponType === 'hk_usp';
     const isShotgun = weaponType === 'shotgun';
     const isMP5 = weaponType === 'hk_mp5';
@@ -2033,6 +2185,45 @@ export class WeaponViewmodel {
   }
 
   update(delta, playerVelocity, isGrounded) {
+    if (this.isUnarmed) {
+      const breathScale = window.isViewmodelTunerOpen ? 0 : 1;
+      this.unarmedIdlePhase += delta * 2.1;
+      const breathX = Math.cos(this.unarmedIdlePhase * 0.5) * 0.0018 * breathScale;
+      const breathY = Math.sin(this.unarmedIdlePhase) * 0.0032 * breathScale;
+      const breathPitch = Math.sin(this.unarmedIdlePhase) * 0.009 * breathScale;
+
+      const horizSpeed = Math.hypot(playerVelocity.x, playerVelocity.z);
+      if (isGrounded && horizSpeed > 0.5) {
+        const bobFreq = horizSpeed > 7.0 ? 11.0 : 8.5;
+        this.bobCycle += bobFreq * delta;
+        const bobAmp = horizSpeed > 7.0 ? 0.0090 : 0.0058;
+        const bobX = Math.cos(this.bobCycle) * bobAmp;
+        const bobY = Math.sin(this.bobCycle * 2) * (bobAmp * 0.78);
+        this.bobSpring.setTarget(bobX, bobY, 0);
+      } else {
+        this.bobSpring.setTarget(0, 0, 0);
+      }
+
+      this.posSpring.setTarget(
+        this.unarmedHipPosition.x,
+        this.unarmedHipPosition.y,
+        this.unarmedHipPosition.z
+      );
+      this.rotSpring.setTarget(
+        this.unarmedHipRotation.x + breathPitch,
+        this.unarmedHipRotation.y,
+        this.unarmedHipRotation.z
+      );
+
+      const pos = this.posSpring.update(delta);
+      const rot = this.rotSpring.update(delta);
+      const bob = this.bobSpring.update(delta);
+
+      this.root.position.set(pos.x + bob.x + breathX, pos.y + bob.y + breathY, pos.z + bob.z);
+      this.root.rotation.set(rot.x, rot.y, rot.z);
+      return;
+    }
+
     if (window.isViewmodelTunerOpen && this.tunerForceADS !== null) {
       this.isADS = this.tunerForceADS;
     }
@@ -2727,16 +2918,17 @@ export class WeaponViewmodel {
     this.flashTimer = 0;
 
     // Restore 3D weapon group visibilities to Slot 1 (H&K USP 9mm)
-    if (this.uspGroup) this.uspGroup.visible = true;
+    if (this.uspGroup) this.uspGroup.visible = !this.isUnarmed;
     if (this.gunGroup) this.gunGroup.visible = false;
     if (this.shotgunGroup) this.shotgunGroup.visible = false;
     if (this.mp5Group) this.mp5Group.visible = false;
+    if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed;
 
-    // Restore active hip/ADS transform pointers & muzzle socket to Slot 1 (H&K USP 9mm)
-    this.hipPosition = this.uspHipPosition;
-    this.adsPosition = this.uspAdsPosition;
-    this.hipRotation = this.uspHipRotation;
-    this.adsRotation = this.uspAdsRotation;
+    // Restore active hip/ADS transform pointers & muzzle socket
+    this.hipPosition = this.isUnarmed ? this.unarmedHipPosition : this.uspHipPosition;
+    this.adsPosition = this.isUnarmed ? this.unarmedAdsPosition : this.uspAdsPosition;
+    this.hipRotation = this.isUnarmed ? this.unarmedHipRotation : this.uspHipRotation;
+    this.adsRotation = this.isUnarmed ? this.unarmedAdsRotation : this.uspAdsRotation;
     this.muzzleAnchor = this.uspMuzzleSocket;
 
     if (this.muzzleFlashGroup && this.muzzleAnchor) {

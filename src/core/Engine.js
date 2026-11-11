@@ -52,14 +52,17 @@ export class Engine {
     // 6. Post-Processing Pipeline (Zero-AO, half-res bloom)
     this._initPostProcessing();
 
-    // 7. NPC Entities
+    // 7. NPC Entities (hidden & paused at start so 3:00 AM office is eerie; toggled via debug key P)
+    this.testZombiesVisible = false;
     this.zombie = new ZombieEnemy(this.scene, {
       spawnPosition: new THREE.Vector3(-0.6, 0.0, 2.5),
       lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
+      active: false,
     });
     this.zombieMan = new ZombieMan(this.scene, {
       spawnPosition: new THREE.Vector3(1.6, 0.0, 2.5),
       lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
+      active: false,
     });
     this.enemies = [this.zombie, this.zombieMan];
     if (typeof window !== 'undefined') {
@@ -201,6 +204,22 @@ export class Engine {
       }
     }
     return textures;
+  }
+
+  setTestZombiesVisible(visible) {
+    this.testZombiesVisible = !!visible;
+    for (const enemy of this.enemies) {
+      if (enemy && typeof enemy.setActive === 'function') {
+        enemy.setActive(this.testZombiesVisible);
+      } else if (enemy && enemy.root) {
+        enemy.root.visible = this.testZombiesVisible;
+      }
+    }
+    return this.testZombiesVisible;
+  }
+
+  toggleTestZombies() {
+    return this.setTestZombiesVisible(!this.testZombiesVisible);
   }
 
   resetEnemies() {

@@ -773,9 +773,15 @@
       pointer-events: none;
       transform-origin: bottom right;
       transform: scale(var(--hud-scale, 1)) translateX(var(--hud-jolt-x, 0px));
-      transition: transform 0.1s ease-out;
+      transition: transform 0.1s ease-out, opacity 0.25s ease, visibility 0.25s ease;
       clip-path: none !important;
       z-index: 20;
+    }
+
+    .hud-ammo-panel.unarmed-hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
     }
 
     .panel-header {
@@ -1133,6 +1139,201 @@
       100% {
         opacity: 1.0;
         box-shadow: 0 0 28px rgba(239, 68, 68, 0.85);
+      }
+    }
+
+    /* Crosshair [F] INTERAGIR Prompt (Yellow Clone of [R] RELOAD) */
+    .hud-interact-prompt {
+      position: fixed;
+      top: calc(50% + 36px);
+      left: 50%;
+      transform: translate(-50%, 0);
+      pointer-events: none;
+      color: #fef9c3;
+      background: rgba(18, 15, 5, 0.88);
+      border-color: #facc15;
+      box-shadow: 0 0 16px rgba(250, 204, 21, 0.55), inset 0 0 6px rgba(250, 204, 21, 0.22);
+      animation: pulse-interact 0.6s ease-in-out infinite alternate;
+      z-index: 950;
+    }
+
+    .hud-interact-prompt.hidden {
+      display: none !important;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .hud-interact-prompt .key-badge-prompt {
+      background: #facc15;
+      color: #0b0f17;
+      box-shadow: 0 0 6px rgba(250, 204, 21, 0.75);
+    }
+
+    @keyframes pulse-interact {
+      0% {
+        opacity: 0.78;
+        box-shadow: 0 0 14px rgba(250, 204, 21, 0.4);
+      }
+
+      100% {
+        opacity: 1.0;
+        box-shadow: 0 0 28px rgba(250, 204, 21, 0.88);
+      }
+    }
+
+    /* Delayed Opening Tutorial Controls HUD (compact & responsive across window sizes) */
+    .hud-tutorial-bar {
+      position: fixed;
+      bottom: clamp(14px, 3vh, 26px);
+      left: 50%;
+      transform: translate(-50%, 0);
+      width: fit-content;
+      max-width: calc(100vw - 24px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: clamp(5px, 0.9vw, 10px) clamp(10px, 1.5vw, 16px);
+      padding: clamp(5px, 0.7vh, 7px) clamp(10px, 1.5vw, 14px);
+      background: rgba(12, 15, 22, 0.80);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 5px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      backdrop-filter: blur(5px);
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 950;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.9s ease, transform 0.9s ease;
+    }
+
+    .hud-tutorial-bar.hidden {
+      opacity: 0;
+      transform: translate(-50%, 8px);
+    }
+
+    .tut-item {
+      display: inline-flex;
+      align-items: center;
+      gap: clamp(4px, 0.6vw, 6px);
+      font-family: 'Chakra Petch', sans-serif;
+    }
+
+    .tut-keys {
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .tut-key {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: clamp(16px, 2vw, 19px);
+      height: clamp(16px, 2.2vh, 19px);
+      padding: 0 clamp(3px, 0.5vw, 5px);
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-bottom-width: 2px;
+      border-radius: 3px;
+      color: #f8fafc;
+      font-size: clamp(0.58rem, 0.95vw, 0.68rem);
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    }
+
+    .tut-mouse-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: clamp(16px, 2vw, 19px);
+      height: clamp(17px, 2.3vh, 20px);
+      background: rgba(255, 255, 255, 0.10);
+      border: 1px solid rgba(255, 255, 255, 0.28);
+      border-bottom-width: 2px;
+      border-radius: 4px;
+      color: #f8fafc;
+    }
+
+    .tut-label {
+      color: #cbd5e1;
+      font-size: clamp(0.60rem, 1vw, 0.72rem);
+      font-weight: 600;
+      letter-spacing: 0.25px;
+    }
+
+    /* Top-Center Objective Alert Banner (compact & responsive across window sizes) */
+    .hud-objective-banner {
+      position: fixed;
+      top: clamp(36px, 4.8vh, 44px);
+      left: 50%;
+      transform: translate(-50%, 0);
+      width: fit-content;
+      max-width: calc(100vw - 24px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(6px, 0.9vw, 8px);
+      padding: clamp(4px, 0.65vh, 6px) clamp(10px, 1.5vw, 15px);
+      background: rgba(16, 13, 6, 0.86);
+      border: 1px solid rgba(250, 204, 21, 0.72);
+      border-radius: 4px;
+      box-shadow: 0 0 16px rgba(250, 204, 21, 0.24), inset 0 0 8px rgba(250, 204, 21, 0.12);
+      backdrop-filter: blur(5px);
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(0.62rem, 1.15vw, 0.78rem);
+      font-weight: 800;
+      letter-spacing: clamp(0.6px, 0.12vw, 1.2px);
+      text-transform: uppercase;
+      color: #fef08a;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 950;
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 0.65s ease, transform 0.65s ease;
+    }
+
+    @media (max-width: 420px) {
+      .hud-tutorial-bar {
+        gap: 4px 10px;
+        padding: 4px 8px;
+      }
+
+      .hud-objective-banner {
+        white-space: normal;
+        text-align: center;
+        top: 40px;
+      }
+    }
+
+    .hud-objective-banner.hidden {
+      opacity: 0;
+      transform: translate(-50%, -8px);
+    }
+
+    .obj-pulse-dot {
+      width: clamp(6px, 0.85vw, 7px);
+      height: clamp(6px, 0.85vw, 7px);
+      border-radius: 50%;
+      background: #facc15;
+      box-shadow: 0 0 8px #facc15;
+      animation: obj-dot-blink 0.85s ease-in-out infinite alternate;
+      flex-shrink: 0;
+    }
+
+    @keyframes obj-dot-blink {
+      0% {
+        opacity: 0.35;
+        transform: scale(0.85);
+      }
+
+      100% {
+        opacity: 1.0;
+        transform: scale(1.15);
       }
     }
 

@@ -32,6 +32,17 @@ export class HUD {
   _createDOM() {
     // Find ui-layer or fallback to body
     const uiLayer = document.getElementById('ui-layer') || document.body;
+    this.uiLayer = uiLayer;
+
+    // Track unarmed & opening sequence HUD state (dirty checked)
+    this.isUnarmed = false;
+    this._gameplayActive = false;
+    this._tutorialActive = false;
+    this._objectiveActive = false;
+    this._interactActive = false;
+    this._lastInteractVisible = null;
+    this._lastTutorialVisible = null;
+    this._lastObjectiveVisible = null;
 
     // 1. Crosshair [R] RELOAD Prompt
     this.reloadPromptEl = document.createElement('div');
@@ -41,6 +52,8 @@ export class HUD {
       <span class="key-badge-prompt">R</span>
       <span class="prompt-text">RELOAD</span>
     `;
+
+    this._initIntroHudElements();
     this.reloadPromptEl.addEventListener('click', (e) => {
       e.stopPropagation();
       if (typeof this.onReloadClick === 'function') {
@@ -238,7 +251,7 @@ export class HUD {
   setEmptyState(isEmpty) {
     if (!this.reloadPromptEl) return;
 
-    if (isEmpty) {
+    if (isEmpty && !this.isUnarmed) {
       this.reloadPromptEl.classList.remove('hidden');
     } else {
       this.reloadPromptEl.classList.add('hidden');
@@ -359,8 +372,187 @@ export class HUD {
     }
   }
 
+  _initIntroHudElements() {
+    const introHost = document.body || this.uiLayer;
+    if (!introHost) return;
+
+    // Clean up any stale duplicates across hot reloads
+    for (const id of ['hud-interact-prompt', 'hud-tutorial-bar', 'hud-objective-banner']) {
+      const existing = document.getElementById(id);
+      if (existing) existing.remove();
+    }
+
+    // Crosshair [F] INTERAGIR Prompt (Yellow clone of [R] RELOAD, mounted directly under document.body)
+    this.interactPromptEl = document.createElement('div');
+    this.interactPromptEl.id = 'hud-interact-prompt';
+    this.interactPromptEl.className = 'hud-reload-prompt hud-interact-prompt hidden';
+    this.interactPromptEl.style.display = 'none';
+    this.interactPromptEl.innerHTML = `
+      <span class="key-badge-prompt">F</span>
+      <span class="prompt-text">INTERAGIR</span>
+    `;
+    introHost.appendChild(this.interactPromptEl);
+
+    // Delayed Opening Tutorial Bar
+    this.tutorialBarEl = document.createElement('div');
+    this.tutorialBarEl.id = 'hud-tutorial-bar';
+    this.tutorialBarEl.className = 'hud-tutorial-bar hidden';
+    this.tutorialBarEl.style.display = 'none';
+    this.tutorialBarEl.innerHTML = `
+      <span class="tut-item">
+        <span class="tut-keys">
+          <span class="tut-key">W</span><span class="tut-key">A</span><span class="tut-key">S</span><span class="tut-key">D</span>
+        </span>
+        <span class="tut-label">andar</span>
+      </span>
+      <span class="tut-item">
+        <span class="tut-key">SHIFT</span>
+        <span class="tut-label">correr</span>
+      </span>
+      <span class="tut-item">
+        <span class="tut-key">ESPAÇO</span>
+        <span class="tut-label">pular</span>
+      </span>
+      <span class="tut-item">
+        <span class="tut-mouse-badge" aria-hidden="true">
+          <svg width="11" height="14" viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect x="1.25" y="1.25" width="11.5" height="15.5" rx="5.75" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="7" y1="1.5" x2="7" y2="7.5" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="1.5" y1="7.5" x2="12.5" y2="7.5" stroke="currentColor" stroke-width="1.2"/>
+            <rect x="6.1" y="3.2" width="1.8" height="2.8" rx="0.9" fill="#facc15"/>
+          </svg>
+        </span>
+        <span class="tut-label">câmera</span>
+      </span>
+    `;
+    introHost.appendChild(this.tutorialBarEl);
+
+    // Top-Center Objective Banner
+    this.objectiveBannerEl = document.createElement('div');
+    this.objectiveBannerEl.id = 'hud-objective-banner';
+    this.objectiveBannerEl.className = 'hud-objective-banner hidden';
+    this.objectiveBannerEl.style.display = 'none';
+    this.objectiveBannerEl.innerHTML = `
+      <span class="obj-pulse-dot" aria-hidden="true"></span>
+      <span class="obj-text">Atenda o telefone para continuar</span>
+    `;
+    this.objectiveTextEl = this.objectiveBannerEl.querySelector('.obj-text');
+    introHost.appendChild(this.objectiveBannerEl);
+  }
+
+  _applyOverlayVisibility(el, visible, { instant = false, fadeMs = 0, hiddenOffsetY = 0 } = {}) {
+    if (!el) return;
+    if (el._hideTimer) {
+      clearTimeout(el._hideTimer);
+      el._hideTimer = null;
+    }
+
+    if (instant || fadeMs <= 0) {
+      el.classList.toggle('hidden', !visible);
+      el.style.display = visible ? 'flex' : 'none';
+      el.style.visibility = visible ? 'visible' : 'hidden';
+      el.style.opacity = visible ? '1' : '0';
+      if (hiddenOffsetY !== 0) {
+        el.style.transform = visible ? 'translate(-50%, 0)' : `translate(-50%, ${hiddenOffsetY}px)`;
+      }
+      return;
+    }
+
+    if (visible) {
+      const wasHidden = el.style.display === 'none' || el.classList.contains('hidden');
+      el.style.display = 'flex';
+      el.style.visibility = 'visible';
+      if (wasHidden) {
+        el.style.opacity = '0';
+        el.style.transform = `translate(-50%, ${hiddenOffsetY}px)`;
+        void el.offsetWidth;
+      }
+      el.classList.remove('hidden');
+      el.style.opacity = '1';
+      el.style.transform = 'translate(-50%, 0)';
+    } else {
+      if (el.style.display === 'none') return;
+      el.classList.add('hidden');
+      el.style.opacity = '0';
+      el.style.transform = `translate(-50%, ${hiddenOffsetY}px)`;
+      el._hideTimer = setTimeout(() => {
+        el._hideTimer = null;
+        if (el.classList.contains('hidden')) {
+          el.style.visibility = 'hidden';
+          el.style.display = 'none';
+        }
+      }, fadeMs + 40);
+    }
+  }
+
+  _syncIntroOverlays(instant = false) {
+    const showTut = this._tutorialActive && this._gameplayActive;
+    if (this._lastTutorialVisible !== showTut) {
+      this._lastTutorialVisible = showTut;
+      this._applyOverlayVisibility(this.tutorialBarEl, showTut, { instant, fadeMs: 900, hiddenOffsetY: 8 });
+    }
+
+    const showObj = this._objectiveActive && this._gameplayActive;
+    if (this._lastObjectiveVisible !== showObj) {
+      this._lastObjectiveVisible = showObj;
+      this._applyOverlayVisibility(this.objectiveBannerEl, showObj, { instant, fadeMs: 650, hiddenOffsetY: -8 });
+    }
+
+    const showInteract = this._interactActive && this._gameplayActive;
+    if (this._lastInteractVisible !== showInteract) {
+      this._lastInteractVisible = showInteract;
+      this._applyOverlayVisibility(this.interactPromptEl, showInteract, { instant: true });
+    }
+  }
+
+  setGameplayHudActive(active) {
+    const next = !!active;
+    this._gameplayActive = next;
+    this._syncIntroOverlays(!next);
+  }
+
+  /**
+   * Hides bottom-right weapon/ammo HUD and reload warnings while unarmed.
+   */
+  setUnarmedMode(unarmed) {
+    const next = !!unarmed;
+    this.isUnarmed = next;
+    if (this.ammoPanelEl) {
+      this.ammoPanelEl.classList.toggle('unarmed-hidden', next);
+    }
+    if (next && this.reloadPromptEl) {
+      this.reloadPromptEl.classList.add('hidden');
+    } else if (!next) {
+      this._updateWarningStates();
+    }
+  }
+
+  setTutorialVisible(visible) {
+    this._tutorialActive = !!visible;
+    this._syncIntroOverlays();
+  }
+
+  setObjectiveText(text) {
+    if (this.objectiveTextEl && text) {
+      this.objectiveTextEl.textContent = text;
+    }
+  }
+
+  setObjectiveVisible(visible) {
+    this._objectiveActive = !!visible;
+    this._syncIntroOverlays();
+  }
+
+  setInteractVisible(visible) {
+    this._interactActive = !!visible;
+    this._syncIntroOverlays();
+  }
+
   reset() {
     this.setWeapon('hk_usp', 12, 12);
+    this.setTutorialVisible(false);
+    this.setObjectiveVisible(false);
+    this.setInteractVisible(false);
 
     if (this.reloadPromptEl) {
       this.reloadPromptEl.classList.add('hidden');

@@ -9,6 +9,7 @@ import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
 import { LightingTuner } from './ui/LightingTuner.js';
 import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
+import { IntroSequence, VESTIBULE_SPAWN } from './game/IntroSequence.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -64,9 +65,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const player = new PlayerController(engine.camera, input, sound);
   player.setCollider(warehouse.playerColliderMesh || colliderMesh);
-  player.teleport(0, 0.0, -3.0);
-  player.yaw = Math.PI;
-  player.pitch = 0.0;
+  player.teleport(VESTIBULE_SPAWN.x, VESTIBULE_SPAWN.y, VESTIBULE_SPAWN.z);
+  player.yaw = VESTIBULE_SPAWN.yaw;
+  player.pitch = VESTIBULE_SPAWN.pitch;
+  if (typeof player._updateCameraTransform === 'function') {
+    player._updateCameraTransform();
+  }
   window.__rocPlayer = player;
 
   const viewmodel = new WeaponViewmodel(engine.camera, sound, { autoLoad: false });
@@ -84,6 +88,19 @@ window.addEventListener('DOMContentLoaded', () => {
   weaponSystem.setMonitorScreens(warehouse.monitorScreens);
   weaponSystem.setPlayer(player);
   weaponSystem.setHUD(hud);
+  weaponSystem.setUnarmed(true);
+
+  const introSequence = new IntroSequence({
+    scene: engine.scene,
+    camera: engine.camera,
+    player,
+    weaponSystem,
+    hud,
+    sound,
+    input,
+    warehouse,
+  });
+  window.__rocIntro = introSequence;
 
   const lightingTuner = new LightingTuner(engine, warehouse);
   const viewmodelTuner = new ViewmodelTuner(viewmodel, weaponSystem);
@@ -92,16 +109,24 @@ window.addEventListener('DOMContentLoaded', () => {
   window.__rocViewmodelTuner = viewmodelTuner;
 
   let gameState = 'MAIN_MENU';
+  let menuCameraElapsed = 0;
 
   function setGameState(state) {
     gameState = state;
     player.setGameState(state);
     weaponSystem.setGameState(state);
+    if (introSequence) {
+      introSequence.onGameStateChanged(state);
+    }
+    if (hud && typeof hud.setGameplayHudActive === 'function') {
+      hud.setGameplayHudActive(state === 'PLAYING');
+    }
 
     if (state === 'PLAYING') {
       startModal.classList.add('hidden');
       if (uiLayer) uiLayer.classList.remove('menu-hidden');
       viewmodel.root.visible = true;
+      engine.camera.rotation.order = 'YXZ';
       player.updateBobAndCamera(0);
       sound.fadeMenuMusicOut(220);
     } else if (state === 'PAUSED') {
@@ -123,7 +148,8 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       sound.resumeMenuMusic(300);
     } else {
-      // MAIN_MENU
+      // MAIN_MENU: restart showroom glide at the Monitors & Skyline showcase (s = 0)
+      menuCameraElapsed = 0;
       startModal.classList.remove('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
       viewmodel.root.visible = false;
@@ -222,7 +248,9 @@ window.addEventListener('DOMContentLoaded', () => {
           }
         }
       }
+      engine.setTestZombiesVisible(true);
       await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera, engine.composer, weaponSystem);
+      engine.setTestZombiesVisible(false);
     } catch (err) {
       console.warn('GPU warm-up warning:', err);
     }
@@ -233,7 +261,8 @@ window.addEventListener('DOMContentLoaded', () => {
       `[rocAndLoad] Boot ready in ${Math.round(performance.now() - bootStart)}ms (assets: ${assetsMs}ms, GPU warmup: ${warmupMs}ms)`
     );
 
-    // Preloader is 100% complete: start render loop & unlock menu
+    // Preloader is 100% complete: reset showroom sweep to s = 0 (Monitors first), start render loop & unlock menu
+    menuCameraElapsed = 0;
     isPreloading = false;
     sound.setPreloading(false);
     engine.start();
@@ -326,15 +355,29 @@ window.addEventListener('DOMContentLoaded', () => {
       }
 
       if (gameState === 'MAIN_MENU') {
-        // Slow cinematic idle camera drift overlooking the Data Center
-        const time = performance.now() * 0.001;
-        engine.camera.position.x = player.position.x + Math.sin(time * 0.35) * 0.22;
-        engine.camera.position.y = player.position.y + player.eyeHeight + Math.sin(time * 0.5) * 0.04;
-        engine.camera.position.z = player.position.z + Math.cos(time * 0.35) * 0.08;
-        engine.camera.rotation.order = 'YXZ';
-        engine.camera.rotation.y = player.yaw + Math.sin(time * 0.25) * 0.05;
-        engine.camera.rotation.x = Math.sin(time * 0.3) * 0.012;
-        engine.camera.rotation.z = 0;
+        // Decoupled Cinematic Showroom Camera: always starts at Monitors/Skyline (s = 0)
+        // and sweeps smoothly across the room to showcase the Server Room Glass & Racks (s = 1)
+        if (!isPreloading) {
+          menuCameraElapsed += delta;
+        }
+        const s = 0.5 - 0.5 * Math.cos(menuCameraElapsed * 0.14);
+        const inv = 1.0 - s;
+        const w0 = inv * inv;
+        const w1 = 2.0 * inv * s;
+        const w2 = s * s;
+
+        // Smooth walkway glide: North-West Monitors/Skyline view -> North-East corner -> East aisle Server Racks view
+        const camX = w0 * -2.6 + w1 * 5.8 + w2 * 5.2;
+        const camY = w0 * 1.98 + w1 * 2.02 + w2 * 1.90 + Math.sin(menuCameraElapsed * 0.45) * 0.03;
+        const camZ = w0 * -5.2 + w1 * -4.8 + w2 * 1.8;
+
+        const lookX = w0 * 2.1 + w1 * 1.1 + w2 * -0.8;
+        const lookY = w0 * 1.04 + w1 * 1.06 + w2 * 1.24;
+        const lookZ = w0 * 3.2 + w1 * -1.6 + w2 * -6.2;
+
+        engine.camera.position.set(camX, camY, camZ);
+        engine.camera.up.set(0, 1, 0);
+        engine.camera.lookAt(lookX, lookY, lookZ);
 
         viewmodel.root.visible = false;
 
@@ -370,6 +413,9 @@ window.addEventListener('DOMContentLoaded', () => {
       // 4. Weapon hitscan, firing logic, decals, tracers
       weaponSystem.update(delta);
 
+      // 4b. Opening gameplay sequence state machine (tutorial fade-in, phone ringing, proximity pickup)
+      introSequence.update(delta, gameState);
+
       // 5. Update position diagnostics (throttled to 4Hz to eliminate per-frame DOM updates)
       const now = performance.now();
       if (posEl && now - lastPosTime >= 250) {
@@ -403,12 +449,15 @@ window.addEventListener('DOMContentLoaded', () => {
     if (isPreloading) return;
 
     const isInitialStart = (gameState === 'MAIN_MENU');
+    if (isInitialStart) {
+      introSequence.onGameStartPressed();
+    }
     sound.resume();
     sound.playStartClick();
     setGameState('PLAYING');
     input.requestLock();
 
-    // Trigger weapon draw/equip animation and sound when entering gameplay
+    // Trigger weapon draw/equip animation and sound when entering gameplay (skipped automatically while unarmed)
     if (isInitialStart) {
       weaponSystem.playInitialEquip();
     }
@@ -426,10 +475,11 @@ window.addEventListener('DOMContentLoaded', () => {
     exitBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       sound.playExitClick();
-      player.reset(0, 0.1, -3.0, Math.PI, 0);
       weaponSystem.reset();
       warehouse.resetMonitors();
       if (typeof engine.resetEnemies === 'function') engine.resetEnemies();
+      if (typeof engine.setTestZombiesVisible === 'function') engine.setTestZombiesVisible(false);
+      introSequence.reset();
       setGameState('MAIN_MENU');
     });
   }
@@ -516,9 +566,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Handle ESC or KeyP to guarantee pause triggering even in headless/synthetic event environments
+  // Handle ESC to guarantee pause triggering even in headless/synthetic event environments
   window.addEventListener('keydown', (e) => {
-    if (e.code === 'Escape' || e.key === 'Escape' || e.code === 'KeyP') {
+    if (e.code === 'Escape' || e.key === 'Escape') {
       if (window.isViewmodelTunerOpen) {
         viewmodelTuner.close();
         return;
@@ -534,11 +584,22 @@ window.addEventListener('DOMContentLoaded', () => {
           setGameState('PAUSED');
         }
       }
+      return;
+    }
+
+    // Debug key P: toggle test zombies visible/active anytime during gameplay
+    if (!e.repeat && (e.code === 'KeyP' || e.key === 'p' || e.key === 'P')) {
+      const tag = e.target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (gameState === 'PLAYING') {
+        engine.toggleTestZombies();
+      }
     }
   });
 
-  // Direct fail-safe KeyR reload and Digit1/Digit2 weapon slot bindings (strictly blocked when not playing)
+  // Direct fail-safe KeyR reload and Digit1-4 weapon slot bindings (strictly blocked when unarmed or not playing)
   window.addEventListener('keydown', (e) => {
+    if (weaponSystem.isUnarmed) return;
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
     if (e.code === 'Digit1' || e.key === '1') {
       weaponSystem.switchWeapon('hk_usp');

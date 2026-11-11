@@ -1914,4 +1914,300 @@ export class SoundManager {
     clinkOsc.start(clinkTime);
     clinkOsc.stop(clinkTime + 0.045);
   }
+
+  /**
+   * Starts a looping executive IP-phone dual-tone warble ringtone
+   * ("brrring-brrring ... 1.8s pause") with persistent lowpass & stereo pan nodes.
+   */
+  startPhoneRingtone() {
+    if (!this.ctx) {
+      this._initAudio();
+    }
+    if (!this.ctx || !this.masterGain) return;
+    if (!this.isMuted && this.isSfxEnabled) {
+      this.resume();
+    }
+    if (this._phoneRing && this._phoneRing.active) return;
+
+    const now = this.ctx.currentTime;
+    const oscA = this.ctx.createOscillator();
+    const oscB = this.ctx.createOscillator();
+    const oscHarm = this.ctx.createOscillator();
+    const warbleLfo = this.ctx.createOscillator();
+
+    oscA.type = 'sine';
+    oscA.frequency.setValueAtTime(523.25, now); // C5 executive ring carrier
+    oscB.type = 'triangle';
+    oscB.frequency.setValueAtTime(659.25, now); // E5 executive ring carrier
+    oscHarm.type = 'sine';
+    oscHarm.frequency.setValueAtTime(1046.5, now); // Subtle upper harmonic
+
+    warbleLfo.type = 'sine';
+    warbleLfo.frequency.setValueAtTime(22.0, now); // 22Hz classic telephone ring trill
+
+    const lfoFreqGainA = this.ctx.createGain();
+    lfoFreqGainA.gain.setValueAtTime(32.0, now);
+    const lfoFreqGainB = this.ctx.createGain();
+    lfoFreqGainB.gain.setValueAtTime(38.0, now);
+    const lfoFreqGainH = this.ctx.createGain();
+    lfoFreqGainH.gain.setValueAtTime(64.0, now);
+
+    warbleLfo.connect(lfoFreqGainA);
+    warbleLfo.connect(lfoFreqGainB);
+    warbleLfo.connect(lfoFreqGainH);
+    lfoFreqGainA.connect(oscA.frequency);
+    lfoFreqGainB.connect(oscB.frequency);
+    lfoFreqGainH.connect(oscHarm.frequency);
+
+    const mixGainA = this.ctx.createGain();
+    mixGainA.gain.setValueAtTime(0.58, now);
+    const mixGainB = this.ctx.createGain();
+    mixGainB.gain.setValueAtTime(0.42, now);
+    const mixGainH = this.ctx.createGain();
+    mixGainH.gain.setValueAtTime(0.18, now);
+
+    const cadenceGain = this.ctx.createGain();
+    cadenceGain.gain.setValueAtTime(0.0, now);
+
+    const lowpassFilter = this.ctx.createBiquadFilter();
+    lowpassFilter.type = 'lowpass';
+    lowpassFilter.frequency.setValueAtTime(1550, now);
+    lowpassFilter.Q.setValueAtTime(0.9, now);
+
+    const stereoPanner = typeof this.ctx.createStereoPanner === 'function'
+      ? this.ctx.createStereoPanner()
+      : null;
+
+    const spatialGain = this.ctx.createGain();
+    spatialGain.gain.setValueAtTime(0.36, now);
+
+    oscA.connect(mixGainA);
+    oscB.connect(mixGainB);
+    oscHarm.connect(mixGainH);
+    mixGainA.connect(cadenceGain);
+    mixGainB.connect(cadenceGain);
+    mixGainH.connect(cadenceGain);
+
+    cadenceGain.connect(lowpassFilter);
+    if (stereoPanner) {
+      lowpassFilter.connect(stereoPanner);
+      stereoPanner.connect(spatialGain);
+    } else {
+      lowpassFilter.connect(spatialGain);
+    }
+    spatialGain.connect(this.masterGain);
+
+    oscA.start(now);
+    oscB.start(now);
+    oscHarm.start(now);
+    warbleLfo.start(now);
+
+    const ringState = {
+      active: true,
+      paused: false,
+      startTime: now,
+      cycleDuration: 2.84, // 0.42s ring + 0.20s gap + 0.42s ring + 1.80s pause
+      oscA,
+      oscB,
+      oscHarm,
+      warbleLfo,
+      lfoFreqGainA,
+      lfoFreqGainB,
+      lfoFreqGainH,
+      mixGainA,
+      mixGainB,
+      mixGainH,
+      cadenceGain,
+      lowpassFilter,
+      stereoPanner,
+      spatialGain,
+      targetSpatialGain: 0.36,
+      schedulerId: null,
+    };
+    this._phoneRing = ringState;
+
+    const scheduleBurstCycle = (cycleStart) => {
+      if (!ringState.active || !this.ctx) return;
+      const g = ringState.cadenceGain.gain;
+
+      // Double ring burst: [0..0.42s] ON, [0.42..0.62s] OFF, [0.62..1.04s] ON, [1.04..2.84s] PAUSE
+      g.setValueAtTime(0.0, cycleStart);
+      g.linearRampToValueAtTime(1.0, cycleStart + 0.015);
+      g.setValueAtTime(1.0, cycleStart + 0.39);
+      g.linearRampToValueAtTime(0.0, cycleStart + 0.42);
+
+      g.setValueAtTime(0.0, cycleStart + 0.62);
+      g.linearRampToValueAtTime(1.0, cycleStart + 0.635);
+      g.setValueAtTime(1.0, cycleStart + 1.01);
+      g.linearRampToValueAtTime(0.0, cycleStart + 1.04);
+
+      const nextCycleStart = cycleStart + ringState.cycleDuration;
+      const waitMs = Math.max(200, (nextCycleStart - this.ctx.currentTime - 0.15) * 1000);
+      ringState.schedulerId = setTimeout(() => {
+        if (ringState.active) {
+          scheduleBurstCycle(nextCycleStart);
+        }
+      }, waitMs);
+    };
+
+    scheduleBurstCycle(now + 0.04);
+  }
+
+  /**
+   * Returns current ring cadence active status (true during "brrring" bursts, false during gaps/pause)
+   * so visual MWI LED & screen indicators pulse in exact lockstep with audio.
+   */
+  isPhoneRingBurstActive() {
+    if (!this._phoneRing || !this._phoneRing.active || !this.ctx || this._phoneRing.paused) {
+      return false;
+    }
+    const elapsed = Math.max(0, this.ctx.currentTime - (this._phoneRing.startTime + 0.04));
+    const phase = elapsed % this._phoneRing.cycleDuration;
+    return phase < 0.42 || (phase >= 0.62 && phase < 1.04);
+  }
+
+  /**
+   * Pauses/mutes active phone ringtone output while in pause menu without tearing down state.
+   */
+  setPhoneRingtonePaused(paused) {
+    if (!this._phoneRing || !this._phoneRing.active || !this.ctx) return;
+    this._phoneRing.paused = !!paused;
+    const now = this.ctx.currentTime;
+    const target = this._phoneRing.paused ? 0.0 : this._phoneRing.targetSpatialGain;
+    this._phoneRing.spatialGain.gain.setTargetAtTime(target, now, 0.03);
+  }
+
+  /**
+   * Updates distance attenuation, lowpass air absorption (~1100Hz far -> ~6500Hz close),
+   * and stereo pan of the active phone ringtone with zero per-frame allocations.
+   */
+  updatePhoneRingtoneSpatial(distance, pan = 0) {
+    if (!this._phoneRing || !this._phoneRing.active || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const clampedDist = Math.max(0.4, distance);
+
+    // Distance attenuation: strong & clear nearby (<2.5m), clearly audible across room (~12-18m)
+    const gainVal = Math.min(0.92, Math.max(0.28, 0.90 / (1.0 + Math.max(0, clampedDist - 1.5) * 0.11)));
+    this._phoneRing.targetSpatialGain = gainVal;
+    const finalGain = this._phoneRing.paused ? 0.0 : gainVal;
+    this._phoneRing.spatialGain.gain.setTargetAtTime(finalGain, now, 0.045);
+
+    // Low-pass filter: ~6500 Hz within 2.5m -> ~1450 Hz around 12m (down toward 1250 Hz beyond)
+    const tDist = Math.min(1.0, Math.max(0.0, (clampedDist - 2.5) / 9.5));
+    let cutoff = 6500.0 * Math.pow(1450.0 / 6500.0, tDist);
+    if (clampedDist > 12.0) {
+      cutoff = Math.max(1250.0, 1450.0 - (clampedDist - 12.0) * 35.0);
+    }
+    this._phoneRing.lowpassFilter.frequency.setTargetAtTime(cutoff, now, 0.05);
+
+    if (this._phoneRing.stereoPanner) {
+      const clampedPan = Math.min(0.92, Math.max(-0.92, pan));
+      this._phoneRing.stereoPanner.pan.setTargetAtTime(clampedPan, now, 0.04);
+    }
+  }
+
+  /**
+   * Immediately stops and cleans up the phone ringtone oscillators & scheduler.
+   */
+  stopPhoneRingtone() {
+    const r = this._phoneRing;
+    if (!r) return;
+    r.active = false;
+    if (r.schedulerId !== null) {
+      clearTimeout(r.schedulerId);
+      r.schedulerId = null;
+    }
+
+    if (this.ctx) {
+      const now = this.ctx.currentTime;
+      try {
+        r.spatialGain.gain.cancelScheduledValues(now);
+        r.spatialGain.gain.setTargetAtTime(0.0, now, 0.015);
+      } catch (e) {}
+
+      const cleanupNodes = () => {
+        const nodes = [
+          r.oscA, r.oscB, r.oscHarm, r.warbleLfo,
+          r.lfoFreqGainA, r.lfoFreqGainB, r.lfoFreqGainH,
+          r.mixGainA, r.mixGainB, r.mixGainH,
+          r.cadenceGain, r.lowpassFilter, r.stereoPanner, r.spatialGain,
+        ];
+        for (const osc of [r.oscA, r.oscB, r.oscHarm, r.warbleLfo]) {
+          try { osc.stop(); } catch (e) {}
+        }
+        for (const node of nodes) {
+          if (node) {
+            try { node.disconnect(); } catch (e) {}
+          }
+        }
+      };
+      setTimeout(cleanupNodes, 65);
+    }
+
+    this._phoneRing = null;
+  }
+
+  /**
+   * Procedural physical handset lift & hookswitch click/clack SFX when answering phone.
+   */
+  playPhonePickupClick() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    // 1. ABS handset lift body thud
+    const bodyOsc = this.ctx.createOscillator();
+    const bodyGain = this.ctx.createGain();
+    bodyOsc.type = 'triangle';
+    bodyOsc.frequency.setValueAtTime(240, t);
+    bodyOsc.frequency.exponentialRampToValueAtTime(72, t + 0.042);
+
+    bodyGain.gain.setValueAtTime(0.42, t);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.048);
+
+    bodyOsc.connect(bodyGain);
+    bodyGain.connect(this.masterGain);
+    bodyOsc.start(t);
+    bodyOsc.stop(t + 0.055);
+
+    // 2. Crisp plastic cradle unseat scrape
+    const noiseBuffer = this._createNoiseBuffer(0.08);
+    if (noiseBuffer) {
+      const brush = this.ctx.createBufferSource();
+      brush.buffer = noiseBuffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1650, t);
+      filter.frequency.exponentialRampToValueAtTime(2900, t + 0.035);
+      filter.Q.setValueAtTime(2.6, t);
+
+      const nGain = this.ctx.createGain();
+      nGain.gain.setValueAtTime(0.32, t);
+      nGain.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+
+      brush.connect(filter);
+      filter.connect(nGain);
+      nGain.connect(this.masterGain);
+      brush.start(t);
+      brush.stop(t + 0.06);
+    }
+
+    // 3. Spring-loaded plunger hookswitch snap (t + 26ms)
+    const hookT = t + 0.026;
+    const hookOsc = this.ctx.createOscillator();
+    const hookGain = this.ctx.createGain();
+    hookOsc.type = 'sine';
+    hookOsc.frequency.setValueAtTime(2350, hookT);
+    hookOsc.frequency.exponentialRampToValueAtTime(880, hookT + 0.024);
+
+    hookGain.gain.setValueAtTime(0.001, t);
+    hookGain.gain.setValueAtTime(0.36, hookT);
+    hookGain.gain.exponentialRampToValueAtTime(0.001, hookT + 0.030);
+
+    hookOsc.connect(hookGain);
+    hookGain.connect(this.masterGain);
+    hookOsc.start(hookT);
+    hookOsc.stop(hookT + 0.035);
+  }
 }
