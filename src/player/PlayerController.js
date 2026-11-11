@@ -290,8 +290,8 @@ export class PlayerController {
             _pushDirection.copy(_tempTriNormal);
           } else {
             _pushDirection.normalize();
-            // If pushing backwards into triangle backface, align with normal
-            if (_pushDirection.dot(_tempTriNormal) < 0) {
+            // Reject true single-sided backface penetration without hijacking shared box edges
+            if (_pushDirection.dot(_tempTriNormal) < -0.25) {
               _pushDirection.copy(_tempTriNormal);
             }
           }
@@ -305,15 +305,31 @@ export class PlayerController {
           this.position.y = _capsuleSegment.start.y - this.radius;
           this.position.z = _capsuleSegment.start.z;
 
-          // If push normal has strong upward component, we are on ground (respecting jumpTimer)
-          if (_pushDirection.y > 0.55 && this.jumpTimer <= 0) {
+          const isWalkableFloor = _pushDirection.y > 0.55 && triPoint.y <= _capsuleSegment.start.y + 0.05;
+
+          // If push normal has strong upward component at feet, we are on ground (respecting jumpTimer)
+          if (isWalkableFloor && this.jumpTimer <= 0) {
             groundedThisFrame = true;
           }
 
-          // Cancel velocity component pointing into the collider
-          const velDot = this.velocity.dot(_pushDirection);
-          if (velDot < 0) {
-            this.velocity.addScaledVector(_pushDirection, -velDot);
+          // Cancel velocity component pointing into the collider without converting downward gravity into wall slide
+          if (!isWalkableFloor && this.velocity.y <= 0) {
+            const hLenSq = _pushDirection.x * _pushDirection.x + _pushDirection.z * _pushDirection.z;
+            if (hLenSq > 1e-6) {
+              const invH = 1 / Math.sqrt(hLenSq);
+              const hnx = _pushDirection.x * invH;
+              const hnz = _pushDirection.z * invH;
+              const hDot = this.velocity.x * hnx + this.velocity.z * hnz;
+              if (hDot < 0) {
+                this.velocity.x -= hDot * hnx;
+                this.velocity.z -= hDot * hnz;
+              }
+            }
+          } else {
+            const velDot = this.velocity.dot(_pushDirection);
+            if (velDot < 0) {
+              this.velocity.addScaledVector(_pushDirection, -velDot);
+            }
           }
 
           // Expand bounding box for subsequent triangle tests

@@ -7172,15 +7172,15 @@ function createWindows11LockTexture() {
   ctx.shadowColor = 'rgba(0, 0, 0, 0.65)';
   ctx.shadowBlur = 12;
 
-  // Digital Clock: 1:17
+  // Digital Clock: 3:00
   ctx.font = '600 96px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = '#ffffff';
-  ctx.fillText('1:17', 512, 135);
+  ctx.fillText('3:00', 512, 135);
 
-  // Date: Monday, October 26
+  // Date: sexta-feira, 13 de novembro
   ctx.font = '500 22px "Segoe UI", Arial, sans-serif';
   ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-  ctx.fillText('Monday, October 26', 512, 182);
+  ctx.fillText('sexta-feira, 13 de novembro', 512, 182);
 
   // Micro Wi-Fi & Battery indicator at bottom-right
   ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
@@ -12172,7 +12172,7 @@ function createTelestreamGXP2170Textures() {
     lCtx.fill();
   }
 
-  // Top black status bar (11:47 PM + SIP/Network indicators)
+  // Top black status bar (03:00 + SIP/Network indicators)
   lCtx.fillStyle = 'rgba(8, 11, 17, 0.94)';
   lCtx.fillRect(0, 0, LW, 48);
 
@@ -12197,7 +12197,7 @@ function createTelestreamGXP2170Textures() {
   lCtx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
   lCtx.textAlign = 'right';
   lCtx.fillStyle = '#f8fafc';
-  lCtx.fillText('11:47 PM', LW - 22, 25);
+  lCtx.fillText('03:00', LW - 22, 25);
 
   // Left & Right BLF Line Overlays (6 rows per side)
   const blfLeftLabels = [
@@ -14440,7 +14440,7 @@ export class WarehouseBuilder {
     // Row 1: Close Distance (Z = -2.7m, Floor level)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 1.8 + deskClusterOffsetZ, 0.0, 'close', addPartMatrix);
 
-    // Hero-Scaled TELESTREAM GXP2170 Executive IP Phone on right-hand side of BSOD desk
+    // Hero-Scaled TELESTREAM GXP2170 Executive IP Phone on right-hand side of Lock Screen desk
     this._buildTelestreamGXP2170Phone(
       group,
       2.5 - 1.04,
@@ -14831,11 +14831,11 @@ export class WarehouseBuilder {
     let leftPcX, rightPcX;
 
     if (tierName === 'close') {
-      // Row 1: Dual monitors on LeftDesk (front-right in player view), Ultrawide BSOD on RightDesk (front-left in player view)
+      // Row 1: Dual monitors on LeftDesk (front-right in player view), Ultrawide Lock Screen on RightDesk (front-left in player view)
       leftPcX = (leftDeskX - 0.50 - 0.46) - 0.14 - pcW / 2;
       rightPcX = (rightDeskX + 0.68) + 0.14 + pcW / 2;
     } else if (tierName === 'mid') {
-      // Row 2: Ultrawide on Left (outer edge at -3.58), Dual monitors on Right (outer edge at 3.86)
+      // Row 2: Ultrawide BSOD on Left (outer edge at -3.58), Dual monitors on Right (outer edge at 3.86)
       leftPcX = (leftDeskX - 0.68) - 0.14 - pcW / 2;
       rightPcX = (rightDeskX + 0.50 + 0.46) + 0.14 + pcW / 2;
     } else {
@@ -14858,20 +14858,20 @@ export class WarehouseBuilder {
 
     // Place Hero Scale Monitors (Collision-Free: 8.5cm dual-screen gap, 26cm PC clearance, ergonomic inward curve)
     if (tierName === 'close') {
-      // Row 1: Front-Left Single-Monitor Desk (BSOD), Front-Right Dual-Monitor Desk (Screen C + Screen A)
-      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX, surfaceY, z, 0, true, 'bsod');             // BSOD Ultrawide centered on Front-Left desk
+      // Row 1: Front-Left Single-Monitor Desk (Windows 11 Glow Lock Screen), Front-Right Dual-Monitor Desk (Screen C + Screen A)
+      this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX, surfaceY, z, 0, true, 'screenB');          // Windows 11 Glow Lock Screen Ultrawide centered on Front-Left desk
       this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX + 0.50, surfaceY, z, 0.10, false, 'screenC');  // Screen C (Dark-Mode AI IDE) on Left monitor of Front-Right desk
       this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX - 0.50, surfaceY, z, -0.10, false, 'screenA'); // Screen A (Windows 11 Bloom Desktop) on Right monitor of Front-Right desk
 
       // Front-Right desk chair (centered between dual monitors)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX - 0.18, baseY, z - 0.92, 0.38, addPartMatrix);
-      // Front-Left desk chair (centered on ultrawide BSOD, swiveled slightly toward aisle)
+      // Front-Left desk chair (centered on ultrawide Lock Screen, swiveled slightly toward aisle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, rightDeskX + 0.12, baseY, z - 1.00, -0.52, addPartMatrix);
     } else if (tierName === 'mid') {
-      // Row 2: Mid-Left Dual-Monitor Desk (Screen C AI IDE + Screen D Multi-Window), Mid-Right Single-Monitor Desk (Screen B Glow Lock Screen)
+      // Row 2: Mid-Left Dual-Monitor Desk (Screen C AI IDE + Screen D Multi-Window), Mid-Right Single-Monitor Desk (BSOD)
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX + 0.50, surfaceY, z, 0.10, false, 'screenC'); // Screen C (Dark-Mode AI IDE) (angled inward)
       this._buildMonitor(addPart, addVisual, visualBuckets, rightDeskX - 0.50, surfaceY, z, -0.10, false, 'screenD'); // Screen D (Windows 11 Active Multi-Window) (angled inward)
-      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX, surfaceY, z, 0, true, 'screenB');              // Windows 11 Glow Lock Screen Ultrawide centered
+      this._buildMonitor(addPart, addVisual, visualBuckets, leftDeskX, surfaceY, z, 0, true, 'bsod');                 // Classic BSOD Ultrawide centered
 
       // Mid-Right desk chair (pushed back with hurried exit angle)
       this._buildOfficeChair(addPart, addVisual, visualBuckets, leftDeskX + 0.20, baseY, z - 1.04, 0.75, addPartMatrix);
@@ -16537,10 +16537,10 @@ export class WarehouseBuilder {
     registerCollider(colTop, posTop.x, posTop.y, posTop.z, 0, rotY, 0);
     colTop.dispose();
 
-    // Articulated Tablet Touchscreen Collider
-    const colTab = new THREE.BoxGeometry(0.33, 0.20, 0.08);
-    const posTab = new THREE.Vector3(tx, ty, tz).applyMatrix4(printerMatrix);
-    registerCollider(colTab, posTab.x, posTab.y, posTab.z, tiltX, rotY, 0);
+    // Articulated Tablet Touchscreen Collider (transformed by tabletWorldMat to prevent Euler XYZ/YXZ roll mismatch)
+    const colTab = new THREE.BoxGeometry(0.32, 0.19, 0.036);
+    colTab.applyMatrix4(tabletWorldMat);
+    registerCollider(colTab, 0, 0, 0);
     colTab.dispose();
   }
 
