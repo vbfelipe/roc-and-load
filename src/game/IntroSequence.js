@@ -5,7 +5,17 @@ export const INTRO_STATES = Object.freeze({
   UNARMED_INTRO: 'UNARMED_INTRO',
   PHONE_RINGING: 'PHONE_RINGING',
   PHONE_ANSWERED: 'PHONE_ANSWERED',
+  CALL_ENDED: 'CALL_ENDED',
 });
+
+export const PHONE_DIALOGUE_SCRIPT = Object.freeze([
+  { speaker: 'jorio', text: 'Alô?! Quem tá aí?! ...Roc? Tentei te ligar no celular, mas o sinal morreu na cidade inteira!' },
+  { speaker: 'roc', text: 'Jório?! Que inferno você quer às três da manhã de uma sexta-feira, cara? Só voltei pra buscar minhas chaves de casa e já tô saindo.' },
+  { speaker: 'jorio', text: 'Não sai! Tranca a porta! Tem uma parada muito estranha acontecendo na cidade, cara... Tá um caos lá fora, tem uns malucos mordendo gente no meio da rua!' },
+  { speaker: 'roc', text: 'Ah, pronto. Já começou a madrugada bebendo, né? Não vem inventar apocalipse pra faltar na segunda-feira.' },
+  { speaker: 'jorio', text: 'Eu tô falando sério! O vigia da portaria nem responde no interfone... Pelo menos pega alguma coisa pra se defender antes de descer!' },
+  { speaker: 'roc', text: 'Vai dormir, Jório. Se você atrasar meu relatório na segunda-feira, quem vai te morder sou eu.' },
+]);
 
 export const VESTIBULE_SPAWN = Object.freeze({
   x: -12.45,
@@ -17,9 +27,14 @@ export const VESTIBULE_SPAWN = Object.freeze({
 
 // Threshold X coordinate stepping out of the glass partition doorway into the main office room
 const MAIN_ROOM_THRESHOLD_X = -9.8;
+const PHONE_RING_DELAY_AFTER_ENTRY_SECONDS = 6.0;
 const PHONE_INTERACT_RADIUS = 1.22;
 const TUTORIAL_DELAY_SECONDS = 2.0;
 const TUTORIAL_MAX_DURATION_SECONDS = 12.0;
+const TYPEWRITER_CHARS_PER_SEC = 38.0;
+const TYPEWRITER_PUNCT_PAUSE = 0.18;
+const CALL_PICKUP_DELAY_SECONDS = 0.30;
+const DIALOGUE_AUTO_ADVANCE_SECONDS = 3.0;
 
 /**
  * Coordinates the opening gameplay state sequence:
@@ -37,11 +52,26 @@ export class IntroSequence {
     this.warehouse = warehouse;
 
     this.state = INTRO_STATES.UNARMED_INTRO;
+    this._gameState = 'MAIN_MENU';
     this.hasStarted = false;
     this.tutorialShown = false;
     this.tutorialDismissed = false;
     this.tutorialTimer = 0;
     this.tutorialVisibleTimer = 0;
+    this._enteredMainRoom = false;
+    this._mainRoomRingTimer = 0;
+
+    // Phone dialogue & typewriter state
+    this._dialogueActive = false;
+    this._callStartDelay = 0;
+    this._dialogueTurnIndex = 0;
+    this._charIndex = 0;
+    this._charTimer = 0;
+    this._postLineTimer = 0;
+    this._nonSpaceCharCount = 0;
+    this._callerDisplayedText = '';
+    this._playerDisplayedText = '';
+    this._showPlayerRow = false;
 
     // Pre-allocated scratch vectors for zero per-frame GC allocations
     this._phoneWorldPos = new THREE.Vector3(1.46, 0.95, -2.82);
@@ -54,6 +84,11 @@ export class IntroSequence {
 
     this._resolvePhoneReference();
     this._buildFloatingArrow();
+
+    this._onKeyDown = (e) => this._handleKeyDown(e);
+    if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
+      window.addEventListener('keydown', this._onKeyDown, true);
+    }
   }
 
   _resolvePhoneReference() {
@@ -157,13 +192,20 @@ export class IntroSequence {
   onGameStartPressed() {
     if (this.hasStarted) return;
     this.hasStarted = true;
+    this._gameState = 'PLAYING';
     this.state = INTRO_STATES.UNARMED_INTRO;
     this.tutorialTimer = 0;
     this.tutorialVisibleTimer = 0;
     this.tutorialShown = false;
     this.tutorialDismissed = false;
+    this._enteredMainRoom = false;
+    this._mainRoomRingTimer = 0;
+    this._dialogueActive = false;
 
     this.spawnInVestibule(false);
+    if (this.player && typeof this.player.setJumpSuppressed === 'function') {
+      this.player.setJumpSuppressed(false);
+    }
     if (this.weaponSystem && typeof this.weaponSystem.setUnarmed === 'function') {
       this.weaponSystem.setUnarmed(true);
     }
@@ -171,14 +213,29 @@ export class IntroSequence {
       this.hud.setTutorialVisible(false);
       this.hud.setObjectiveVisible(false);
       this.hud.setInteractVisible(false);
+      if (typeof this.hud.setPhoneDialogueVisible === 'function') {
+        this.hud.setPhoneDialogueVisible(false, true);
+      }
     }
   }
 
   onGameStateChanged(nextState) {
+    this._gameState = nextState;
     if (!this.sound) return;
     if (this.state === INTRO_STATES.PHONE_RINGING) {
       this.sound.setPhoneRingtonePaused(nextState !== 'PLAYING');
     }
+  }
+
+  _handleKeyDown(e) {
+    if (!e || e.code !== 'Space') return;
+    if (this.state !== INTRO_STATES.PHONE_ANSWERED || this._gameState !== 'PLAYING') return;
+
+    if (typeof e.preventDefault === 'function') e.preventDefault();
+    if (typeof e.stopPropagation === 'function') e.stopPropagation();
+    if (e.repeat) return;
+
+    this._handleDialogueSpaceSkip();
   }
 
   _enterPhoneRinging() {
@@ -203,6 +260,7 @@ export class IntroSequence {
   answerPhone() {
     if (this.state !== INTRO_STATES.PHONE_RINGING) return;
     this.state = INTRO_STATES.PHONE_ANSWERED;
+    this._gameState = 'PLAYING';
 
     if (this.sound) {
       this.sound.stopPhoneRingtone();
@@ -213,6 +271,11 @@ export class IntroSequence {
       this.arrowMesh.visible = false;
     }
 
+    if (this.player && typeof this.player.setJumpSuppressed === 'function') {
+      this.player.setJumpSuppressed(true);
+    }
+
+    this.tutorialDismissed = true;
     if (this.hud) {
       this.hud.setInteractVisible(false);
       this.hud.setTutorialVisible(false);
@@ -220,6 +283,200 @@ export class IntroSequence {
     }
 
     this._setPhoneAnsweredVisuals();
+    this._startDialogueSequence();
+  }
+
+  _startDialogueSequence() {
+    this._dialogueActive = true;
+    this._callStartDelay = CALL_PICKUP_DELAY_SECONDS;
+    this._dialogueTurnIndex = 0;
+    this._charIndex = 0;
+    this._charTimer = 0;
+    this._postLineTimer = 0;
+    this._nonSpaceCharCount = 0;
+    this._callerDisplayedText = '';
+    this._playerDisplayedText = '';
+    this._showPlayerRow = false;
+  }
+
+  _beginDialogueTurn(turnIdx) {
+    this._dialogueTurnIndex = turnIdx;
+    this._charIndex = 0;
+    this._charTimer = 0;
+    this._postLineTimer = 0;
+    this._nonSpaceCharCount = 0;
+    const turn = PHONE_DIALOGUE_SCRIPT[turnIdx];
+    if (turn.speaker === 'jorio') {
+      this._callerDisplayedText = '';
+    } else {
+      this._playerDisplayedText = '';
+      this._showPlayerRow = true;
+    }
+    this._syncDialogueHud();
+  }
+
+  _syncDialogueHud() {
+    if (!this.hud) return;
+    const turn = PHONE_DIALOGUE_SCRIPT[this._dialogueTurnIndex];
+    if (!turn) return;
+
+    const isLineComplete = this._charIndex >= turn.text.length;
+    if (typeof this.hud.setPhoneDialogueVisible === 'function') {
+      this.hud.setPhoneDialogueVisible(true);
+    }
+    if (typeof this.hud.setPhoneDialogueState === 'function') {
+      this.hud.setPhoneDialogueState({
+        showPlayerRow: this._showPlayerRow,
+        activeSpeaker: turn.speaker,
+        callerText: this._callerDisplayedText,
+        playerText: this._playerDisplayedText,
+        skipHintText: isLineComplete ? '[ESPAÇO] PRÓXIMO ▸' : '[ESPAÇO] PULAR ▸',
+      });
+    }
+  }
+
+  _handleDialogueSpaceSkip() {
+    if (this.state !== INTRO_STATES.PHONE_ANSWERED || !this._dialogueActive) return;
+
+    // If skipped during the 0.3s pickup transition, open Turn 1 immediately
+    if (this._callStartDelay > 0) {
+      this._callStartDelay = 0;
+      this._beginDialogueTurn(0);
+      return;
+    }
+
+    const turn = PHONE_DIALOGUE_SCRIPT[this._dialogueTurnIndex];
+    if (!turn) return;
+
+    if (this._charIndex < turn.text.length) {
+      // 1st press: snap-complete current phrase immediately
+      this._charIndex = turn.text.length;
+      this._charTimer = 0;
+      this._postLineTimer = 0;
+      if (turn.speaker === 'jorio') {
+        this._callerDisplayedText = turn.text;
+      } else {
+        this._playerDisplayedText = turn.text;
+      }
+      this._syncDialogueHud();
+    } else {
+      // 2nd press: immediately advance to next turn or end call after final turn
+      this._advanceDialogueTurn();
+    }
+  }
+
+  _advanceDialogueTurn() {
+    const nextIdx = this._dialogueTurnIndex + 1;
+    if (nextIdx >= PHONE_DIALOGUE_SCRIPT.length) {
+      this._endPhoneCall();
+      return;
+    }
+    this._beginDialogueTurn(nextIdx);
+  }
+
+  _updateDialogue(delta) {
+    if (!this._dialogueActive) return;
+
+    if (this._callStartDelay > 0) {
+      this._callStartDelay -= delta;
+      if (this._callStartDelay <= 0) {
+        this._callStartDelay = 0;
+        this._beginDialogueTurn(0);
+      }
+      return;
+    }
+
+    const turn = PHONE_DIALOGUE_SCRIPT[this._dialogueTurnIndex];
+    if (!turn) return;
+
+    if (this._charIndex < turn.text.length) {
+      this._charTimer -= delta;
+      const baseInterval = 1.0 / TYPEWRITER_CHARS_PER_SEC;
+      let revealedAny = false;
+
+      while (this._charTimer <= 0 && this._charIndex < turn.text.length) {
+        const ch = turn.text[this._charIndex];
+        this._charIndex++;
+        revealedAny = true;
+
+        if (ch !== ' ' && ch !== '\n') {
+          this._nonSpaceCharCount++;
+          if (this._nonSpaceCharCount % 3 === 1 && this.sound && typeof this.sound.playDialogueBlip === 'function') {
+            this.sound.playDialogueBlip(turn.speaker);
+          }
+        }
+
+        const hasMore = this._charIndex < turn.text.length;
+        const isPunct = ch === '.' || ch === '?' || ch === '!' || ch === ',';
+        this._charTimer += baseInterval + (hasMore && isPunct ? TYPEWRITER_PUNCT_PAUSE : 0);
+      }
+
+      if (revealedAny) {
+        const slice = turn.text.slice(0, this._charIndex);
+        if (turn.speaker === 'jorio') {
+          this._callerDisplayedText = slice;
+        } else {
+          this._playerDisplayedText = slice;
+        }
+        if (this._charIndex >= turn.text.length) {
+          this._postLineTimer = 0;
+        }
+        this._syncDialogueHud();
+      }
+    } else {
+      this._postLineTimer += delta;
+      if (this._postLineTimer >= DIALOGUE_AUTO_ADVANCE_SECONDS) {
+        this._advanceDialogueTurn();
+      }
+    }
+  }
+
+  _endPhoneCall() {
+    if (this.state === INTRO_STATES.CALL_ENDED) return;
+    this.state = INTRO_STATES.CALL_ENDED;
+    this._dialogueActive = false;
+
+    if (this.player && typeof this.player.setJumpSuppressed === 'function') {
+      this.player.setJumpSuppressed(false);
+    }
+    if (this.input && this.input.keys) {
+      this.input.keys.Space = false;
+      this.input.keys[' '] = false;
+      if (this.input.justPressedKeys) {
+        this.input.justPressedKeys.Space = false;
+        this.input.justPressedKeys[' '] = false;
+      }
+    }
+
+    if (this.sound && typeof this.sound.playPhoneDisconnectTone === 'function') {
+      this.sound.playPhoneDisconnectTone();
+    }
+
+    if (this.hud && typeof this.hud.setPhoneDialogueVisible === 'function') {
+      this.hud.setPhoneDialogueVisible(false);
+    }
+
+    this._resetPhoneToIdle();
+  }
+
+  _resetPhoneToIdle() {
+    if (!this._phoneRef) return;
+    const handset = this._phoneRef.handsetMesh;
+    if (handset) {
+      handset.visible = true;
+      if (this._phoneRef.userData && this._phoneRef.userData.handsetRestPos) {
+        handset.position.copy(this._phoneRef.userData.handsetRestPos);
+      }
+      if (this._phoneRef.userData && this._phoneRef.userData.handsetRestQuat) {
+        handset.quaternion.copy(this._phoneRef.userData.handsetRestQuat);
+      }
+    }
+    if (this._phoneRef.mwiLedMesh && this._phoneRef.mwiLedMesh.material) {
+      this._phoneRef.mwiLedMesh.material.color.setHex(0xef4444);
+    }
+    if (this._phoneRef.screenMaterial) {
+      this._phoneRef.screenMaterial.color.setHex(0xffffff);
+    }
   }
 
   _setPhoneAnsweredVisuals() {
@@ -301,10 +558,11 @@ export class IntroSequence {
   }
 
   update(delta, gameState) {
+    this._gameState = gameState;
     if (!this.hasStarted || gameState !== 'PLAYING') return;
 
-    // 2-second delayed tutorial controls HUD, auto-hidden after at most 6 seconds on screen
-    if (!this.tutorialDismissed && this.state !== INTRO_STATES.PHONE_ANSWERED) {
+    // 2-second delayed tutorial controls HUD, auto-hidden after at most 12 seconds on screen
+    if (!this.tutorialDismissed && this.state !== INTRO_STATES.PHONE_ANSWERED && this.state !== INTRO_STATES.CALL_ENDED) {
       if (!this.tutorialShown) {
         this.tutorialTimer += delta;
         if (this.tutorialTimer >= TUTORIAL_DELAY_SECONDS) {
@@ -325,27 +583,52 @@ export class IntroSequence {
       }
     }
 
-    // Trigger ringing sequence when Roc steps out of the vestibule into the main office room
+    // Trigger ringing sequence 6.0s after Roc steps out of the vestibule into the main office room
     if (this.state === INTRO_STATES.UNARMED_INTRO) {
-      const liveX = this.player ? this.player.position.x : (this.camera ? this.camera.position.x : -999);
-      if (liveX > MAIN_ROOM_THRESHOLD_X) {
-        this._enterPhoneRinging();
+      if (!this._enteredMainRoom) {
+        const liveX = this.player ? this.player.position.x : (this.camera ? this.camera.position.x : -999);
+        if (liveX > MAIN_ROOM_THRESHOLD_X) {
+          this._enteredMainRoom = true;
+          this._mainRoomRingTimer = 0;
+        }
+      } else {
+        this._mainRoomRingTimer += delta;
+        if (this._mainRoomRingTimer >= PHONE_RING_DELAY_AFTER_ENTRY_SECONDS) {
+          this._enterPhoneRinging();
+        }
       }
     }
 
     if (this.state === INTRO_STATES.PHONE_RINGING) {
       this._updateRingingVisualsAndAudio(performance.now() * 0.001);
+    } else if (this.state === INTRO_STATES.PHONE_ANSWERED) {
+      this._updateDialogue(delta);
     }
   }
 
   reset() {
     this.state = INTRO_STATES.UNARMED_INTRO;
+    this._gameState = 'MAIN_MENU';
     this.hasStarted = false;
     this.tutorialShown = false;
     this.tutorialDismissed = false;
     this.tutorialTimer = 0;
     this.tutorialVisibleTimer = 0;
+    this._enteredMainRoom = false;
+    this._mainRoomRingTimer = 0;
+    this._dialogueActive = false;
+    this._callStartDelay = 0;
+    this._dialogueTurnIndex = 0;
+    this._charIndex = 0;
+    this._charTimer = 0;
+    this._postLineTimer = 0;
+    this._callerDisplayedText = '';
+    this._playerDisplayedText = '';
+    this._showPlayerRow = false;
 
+    if (this.player && typeof this.player.setJumpSuppressed === 'function') {
+      this.player.setJumpSuppressed(false);
+    }
     if (this.sound) {
       this.sound.stopPhoneRingtone();
     }
@@ -353,19 +636,24 @@ export class IntroSequence {
       this.arrowMesh.visible = false;
     }
 
-    if (this._phoneRef) {
-      if (this._phoneRef.mwiLedMesh && this._phoneRef.mwiLedMesh.material) {
-        this._phoneRef.mwiLedMesh.material.color.setHex(0xef4444);
-      }
-      if (this._phoneRef.screenMaterial) {
-        this._phoneRef.screenMaterial.color.setHex(0xffffff);
-      }
-    }
+    this._resetPhoneToIdle();
 
     if (this.hud) {
       this.hud.setTutorialVisible(false);
       this.hud.setObjectiveVisible(false);
       this.hud.setInteractVisible(false);
+      if (typeof this.hud.setPhoneDialogueVisible === 'function') {
+        this.hud.setPhoneDialogueVisible(false, true);
+      }
+      if (typeof this.hud.setPhoneDialogueState === 'function') {
+        this.hud.setPhoneDialogueState({
+          showPlayerRow: false,
+          activeSpeaker: 'jorio',
+          callerText: '',
+          playerText: '',
+          skipHintText: '[ESPAÇO] PULAR ▸',
+        });
+      }
     }
 
     if (this.weaponSystem && typeof this.weaponSystem.setUnarmed === 'function') {

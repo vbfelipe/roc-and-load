@@ -2210,4 +2210,142 @@ export class SoundManager {
     hookOsc.start(hookT);
     hookOsc.stop(hookT + 0.035);
   }
+
+  /**
+   * Subtle non-fatiguing typewriter dialogue blip (telephone bandpass tone for Jório, deeper voice tone for Roc).
+   */
+  playDialogueBlip(speaker = 'jorio') {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const isJorio = speaker === 'jorio';
+
+    const osc = this.ctx.createOscillator();
+    const filter = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+
+    if (isJorio) {
+      osc.type = 'triangle';
+      const f = 520 + Math.random() * 80;
+      osc.frequency.setValueAtTime(f, t);
+      osc.frequency.exponentialRampToValueAtTime(f * 0.92, t + 0.034);
+
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(760, t);
+      filter.Q.setValueAtTime(0.75, t);
+
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.18, t + 0.004);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.036);
+    } else {
+      osc.type = 'sine';
+      const f = 160 + Math.random() * 28;
+      osc.frequency.setValueAtTime(f, t);
+      osc.frequency.exponentialRampToValueAtTime(f * 0.90, t + 0.036);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1600, t);
+      filter.Q.setValueAtTime(0.8, t);
+
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(0.15, t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.038);
+    }
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.042);
+  }
+
+  /**
+   * Telecom disconnect busy tone ("pi-pi-pi-pi": 4x 425Hz bandpass beeps 0.18s ON / 0.14s OFF)
+   * followed immediately by mechanical handset hang-up cradle clack SFX.
+   */
+  playPhoneDisconnectTone() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(425, t);
+
+    const oscHarm = this.ctx.createOscillator();
+    oscHarm.type = 'sine';
+    oscHarm.frequency.setValueAtTime(850, t);
+
+    const harmGain = this.ctx.createGain();
+    harmGain.gain.setValueAtTime(0.08, t);
+
+    // Telecom earpiece bandpass filter (~275-1670Hz band so 425Hz busy tone & harmonic pass cleanly)
+    const bpFilter = this.ctx.createBiquadFilter();
+    bpFilter.type = 'bandpass';
+    bpFilter.frequency.setValueAtTime(680, t);
+    bpFilter.Q.setValueAtTime(0.55, t);
+
+    const gateGain = this.ctx.createGain();
+    gateGain.gain.setValueAtTime(0.0, t);
+
+    const beepOn = 0.18;
+    const beepOff = 0.14;
+    const step = beepOn + beepOff; // 0.32s per beep
+    for (let i = 0; i < 4; i++) {
+      const start = t + i * step;
+      const end = start + beepOn;
+      gateGain.gain.setValueAtTime(0.0, start);
+      gateGain.gain.linearRampToValueAtTime(0.38, start + 0.008);
+      gateGain.gain.setValueAtTime(0.38, end - 0.008);
+      gateGain.gain.linearRampToValueAtTime(0.0, end);
+    }
+
+    const toneEnd = t + 4 * step - beepOff; // ~1.14s
+    osc.connect(bpFilter);
+    oscHarm.connect(harmGain);
+    harmGain.connect(bpFilter);
+    bpFilter.connect(gateGain);
+    gateGain.connect(this.masterGain);
+
+    osc.start(t);
+    oscHarm.start(t);
+    osc.stop(toneEnd + 0.04);
+    oscHarm.stop(toneEnd + 0.04);
+
+    // Mechanical handset hang-up cradle clack right after final beep (t + 1.18s)
+    const clackT = toneEnd + 0.04;
+    const clackOsc = this.ctx.createOscillator();
+    const clackGain = this.ctx.createGain();
+    clackOsc.type = 'triangle';
+    clackOsc.frequency.setValueAtTime(210, clackT);
+    clackOsc.frequency.exponentialRampToValueAtTime(58, clackT + 0.055);
+
+    clackGain.gain.setValueAtTime(0.001, t);
+    clackGain.gain.setValueAtTime(0.45, clackT);
+    clackGain.gain.exponentialRampToValueAtTime(0.001, clackT + 0.062);
+
+    clackOsc.connect(clackGain);
+    clackGain.connect(this.masterGain);
+    clackOsc.start(clackT);
+    clackOsc.stop(clackT + 0.07);
+
+    const noiseBuf = this._createNoiseBuffer(0.07);
+    if (noiseBuf) {
+      const nSrc = this.ctx.createBufferSource();
+      nSrc.buffer = noiseBuf;
+      const nFilter = this.ctx.createBiquadFilter();
+      nFilter.type = 'bandpass';
+      nFilter.frequency.setValueAtTime(1450, clackT);
+      nFilter.Q.setValueAtTime(2.0, clackT);
+      const nGain = this.ctx.createGain();
+      nGain.gain.setValueAtTime(0.001, t);
+      nGain.gain.setValueAtTime(0.34, clackT);
+      nGain.gain.exponentialRampToValueAtTime(0.001, clackT + 0.048);
+      nSrc.connect(nFilter);
+      nFilter.connect(nGain);
+      nGain.connect(this.masterGain);
+      nSrc.start(clackT);
+      nSrc.stop(clackT + 0.055);
+    }
+  }
 }

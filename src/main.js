@@ -213,17 +213,19 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress(label);
     });
 
-    // 4. Parallel loading: WebP UI hero art
-    const heroImagePromise = new Promise((resolve) => {
-      const img = new Image();
-      img.src = './roc_hero.webp';
-      if (img.decode) {
-        img.decode().then(resolve).catch(resolve);
-      } else {
-        img.onload = () => resolve();
-        img.onerror = () => resolve();
-      }
-    }).then(() => {
+    // 4. Parallel loading: WebP UI hero portraits
+    const heroImagePromise = Promise.all(
+      ['./roc_hero.webp', './jorio_hero.webp'].map((src) => new Promise((resolve) => {
+        const img = new Image();
+        img.src = src;
+        if (img.decode) {
+          img.decode().then(resolve).catch(resolve);
+        } else {
+          img.onload = () => resolve();
+          img.onerror = () => resolve();
+        }
+      }))
+    ).then(() => {
       heroFrac = 1.0;
       syncAssetProgress();
     });
@@ -244,7 +246,7 @@ window.addEventListener('DOMContentLoaded', () => {
         ];
         for (const tex of texturesToWarm) {
           if (tex) {
-            try { engine.renderer.initTexture(tex); } catch (e) {}
+            try { engine.renderer.initTexture(tex); } catch (e) { }
           }
         }
       }

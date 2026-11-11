@@ -40,9 +40,18 @@ export class HUD {
     this._tutorialActive = false;
     this._objectiveActive = false;
     this._interactActive = false;
+    this._phoneDialogueActive = false;
     this._lastInteractVisible = null;
     this._lastTutorialVisible = null;
     this._lastObjectiveVisible = null;
+    this._lastPhoneDialogueVisible = null;
+    this._lastDialogueSnapshot = {
+      showPlayerRow: null,
+      activeSpeaker: null,
+      callerText: null,
+      playerText: null,
+      skipHintText: null,
+    };
 
     // 1. Crosshair [R] RELOAD Prompt
     this.reloadPromptEl = document.createElement('div');
@@ -377,7 +386,7 @@ export class HUD {
     if (!introHost) return;
 
     // Clean up any stale duplicates across hot reloads
-    for (const id of ['hud-interact-prompt', 'hud-tutorial-bar', 'hud-objective-banner']) {
+    for (const id of ['hud-interact-prompt', 'hud-tutorial-bar', 'hud-objective-banner', 'hud-phone-dialogue']) {
       const existing = document.getElementById(id);
       if (existing) existing.remove();
     }
@@ -433,27 +442,75 @@ export class HUD {
     this.objectiveBannerEl.className = 'hud-objective-banner hidden';
     this.objectiveBannerEl.style.display = 'none';
     this.objectiveBannerEl.innerHTML = `
-      <span class="obj-pulse-dot" aria-hidden="true"></span>
-      <span class="obj-text">Atenda o telefone para continuar</span>
+      <span class="obj-text">Atenda o telefone para continuar</span><span class="obj-pulse-bang" aria-hidden="true">!</span>
     `;
     this.objectiveTextEl = this.objectiveBannerEl.querySelector('.obj-text');
     introHost.appendChild(this.objectiveBannerEl);
+
+    // Responsive Dual-Row Phone Call Dialogue HUD (Jório & Roc)
+    this.phoneDialogueEl = document.createElement('div');
+    this.phoneDialogueEl.id = 'hud-phone-dialogue';
+    this.phoneDialogueEl.className = 'hud-phone-dialogue hidden';
+    this.phoneDialogueEl.style.display = 'none';
+    this.phoneDialogueEl.innerHTML = `
+      <div class="phone-dialogue-stack">
+        <div class="dialogue-row caller is-active" id="dialogue-row-caller">
+          <div class="dialogue-portrait jorio">
+            <img src="./jorio_hero.webp" alt="Jório" class="dialogue-portrait-img" />
+          </div>
+          <div class="dialogue-box jorio">
+            <div class="dialogue-speaker jorio">JÓRIO (CHAMADA DE VOZ)</div>
+            <div class="dialogue-text" id="dialogue-text-caller"></div>
+            <div class="dialogue-skip-hint" id="dialogue-hint-caller">
+              <span class="tut-key dialogue-skip-key">ESPAÇO</span>
+              <span class="dialogue-skip-action">PULAR ▸</span>
+            </div>
+          </div>
+        </div>
+        <div class="dialogue-row player is-inactive row-hidden" id="dialogue-row-player">
+          <div class="dialogue-portrait roc">
+            <img src="./roc_hero.webp" alt="Roc" class="dialogue-portrait-img" />
+          </div>
+          <div class="dialogue-box roc">
+            <div class="dialogue-speaker roc">ROC</div>
+            <div class="dialogue-text" id="dialogue-text-player"></div>
+            <div class="dialogue-skip-hint" id="dialogue-hint-player">
+              <span class="tut-key dialogue-skip-key">ESPAÇO</span>
+              <span class="dialogue-skip-action">PULAR ▸</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    introHost.appendChild(this.phoneDialogueEl);
+
+    this._dialogueCallerRow = this.phoneDialogueEl.querySelector('#dialogue-row-caller');
+    this._dialoguePlayerRow = this.phoneDialogueEl.querySelector('#dialogue-row-player');
+    this._dialogueCallerTextEl = this.phoneDialogueEl.querySelector('#dialogue-text-caller');
+    this._dialoguePlayerTextEl = this.phoneDialogueEl.querySelector('#dialogue-text-player');
+    this._dialogueCallerHintActionEl = this.phoneDialogueEl.querySelector('#dialogue-hint-caller .dialogue-skip-action');
+    this._dialoguePlayerHintActionEl = this.phoneDialogueEl.querySelector('#dialogue-hint-player .dialogue-skip-action');
   }
 
-  _applyOverlayVisibility(el, visible, { instant = false, fadeMs = 0, hiddenOffsetY = 0 } = {}) {
+  _applyOverlayVisibility(el, visible, { instant = false, fadeMs = 0, hiddenOffsetY = 0, centerX = true } = {}) {
     if (!el) return;
     if (el._hideTimer) {
       clearTimeout(el._hideTimer);
       el._hideTimer = null;
     }
 
+    const fmtTransform = (offsetY) => {
+      if (centerX) return `translate(-50%, ${offsetY}px)`;
+      return offsetY !== 0 ? `translateY(${offsetY}px)` : 'none';
+    };
+
     if (instant || fadeMs <= 0) {
       el.classList.toggle('hidden', !visible);
       el.style.display = visible ? 'flex' : 'none';
       el.style.visibility = visible ? 'visible' : 'hidden';
       el.style.opacity = visible ? '1' : '0';
-      if (hiddenOffsetY !== 0) {
-        el.style.transform = visible ? 'translate(-50%, 0)' : `translate(-50%, ${hiddenOffsetY}px)`;
+      if (hiddenOffsetY !== 0 || !centerX) {
+        el.style.transform = fmtTransform(visible ? 0 : hiddenOffsetY);
       }
       return;
     }
@@ -464,17 +521,17 @@ export class HUD {
       el.style.visibility = 'visible';
       if (wasHidden) {
         el.style.opacity = '0';
-        el.style.transform = `translate(-50%, ${hiddenOffsetY}px)`;
+        el.style.transform = fmtTransform(hiddenOffsetY);
         void el.offsetWidth;
       }
       el.classList.remove('hidden');
       el.style.opacity = '1';
-      el.style.transform = 'translate(-50%, 0)';
+      el.style.transform = fmtTransform(0);
     } else {
       if (el.style.display === 'none') return;
       el.classList.add('hidden');
       el.style.opacity = '0';
-      el.style.transform = `translate(-50%, ${hiddenOffsetY}px)`;
+      el.style.transform = fmtTransform(hiddenOffsetY);
       el._hideTimer = setTimeout(() => {
         el._hideTimer = null;
         if (el.classList.contains('hidden')) {
@@ -489,19 +546,25 @@ export class HUD {
     const showTut = this._tutorialActive && this._gameplayActive;
     if (this._lastTutorialVisible !== showTut) {
       this._lastTutorialVisible = showTut;
-      this._applyOverlayVisibility(this.tutorialBarEl, showTut, { instant, fadeMs: 900, hiddenOffsetY: 8 });
+      this._applyOverlayVisibility(this.tutorialBarEl, showTut, { instant, fadeMs: 900, hiddenOffsetY: 8, centerX: true });
     }
 
     const showObj = this._objectiveActive && this._gameplayActive;
     if (this._lastObjectiveVisible !== showObj) {
       this._lastObjectiveVisible = showObj;
-      this._applyOverlayVisibility(this.objectiveBannerEl, showObj, { instant, fadeMs: 650, hiddenOffsetY: -8 });
+      this._applyOverlayVisibility(this.objectiveBannerEl, showObj, { instant, fadeMs: 650, hiddenOffsetY: -8, centerX: true });
     }
 
     const showInteract = this._interactActive && this._gameplayActive;
     if (this._lastInteractVisible !== showInteract) {
       this._lastInteractVisible = showInteract;
-      this._applyOverlayVisibility(this.interactPromptEl, showInteract, { instant: true });
+      this._applyOverlayVisibility(this.interactPromptEl, showInteract, { instant: true, centerX: true });
+    }
+
+    const showDialogue = this._phoneDialogueActive && this._gameplayActive;
+    if (this._lastPhoneDialogueVisible !== showDialogue) {
+      this._lastPhoneDialogueVisible = showDialogue;
+      this._applyOverlayVisibility(this.phoneDialogueEl, showDialogue, { instant, fadeMs: 280, hiddenOffsetY: -6, centerX: false });
     }
   }
 
@@ -548,11 +611,73 @@ export class HUD {
     this._syncIntroOverlays();
   }
 
+  setPhoneDialogueVisible(visible, instant = false) {
+    this._phoneDialogueActive = !!visible;
+    this._syncIntroOverlays(instant);
+  }
+
+  setPhoneDialogueState({ showPlayerRow, activeSpeaker, callerText, playerText, skipHintText }) {
+    const snap = this._lastDialogueSnapshot;
+    const isJorioActive = activeSpeaker === 'jorio';
+
+    if (snap.activeSpeaker !== activeSpeaker) {
+      snap.activeSpeaker = activeSpeaker;
+      if (this._dialogueCallerRow) {
+        this._dialogueCallerRow.classList.toggle('is-active', isJorioActive);
+        this._dialogueCallerRow.classList.toggle('is-inactive', !isJorioActive);
+      }
+      if (this._dialoguePlayerRow) {
+        this._dialoguePlayerRow.classList.toggle('is-active', !isJorioActive);
+        this._dialoguePlayerRow.classList.toggle('is-inactive', isJorioActive);
+      }
+    }
+
+    if (snap.showPlayerRow !== !!showPlayerRow) {
+      snap.showPlayerRow = !!showPlayerRow;
+      if (this._dialoguePlayerRow) {
+        this._dialoguePlayerRow.classList.toggle('row-hidden', !snap.showPlayerRow);
+      }
+    }
+
+    if (callerText !== undefined && snap.callerText !== callerText) {
+      snap.callerText = callerText;
+      if (this._dialogueCallerTextEl) {
+        this._dialogueCallerTextEl.textContent = callerText;
+      }
+    }
+
+    if (playerText !== undefined && snap.playerText !== playerText) {
+      snap.playerText = playerText;
+      if (this._dialoguePlayerTextEl) {
+        this._dialoguePlayerTextEl.textContent = playerText;
+      }
+    }
+
+    if (skipHintText !== undefined && snap.skipHintText !== skipHintText) {
+      snap.skipHintText = skipHintText;
+      const actionLabel = String(skipHintText).replace(/^\[ESPAÇO\]\s*/i, '');
+      if (this._dialogueCallerHintActionEl) {
+        this._dialogueCallerHintActionEl.textContent = actionLabel;
+      }
+      if (this._dialoguePlayerHintActionEl) {
+        this._dialoguePlayerHintActionEl.textContent = actionLabel;
+      }
+    }
+  }
+
   reset() {
     this.setWeapon('hk_usp', 12, 12);
     this.setTutorialVisible(false);
     this.setObjectiveVisible(false);
     this.setInteractVisible(false);
+    this.setPhoneDialogueVisible(false, true);
+    this.setPhoneDialogueState({
+      showPlayerRow: false,
+      activeSpeaker: 'jorio',
+      callerText: '',
+      playerText: '',
+      skipHintText: '[ESPAÇO] PULAR ▸',
+    });
 
     if (this.reloadPromptEl) {
       this.reloadPromptEl.classList.add('hidden');

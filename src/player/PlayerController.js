@@ -53,6 +53,7 @@ export class PlayerController {
 
     this.colliderMesh = null;
     this.gameState = 'MENU';
+    this.jumpSuppressed = false;
 
     // Initial camera placement
     this._updateCameraTransform();
@@ -67,6 +68,10 @@ export class PlayerController {
     if (state !== 'PLAYING') {
       this.velocity.set(0, 0, 0);
     }
+  }
+
+  setJumpSuppressed(suppressed) {
+    this.jumpSuppressed = !!suppressed;
   }
 
   setCollider(colliderMesh) {
@@ -144,7 +149,7 @@ export class PlayerController {
     const leftKey = this.input.isKeyDown('KeyA') || this.input.isKeyDown('ArrowLeft');
     const rightKey = this.input.isKeyDown('KeyD') || this.input.isKeyDown('ArrowRight');
     const sprintKey = this.input.isKeyDown('ShiftLeft') || this.input.isKeyDown('ShiftRight');
-    const jumpKey = this.input.isKeyDown('Space');
+    const jumpKey = !this.jumpSuppressed && this.input.isKeyDown('Space');
 
     if (forwardKey) _moveDir.z += 1;
     if (backwardKey) _moveDir.z -= 1;
