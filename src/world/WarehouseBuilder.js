@@ -11675,6 +11675,1107 @@ function createJanitorTowelTexture() {
   return texture;
 }
 
+/**
+ * Shared 2D sloped-console layout spec for the TELESTREAM GXP2170 Executive IP Phone
+ * so canvas printing and 3D button/chassis geometry share exact coordinates (0.27m W x 0.244m slope).
+ */
+const TELESTREAM_LAYOUT = (() => {
+  const numpadLabels = [
+    ['1', ''], ['2', 'ABC'], ['3', 'DEF'],
+    ['4', 'GHI'], ['5', 'JKL'], ['6', 'MNO'],
+    ['7', 'PQRS'], ['8', 'TUV'], ['9', 'WXYZ'],
+    ['*', ''], ['0', 'OPER'], ['#', ''],
+  ];
+  const numpadCols = [-0.025, -0.001, 0.023];
+  const numpadRows = [0.090, 0.070, 0.050, 0.030];
+  const numpadKeys = [];
+  for (let r = 0; r < 4; r++) {
+    for (let c = 0; c < 3; c++) {
+      const idx = r * 3 + c;
+      numpadKeys.push({
+        x: numpadCols[c],
+        s: numpadRows[r],
+        r: 0.0074,
+        label: numpadLabels[idx][0],
+        sub: numpadLabels[idx][1],
+      });
+    }
+  }
+
+  const lineKeys = [];
+  for (let i = 0; i < 6; i++) {
+    const s = 0.198 - i * 0.0096;
+    lineKeys.push({ x: -0.0245, s, w: 0.0135, h: 0.0052, led: i === 0 ? 'red' : null });
+    lineKeys.push({ x: 0.1115, s, w: 0.0135, h: 0.0052, led: i === 0 ? 'red' : (i <= 4 ? 'green' : null) });
+  }
+
+  const softKeys = [-0.0045, 0.0195, 0.0435, 0.0675, 0.0915].map((x) => ({
+    x,
+    s: 0.128,
+    w: 0.0145,
+    h: 0.0054,
+  }));
+
+  const fnIcons = ['contacts', 'voicemail', 'transfer', 'conference', 'hold', 'headset', 'mute'];
+  const fnKeys = fnIcons.map((icon, i) => ({
+    x: 0.1095,
+    s: 0.098 - i * 0.0123,
+    w: 0.0155,
+    h: 0.0068,
+    icon,
+  }));
+
+  return {
+    width: 0.270,
+    chassisTopS: 0.214,
+    bezel: { xMin: -0.043, xMax: 0.130, sMin: 0.114, sMax: 0.244, zTop: 0.023 },
+    lcd: { x: 0.0435, s: 0.175, w: 0.095, h: 0.056 },
+    mwi: { x: 0.114, s: 0.233, w: 0.0085, h: 0.0032 },
+    logo: { x: 0.0435, s: 0.224 },
+    nav: { x: 0.062, s: 0.076, rOuter: 0.0175, rOk: 0.0058 },
+    volume: { x: 0.062, s: 0.044, w: 0.036, h: 0.0085 },
+    callBtn: { x: 0.051, s: 0.027, w: 0.0155, h: 0.0085 },
+    speakerBtn: { x: 0.073, s: 0.027, w: 0.0155, h: 0.0085 },
+    numpadKeys,
+    lineKeys,
+    softKeys,
+    fnKeys,
+  };
+})();
+
+/**
+ * Generates crisp procedural CanvasTextures for the TELESTREAM GXP2170 body/keypad atlas,
+ * 4.3" backlit color LCD screen, and sculpted (( HD )) handset.
+ */
+function createTelestreamGXP2170Textures() {
+  const layout = TELESTREAM_LAYOUT;
+
+  // --- UV Mapping Helpers matching geometry slope projection ---
+  const toU = (x) => 0.02 + ((x + layout.width * 0.5) / layout.width) * 0.96;
+  const toV = (s) => 0.10 + (s / layout.bezel.sMax) * 0.88;
+  const toPxX = (x, W) => toU(x) * W;
+  const toPxY = (s, H) => (1.0 - toV(s)) * H;
+  const toPxW = (w, W) => (w / layout.width) * 0.96 * W;
+  const toPxH = (h, H) => (h / layout.bezel.sMax) * 0.88 * H;
+
+  const roundRectPath = (c, x, y, w, h, r) => {
+    const rad = Math.min(r, w * 0.5, h * 0.5);
+    c.beginPath();
+    c.moveTo(x + rad, y);
+    c.lineTo(x + w - rad, y);
+    c.quadraticCurveTo(x + w, y, x + w, y + rad);
+    c.lineTo(x + w, y + h - rad);
+    c.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    c.lineTo(x + rad, y + h);
+    c.quadraticCurveTo(x, y + h, x, y + h - rad);
+    c.lineTo(x, y + rad);
+    c.quadraticCurveTo(x, y, x + rad, y);
+    c.closePath();
+  };
+
+  // =========================================================================
+  // 1. Body, Bezel, Cradle & Physical Keypad Atlas (1024x1024 + Rough + Emis)
+  // =========================================================================
+  const S = 1024;
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = S;
+  diffCanvas.height = S;
+  const ctx = diffCanvas.getContext('2d');
+
+  const roughCanvas = document.createElement('canvas');
+  roughCanvas.width = S;
+  roughCanvas.height = S;
+  const rCtx = roughCanvas.getContext('2d');
+
+  const emisCanvas = document.createElement('canvas');
+  emisCanvas.width = S;
+  emisCanvas.height = S;
+  const eCtx = emisCanvas.getContext('2d');
+
+  // Fill console face base matte charcoal ABS (#1a1d22, roughness 0.62 -> ~158)
+  ctx.fillStyle = '#1a1d22';
+  ctx.fillRect(0, 0, S, S);
+  rCtx.fillStyle = 'rgb(158,158,158)';
+  rCtx.fillRect(0, 0, S, S);
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, S, S);
+
+  // Reserved bottom swatches (v in [0.00, 0.08] -> py in [942, 1024]) for side/back/cord walls
+  const swatches = [
+    { x: 0, w: 256, col: '#1a1d22', rough: 158 },   // ABS base sides/stand (0.62)
+    { x: 256, w: 256, col: '#0e1014', rough: 46 },  // Glossy acrylic bezel wall (0.18)
+    { x: 512, w: 256, col: '#111317', rough: 115 }, // Coiled cord rubber (0.45)
+    { x: 768, w: 256, col: '#161920', rough: 94 },  // Button vertical sides (0.37)
+  ];
+  for (const sw of swatches) {
+    ctx.fillStyle = sw.col;
+    ctx.fillRect(sw.x, 940, sw.w, 84);
+    rCtx.fillStyle = `rgb(${sw.rough},${sw.rough},${sw.rough})`;
+    rCtx.fillRect(sw.x, 940, sw.w, 84);
+  }
+
+  // Subtle vertical seam between handset cradle and keypad deck + micro cradle speaker dots
+  const seamX = toPxX(-0.047, S);
+  ctx.fillStyle = '#101216';
+  ctx.fillRect(seamX - 2, toPxY(layout.chassisTopS, S), 4, toPxH(layout.chassisTopS, S));
+
+  // Handset cradle circular speakerphone perforation grille (behind upper handset)
+  const spkX = toPxX(-0.090, S);
+  const spkY = toPxY(0.128, S);
+  for (let ring = 0; ring <= 4; ring++) {
+    const count = ring === 0 ? 1 : ring * 7;
+    const rad = ring * 10.5;
+    for (let k = 0; k < count; k++) {
+      const ang = (k / count) * Math.PI * 2;
+      ctx.fillStyle = '#090b0e';
+      ctx.beginPath();
+      ctx.arc(spkX + Math.cos(ang) * rad, spkY + Math.sin(ang) * rad, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  // Glossy Upper-Right Acrylic Display Bezel area (roughness 0.18 -> ~46)
+  const bzX = toPxX(layout.bezel.xMin, S);
+  const bzY = toPxY(layout.bezel.sMax, S);
+  const bzW = toPxX(layout.bezel.xMax, S) - bzX;
+  const bzH = toPxY(layout.bezel.sMin, S) - bzY;
+  const bzGrad = ctx.createLinearGradient(bzX, bzY, bzX + bzW, bzY + bzH);
+  bzGrad.addColorStop(0.0, '#14181f');
+  bzGrad.addColorStop(0.35, '#0b0d11');
+  bzGrad.addColorStop(1.0, '#0e1015');
+  ctx.fillStyle = bzGrad;
+  ctx.fillRect(bzX, bzY, bzW, bzH);
+  rCtx.fillStyle = 'rgb(46,46,46)';
+  rCtx.fillRect(bzX, bzY, bzW, bzH);
+
+  // Subtle diagonal acrylic sheen band across upper bezel
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(bzX, bzY, bzW, bzH);
+  ctx.clip();
+  const sheen = ctx.createLinearGradient(bzX, bzY, bzX + bzW * 0.75, bzY + bzH * 0.55);
+  sheen.addColorStop(0.0, 'rgba(255,255,255,0.00)');
+  sheen.addColorStop(0.45, 'rgba(220,235,255,0.06)');
+  sheen.addColorStop(0.55, 'rgba(255,255,255,0.00)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(bzX, bzY, bzW, bzH);
+  ctx.restore();
+
+  // Metallic-silver uppercase "TELESTREAM" bezel header above LCD
+  ctx.save();
+  ctx.font = '600 22px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const logoGrad = ctx.createLinearGradient(bzX + 120, 0, bzX + bzW - 120, 0);
+  logoGrad.addColorStop(0, '#c8d0da');
+  logoGrad.addColorStop(0.5, '#f1f5f9');
+  logoGrad.addColorStop(1, '#bcc6d2');
+  ctx.fillStyle = logoGrad;
+  ctx.fillText('T E L E S T R E A M', toPxX(layout.logo.x, S), toPxY(layout.logo.s, S));
+  ctx.restore();
+
+  // Button helper painter (paints satin key face + crisp legend + roughness 0.36)
+  const paintPillButton = (x, s, w, h, fill = '#262a33') => {
+    const px = toPxX(x, S) - toPxW(w, S) * 0.5;
+    const py = toPxY(s, S) - toPxH(h, S) * 0.5;
+    const pw = toPxW(w, S);
+    const ph = toPxH(h, S);
+    roundRectPath(ctx, px, py, pw, ph, Math.min(pw, ph) * 0.42);
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = '#383e4b';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    roundRectPath(rCtx, px, py, pw, ph, Math.min(pw, ph) * 0.42);
+    rCtx.fillStyle = 'rgb(92,92,92)';
+    rCtx.fill();
+    return { cx: px + pw * 0.5, cy: py + ph * 0.5, pw, ph };
+  };
+
+  // 12 Side Line Keys + LED indicators
+  for (const lk of layout.lineKeys) {
+    const { cx, cy, pw, ph } = paintPillButton(lk.x, lk.s, lk.w, lk.h, '#2a2e38');
+    ctx.fillStyle = '#525b6e';
+    ctx.fillRect(cx - pw * 0.25, cy - 1.5, pw * 0.5, 3);
+    if (lk.led) {
+      const ledColor = lk.led === 'red' ? '#ef4444' : '#22c55e';
+      const ledOffset = lk.x < layout.lcd.x ? pw * 0.34 : -pw * 0.34;
+      ctx.fillStyle = ledColor;
+      ctx.fillRect(cx + ledOffset - 4, cy - 2.5, 8, 5);
+      eCtx.fillStyle = ledColor;
+      eCtx.fillRect(cx + ledOffset - 4, cy - 2.5, 8, 5);
+    }
+  }
+
+  // 5 Softkeys below LCD
+  for (const sk of layout.softKeys) {
+    paintPillButton(sk.x, sk.s, sk.w, sk.h, '#292e38');
+  }
+
+  // 4x3 Circular Numpad Keys
+  for (const nk of layout.numpadKeys) {
+    const cx = toPxX(nk.x, S);
+    const cy = toPxY(nk.s, S);
+    const pr = toPxW(nk.r, S);
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, pr, 0, Math.PI * 2);
+    ctx.fillStyle = '#20242c';
+    ctx.fill();
+    ctx.strokeStyle = '#3a414f';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    rCtx.beginPath();
+    rCtx.arc(cx, cy, pr, 0, Math.PI * 2);
+    rCtx.fillStyle = 'rgb(94,94,94)';
+    rCtx.fill();
+
+    ctx.fillStyle = '#f8fafc';
+    ctx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(nk.label, cx, nk.sub ? cy - 5 : cy + 1);
+
+    if (nk.sub) {
+      ctx.fillStyle = '#cbd5e1';
+      ctx.font = '600 9px "Segoe UI", Arial, sans-serif';
+      ctx.fillText(nk.sub, cx, cy + 12);
+    }
+  }
+
+  // 5-Way Circular Nav Cluster
+  const navCx = toPxX(layout.nav.x, S);
+  const navCy = toPxY(layout.nav.s, S);
+  const navR = toPxW(layout.nav.rOuter, S);
+  const okR = toPxW(layout.nav.rOk, S);
+
+  ctx.beginPath();
+  ctx.arc(navCx, navCy, navR, 0, Math.PI * 2);
+  ctx.fillStyle = '#232730';
+  ctx.fill();
+  ctx.strokeStyle = '#3c4352';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  rCtx.beginPath();
+  rCtx.arc(navCx, navCy, navR, 0, Math.PI * 2);
+  rCtx.fillStyle = 'rgb(88,88,88)';
+  rCtx.fill();
+
+  // Ring groove + 4 crisp white vector triangles
+  ctx.strokeStyle = '#111419';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(navCx, navCy, okR + 4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  const drawNavTri = (dx, dy) => {
+    const px = navCx + dx * (navR * 0.68);
+    const py = navCy + dy * (navR * 0.68);
+    ctx.fillStyle = '#f1f5f9';
+    ctx.beginPath();
+    ctx.moveTo(px + dx * 6, py + dy * 6);
+    ctx.lineTo(px - dx * 5 - dy * 6, py - dy * 5 + dx * 6);
+    ctx.lineTo(px - dx * 5 + dy * 6, py - dy * 5 - dx * 6);
+    ctx.closePath();
+    ctx.fill();
+  };
+  drawNavTri(0, -1); // Up
+  drawNavTri(0, 1);  // Down
+  drawNavTri(-1, 0); // Left
+  drawNavTri(1, 0);  // Right
+
+  // Center OK circle dot
+  ctx.beginPath();
+  ctx.arc(navCx, navCy, okR, 0, Math.PI * 2);
+  ctx.fillStyle = '#2b303c';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(navCx, navCy, 4.2, 0, Math.PI * 2);
+  ctx.fillStyle = '#f8fafc';
+  ctx.fill();
+
+  // Volume Rocker Pill: [-]  wedge  [+]
+  {
+    const { cx, cy, pw } = paintPillButton(layout.volume.x, layout.volume.s, layout.volume.w, layout.volume.h, '#22262e');
+    ctx.strokeStyle = '#f8fafc';
+    ctx.lineWidth = 2.2;
+    // Minus
+    ctx.beginPath();
+    ctx.moveTo(cx - pw * 0.38 - 5, cy);
+    ctx.lineTo(cx - pw * 0.38 + 5, cy);
+    ctx.stroke();
+    // Plus
+    ctx.beginPath();
+    ctx.moveTo(cx + pw * 0.38 - 5, cy);
+    ctx.lineTo(cx + pw * 0.38 + 5, cy);
+    ctx.moveTo(cx + pw * 0.38, cy - 5);
+    ctx.lineTo(cx + pw * 0.38, cy + 5);
+    ctx.stroke();
+    // White volume wedge bar
+    ctx.fillStyle = '#f1f5f9';
+    ctx.beginPath();
+    ctx.moveTo(cx - pw * 0.22, cy + 4);
+    ctx.lineTo(cx + pw * 0.22, cy - 5);
+    ctx.lineTo(cx + pw * 0.22, cy + 4);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Green Handset Call Key + Orange/Amber Speakerphone Key
+  {
+    const { cx, cy } = paintPillButton(layout.callBtn.x, layout.callBtn.s, layout.callBtn.w, layout.callBtn.h, '#22262e');
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 3.0;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cx + 2, cy + 6, 10, Math.PI * 1.15, Math.PI * 1.78);
+    ctx.stroke();
+    eCtx.strokeStyle = '#15803d';
+    eCtx.lineWidth = 2.5;
+    eCtx.lineCap = 'round';
+    eCtx.beginPath();
+    eCtx.arc(cx + 2, cy + 6, 10, Math.PI * 1.15, Math.PI * 1.78);
+    eCtx.stroke();
+  }
+  {
+    const { cx, cy } = paintPillButton(layout.speakerBtn.x, layout.speakerBtn.s, layout.speakerBtn.w, layout.speakerBtn.h, '#22262e');
+    ctx.fillStyle = '#f59e0b';
+    ctx.beginPath();
+    ctx.moveTo(cx - 8, cy - 3);
+    ctx.lineTo(cx - 3, cy - 3);
+    ctx.lineTo(cx + 2, cy - 7);
+    ctx.lineTo(cx + 2, cy + 7);
+    ctx.lineTo(cx - 3, cy + 3);
+    ctx.lineTo(cx - 8, cy + 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx + 3, cy, 6, -0.7, 0.7);
+    ctx.stroke();
+
+    eCtx.fillStyle = '#b45309';
+    eCtx.fillRect(cx - 6, cy - 4, 8, 8);
+  }
+
+  // 7 Far-Right Function Pill Keys with Crisp Vector Icons
+  const drawFunctionIcon = (icon, cx, cy) => {
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.fillStyle = '#e2e8f0';
+    ctx.lineWidth = 1.8;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (icon === 'contacts') {
+      ctx.strokeRect(cx - 8, cy - 6, 16, 12);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 6);
+      ctx.lineTo(cx, cy + 6);
+      ctx.stroke();
+    } else if (icon === 'voicemail') {
+      ctx.strokeRect(cx - 9, cy - 5, 18, 10);
+      ctx.beginPath();
+      ctx.moveTo(cx - 9, cy - 5);
+      ctx.lineTo(cx, cy + 2);
+      ctx.lineTo(cx + 9, cy - 5);
+      ctx.stroke();
+    } else if (icon === 'transfer') {
+      ctx.beginPath();
+      ctx.moveTo(cx - 8, cy - 3);
+      ctx.lineTo(cx + 6, cy - 3);
+      ctx.lineTo(cx + 2, cy - 7);
+      ctx.moveTo(cx + 8, cy + 3);
+      ctx.lineTo(cx - 6, cy + 3);
+      ctx.lineTo(cx - 2, cy + 7);
+      ctx.stroke();
+    } else if (icon === 'conference') {
+      for (const ox of [-6, 0, 6]) {
+        ctx.beginPath();
+        ctx.arc(cx + ox, cy - 2.5, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillRect(cx + ox - 2.5, cy + 2, 5, 4);
+      }
+    } else if (icon === 'hold') {
+      ctx.fillRect(cx - 5, cy - 5, 3.5, 10);
+      ctx.fillRect(cx + 1.5, cy - 5, 3.5, 10);
+    } else if (icon === 'headset') {
+      ctx.beginPath();
+      ctx.arc(cx, cy + 1, 7, Math.PI, 0);
+      ctx.stroke();
+      ctx.fillRect(cx - 8.5, cy, 3.5, 6);
+      ctx.fillRect(cx + 5, cy, 3.5, 6);
+    } else if (icon === 'mute') {
+      ctx.strokeRect(cx - 2.5, cy - 6, 5, 7);
+      ctx.beginPath();
+      ctx.moveTo(cx, cy + 1);
+      ctx.lineTo(cx, cy + 6);
+      ctx.moveTo(cx - 4, cy + 6);
+      ctx.lineTo(cx + 4, cy + 6);
+      ctx.moveTo(cx - 7, cy - 6);
+      ctx.lineTo(cx + 7, cy + 6);
+      ctx.stroke();
+    }
+  };
+
+  for (const fk of layout.fnKeys) {
+    const { cx, cy } = paintPillButton(fk.x, fk.s, fk.w, fk.h, '#22262e');
+    drawFunctionIcon(fk.icon, cx, cy);
+  }
+
+  const makeTex = (canvas, colorSpace) => {
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = colorSpace;
+    tex.wrapS = THREE.ClampToEdgeWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.minFilter = THREE.LinearMipmapLinearFilter;
+    tex.magFilter = THREE.LinearFilter;
+    tex.anisotropy = 4;
+    tex.needsUpdate = true;
+    return tex;
+  };
+
+  // =========================================================================
+  // 2. Backlit 4.3" Color LCD Screen CanvasTexture (1024x640, SRGBColorSpace)
+  // =========================================================================
+  const LW = 1024;
+  const LH = 640;
+  const lcdCanvas = document.createElement('canvas');
+  lcdCanvas.width = LW;
+  lcdCanvas.height = LH;
+  const lCtx = lcdCanvas.getContext('2d');
+
+  const bgGrad = lCtx.createLinearGradient(0, 0, LW, LH);
+  bgGrad.addColorStop(0.0, '#62bfd3');
+  bgGrad.addColorStop(0.45, '#a8e6f2');
+  bgGrad.addColorStop(1.0, '#1e6e88');
+  lCtx.fillStyle = bgGrad;
+  lCtx.fillRect(0, 0, LW, LH);
+
+  // Soft translucent corporate cyan-white bokeh bubbles
+  const bokehCircles = [
+    [180, 280, 95, 0.22], [320, 210, 120, 0.18], [460, 390, 140, 0.20],
+    [600, 260, 110, 0.24], [740, 410, 130, 0.18], [860, 190, 95, 0.22],
+    [250, 470, 75, 0.26], [530, 165, 65, 0.25], [680, 340, 82, 0.30],
+    [405, 310, 52, 0.34], [775, 290, 56, 0.35], [140, 405, 64, 0.20],
+  ];
+  for (const [bx, by, br, ba] of bokehCircles) {
+    const bGrad = lCtx.createRadialGradient(bx, by, br * 0.1, bx, by, br);
+    bGrad.addColorStop(0.0, `rgba(255,255,255,${ba})`);
+    bGrad.addColorStop(0.75, `rgba(224,250,255,${ba * 0.7})`);
+    bGrad.addColorStop(1.0, 'rgba(255,255,255,0)');
+    lCtx.fillStyle = bGrad;
+    lCtx.beginPath();
+    lCtx.arc(bx, by, br, 0, Math.PI * 2);
+    lCtx.fill();
+  }
+
+  // Top black status bar (11:47 PM + SIP/Network indicators)
+  lCtx.fillStyle = 'rgba(8, 11, 17, 0.94)';
+  lCtx.fillRect(0, 0, LW, 48);
+
+  // SIP registered green shield/check icon + LAN bars on top-left
+  lCtx.fillStyle = '#22c55e';
+  lCtx.fillRect(18, 12, 24, 24);
+  lCtx.fillStyle = '#ffffff';
+  lCtx.font = 'bold 14px "Segoe UI", Arial, sans-serif';
+  lCtx.textAlign = 'center';
+  lCtx.textBaseline = 'middle';
+  lCtx.fillText('HD', 30, 24);
+
+  lCtx.fillStyle = '#e2e8f0';
+  for (let b = 0; b < 4; b++) {
+    lCtx.fillRect(54 + b * 7, 30 - b * 4, 5, 6 + b * 4);
+  }
+  lCtx.font = '600 18px "Segoe UI", Arial, sans-serif';
+  lCtx.textAlign = 'left';
+  lCtx.fillStyle = '#94a3b8';
+  lCtx.fillText('SIP REGISTERED', 92, 25);
+
+  lCtx.font = 'bold 24px "Segoe UI", Arial, sans-serif';
+  lCtx.textAlign = 'right';
+  lCtx.fillStyle = '#f8fafc';
+  lCtx.fillText('11:47 PM', LW - 22, 25);
+
+  // Left & Right BLF Line Overlays (6 rows per side)
+  const blfLeftLabels = [
+    { text: 'LINE 1: EXT 204', active: true },
+    { text: 'LINE 2: NOC MAIN', active: false },
+    { text: 'EXT 208: SUPPORT', active: false },
+    { text: 'EXT 212: LOBBY', active: false },
+    { text: 'CONF BRIDGE A', active: false },
+    { text: 'PAGING / ALL', active: false },
+  ];
+  const blfRightLabels = [
+    { text: 'HQ SECURITY', active: true },
+    { text: 'SERVER POD B', active: false, green: true },
+    { text: 'FACILITIES DESK', active: false, green: true },
+    { text: 'GATE CONTROL', active: false, green: true },
+    { text: 'NIGHT WATCH', active: false, green: true },
+    { text: 'DISPATCH', active: false, green: false },
+  ];
+
+  const rowStartY = 64;
+  const rowH = 74;
+  const rowGap = 11;
+  const tabW = 248;
+
+  for (let i = 0; i < 6; i++) {
+    const ry = rowStartY + i * (rowH + rowGap);
+
+    // Left BLF tile
+    const lItem = blfLeftLabels[i];
+    lCtx.fillStyle = lItem.active ? 'rgba(220, 38, 38, 0.90)' : 'rgba(255, 255, 255, 0.42)';
+    lCtx.fillRect(0, ry, tabW, rowH);
+    lCtx.fillStyle = lItem.active ? '#ef4444' : '#94a3b8';
+    lCtx.fillRect(0, ry, 10, rowH);
+    lCtx.fillStyle = lItem.active ? '#ffffff' : '#0f172a';
+    lCtx.font = `${lItem.active ? '700' : '600'} 21px "Segoe UI", Arial, sans-serif`;
+    lCtx.textAlign = 'left';
+    lCtx.textBaseline = 'middle';
+    lCtx.fillText(lItem.text, 22, ry + rowH * 0.5);
+
+    // Right BLF tile
+    const rItem = blfRightLabels[i];
+    if (rItem.active) {
+      lCtx.fillStyle = 'rgba(220, 38, 38, 0.90)';
+    } else if (rItem.green) {
+      lCtx.fillStyle = 'rgba(15, 72, 52, 0.62)';
+    } else {
+      lCtx.fillStyle = 'rgba(255, 255, 255, 0.36)';
+    }
+    lCtx.fillRect(LW - tabW, ry, tabW, rowH);
+
+    // Tiny green/red status LED dot
+    const dotCol = rItem.active ? '#fecaca' : (rItem.green ? '#22c55e' : '#cbd5e1');
+    lCtx.fillStyle = dotCol;
+    lCtx.beginPath();
+    lCtx.arc(LW - 18, ry + rowH * 0.5, 6.5, 0, Math.PI * 2);
+    lCtx.fill();
+
+    lCtx.fillStyle = (rItem.active || rItem.green) ? '#f8fafc' : '#0f172a';
+    lCtx.font = `${rItem.active ? '700' : '600'} 21px "Segoe UI", Arial, sans-serif`;
+    lCtx.textAlign = 'right';
+    lCtx.fillText(rItem.text, LW - 34, ry + rowH * 0.5);
+  }
+
+  // Bottom dark navy-slate Softkey Bar
+  lCtx.fillStyle = '#0c192f';
+  lCtx.fillRect(0, LH - 64, LW, 64);
+  lCtx.fillStyle = '#1e3a5f';
+  lCtx.fillRect(0, LH - 64, LW, 3);
+
+  lCtx.fillStyle = '#f8fafc';
+  lCtx.font = '600 25px "Segoe UI", Arial, sans-serif';
+  lCtx.textAlign = 'center';
+  lCtx.textBaseline = 'middle';
+  const skY = LH - 31;
+  lCtx.fillText('History', LW * 0.25, skY);
+  lCtx.fillText('ForwardAll', LW * 0.50, skY);
+  lCtx.fillText('Redial', LW * 0.75, skY);
+
+  // =========================================================================
+  // 3. Sculpted (( HD )) Handset CanvasTexture (512x512, SRGBColorSpace)
+  // Left half (u in [0..0.5]) maps onto outer handset spine facing player;
+  // right half (u in [0.5..1.0]) maps onto inner earpiece/mouthpiece underside.
+  // =========================================================================
+  const HS = 512;
+  const handCanvas = document.createElement('canvas');
+  handCanvas.width = HS;
+  handCanvas.height = HS;
+  const hCtx = handCanvas.getContext('2d');
+
+  // Outer spine highlight gradient (centered around u = 0.25 -> px = 128)
+  const hGrad = hCtx.createLinearGradient(0, 0, HS * 0.5, 0);
+  hGrad.addColorStop(0.0, '#13161a');
+  hGrad.addColorStop(0.32, '#181c22');
+  hGrad.addColorStop(0.50, '#272c35'); // Subtle satin spine specular highlight
+  hGrad.addColorStop(0.68, '#181c22');
+  hGrad.addColorStop(1.0, '#13161a');
+  hCtx.fillStyle = hGrad;
+  hCtx.fillRect(0, 0, HS * 0.5, HS);
+
+  // Inner acoustic underside matte black + micro earpiece/mouthpiece hole dots (u in [0.5..1.0])
+  hCtx.fillStyle = '#101216';
+  hCtx.fillRect(HS * 0.5, 0, HS * 0.5, HS);
+  hCtx.fillStyle = '#060709';
+  for (let r = 0; r < 3; r++) {
+    for (let c = -2; c <= 2; c++) {
+      hCtx.beginPath();
+      hCtx.arc(HS * 0.75 + c * 9, 46 + r * 9, 2.2, 0, Math.PI * 2);
+      hCtx.fill();
+      hCtx.beginPath();
+      hCtx.arc(HS * 0.75 + c * 7, HS - 44 - r * 7, 1.8, 0, Math.PI * 2);
+      hCtx.fill();
+    }
+  }
+
+  // Crisp un-squished white (( HD )) branding near bottom mouthpiece end (v ~ 0.13 -> py ~ 445)
+  hCtx.save();
+  hCtx.fillStyle = '#f1f5f9';
+  hCtx.font = 'bold 20px "Segoe UI", Arial, sans-serif';
+  hCtx.textAlign = 'center';
+  hCtx.textBaseline = 'middle';
+  hCtx.fillText('(( HD ))', HS * 0.25, HS * 0.87);
+  hCtx.restore();
+
+  return {
+    bodyTexture: makeTex(diffCanvas, THREE.SRGBColorSpace),
+    roughnessTexture: makeTex(roughCanvas, THREE.NoColorSpace),
+    emissiveTexture: makeTex(emisCanvas, THREE.SRGBColorSpace),
+    lcdTexture: makeTex(lcdCanvas, THREE.SRGBColorSpace),
+    handsetTexture: makeTex(handCanvas, THREE.SRGBColorSpace),
+  };
+}
+
+/**
+ * Builds the procedural TELESTREAM GXP2170 Executive IP Phone geometries using sloped console coordinates
+ * mapped onto the 1024x1024 atlas, merging static body parts into a single low-overhead BufferGeometry.
+ */
+function createTelestreamGXP2170Geometries() {
+  const layout = TELESTREAM_LAYOUT;
+  const tilt = (28 * Math.PI) / 180;
+  const sOrigin = new THREE.Vector3(0, 0.006, 0.105);
+  const sinT = Math.sin(tilt);
+  const cosT = Math.cos(tilt);
+  const slopeMatrix = new THREE.Matrix4().makeBasis(
+    new THREE.Vector3(1, 0, 0),
+    new THREE.Vector3(0, sinT, -cosT),
+    new THREE.Vector3(0, cosT, sinT)
+  );
+  slopeMatrix.setPosition(sOrigin);
+
+  const toU = (x) => 0.02 + ((x + layout.width * 0.5) / layout.width) * 0.96;
+  const toV = (s) => 0.10 + (s / layout.bezel.sMax) * 0.88;
+
+  const swatchUVs = {
+    abs: [0.12, 0.04],
+    bezel: [0.37, 0.04],
+    cord: [0.62, 0.04],
+    button: [0.87, 0.04],
+  };
+
+  const normalizeGeo = (geo) => {
+    const res = geo.index ? geo.toNonIndexed() : geo;
+    if (res !== geo) geo.dispose();
+    if (!res.getAttribute('normal')) res.computeVertexNormals();
+    if (!res.getAttribute('uv')) {
+      res.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(res.getAttribute('position').count * 2), 2));
+    }
+    return res;
+  };
+
+  // Builds a centered rounded-rectangle ExtrudeGeometry with exact outer (w, h, totalDepth)
+  const createRoundedBeveledExtrude = (w, h, totalDepth, cornerRadius, bevelSize, bevelThickness, curveSegs = 4, bevelSegs = 2) => {
+    const bs = Math.min(bevelSize, w * 0.25, h * 0.25);
+    const bt = Math.min(bevelThickness, totalDepth * 0.42);
+    const iw = Math.max(0.0005, w - 2 * bs);
+    const ih = Math.max(0.0005, h - 2 * bs);
+    const r = Math.min(Math.max(0.0004, cornerRadius - bs), iw * 0.48, ih * 0.48);
+    const hw = iw * 0.5;
+    const hh = ih * 0.5;
+
+    const shape = new THREE.Shape();
+    shape.moveTo(-hw + r, -hh);
+    shape.lineTo(hw - r, -hh);
+    shape.quadraticCurveTo(hw, -hh, hw, -hh + r);
+    shape.lineTo(hw, hh - r);
+    shape.quadraticCurveTo(hw, hh, hw - r, hh);
+    shape.lineTo(-hw + r, hh);
+    shape.quadraticCurveTo(-hw, hh, -hw, hh - r);
+    shape.lineTo(-hw, -hh + r);
+    shape.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+
+    const coreDepth = Math.max(0.0005, totalDepth - 2 * bt);
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: coreDepth,
+      bevelEnabled: true,
+      bevelThickness: bt,
+      bevelSize: bs,
+      bevelSegments: bevelSegs,
+      curveSegments: curveSegs,
+    });
+    geo.translate(0, 0, -coreDepth * 0.5);
+    return geo;
+  };
+
+  // Assigns sloped-face planar UVs to +Z faces and a flat swatch UV to all side/back faces
+  const uvMapSlopedPart = (rawGeo, cx, cs, cz, swatchKey, projectFront = true, m = slopeMatrix) => {
+    const geo = normalizeGeo(rawGeo);
+    const pos = geo.getAttribute('position');
+    const norm = geo.getAttribute('normal');
+    const uv = geo.getAttribute('uv');
+    const sw = swatchUVs[swatchKey];
+
+    for (let i = 0; i < pos.count; i++) {
+      const vx = pos.getX(i) + cx;
+      const vs = pos.getY(i) + cs;
+      const vz = pos.getZ(i) + cz;
+      pos.setXYZ(i, vx, vs, vz);
+
+      if (projectFront && norm.getZ(i) > 0.55) {
+        uv.setXY(i, toU(vx), toV(vs));
+      } else {
+        uv.setXY(i, sw[0], sw[1]);
+      }
+    }
+    if (m) geo.applyMatrix4(m);
+    return geo;
+  };
+
+  const bodyParts = [];
+
+  // A. Rounded Beveled Sloped Main ABS Base Chassis (0.270m W x 0.214m slope x 0.018m thick)
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(layout.width, layout.chassisTopS, 0.018, 0.011, 0.0025, 0.0025, 4, 2),
+    0, layout.chassisTopS * 0.5, 0.007, 'abs', true
+  ));
+
+  // Molded rear underside electronics belly housing connecting chassis smoothly into rear stand
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.180, 0.125, 0.022, 0.010, 0.003, 0.003, 3, 1),
+    0.035, 0.135, -0.005, 'abs', false
+  ));
+
+  // Soft sculpted cradle outer rim, subtle divider lip, and bottom chin cradle cup
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.012, 0.194, 0.013, 0.005, 0.0022, 0.0022, 3, 2),
+    -0.129, 0.105, 0.021, 'abs', false
+  ));
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.007, 0.190, 0.009, 0.003, 0.0016, 0.0016, 2, 1),
+    -0.048, 0.104, 0.019, 'abs', false
+  ));
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.056, 0.011, 0.011, 0.005, 0.002, 0.002, 3, 1),
+    -0.090, 0.012, 0.019, 'abs', false
+  ));
+  // Mechanical hookswitch plunger inside upper handset cradle
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.011, 0.013, 0.008, 0.003, 0.0012, 0.0012, 2, 1),
+    -0.090, 0.160, 0.018, 'abs', false
+  ));
+
+  // B. Molded Solid Rear A-Frame Stand Brackets & Desk Rubber Pads (strictly flush on Y = 0.000m!)
+  // Side profile vertices in (-z, y) coordinates connect directly into upper underside (-0.052, 0.094)
+  // down to flat desk feet (-0.098..-0.122, 0.000) with zero gap or disconnection.
+  const standArmShape = new THREE.Shape();
+  standArmShape.moveTo(0.052, 0.096);  // Inside upper chassis (-z = -0.052 -> x_2d = 0.052)
+  standArmShape.lineTo(0.024, 0.072);  // Inside mid-upper chassis belly
+  standArmShape.lineTo(0.096, 0.000);  // Front bottom foot corner on desk
+  standArmShape.lineTo(0.122, 0.000);  // Rear bottom foot tip on desk
+  standArmShape.lineTo(0.122, 0.010);  // Foot heel height
+  standArmShape.lineTo(0.052, 0.096);
+
+  const makeStandArm = (xPos) => {
+    const armGeo = new THREE.ExtrudeGeometry(standArmShape, {
+      depth: 0.014,
+      bevelEnabled: true,
+      bevelThickness: 0.0015,
+      bevelSize: 0.0015,
+      bevelSegments: 1,
+    });
+    armGeo.translate(0, 0, -0.007);
+    armGeo.rotateY(Math.PI / 2); // Maps (-z, y, x_ext) -> (+x_ext, y, +z)
+    const mapped = uvMapSlopedPart(armGeo, 0, 0, 0, 'abs', false, null);
+    mapped.translate(xPos, 0, 0);
+    return mapped;
+  };
+
+  bodyParts.push(makeStandArm(-0.068));
+  bodyParts.push(makeStandArm(0.074));
+
+  // Molded rear stand crossbar & mid-span brace connecting both arms cleanly
+  const standBar = uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.162, 0.010, 0.022, 0.004, 0.0015, 0.0015, 2, 1),
+    0, 0, 0, 'abs', false, null
+  );
+  standBar.translate(0.003, 0.005, -0.109);
+  bodyParts.push(standBar);
+
+  const standUpperBrace = uvMapSlopedPart(
+    createRoundedBeveledExtrude(0.144, 0.032, 0.010, 0.003, 0.001, 0.001, 2, 1),
+    0, 0, 0, 'abs', false, null
+  );
+  standUpperBrace.rotateX(0.62);
+  standUpperBrace.translate(0.003, 0.056, -0.068);
+  bodyParts.push(standUpperBrace);
+
+  // Front matte rubber desk pads resting at Y = 0.000m (z = +0.102m)
+  for (const fx of [-0.090, 0.090]) {
+    const pad = uvMapSlopedPart(
+      createRoundedBeveledExtrude(0.046, 0.006, 0.018, 0.004, 0.001, 0.001, 2, 1),
+      0, 0, 0, 'cord', false, null
+    );
+    pad.translate(fx, 0.003, 0.102);
+    bodyParts.push(pad);
+  }
+
+  // C. Smoothly Rounded, Chamfer-Beveled Upper-Right Glossy Acrylic Display Bezel
+  const bzW = layout.bezel.xMax - layout.bezel.xMin;
+  const bzH = layout.bezel.sMax - layout.bezel.sMin;
+  const bzCx = (layout.bezel.xMin + layout.bezel.xMax) * 0.5;
+  const bzCs = (layout.bezel.sMin + layout.bezel.sMax) * 0.5;
+  bodyParts.push(uvMapSlopedPart(
+    createRoundedBeveledExtrude(bzW, bzH, 0.015, 0.009, 0.0025, 0.0025, 4, 2),
+    bzCx, bzCs, 0.0155, 'bezel', true
+  ));
+
+  // D. All 3D Tactile Rounded-Pill & Circular Keycaps
+  const addPillButton = (x, s, w, h, zBase, depth = 0.0032) => {
+    bodyParts.push(uvMapSlopedPart(
+      createRoundedBeveledExtrude(w, h, depth, Math.min(w, h) * 0.45, 0.0005, 0.0007, 3, 1),
+      x, s, zBase + depth * 0.45, 'button', true
+    ));
+  };
+
+  for (const lk of layout.lineKeys) addPillButton(lk.x, lk.s, lk.w, lk.h, layout.bezel.zTop, 0.0030);
+  for (const sk of layout.softKeys) addPillButton(sk.x, sk.s, sk.w, sk.h, layout.bezel.zTop, 0.0030);
+
+  for (const nk of layout.numpadKeys) {
+    const cyl = new THREE.CylinderGeometry(nk.r * 0.90, nk.r * 1.06, 0.0036, 14, 1);
+    cyl.rotateX(Math.PI / 2);
+    bodyParts.push(uvMapSlopedPart(cyl, nk.x, nk.s, 0.016 + 0.0016, 'button', true));
+  }
+
+  // 5-Way Circular Navigation Ring + OK Center Dot
+  const navCyl = new THREE.CylinderGeometry(layout.nav.rOuter * 0.94, layout.nav.rOuter * 1.05, 0.0034, 20, 1);
+  navCyl.rotateX(Math.PI / 2);
+  bodyParts.push(uvMapSlopedPart(navCyl, layout.nav.x, layout.nav.s, 0.016 + 0.0014, 'button', true));
+
+  const okCyl = new THREE.CylinderGeometry(layout.nav.rOk * 0.92, layout.nav.rOk, 0.0046, 14, 1);
+  okCyl.rotateX(Math.PI / 2);
+  bodyParts.push(uvMapSlopedPart(okCyl, layout.nav.x, layout.nav.s, 0.016 + 0.0020, 'button', true));
+
+  // Volume, Call (Green), Speaker (Orange), and 7 Far-Right Function Pill Keys
+  for (const pill of [layout.volume, layout.callBtn, layout.speakerBtn, ...layout.fnKeys]) {
+    addPillButton(pill.x, pill.s, pill.w, pill.h, 0.016, 0.0032);
+  }
+
+  // E. Twist-Free Coiled Telephone Cord (smooth wire out handset -> 13 plump desk coils -> tucked cleanly into chassis base)
+  const startW = new THREE.Vector3(-0.090, 0.012, 0.034).applyMatrix4(slopeMatrix);
+  const endW = new THREE.Vector3(-0.122, 0.045, 0.006).applyMatrix4(slopeMatrix); // Anchor firmly inside left ABS housing
+  const cordSpine = new THREE.CatmullRomCurve3([
+    startW,
+    new THREE.Vector3(-0.095, 0.018, 0.126),
+    new THREE.Vector3(-0.128, 0.0095, 0.128),
+    new THREE.Vector3(-0.165, 0.0095, 0.102),
+    new THREE.Vector3(-0.178, 0.0095, 0.056),
+    new THREE.Vector3(-0.166, 0.0095, 0.018),
+    new THREE.Vector3(-0.142, 0.014, 0.042),
+    endW,
+  ]);
+
+  const numCoils = 13;
+  const coilSteps = 234; // 18 samples per coil rotation -> silky smooth rings without sub-pixel aliasing
+  const radialSegs = 7;
+  const tubeRadius = 0.0022;
+
+  // 1. Propagate parallel-transport frame along the smooth spine
+  const helixPts = [];
+  const prevSpineTan = new THREE.Vector3();
+  const curSpineTan = new THREE.Vector3();
+  const sN1 = new THREE.Vector3();
+  const sN2 = new THREE.Vector3();
+  const qTransport = new THREE.Quaternion();
+
+  cordSpine.getTangent(0, prevSpineTan).normalize();
+  sN1.set(1, 0, 0);
+  if (Math.abs(sN1.dot(prevSpineTan)) > 0.9) sN1.set(0, 0, 1);
+  sN1.addScaledVector(prevSpineTan, -sN1.dot(prevSpineTan)).normalize();
+  sN2.crossVectors(prevSpineTan, sN1).normalize();
+
+  for (let i = 0; i <= coilSteps; i++) {
+    const t = i / coilSteps;
+    const basePt = cordSpine.getPoint(t);
+    cordSpine.getTangent(t, curSpineTan).normalize();
+
+    if (i > 0) {
+      qTransport.setFromUnitVectors(prevSpineTan, curSpineTan);
+      sN1.applyQuaternion(qTransport).normalize();
+      sN2.crossVectors(curSpineTan, sN1).normalize();
+      prevSpineTan.copy(curSpineTan);
+    }
+
+    // Smooth C1-continuous wire leaving mouthpiece (t <= 0.16) -> 13 coils (0.16..0.84) -> tucked into base
+    let coilRad = 0.0;
+    if (t > 0.16 && t < 0.84) {
+      const uCoil = (t - 0.16) / 0.68;
+      const rIn = Math.min(1.0, uCoil / 0.18);
+      const rOut = Math.min(1.0, (1.0 - uCoil) / 0.18);
+      const sIn = rIn * rIn * (3.0 - 2.0 * rIn);
+      const sOut = rOut * rOut * (3.0 - 2.0 * rOut);
+      coilRad = 0.0064 * sIn * sOut;
+    }
+
+    const phi = Math.min(1.0, Math.max(0, t - 0.16) / 0.68) * numCoils * Math.PI * 2;
+    const pt = basePt.clone()
+      .addScaledVector(sN1, Math.cos(phi) * coilRad)
+      .addScaledVector(sN2, Math.sin(phi) * coilRad);
+    helixPts.push(pt);
+  }
+
+  // 2. Sweep cross-section directly along helixPts with parallel transport (zero Frenet ribbon twist!)
+  const cordPos = [];
+  const cordNormals = [];
+  const cordUvs = [];
+  const cordIdx = [];
+  const prevH = new THREE.Vector3();
+  const curH = new THREE.Vector3();
+  const hN1 = new THREE.Vector3();
+  const hN2 = new THREE.Vector3();
+  const swCord = swatchUVs.cord;
+
+  const getHelixTangent = (idx, out) => {
+    const a = helixPts[Math.max(0, idx - 1)];
+    const b = helixPts[Math.min(coilSteps, idx + 1)];
+    return out.subVectors(b, a).normalize();
+  };
+
+  getHelixTangent(0, prevH);
+  hN1.set(1, 0, 0);
+  if (Math.abs(hN1.dot(prevH)) > 0.9) hN1.set(0, 0, 1);
+  hN1.addScaledVector(prevH, -hN1.dot(prevH)).normalize();
+  hN2.crossVectors(prevH, hN1).normalize();
+
+  for (let i = 0; i <= coilSteps; i++) {
+    const center = helixPts[i];
+    getHelixTangent(i, curH);
+    if (i > 0) {
+      qTransport.setFromUnitVectors(prevH, curH);
+      hN1.applyQuaternion(qTransport).normalize();
+      hN2.crossVectors(curH, hN1).normalize();
+      prevH.copy(curH);
+    }
+
+    for (let j = 0; j <= radialSegs; j++) {
+      const th = (j / radialSegs) * Math.PI * 2;
+      const nx = Math.cos(th) * hN1.x + Math.sin(th) * hN2.x;
+      const ny = Math.cos(th) * hN1.y + Math.sin(th) * hN2.y;
+      const nz = Math.cos(th) * hN1.z + Math.sin(th) * hN2.z;
+      cordPos.push(center.x + nx * tubeRadius, center.y + ny * tubeRadius, center.z + nz * tubeRadius);
+      cordNormals.push(nx, ny, nz);
+      cordUvs.push(swCord[0], swCord[1]);
+    }
+  }
+
+  const cStride = radialSegs + 1;
+  for (let i = 0; i < coilSteps; i++) {
+    for (let j = 0; j < radialSegs; j++) {
+      const a = i * cStride + j;
+      const b = a + cStride;
+      const c = b + 1;
+      const d = a + 1;
+      cordIdx.push(a, d, b, b, d, c);
+    }
+  }
+
+  const cordIndexed = new THREE.BufferGeometry();
+  cordIndexed.setAttribute('position', new THREE.Float32BufferAttribute(cordPos, 3));
+  cordIndexed.setAttribute('normal', new THREE.Float32BufferAttribute(cordNormals, 3));
+  cordIndexed.setAttribute('uv', new THREE.Float32BufferAttribute(cordUvs, 2));
+  cordIndexed.setIndex(cordIdx);
+  bodyParts.push(normalizeGeo(cordIndexed));
+
+  const bodyGeo = BufferGeometryUtils.mergeGeometries(bodyParts, false);
+  for (const part of bodyParts) part.dispose();
+  if (bodyGeo) {
+    bodyGeo.computeBoundingBox();
+    bodyGeo.computeBoundingSphere();
+  }
+
+  // F. Standalone 4.3" LCD Screen Plane (slightly forward of bezel front face to prevent z-fighting)
+  const lcdGeo = new THREE.PlaneGeometry(layout.lcd.w, layout.lcd.h);
+  lcdGeo.translate(layout.lcd.x, layout.lcd.s, layout.bezel.zTop + 0.0006);
+  lcdGeo.applyMatrix4(slopeMatrix);
+
+  // G. Rounded Top-Right MWI Status Pill LED
+  const mwiGeo = normalizeGeo(
+    createRoundedBeveledExtrude(layout.mwi.w, layout.mwi.h, 0.0020, 0.0014, 0.0003, 0.0004, 2, 1)
+  );
+  mwiGeo.translate(layout.mwi.x, layout.mwi.s, layout.bezel.zTop + 0.0007);
+  mwiGeo.applyMatrix4(slopeMatrix);
+
+  // H. Separate Sculpted Rounded-Stadium (( HD )) Handset Mesh
+  const segL = 20;
+  const segR = 12;
+  const len = 0.214;
+  const hPositions = [];
+  const hUvs = [];
+  const hIndices = [];
+
+  for (let i = 0; i <= segL; i++) {
+    const t = i / segL; // 0 = mouthpiece bottom, 1 = earpiece top
+    const sLocal = (t - 0.5) * len;
+
+    // Gentle stadium handset silhouette (wide rounded heads, subtle grip waist, rounded hemispherical tips)
+    const baseW = 0.0178 + (1.0 - Math.sin(t * Math.PI)) * 0.0046 + (t > 0.5 ? (t - 0.5) * 0.0028 : 0);
+    const baseD = 0.0108 + Math.sin(t * Math.PI) * 0.0028;
+
+    let capFactor = 1.0;
+    if (t < 0.06) {
+      const u = t / 0.06; // Smooth stadium dome cap (no cone point!)
+      capFactor = u === 0 ? 0.18 : Math.sqrt(1.0 - Math.pow(1.0 - u, 2));
+    } else if (t > 0.94) {
+      const u = (1.0 - t) / 0.06;
+      capFactor = u === 0 ? 0.18 : Math.sqrt(1.0 - Math.pow(1.0 - u, 2));
+    }
+
+    const halfW = baseW * capFactor;
+    const halfD = baseD * capFactor;
+    const archZ = Math.sin(t * Math.PI) * 0.007;
+
+    for (let j = 0; j <= segR; j++) {
+      const th = (j / segR) * Math.PI * 2;
+      const cosT2 = Math.cos(th);
+      const sinT2 = Math.sin(th);
+      // Superellipse power 0.78 yields rounded-rectangle molded contour instead of pipe-like oval
+      const cx = Math.sign(cosT2) * Math.pow(Math.abs(cosT2), 0.78) * halfW;
+      const cz = Math.sign(sinT2) * Math.pow(Math.abs(sinT2), 0.78) * halfD + archZ;
+      hPositions.push(cx, sLocal, cz);
+
+      // Map outer spine (+Z) cleanly to left half u in [0.02..0.48], underside (-Z) to right half u in [0.52..0.98]
+      const isFront = sinT2 >= 0;
+      const u = isFront
+        ? Math.max(0.02, Math.min(0.48, 0.25 + (cx / 0.112) * 0.48))
+        : Math.max(0.52, Math.min(0.98, 0.75 + (cx / 0.112) * 0.48));
+      hUvs.push(u, t);
+    }
+  }
+
+  const rowStride = segR + 1;
+  for (let i = 0; i < segL; i++) {
+    for (let j = 0; j < segR; j++) {
+      const a = i * rowStride + j;
+      const b = a + rowStride;
+      const c = b + 1;
+      const d = a + 1;
+      hIndices.push(a, b, d, b, c, d);
+    }
+  }
+
+  const handsetGeo = new THREE.BufferGeometry();
+  handsetGeo.setAttribute('position', new THREE.Float32BufferAttribute(hPositions, 3));
+  handsetGeo.setAttribute('uv', new THREE.Float32BufferAttribute(hUvs, 2));
+  handsetGeo.setIndex(hIndices);
+  handsetGeo.computeVertexNormals();
+
+  // Compute handset rest center transform in world/phone local space
+  const handsetCenterSlope = new THREE.Vector3(-0.090, 0.118, 0.034).applyMatrix4(slopeMatrix);
+  const handsetQuat = new THREE.Quaternion().setFromRotationMatrix(slopeMatrix);
+
+  return {
+    bodyGeo,
+    lcdGeo,
+    mwiGeo,
+    handsetGeo,
+    handsetRestPos: handsetCenterSlope,
+    handsetRestQuat: handsetQuat,
+  };
+}
+
 export class WarehouseBuilder {
   constructor(scene) {
     this.scene = scene;
@@ -13338,6 +14439,15 @@ export class WarehouseBuilder {
 
     // Row 1: Close Distance (Z = -2.7m, Floor level)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 1.8 + deskClusterOffsetZ, 0.0, 'close', addPartMatrix);
+
+    // Hero-Scaled TELESTREAM GXP2170 Executive IP Phone on right-hand side of BSOD desk
+    this._buildTelestreamGXP2170Phone(
+      group,
+      2.5 - 1.04,
+      0.95,
+      1.8 + deskClusterOffsetZ - 0.12,
+      Math.PI - 0.21
+    );
 
     // Row 2: Mid Distance (Z = 1.0m, Floor level, staggered wider)
     this._buildWorkstationRow(addPart, addVisual, visualBuckets, 5.5 + deskClusterOffsetZ, 0.0, 'mid', addPartMatrix);
@@ -19477,6 +20587,101 @@ export class WarehouseBuilder {
   }
 
   /**
+   * Builds the Hero-Scaled TELESTREAM GXP2170 Executive IP Phone as a named Group ("telestream_gxp2170")
+   * capped at 4 draw calls total, exposing handsetMesh, screenMaterial, and mwiLedMesh for opening sequence hooks.
+   */
+  _buildTelestreamGXP2170Phone(group, x, surfaceY, z, rotY = 0) {
+    const textures = createTelestreamGXP2170Textures();
+    this.telestreamBodyTexture = textures.bodyTexture;
+    this.telestreamBodyRoughnessTexture = textures.roughnessTexture;
+    this.telestreamBodyEmissiveTexture = textures.emissiveTexture;
+    this.telestreamLcdTexture = textures.lcdTexture;
+    this.telestreamHandsetTexture = textures.handsetTexture;
+
+    const geos = createTelestreamGXP2170Geometries();
+
+    const phoneGroup = new THREE.Group();
+    phoneGroup.name = 'telestream_gxp2170';
+    phoneGroup.position.set(x, surfaceY, z);
+    phoneGroup.rotation.y = rotY;
+
+    // 1. Merged Base Chassis + Desk Stand + Glossy Bezel + 3D Buttons + Coiled Cord (Draw Call 1)
+    const bodyMaterial = new THREE.MeshStandardMaterial({
+      map: this.telestreamBodyTexture,
+      roughnessMap: this.telestreamBodyRoughnessTexture,
+      emissiveMap: this.telestreamBodyEmissiveTexture,
+      emissive: 0xffffff,
+      emissiveIntensity: 0.9,
+      roughness: 1.0,
+      metalness: 0.10,
+      envMapIntensity: 0.45,
+    });
+    const bodyMesh = new THREE.Mesh(geos.bodyGeo, bodyMaterial);
+    bodyMesh.name = 'TelestreamBodyAndKeypad';
+    bodyMesh.castShadow = false;
+    bodyMesh.receiveShadow = false;
+    phoneGroup.add(bodyMesh);
+
+    // 2. Backlit 4.3" Color LCD Screen (Draw Call 2, unlit MeshBasicMaterial)
+    const screenMaterial = new THREE.MeshBasicMaterial({
+      map: this.telestreamLcdTexture,
+      toneMapped: false,
+    });
+    const lcdScreenMesh = new THREE.Mesh(geos.lcdGeo, screenMaterial);
+    lcdScreenMesh.name = 'TelestreamLcdScreen';
+    lcdScreenMesh.castShadow = false;
+    lcdScreenMesh.receiveShadow = false;
+    phoneGroup.add(lcdScreenMesh);
+
+    // 3. Top-Right MWI Status LED Pill (Draw Call 3, ready to blink)
+    const mwiMaterial = new THREE.MeshBasicMaterial({
+      color: 0xef4444,
+      toneMapped: false,
+    });
+    const mwiLedMesh = new THREE.Mesh(geos.mwiGeo, mwiMaterial);
+    mwiLedMesh.name = 'TelestreamMwiLed';
+    mwiLedMesh.castShadow = false;
+    mwiLedMesh.receiveShadow = false;
+    phoneGroup.add(mwiLedMesh);
+
+    // 4. Separate Movable Contoured (( HD )) Handset Mesh (Draw Call 4)
+    const handsetMaterial = new THREE.MeshStandardMaterial({
+      map: this.telestreamHandsetTexture,
+      roughness: 0.44,
+      metalness: 0.08,
+      envMapIntensity: 0.40,
+    });
+    const handsetMesh = new THREE.Mesh(geos.handsetGeo, handsetMaterial);
+    handsetMesh.name = 'handsetMesh';
+    handsetMesh.position.copy(geos.handsetRestPos);
+    handsetMesh.quaternion.copy(geos.handsetRestQuat);
+    handsetMesh.castShadow = false;
+    handsetMesh.receiveShadow = false;
+    phoneGroup.add(handsetMesh);
+
+    // Expose ergonomic references for opening ringing / pickup sequence
+    phoneGroup.handsetMesh = handsetMesh;
+    phoneGroup.screenMaterial = screenMaterial;
+    phoneGroup.mwiLedMesh = mwiLedMesh;
+    phoneGroup.lcdScreenMesh = lcdScreenMesh;
+    phoneGroup.userData = {
+      handsetMesh,
+      screenMaterial,
+      mwiLedMesh,
+      lcdScreenMesh,
+      bodyMesh,
+      handsetRestPos: geos.handsetRestPos.clone(),
+      handsetRestQuat: geos.handsetRestQuat.clone(),
+    };
+
+    this.telestreamPhone = phoneGroup;
+    if (typeof window !== 'undefined') window.__rocPhone = phoneGroup;
+    group.add(phoneGroup);
+
+    return phoneGroup;
+  }
+
+  /**
    * Returns array of procedural textures to pre-warm on the GPU during the loading screen pass.
    */
   getPreloadTextures() {
@@ -19502,6 +20707,11 @@ export class WarehouseBuilder {
       this.skylineTowerBTexture,
       this.skylineTowerCTexture,
       this.skylineTowerDTexture,
+      this.telestreamBodyTexture,
+      this.telestreamBodyRoughnessTexture,
+      this.telestreamBodyEmissiveTexture,
+      this.telestreamLcdTexture,
+      this.telestreamHandsetTexture,
     ].filter(Boolean);
   }
 }
