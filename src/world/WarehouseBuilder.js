@@ -18585,10 +18585,304 @@ export class WarehouseBuilder {
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -13.73, 0.0, 10.83, 0.64, 0.50);
 
     // E. Hero-Scale Commercial Janitor Cleaning Cart ("Carrinho de Limpeza Funcional")
-    // Abandoned in a rush on the black marble floor beneath the green stairwell exit sign (Z = 8.98m, X = -13.56m),
-    // rotated at a dynamic organic angle (~16° / +0.28 rad yaw away from the west wall) with mop bucket pointing
-    // toward the elevator/vestibule doorway and yellow refuse bag toward the stairwell.
-    this._buildJanitorCart(addPartMatrix, registerPlayerOnlyCollider, visualBuckets, -13.56, 0.0, 8.98, 0.28);
+    // Positioned neatly between the potted Areca palm corner plant and the stairwell wall,
+    // completely freeing up the top landing of the stairs.
+    this._buildJanitorCart(addPartMatrix, registerPlayerOnlyCollider, visualBuckets, -13.62, 0.0, 9.64, 0.22);
+
+    // F. Connected Stairwell Barrier Stanchions Blocking Top Entrance of Stairs
+    // Spans from west wall edge (-13.84, 7.66) across stairwell lip to east handrail post (-11.68, 7.62).
+    // Supports upright initial barrier state and animated blast topple onto the marble floor.
+    this._buildStairwellBarrierStanchions();
+  }
+
+  /**
+   * Builds the pair of connected matte-charcoal/yellow-strap barrier stanchions across the
+   * stairwell top entrance, matching the office stanchion silhouette while remaining dynamically
+   * animatable so post-call stairwell explosions can topple them onto the marble floor.
+   */
+  _buildStairwellBarrierStanchions() {
+    if (this.stairwellStanchions && this.stairwellStanchions.group && this.scene) {
+      this.scene.remove(this.stairwellStanchions.group);
+    }
+
+    const rootGroup = new THREE.Group();
+    rootGroup.name = 'StairwellBarrierStanchions';
+
+    const normalizeForMerge = (geo) => {
+      const res = geo.index ? geo.toNonIndexed() : geo.clone();
+      if (!res.getAttribute('normal')) res.computeVertexNormals();
+      if (!res.getAttribute('uv')) {
+        const count = res.getAttribute('position').count;
+        res.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
+      }
+      for (const name of Object.keys(res.attributes)) {
+        if (name !== 'position' && name !== 'normal' && name !== 'uv') {
+          res.deleteAttribute(name);
+        }
+      }
+      return res;
+    };
+
+    // Build shared post metal geometry (charcoal brushed steel base, flared collar & industrial pole)
+    const baseMetal = new THREE.CylinderGeometry(0.25, 0.25, 0.032, 24);
+    baseMetal.translate(0, 0.026, 0);
+    const collarMetal = new THREE.CylinderGeometry(0.050, 0.090, 0.045, 24);
+    collarMetal.translate(0, 0.0645, 0);
+    const poleMetal = new THREE.CylinderGeometry(0.048, 0.048, 0.91, 20);
+    poleMetal.translate(0, 0.542, 0);
+
+    const postMetalMerged = BufferGeometryUtils.mergeGeometries(
+      [normalizeForMerge(baseMetal), normalizeForMerge(collarMetal), normalizeForMerge(poleMetal)],
+      false
+    );
+    baseMetal.dispose();
+    collarMetal.dispose();
+    poleMetal.dispose();
+
+    // Build shared matte polymer hardware geometry (rubber ring, cassette head, top cap, 4 receiver slots)
+    const hwParts = [];
+    const rubberRing = new THREE.CylinderGeometry(0.255, 0.255, 0.010, 24);
+    rubberRing.translate(0, 0.005, 0);
+    hwParts.push(normalizeForMerge(rubberRing));
+    rubberRing.dispose();
+
+    const cassetteHead = new THREE.CylinderGeometry(0.054, 0.054, 0.13, 24);
+    cassetteHead.translate(0, 1.062, 0);
+    hwParts.push(normalizeForMerge(cassetteHead));
+    cassetteHead.dispose();
+
+    const topCap = new THREE.CylinderGeometry(0.058, 0.054, 0.016, 24);
+    topCap.translate(0, 1.135, 0);
+    hwParts.push(normalizeForMerge(topCap));
+    topCap.dispose();
+
+    const slotProto = new THREE.BoxGeometry(0.018, 0.105, 0.016);
+    for (let s = 0; s < 4; s++) {
+      const slotAngle = s * (Math.PI / 2);
+      const sg = slotProto.clone();
+      sg.rotateY(slotAngle);
+      sg.translate(Math.sin(slotAngle) * 0.054, 1.062, Math.cos(slotAngle) * 0.054);
+      hwParts.push(normalizeForMerge(sg));
+      sg.dispose();
+    }
+    slotProto.dispose();
+
+    const postHwMerged = BufferGeometryUtils.mergeGeometries(hwParts, false);
+    for (const part of hwParts) part.dispose();
+
+    // Post A (west wall side) & Post B (east stairwell handrail side)
+    const postConfigs = [
+      { x: -13.84, z: 7.66, fallYaw: 0.24, fallDur: 0.44, delay: 0.0 },
+      { x: -11.68, z: 7.62, fallYaw: -0.34, fallDur: 0.48, delay: 0.04 },
+    ];
+
+    const postEntries = postConfigs.map((cfg) => {
+      const pivot = new THREE.Group();
+      pivot.rotation.order = 'YXZ';
+      pivot.position.set(cfg.x, 0, cfg.z);
+      pivot.rotation.set(0, cfg.fallYaw, 0);
+
+      const metalMesh = new THREE.Mesh(postMetalMerged, this.stanchionPostMaterial);
+      metalMesh.castShadow = true;
+      metalMesh.receiveShadow = true;
+      pivot.add(metalMesh);
+
+      const hwMesh = new THREE.Mesh(postHwMerged, this.stanchionHardwareMaterial);
+      hwMesh.castShadow = true;
+      hwMesh.receiveShadow = true;
+      pivot.add(hwMesh);
+
+      rootGroup.add(pivot);
+      return {
+        pivot,
+        baseX: cfg.x,
+        baseZ: cfg.z,
+        fallYaw: cfg.fallYaw,
+        fallDur: cfg.fallDur,
+        delay: cfg.delay,
+        elapsed: 0,
+        done: false,
+      };
+    });
+
+    // Taut upright catenary caution belt + end-clips stretched across stairwell mouth
+    const postA = { x: postConfigs[0].x, z: postConfigs[0].z };
+    const postB = { x: postConfigs[1].x, z: postConfigs[1].z };
+    const tautBeltGroup = new THREE.Group();
+    tautBeltGroup.name = 'StairwellStanchionTautBelt';
+
+    const tautBeltGeo = createCatenaryBeltGeometry(postA, postB, 0.024, 1.062, 0.053, 0.036, 0.0025);
+    const tautBeltMesh = new THREE.Mesh(tautBeltGeo, this.stanchionBeltMaterial);
+    tautBeltMesh.castShadow = true;
+    tautBeltMesh.receiveShadow = true;
+    tautBeltGroup.add(tautBeltMesh);
+
+    const bDx = postB.x - postA.x;
+    const bDz = postB.z - postA.z;
+    const bDist = Math.hypot(bDx, bDz);
+    if (bDist > 0.1) {
+      const bUx = bDx / bDist;
+      const bUz = bDz / bDist;
+      const theta = Math.atan2(bDx, bDz);
+      const endClipGeo = new THREE.BoxGeometry(0.024, 0.090, 0.020);
+      for (const [cx, cz] of [
+        [postA.x + bUx * 0.053, postA.z + bUz * 0.053],
+        [postB.x - bUx * 0.053, postB.z - bUz * 0.053],
+      ]) {
+        const clip = new THREE.Mesh(endClipGeo, this.stanchionHardwareMaterial);
+        clip.position.set(cx, 1.062, cz);
+        clip.rotation.y = theta;
+        tautBeltGroup.add(clip);
+      }
+      endClipGeo.dispose();
+    }
+    rootGroup.add(tautBeltGroup);
+
+    // Collapsed caution strap resting diagonally across the black marble floor once toppled
+    const fallenBeltGroup = new THREE.Group();
+    fallenBeltGroup.name = 'StairwellStanchionFallenBelt';
+    fallenBeltGroup.visible = false;
+
+    const segs = 14;
+    const fallenPos = [];
+    const fallenNorm = [];
+    const fallenUv = [];
+    const halfBandW = 0.034;
+    for (let i = 0; i < segs; i++) {
+      const t0 = i / segs;
+      const t1 = (i + 1) / segs;
+      const samplePt = (t) => {
+        const x = THREE.MathUtils.lerp(-13.52, -11.98, t);
+        const z = 8.48 + Math.sin(t * Math.PI * 1.45) * 0.18 + Math.sin(t * 9.0) * 0.04;
+        const y = 0.005 + Math.max(0, Math.sin(t * Math.PI * 3.0)) * 0.010;
+        return { x, y, z };
+      };
+      const p0 = samplePt(t0);
+      const p1 = samplePt(t1);
+      const v0a = [p0.x, p0.y, p0.z - halfBandW];
+      const v0b = [p0.x, p0.y + 0.004, p0.z + halfBandW];
+      const v1a = [p1.x, p1.y, p1.z - halfBandW];
+      const v1b = [p1.x, p1.y + 0.004, p1.z + halfBandW];
+
+      fallenPos.push(...v0a, ...v0b, ...v1b, ...v0a, ...v1b, ...v1a);
+      for (let k = 0; k < 6; k++) fallenNorm.push(0, 1, 0);
+      fallenUv.push(t0, 0, t0, 1, t1, 1, t0, 0, t1, 1, t1, 0);
+    }
+    const fallenBeltGeo = new THREE.BufferGeometry();
+    fallenBeltGeo.setAttribute('position', new THREE.Float32BufferAttribute(fallenPos, 3));
+    fallenBeltGeo.setAttribute('normal', new THREE.Float32BufferAttribute(fallenNorm, 3));
+    fallenBeltGeo.setAttribute('uv', new THREE.Float32BufferAttribute(fallenUv, 2));
+    const fallenBeltMesh = new THREE.Mesh(fallenBeltGeo, this.stanchionBeltMaterial);
+    fallenBeltMesh.receiveShadow = true;
+    fallenBeltGroup.add(fallenBeltMesh);
+
+    const fallenClipGeo = new THREE.BoxGeometry(0.024, 0.020, 0.090);
+    for (const [cx, cz, ry] of [
+      [-13.52, 8.48, 0.35],
+      [-11.98, 8.32, -0.45],
+    ]) {
+      const fc = new THREE.Mesh(fallenClipGeo, this.stanchionHardwareMaterial);
+      fc.position.set(cx, 0.011, cz);
+      fc.rotation.y = ry;
+      fallenBeltGroup.add(fc);
+    }
+    fallenClipGeo.dispose();
+    rootGroup.add(fallenBeltGroup);
+
+    if (this.scene) {
+      this.scene.add(rootGroup);
+    }
+
+    const FINAL_TILT = 1.735; // ~99.4 deg so both 0.255m base rim and 0.058m cap rest flush on marble floor
+    const applyPostTilt = (entry, tiltAngle, forwardSlide) => {
+      entry.pivot.rotation.set(tiltAngle, entry.fallYaw, 0);
+      const liftY = Math.max(0, 0.255 * Math.sin(Math.min(tiltAngle, Math.PI * 0.5)) + 0.003);
+      entry.pivot.position.set(
+        entry.baseX + Math.sin(entry.fallYaw) * forwardSlide,
+        liftY,
+        entry.baseZ + Math.cos(entry.fallYaw) * forwardSlide
+      );
+    };
+
+    const controller = {
+      group: rootGroup,
+      posts: postEntries,
+      tautBelt: tautBeltGroup,
+      fallenBelt: fallenBeltGroup,
+      isToppled: false,
+      isAnimating: false,
+      toppleStairwellStanchions: (animate = true) => {
+        if (controller.isToppled && !animate) return;
+        controller.isToppled = true;
+        tautBeltGroup.visible = false;
+        fallenBeltGroup.visible = true;
+
+        if (!animate) {
+          controller.isAnimating = false;
+          for (const entry of postEntries) {
+            entry.done = true;
+            entry.elapsed = entry.fallDur + entry.delay;
+            applyPostTilt(entry, FINAL_TILT, 0.11);
+          }
+          return;
+        }
+
+        controller.isAnimating = true;
+        for (const entry of postEntries) {
+          entry.elapsed = 0;
+          entry.done = false;
+        }
+      },
+      resetStairwellStanchions: () => {
+        controller.isToppled = false;
+        controller.isAnimating = false;
+        tautBeltGroup.visible = true;
+        fallenBeltGroup.visible = false;
+        for (const entry of postEntries) {
+          entry.elapsed = 0;
+          entry.done = false;
+          entry.pivot.position.set(entry.baseX, 0, entry.baseZ);
+          entry.pivot.rotation.set(0, entry.fallYaw, 0);
+        }
+      },
+      update: (delta) => {
+        if (!controller.isAnimating) return;
+        let allDone = true;
+        for (const entry of postEntries) {
+          if (entry.done) continue;
+          entry.elapsed += delta;
+          const activeTime = Math.max(0, entry.elapsed - entry.delay);
+          const u = Math.min(1.0, activeTime / entry.fallDur);
+
+          let tilt;
+          if (u < 0.78) {
+            // Accelerating gravity tip until striking marble floor
+            const k = u / 0.78;
+            tilt = FINAL_TILT * (k * k);
+          } else {
+            // Subtle damped metallic floor rebound settle
+            const b = (u - 0.78) / 0.22;
+            const bounce = Math.sin(b * Math.PI) * (1.0 - b * 0.35) * 0.055;
+            tilt = FINAL_TILT - bounce;
+          }
+
+          const slide = 0.11 * Math.min(1.0, u / 0.78);
+          applyPostTilt(entry, tilt, slide);
+
+          if (u >= 1.0) {
+            applyPostTilt(entry, FINAL_TILT, 0.11);
+            entry.done = true;
+          } else {
+            allDone = false;
+          }
+        }
+        if (allDone) {
+          controller.isAnimating = false;
+        }
+      },
+    };
+
+    this.stairwellStanchions = controller;
   }
 
   /**
@@ -19966,9 +20260,10 @@ export class WarehouseBuilder {
     jugHandleGeo.dispose();
 
     // =========================================================================
-    // 7. PLAYER-ONLY BVH COLLIDER BOX (Full cart envelope so player cannot walk through)
+    // 7. PLAYER-ONLY BVH COLLIDER BOX (Tightly wraps cart envelope Z = -0.68..+0.74)
     // =========================================================================
-    const playerColliderGeo = new THREE.BoxGeometry(0.76, 1.85, 1.48);
+    const playerColliderGeo = new THREE.BoxGeometry(0.68, 1.85, 1.42);
+    playerColliderGeo.translate(0, 0, 0.03);
     playerColliderGeo.rotateY(cartYaw);
     registerPlayerOnlyCollider(playerColliderGeo, cartX, cartY + 0.925, cartZ);
     playerColliderGeo.dispose();

@@ -20,6 +20,7 @@ export class SoundManager {
     this.isSampleReloadActive = false;
     this.lastDryFireTime = 0;
     this.isPreloading = true;
+    this._buildingExplosion = null;
 
     this._initAudio();
     this._initMenuMusic();
@@ -177,6 +178,7 @@ export class SoundManager {
       'desert_eagle_fire': './sounds/desert_eagle_fire.mp3',
       'remington_870_fire': './sounds/remington_870_fire.mp3',
       'remington_870_pump': './sounds/remington_870_pump.mp3',
+      'building_explosions': './sounds/building_explosions.mp3',
     };
 
     const entries = Object.entries(soundFiles);
@@ -2466,5 +2468,292 @@ export class SoundManager {
     stopGain.connect(this.masterGain);
     stopOsc.start(stopT);
     stopOsc.stop(stopT + 0.09);
+  }
+
+  /**
+   * Plays /sounds/building_explosions.mp3 (18s) through a dual-path Web Audio graph:
+   *  - Path A: Deep building-wide sub-bass structural rumble (lowpass 135Hz)
+   *  - Path B: Wall-muffled -> crisp directional blast & debris anchored at the vestibule stairwell
+   */
+  playBuildingExplosion() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    this.stopBuildingExplosion();
+
+    const startFromBuffer = (buffer) => {
+      if (!buffer || !this.ctx) return;
+      const now = this.ctx.currentTime;
+
+      const masterExpGain = this.ctx.createGain();
+      masterExpGain.gain.setValueAtTime(1.85, now);
+
+      // Soft headroom compressor lets us push heavy sub/mid punch loudly without harsh digital clipping
+      const expLimiter = this.ctx.createDynamicsCompressor();
+      expLimiter.threshold.setValueAtTime(-5.5, now);
+      expLimiter.knee.setValueAtTime(10.0, now);
+      expLimiter.ratio.setValueAtTime(4.5, now);
+      expLimiter.attack.setValueAtTime(0.003, now);
+      expLimiter.release.setValueAtTime(0.16, now);
+
+      masterExpGain.connect(expLimiter);
+      expLimiter.connect(this.masterGain);
+
+      // Path A: Building-wide omnidirectional sub-bass floor rumble
+      const subFilter = this.ctx.createBiquadFilter();
+      subFilter.type = 'lowpass';
+      subFilter.frequency.setValueAtTime(155, now);
+      subFilter.Q.setValueAtTime(0.8, now);
+
+      const subGain = this.ctx.createGain();
+      subGain.gain.setValueAtTime(1.05, now);
+      subFilter.connect(subGain);
+      subGain.connect(masterExpGain);
+
+      // Path B: Directional stairwell sound (wall-muffled in main office, loud & sharp in vestibule)
+      const dirFilter = this.ctx.createBiquadFilter();
+      dirFilter.type = 'lowpass';
+      dirFilter.frequency.setValueAtTime(1450, now);
+      dirFilter.Q.setValueAtTime(0.65, now);
+
+      const stereoPanner = this.ctx.createStereoPanner
+        ? this.ctx.createStereoPanner()
+        : null;
+
+      const dirGain = this.ctx.createGain();
+      dirGain.gain.setValueAtTime(0.95, now);
+
+      if (stereoPanner) {
+        dirFilter.connect(stereoPanner);
+        stereoPanner.connect(dirGain);
+      } else {
+        dirFilter.connect(dirGain);
+      }
+      dirGain.connect(masterExpGain);
+
+      const state = {
+        buffer,
+        source: null,
+        subFilter,
+        subGain,
+        dirFilter,
+        stereoPanner,
+        dirGain,
+        masterExpGain,
+        expLimiter,
+        fadingOut: false,
+        startTime: now,
+        offset: 0,
+        duration: buffer.duration || 18.0,
+        paused: false,
+        active: true,
+      };
+      this._buildingExplosion = state;
+      this._startBuildingExplosionSource(state, 0);
+    };
+
+    const cached = this.audioBuffers.get('building_explosions');
+    if (cached) {
+      startFromBuffer(cached);
+    } else {
+      fetch('./sounds/building_explosions.mp3')
+        .then((r) => (r.ok ? r.arrayBuffer() : null))
+        .then((ab) => (ab && this.ctx ? this.ctx.decodeAudioData(ab) : null))
+        .then((decoded) => {
+          if (decoded) {
+            decoded._attackOffset = 0;
+            this.audioBuffers.set('building_explosions', decoded);
+            if (!this._buildingExplosion) {
+              startFromBuffer(decoded);
+            }
+          }
+        })
+        .catch(() => { });
+    }
+  }
+
+  _startBuildingExplosionSource(state, offsetSec) {
+    if (!state || !state.active || !this.ctx || offsetSec >= state.duration) return;
+    if (state.source) {
+      try {
+        state.source.onended = null;
+        state.source.stop();
+        state.source.disconnect();
+      } catch (e) { }
+      state.source = null;
+    }
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = state.buffer;
+    src.connect(state.subFilter);
+    src.connect(state.dirFilter);
+
+    const now = this.ctx.currentTime;
+    state.startTime = now;
+    state.offset = offsetSec;
+    src.onended = () => {
+      if (state.source === src && !state.paused) {
+        state.active = false;
+      }
+    };
+    src.start(now, offsetSec);
+    state.source = src;
+  }
+
+  /**
+   * Updates directional pan, wall occlusion muffling, and distance attenuation for building_explosions.mp3.
+   */
+  updateBuildingExplosionSpatial(distance, pan = 0, inMainOffice = true) {
+    const state = this._buildingExplosion;
+    if (!state || !state.active || state.paused || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const d = Math.max(0.5, distance);
+
+    // Sub-bass body hits hard across the floor, stronger inside vestibule
+    const subLevel = inMainOffice
+      ? Math.max(0.78, Math.min(1.18, 1.28 - d * 0.022))
+      : Math.max(1.05, Math.min(1.38, 1.42 - d * 0.018));
+    state.subGain.gain.setTargetAtTime(subLevel, now, 0.05);
+
+    // Directional stairwell blast & debris attenuation
+    const dirLevel = inMainOffice
+      ? Math.max(0.68, Math.min(1.12, 1.32 / (1.0 + Math.max(0, d - 6.0) * 0.055)))
+      : Math.max(1.10, Math.min(1.48, 1.50 / (1.0 + Math.max(0, d - 2.0) * 0.050)));
+    state.dirGain.gain.setTargetAtTime(dirLevel, now, 0.05);
+
+    // Partition walls muffle highs (~1100-2000Hz in main office vs ~4200-9800Hz near stairwell)
+    const cutoff = inMainOffice
+      ? Math.max(1100, Math.min(2050, 2300 - d * 55))
+      : Math.max(4200, Math.min(9800, 9900 - d * 400));
+    state.dirFilter.frequency.setTargetAtTime(cutoff, now, 0.05);
+
+    if (state.stereoPanner) {
+      const clampedPan = Math.max(-0.88, Math.min(0.88, pan));
+      state.stereoPanner.pan.setTargetAtTime(clampedPan, now, 0.04);
+    }
+  }
+
+  /**
+   * Smoothly fades out the building explosion audio at the end of the compacted ~9s action beat.
+   */
+  fadeOutBuildingExplosion(fadeDurationSec = 1.1) {
+    const state = this._buildingExplosion;
+    if (!state || !state.active || state.fadingOut || !this.ctx) return;
+    state.fadingOut = true;
+    const now = this.ctx.currentTime;
+    const dur = Math.max(0.15, fadeDurationSec);
+    state.masterExpGain.gain.cancelScheduledValues(now);
+    state.masterExpGain.gain.setValueAtTime(state.masterExpGain.gain.value, now);
+    state.masterExpGain.gain.linearRampToValueAtTime(0.0005, now + dur);
+  }
+
+  /**
+   * Pauses or resumes the active building explosion playback without losing timeline sync.
+   */
+  setBuildingExplosionPaused(paused) {
+    const state = this._buildingExplosion;
+    if (!state || !state.active || !this.ctx) return;
+    const wantPause = !!paused;
+    if (wantPause === state.paused) return;
+
+    const now = this.ctx.currentTime;
+    if (wantPause) {
+      state.offset = Math.min(state.duration, state.offset + Math.max(0, now - state.startTime));
+      state.paused = true;
+      if (state.source) {
+        try {
+          state.source.onended = null;
+          state.source.stop();
+          state.source.disconnect();
+        } catch (e) { }
+        state.source = null;
+      }
+      state.masterExpGain.gain.setTargetAtTime(0.0, now, 0.015);
+    } else {
+      state.paused = false;
+      state.masterExpGain.gain.setValueAtTime(state.fadingOut ? 0.0005 : 1.85, now);
+      this._startBuildingExplosionSource(state, state.offset);
+    }
+  }
+
+  /**
+   * Immediately stops and disconnects any active building_explosions.mp3 playback.
+   */
+  stopBuildingExplosion() {
+    const state = this._buildingExplosion;
+    if (!state) return;
+    state.active = false;
+    state.paused = false;
+
+    if (state.source) {
+      try {
+        state.source.onended = null;
+        state.source.stop();
+        state.source.disconnect();
+      } catch (e) { }
+      state.source = null;
+    }
+
+    const nodes = [
+      state.subFilter,
+      state.subGain,
+      state.dirFilter,
+      state.stereoPanner,
+      state.dirGain,
+      state.masterExpGain,
+      state.expLimiter,
+    ];
+    for (const node of nodes) {
+      if (node) {
+        try { node.disconnect(); } catch (e) { }
+      }
+    }
+    this._buildingExplosion = null;
+  }
+
+  /**
+   * Metallic stanchion pole & cast-iron base clatter as barrier posts crash onto the marble floor.
+   */
+  playStanchionToppleClatter() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    const hitImpulse = (offset, baseFreq, amp) => {
+      const t = now + offset;
+      // 1. Cast-iron base impact thud
+      const thud = this.ctx.createOscillator();
+      const thudG = this.ctx.createGain();
+      thud.type = 'triangle';
+      thud.frequency.setValueAtTime(145, t);
+      thud.frequency.exponentialRampToValueAtTime(48, t + 0.09);
+      thudG.gain.setValueAtTime(0.001, t);
+      thudG.gain.linearRampToValueAtTime(0.28 * amp, t + 0.005);
+      thudG.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+      thud.connect(thudG);
+      thudG.connect(this.masterGain);
+      thud.start(t);
+      thud.stop(t + 0.15);
+
+      // 2. Hollow brushed steel tube clang partials
+      for (const mult of [1.0, 2.38]) {
+        const clang = this.ctx.createOscillator();
+        const clangG = this.ctx.createGain();
+        clang.type = 'sine';
+        clang.frequency.setValueAtTime(baseFreq * mult, t);
+        clangG.gain.setValueAtTime(0.001, t);
+        clangG.gain.linearRampToValueAtTime((mult === 1 ? 0.20 : 0.09) * amp, t + 0.003);
+        clangG.gain.exponentialRampToValueAtTime(0.001, t + (mult === 1 ? 0.36 : 0.20));
+        clang.connect(clangG);
+        clangG.connect(this.masterGain);
+        clang.start(t);
+        clang.stop(t + 0.38);
+      }
+    };
+
+    // Staggered left & right stanchion impacts + small floor bounce rattle
+    hitImpulse(0.00, 415, 1.0);
+    hitImpulse(0.07, 465, 0.85);
+    hitImpulse(0.14, 520, 0.40);
+    hitImpulse(0.22, 480, 0.22);
   }
 }

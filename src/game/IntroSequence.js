@@ -7,6 +7,7 @@ export const INTRO_STATES = Object.freeze({
   PHONE_RINGING: 'PHONE_RINGING',
   PHONE_ANSWERED: 'PHONE_ANSWERED',
   CALL_ENDED: 'CALL_ENDED',
+  BUILDING_EXPLOSION: 'BUILDING_EXPLOSION',
 });
 
 export const PHONE_DIALOGUE_SCRIPT = Object.freeze([
@@ -44,9 +45,19 @@ const TYPEWRITER_PUNCT_PAUSE = 0.18;
 const CALL_PICKUP_DELAY_SECONDS = 0.30;
 const DIALOGUE_AUTO_ADVANCE_SECONDS = 3.0;
 
+// Post-call disconnect tone finishes at ~1.25s, followed by 2.2s eerie silence -> 3.45s total
+const PHONE_DISCONNECT_FINISH_SECONDS = 1.25;
+const POST_CALL_SILENCE_SECONDS = 2.20;
+const POST_CALL_EXPLOSION_DELAY_SECONDS = PHONE_DISCONNECT_FINISH_SECONDS + POST_CALL_SILENCE_SECONDS;
+const BUILDING_EXPLOSION_DURATION_SECONDS = 9.0;
+const STAIRWELL_BLAST_POS = Object.freeze({ x: -11.0, y: 1.2, z: 11.5 });
+const SMOKE_POOL_COUNT = 120;
+const CONCRETE_DEBRIS_COUNT = 24;
+const PLASTER_DEBRIS_COUNT = 12;
+
 /**
  * Coordinates the opening gameplay state sequence:
- *  ELEVATOR_ARRIVING -> UNARMED_INTRO -> PHONE_RINGING -> PHONE_ANSWERED -> CALL_ENDED
+ *  ELEVATOR_ARRIVING -> UNARMED_INTRO -> PHONE_RINGING -> PHONE_ANSWERED -> CALL_ENDED -> BUILDING_EXPLOSION
  */
 export class IntroSequence {
   constructor({ scene, camera, player, weaponSystem, hud, sound, input, warehouse }) {
@@ -84,10 +95,24 @@ export class IntroSequence {
     this._playerDisplayedText = '';
     this._showPlayerRow = false;
 
+    // Post-call & stairwell building explosion state
+    this._callEndedTimer = 0;
+    this._explosionTimer = 0;
+    this._explosionWave2Triggered = false;
+    this._explosionWave3Triggered = false;
+    this._explosionFadeTriggered = false;
+    this._explosionAudioStopped = false;
+    this._stanchionClatterPlayed = false;
+    this._debrisAllSettled = true;
+    this._smokeActiveCount = 0;
+
     // Pre-allocated scratch vectors for zero per-frame GC allocations
     this._phoneWorldPos = new THREE.Vector3(1.46, 0.95, -2.82);
     this._toPhone = new THREE.Vector3();
+    this._toBlast = new THREE.Vector3();
     this._camRight = new THREE.Vector3();
+    this._camUp = new THREE.Vector3();
+    this._dummyObj = new THREE.Object3D();
     this._arrowBaseY = this._phoneWorldPos.y + 0.48;
 
     this._phoneRef = null;
@@ -95,6 +120,7 @@ export class IntroSequence {
 
     this._resolvePhoneReference();
     this._buildFloatingArrow();
+    this._buildExplosionVfxPools();
 
     this._onKeyDown = (e) => this._handleKeyDown(e);
     if (typeof window !== 'undefined' && typeof window.addEventListener === 'function') {
@@ -176,6 +202,177 @@ export class IntroSequence {
     }
   }
 
+  _createSmokePuffTexture() {
+    const size = 128;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, size, size);
+    // Soft multi-lobe volumetric smoke cloud (thick cloudy body, drops cleanly to 0 strictly inside r = 56/128 = 0.4375)
+    const lobes = [
+      { x: 64, y: 64, r: 56, a: 0.90 },
+      { x: 50, y: 58, r: 41, a: 0.58 },
+      { x: 78, y: 55, r: 39, a: 0.54 },
+      { x: 59, y: 77, r: 41, a: 0.56 },
+    ];
+    for (const l of lobes) {
+      const g = ctx.createRadialGradient(l.x, l.y, l.r * 0.08, l.x, l.y, l.r);
+      g.addColorStop(0.0, `rgba(214, 212, 208, ${l.a})`);
+      g.addColorStop(0.50, `rgba(174, 174, 172, ${(l.a * 0.72).toFixed(3)})`);
+      g.addColorStop(0.78, `rgba(130, 132, 134, ${(l.a * 0.34).toFixed(3)})`);
+      g.addColorStop(1.0, 'rgba(90, 92, 96, 0.0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(l.x, l.y, l.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  _buildExplosionVfxPools() {
+    this._smokeTex = this._createSmokePuffTexture();
+    const smokeQuadGeo = new THREE.PlaneGeometry(1, 1);
+    const smokeTints = [0x828489, 0x99958d, 0x6c7077, 0xb0aba2];
+
+    this._smokePool = [];
+    for (let i = 0; i < SMOKE_POOL_COUNT; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        map: this._smokeTex,
+        color: smokeTints[i % smokeTints.length],
+        transparent: true,
+        depthWrite: false,
+        opacity: 0,
+      });
+      const mesh = new THREE.Mesh(smokeQuadGeo, mat);
+      mesh.name = `StairwellSmokePuff_${i}`;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.frustumCulled = false;
+      // Draw before DC_VestibuleGlass (renderOrder = 2) so office view sees smoke behind glass
+      mesh.renderOrder = 1;
+      mesh.visible = false;
+      if (this.scene) this.scene.add(mesh);
+
+      this._smokePool.push({
+        mesh,
+        mat,
+        active: false,
+        ambientHaze: false,
+        age: 0,
+        life: 6.0,
+        x: 0, y: 0, z: 0,
+        vx: 0, vy: 0, vz: 0,
+        startScale: 1.0,
+        endScale: 3.0,
+        peakOpacity: 0.45,
+        rot: 0,
+        rotVel: 0,
+      });
+    }
+
+    // Build deterministic jagged low-poly concrete & plaster debris instanced batches (2 draw calls total)
+    const concreteGeo = new THREE.DodecahedronGeometry(0.058, 0);
+    const cPos = concreteGeo.attributes.position;
+    for (let i = 0; i < cPos.count; i++) {
+      const j = 0.72 + ((i * 37) % 13) * 0.045;
+      cPos.setXYZ(i, cPos.getX(i) * j, cPos.getY(i) * (0.68 + (i % 5) * 0.11), cPos.getZ(i) * j);
+    }
+    concreteGeo.computeVertexNormals();
+    this._concreteMat = new THREE.MeshStandardMaterial({
+      color: 0x626870,
+      roughness: 0.94,
+      metalness: 0.04,
+    });
+    this._concreteInstanced = new THREE.InstancedMesh(concreteGeo, this._concreteMat, CONCRETE_DEBRIS_COUNT);
+    this._concreteInstanced.name = 'StairwellConcreteDebris';
+    this._concreteInstanced.castShadow = false;
+    this._concreteInstanced.receiveShadow = true;
+    this._concreteInstanced.frustumCulled = false;
+    this._concreteInstanced.visible = false;
+
+    const plasterGeo = new THREE.BoxGeometry(0.145, 0.022, 0.105);
+    this._plasterMat = new THREE.MeshStandardMaterial({
+      color: 0xd0d5dc,
+      roughness: 0.92,
+      metalness: 0.02,
+    });
+    this._plasterInstanced = new THREE.InstancedMesh(plasterGeo, this._plasterMat, PLASTER_DEBRIS_COUNT);
+    this._plasterInstanced.name = 'StairwellPlasterDebris';
+    this._plasterInstanced.castShadow = false;
+    this._plasterInstanced.receiveShadow = true;
+    this._plasterInstanced.frustumCulled = false;
+    this._plasterInstanced.visible = false;
+
+    if (this.scene) {
+      this.scene.add(this._concreteInstanced);
+      this.scene.add(this._plasterInstanced);
+    }
+
+    this._debrisItems = [];
+    const totalDebris = CONCRETE_DEBRIS_COUNT + PLASTER_DEBRIS_COUNT;
+    for (let i = 0; i < totalDebris; i++) {
+      const isConcrete = i < CONCRETE_DEBRIS_COUNT;
+      this._debrisItems.push({
+        isConcrete,
+        instIdx: isConcrete ? i : i - CONCRETE_DEBRIS_COUNT,
+        active: false,
+        settled: false,
+        x: 0, y: -10, z: 0,
+        vx: 0, vy: 0, vz: 0,
+        rx: 0, ry: 0, rz: 0,
+        avx: 0, avy: 0, avz: 0,
+        sx: 1, sy: 1, sz: 1,
+        restY: isConcrete ? 0.036 : 0.012,
+      });
+    }
+    this._hideAllDebris();
+  }
+
+  _hideAllDebris() {
+    this._dummyObj.position.set(0, -10, 0);
+    this._dummyObj.scale.set(0, 0, 0);
+    this._dummyObj.rotation.set(0, 0, 0);
+    this._dummyObj.updateMatrix();
+    if (this._concreteInstanced) {
+      for (let i = 0; i < CONCRETE_DEBRIS_COUNT; i++) {
+        this._concreteInstanced.setMatrixAt(i, this._dummyObj.matrix);
+      }
+      this._concreteInstanced.instanceMatrix.needsUpdate = true;
+      this._concreteInstanced.visible = false;
+    }
+    if (this._plasterInstanced) {
+      for (let i = 0; i < PLASTER_DEBRIS_COUNT; i++) {
+        this._plasterInstanced.setMatrixAt(i, this._dummyObj.matrix);
+      }
+      this._plasterInstanced.instanceMatrix.needsUpdate = true;
+      this._plasterInstanced.visible = false;
+    }
+    if (this._debrisItems) {
+      for (const d of this._debrisItems) {
+        d.active = false;
+        d.settled = false;
+      }
+    }
+    this._debrisAllSettled = true;
+  }
+
+  _hideAllSmoke() {
+    if (!this._smokePool) return;
+    for (const p of this._smokePool) {
+      p.active = false;
+      p.ambientHaze = false;
+      p.mat.opacity = 0;
+      p.mesh.visible = false;
+    }
+    this._smokeActiveCount = 0;
+  }
+
   /**
    * Positions Roc inside the closed elevator cab facing straight toward the steel doors
    * and ensures closed door panels + blocker collider are in their initial state.
@@ -240,6 +437,19 @@ export class IntroSequence {
     this._enteredMainRoom = false;
     this._mainRoomRingTimer = 0;
     this._dialogueActive = false;
+    this._callEndedTimer = 0;
+    this._explosionTimer = 0;
+    this._explosionWave2Triggered = false;
+    this._explosionWave3Triggered = false;
+    this._explosionFadeTriggered = false;
+    this._explosionAudioStopped = false;
+    this._stanchionClatterPlayed = false;
+
+    this._hideAllDebris();
+    this._hideAllSmoke();
+    if (this.warehouse && this.warehouse.stairwellStanchions) {
+      this.warehouse.stairwellStanchions.resetStairwellStanchions();
+    }
 
     this.spawnInElevator(false);
     if (this.sound && typeof this.sound.resume === 'function') {
@@ -266,6 +476,10 @@ export class IntroSequence {
     if (!this.sound) return;
     if (this.state === INTRO_STATES.PHONE_RINGING) {
       this.sound.setPhoneRingtonePaused(nextState !== 'PLAYING');
+    } else if (this.state === INTRO_STATES.BUILDING_EXPLOSION) {
+      if (typeof this.sound.setBuildingExplosionPaused === 'function') {
+        this.sound.setBuildingExplosionPaused(nextState !== 'PLAYING');
+      }
     }
   }
 
@@ -474,9 +688,10 @@ export class IntroSequence {
   }
 
   _endPhoneCall() {
-    if (this.state === INTRO_STATES.CALL_ENDED) return;
+    if (this.state === INTRO_STATES.CALL_ENDED || this.state === INTRO_STATES.BUILDING_EXPLOSION) return;
     this.state = INTRO_STATES.CALL_ENDED;
     this._dialogueActive = false;
+    this._callEndedTimer = 0;
 
     if (this.player && typeof this.player.setJumpSuppressed === 'function') {
       this.player.setJumpSuppressed(false);
@@ -499,6 +714,462 @@ export class IntroSequence {
     }
 
     this._resetPhoneToIdle();
+  }
+
+  _triggerBuildingExplosion() {
+    if (this.state === INTRO_STATES.BUILDING_EXPLOSION) return;
+    this.state = INTRO_STATES.BUILDING_EXPLOSION;
+    this._explosionTimer = 0;
+    this._explosionWave2Triggered = false;
+    this._explosionWave3Triggered = false;
+    this._explosionFadeTriggered = false;
+    this._explosionAudioStopped = false;
+    this._stanchionClatterPlayed = false;
+
+    if (this.sound && typeof this.sound.playBuildingExplosion === 'function') {
+      this.sound.playBuildingExplosion();
+    }
+
+    if (this.warehouse && this.warehouse.stairwellStanchions) {
+      this.warehouse.stairwellStanchions.toppleStairwellStanchions(true);
+    }
+
+    // Wave 1: Initial blast smoke plume & concrete rubble surge engulfing the entire vestibule
+    this._launchSmokeWave(1);
+    this._launchDebrisWave(0, 16, 1.0);
+  }
+
+  _launchSmokeWave(waveIdx) {
+    if (!this._smokePool) return;
+    const waveCounts = { 1: 56, 2: 32, 3: 32 };
+    const want = waveCounts[waveIdx] || 32;
+    let spawned = 0;
+
+    for (let i = 0; i < this._smokePool.length && spawned < want; i++) {
+      const p = this._smokePool[i];
+      if (p.active) continue;
+
+      const u = (spawned + 0.5) / want;
+      const isEdgeHugger = (spawned % 2 === 0);
+
+      p.active = true;
+      p.ambientHaze = true; // Held full density through 9.0s action, then smoothly fades out
+      p.age = 0;
+      p.life = 13.8 + (spawned % 5) * 0.45; // Smoothly resolves after the 9.0s action finishes
+
+      if (isEdgeHugger) {
+        // Tighter clouds hug right up against glass window, ceiling, floor & walls without clipping
+        p.startScale = 1.00 + (spawned % 3) * 0.16;
+        p.endScale = 1.48 + (spawned % 3) * 0.18; // max 1.84m -> radius ~0.83m fills to 2cm of glass/walls
+      } else {
+        // Larger volumetric core billows pack the interior volume of the vestibule
+        p.startScale = 1.25 + (spawned % 3) * 0.22;
+        p.endScale = 2.00 + (spawned % 4) * 0.18; // max 2.54m -> fits cleanly inside 3.99m x 3.80m box
+      }
+
+      // Distribute across EVERY zone of the vestibule (stairwell, south pocket, window corridor, doorway & elevator)
+      const zoneMod = spawned % 5;
+      if (zoneMod === 0) {
+        // Right behind the glass partition window (Z = 1.9..9.6)
+        p.x = -12.10 + (spawned % 3) * 0.48;
+        p.y = 0.72 + ((spawned * 3) % 5) * 0.54;
+        p.z = 1.90 + u * 8.40;
+      } else if (zoneMod === 1) {
+        // Center & north marble vestibule (elevator / plant / cart / doorway)
+        p.x = -13.45 + u * 2.55;
+        p.y = 0.75 + ((spawned * 2) % 4) * 0.65;
+        p.z = 7.60 + ((spawned * 3) % 5) * 0.72;
+      } else if (zoneMod === 2) {
+        // Stairwell upper mouth & mid-landing
+        p.x = -13.50 + u * 2.50;
+        p.y = 0.75 + (spawned % 4) * 0.60;
+        p.z = 5.05 + ((spawned * 5) % 4) * 0.68;
+      } else if (zoneMod === 3) {
+        // South vestibule stairwell bay (Z = 1.8..5.2)
+        p.x = -13.45 + u * 2.45;
+        p.y = 0.80 + (spawned % 4) * 0.60;
+        p.z = 1.85 + ((spawned * 7) % 5) * 0.68;
+      } else {
+        // Upper vestibule volume filling ceiling layer (Y = 1.8..3.0)
+        p.x = -13.35 + u * 2.35;
+        p.y = 1.85 + (spawned % 3) * 0.48;
+        p.z = 2.40 + u * 7.90;
+      }
+
+      // Swirling turbulence strictly inside the vestibule
+      p.vx = Math.sin(spawned * 3.7 + waveIdx) * 0.44;
+      p.vy = 0.16 + ((spawned % 3) - 1) * 0.14;
+      p.vz = Math.cos(spawned * 2.9 + waveIdx) * 0.44 + 0.08;
+
+      p.peakOpacity = waveIdx === 1 ? 0.78 : 0.72;
+      p.rot = (spawned * 1.17) % (Math.PI * 2);
+      p.rotVel = ((spawned % 2 === 0 ? 1 : -1) * (0.24 + (spawned % 3) * 0.09));
+
+      p.mesh.position.set(p.x, p.y, p.z);
+      p.mesh.scale.set(p.startScale, p.startScale, 1);
+      p.mat.opacity = 0;
+      p.mesh.visible = true;
+      spawned++;
+    }
+  }
+
+  _launchDebrisWave(startIdx, endIdx, waveBoost = 1.0) {
+    if (!this._debrisItems) return;
+    if (this._concreteInstanced) this._concreteInstanced.visible = true;
+    if (this._plasterInstanced) this._plasterInstanced.visible = true;
+    this._debrisAllSettled = false;
+
+    const span = Math.max(1, endIdx - startIdx);
+    for (let i = startIdx; i < endIdx && i < this._debrisItems.length; i++) {
+      const d = this._debrisItems[i];
+      const frac = (i - startIdx) / span;
+      const seed = (i + 1) * 1.6180339;
+
+      d.active = true;
+      d.settled = false;
+      d.x = -13.65 + frac * 1.95 + Math.sin(seed * 4.3) * 0.16;
+      d.y = 0.18 + ((i * 7) % 5) * 0.12;
+      d.z = 6.55 + ((i * 5) % 4) * 0.22;
+
+      // Positive Z velocities ensure chunks blast out of stairwell onto vestibule black marble landing
+      d.vx = Math.sin(seed * 7.1) * 1.35 + 0.30;
+      d.vy = (2.8 + ((i * 11) % 6) * 0.52) * waveBoost;
+      d.vz = (1.9 + ((i * 13) % 7) * 0.36) * waveBoost;
+
+      d.rx = seed;
+      d.ry = seed * 2.1;
+      d.rz = seed * 0.7;
+      d.avx = (i % 2 === 0 ? 1 : -1) * (5.5 + (i % 5) * 1.8);
+      d.avy = (i % 3 === 0 ? 1 : -1) * (4.5 + (i % 4) * 1.6);
+      d.avz = (i % 2 === 0 ? -1 : 1) * (5.0 + (i % 6) * 1.4);
+
+      const scaleBase = d.isConcrete ? (0.72 + (i % 5) * 0.19) : (0.75 + (i % 4) * 0.22);
+      d.sx = scaleBase;
+      d.sy = scaleBase * (d.isConcrete ? (0.75 + (i % 3) * 0.16) : 1.0);
+      d.sz = scaleBase * (d.isConcrete ? (0.85 + (i % 4) * 0.12) : 1.0);
+      d.restY = (d.isConcrete ? 0.036 : 0.012) * d.sy;
+    }
+  }
+
+  /**
+   * Procedural tremor envelope compressed to the 9.0s action window:
+   *  - 0.0s - 1.8s: Sharp initial blast shockwave jolt tapering through 1.8s
+   *  - 1.8s - 2.5s: Heavy structural groan lull
+   *  - 2.5s - 4.5s: Secondary explosion shock pulse
+   *  - 4.5s - 7.8s: Heavy sustained structural collapse tremor
+   *  - 7.8s - 9.0s: Smooth cosine decay back to 0.0
+   */
+  _computeWaveformShakeAmplitude(t) {
+    if (t < 0 || t >= BUILDING_EXPLOSION_DURATION_SECONDS) return 0;
+
+    if (t < 1.8) {
+      const attack = Math.min(1.0, t / 0.10);
+      const decay = 0.34 + 0.66 * Math.exp(-t * 0.95);
+      const ripple = 1.0 + 0.16 * Math.sin(t * 7.8);
+      return attack * decay * ripple;
+    }
+    if (t < 2.5) {
+      const u = (t - 1.8) / 0.7;
+      return 0.28 - 0.07 * Math.sin(u * Math.PI);
+    }
+    if (t < 4.5) {
+      const u = t - 2.5;
+      const pulse1 = 0.76 * Math.exp(-u * 1.45);
+      const pulse2 = 0.46 * Math.exp(-Math.pow((u - 1.05) / 0.42, 2));
+      return Math.max(0.28, 0.28 + pulse1 + pulse2);
+    }
+    if (t < 7.8) {
+      // Intense collapse tremor across 4.5s..7.8s
+      const rampIn = Math.min(1.0, Math.max(0.0, (t - 4.4) / 0.55));
+      const rampOut = t > 7.1 ? Math.max(0.45, 1.0 - ((t - 7.1) / 0.7) * 0.55) : 1.0;
+      const collapseBody = 0.88 + 0.18 * Math.sin((t - 4.5) * 3.8) + 0.09 * Math.cos((t - 4.5) * 9.5);
+      return rampIn * rampOut * collapseBody;
+    }
+
+    // 7.8s - 9.0s smooth cosine fade to 0.0
+    const fadeU = (t - 7.8) / 1.2;
+    return 0.44 * 0.5 * (1.0 + Math.cos(Math.PI * Math.min(1.0, fadeU)));
+  }
+
+  _updateSmokePool(delta) {
+    if (!this._smokePool) return;
+    let activeCount = 0;
+
+    for (let i = 0; i < this._smokePool.length; i++) {
+      const p = this._smokePool[i];
+      if (!p.active) continue;
+
+      p.age += delta;
+      // After the ~9s explosion action ends, let designated floor haze linger softly across vestibule
+      if (!p.ambientHaze && p.age >= p.life) {
+        p.active = false;
+        p.mat.opacity = 0;
+        p.mesh.visible = false;
+        continue;
+      }
+
+      activeCount++;
+      p.x += p.vx * delta;
+      p.y += p.vy * delta;
+      p.z += p.vz * delta;
+
+      // Light drag keeps plumes churning across the entire 9s window without stalling at t=3s
+      const drag = Math.exp(-delta * 0.18);
+      p.vx *= drag;
+      p.vy *= Math.exp(-delta * 0.24);
+      p.vz *= drag;
+      p.rot += p.rotVel * delta;
+
+      // Fast initial expansion into thick cloud volume over the first ~1.6s, holding full volume afterward
+      const expandFrac = Math.min(1.0, p.age / 1.6);
+      const scale = p.startScale + (p.endScale - p.startScale) * (1.0 - Math.pow(1.0 - expandFrac, 1.8));
+
+      // Hard-contain the entire visible puff radius inside vestibule walls (-14.18..-10.24, Y 0.04..3.76, Z 1.24..11.26)
+      // Since _smokeTex drops to 0.0 alpha inside r = 0.4375 * scale, rMargin = 0.45 * scale + 0.03 keeps 100% of pixels inside
+      const rMargin = Math.min(scale * 0.45 + 0.03, 1.82);
+      const minX = -14.18 + rMargin;
+      const maxX = -10.24 - rMargin;
+      const minY = 0.04 + rMargin;
+      const maxY = 3.76 - rMargin;
+      const minZ = 1.24 + rMargin;
+      const maxZ = 11.26 - rMargin;
+
+      if (p.x < minX) {
+        p.x = minX;
+        p.vx = Math.abs(p.vx) * 0.45;
+      } else if (p.x > maxX) {
+        p.x = maxX;
+        p.vx = -Math.abs(p.vx) * 0.45;
+      }
+      if (p.y < minY) {
+        p.y = minY;
+        p.vy = Math.abs(p.vy) * 0.35;
+      } else if (p.y > maxY) {
+        p.y = maxY;
+        p.vy = -Math.abs(p.vy) * 0.30;
+      }
+      if (p.z < minZ) {
+        p.z = minZ;
+        p.vz = Math.abs(p.vz) * 0.40;
+      } else if (p.z > maxZ) {
+        p.z = maxZ;
+        p.vz = -Math.abs(p.vz) * 0.40;
+      }
+
+      p.mesh.position.set(p.x, p.y, p.z);
+      p.mesh.scale.set(scale, scale, 1);
+
+      let alpha;
+      if (p.age < 0.35) {
+        // Snap rapidly into full engulfing blast smoke
+        alpha = p.peakOpacity * (p.age / 0.35);
+      } else if (this._explosionTimer <= BUILDING_EXPLOSION_DURATION_SECONDS) {
+        // Keep the entire vestibule solidly engulfed for the full 9.0s action beat
+        const churn = 0.90 + 0.10 * Math.sin(p.age * 1.9 + p.rot);
+        alpha = p.peakOpacity * churn;
+      } else {
+        // Smooth fade out after the 9.0s action beat ends (9.0s -> 13.5s)
+        const postT = this._explosionTimer - BUILDING_EXPLOSION_DURATION_SECONDS;
+        const fadeDur = 4.5 + (i % 4) * 0.45;
+        const fadeFrac = Math.min(1.0, postT / fadeDur);
+        alpha = p.peakOpacity * Math.pow(Math.max(0, 1.0 - fadeFrac), 1.45);
+        if (alpha <= 0.005) {
+          p.active = false;
+          p.mesh.visible = false;
+          continue;
+        }
+      }
+
+      p.mat.opacity = alpha;
+      if (this.camera) {
+        p.mesh.quaternion.copy(this.camera.quaternion);
+        p.mesh.rotateZ(p.rot);
+      }
+    }
+    this._smokeActiveCount = activeCount;
+  }
+
+  _updateDebrisPhysics(delta) {
+    if (this._debrisAllSettled || !this._debrisItems) return;
+
+    const dt = Math.min(delta, 0.05);
+    let concreteDirty = false;
+    let plasterDirty = false;
+    let anyUnsettled = false;
+
+    for (let i = 0; i < this._debrisItems.length; i++) {
+      const d = this._debrisItems[i];
+      if (!d.active) continue;
+      if (d.settled) continue;
+
+      anyUnsettled = true;
+      d.vy -= 14.5 * dt;
+      d.x += d.vx * dt;
+      d.y += d.vy * dt;
+      d.z += d.vz * dt;
+
+      d.rx += d.avx * dt;
+      d.ry += d.avy * dt;
+      d.rz += d.avz * dt;
+
+      // Keep inside vestibule boundaries
+      if (d.x < -14.08) {
+        d.x = -14.08;
+        d.vx = Math.abs(d.vx) * 0.45;
+      } else if (d.x > -10.35) {
+        d.x = -10.35;
+        d.vx = -Math.abs(d.vx) * 0.45;
+      }
+      if (d.z > 11.08) {
+        d.z = 11.08;
+        d.vz = -Math.abs(d.vz) * 0.40;
+      } else if (d.z < 7.46 && d.y <= d.restY + 0.15) {
+        // Reflect slightly forward onto landing lip so debris collects visibly on floor
+        d.z = 7.46;
+        d.vz = Math.abs(d.vz) * 0.45;
+      }
+
+      // Floor collision against black marble floor (Y = 0.0)
+      if (d.y <= d.restY) {
+        d.y = d.restY;
+        if (Math.abs(d.vy) < 0.45) {
+          d.vx = 0;
+          d.vy = 0;
+          d.vz = 0;
+          d.avx = 0;
+          d.avy = 0;
+          d.avz = 0;
+          if (!d.isConcrete) {
+            // Flat ceiling tile shard settles relatively flat on marble surface
+            d.rx *= 0.12;
+            d.rz *= 0.12;
+          }
+          d.settled = true;
+        } else {
+          d.vy = Math.abs(d.vy) * 0.30;
+          d.vx *= 0.62;
+          d.vz *= 0.62;
+          d.avx *= 0.50;
+          d.avy *= 0.50;
+          d.avz *= 0.50;
+        }
+      }
+
+      this._dummyObj.position.set(d.x, d.y, d.z);
+      this._dummyObj.rotation.set(d.rx, d.ry, d.rz);
+      this._dummyObj.scale.set(d.sx, d.sy, d.sz);
+      this._dummyObj.updateMatrix();
+
+      if (d.isConcrete) {
+        this._concreteInstanced.setMatrixAt(d.instIdx, this._dummyObj.matrix);
+        concreteDirty = true;
+      } else {
+        this._plasterInstanced.setMatrixAt(d.instIdx, this._dummyObj.matrix);
+        plasterDirty = true;
+      }
+    }
+
+    if (concreteDirty && this._concreteInstanced) {
+      this._concreteInstanced.instanceMatrix.needsUpdate = true;
+    }
+    if (plasterDirty && this._plasterInstanced) {
+      this._plasterInstanced.instanceMatrix.needsUpdate = true;
+    }
+
+    if (!anyUnsettled) {
+      this._debrisAllSettled = true;
+    }
+  }
+
+  _updateBuildingExplosion(delta) {
+    this._explosionTimer += delta;
+
+    // Metallic stanchion floor-impact clatter synced with topple arc hitting marble floor
+    if (!this._stanchionClatterPlayed && this._explosionTimer >= 0.30) {
+      this._stanchionClatterPlayed = true;
+      if (this.sound && typeof this.sound.playStanchionToppleClatter === 'function') {
+        this.sound.playStanchionToppleClatter();
+      }
+    }
+
+    // Secondary & heavy collapse explosion pulse waves (2.5s & 4.6s within 9.0s action beat)
+    if (!this._explosionWave2Triggered && this._explosionTimer >= 2.5) {
+      this._explosionWave2Triggered = true;
+      this._launchSmokeWave(2);
+      this._launchDebrisWave(16, 26, 0.95);
+    }
+    if (!this._explosionWave3Triggered && this._explosionTimer >= 4.6) {
+      this._explosionWave3Triggered = true;
+      this._launchSmokeWave(3);
+      this._launchDebrisWave(26, 36, 1.12);
+    }
+    if (!this._explosionFadeTriggered && this._explosionTimer >= 7.9) {
+      this._explosionFadeTriggered = true;
+      if (this.sound && typeof this.sound.fadeOutBuildingExplosion === 'function') {
+        this.sound.fadeOutBuildingExplosion(1.1);
+      }
+    }
+    if (!this._explosionAudioStopped && this._explosionTimer >= 9.2) {
+      this._explosionAudioStopped = true;
+      if (this.sound && typeof this.sound.stopBuildingExplosion === 'function') {
+        this.sound.stopBuildingExplosion();
+      }
+    }
+
+    // Animate toppling stairwell stanchions until settled
+    if (this.warehouse && this.warehouse.stairwellStanchions) {
+      this.warehouse.stairwellStanchions.update(delta);
+    }
+
+    // Update spatial audio & procedural stronger camera tremor over 9.0s action window
+    if (this.camera) {
+      this._toBlast.set(
+        STAIRWELL_BLAST_POS.x - this.camera.position.x,
+        STAIRWELL_BLAST_POS.y - this.camera.position.y,
+        STAIRWELL_BLAST_POS.z - this.camera.position.z
+      );
+      const distance = this._toBlast.length();
+      let pan = 0;
+      if (distance > 0.001) {
+        const invDist = 1.0 / distance;
+        this._camRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+        pan = (this._camRight.x * this._toBlast.x + this._camRight.z * this._toBlast.z) * invDist;
+      }
+
+      const posRef = this.player ? this.player.position : this.camera.position;
+      const inMainOffice = posRef.x > -9.9;
+
+      if (this.sound && typeof this.sound.updateBuildingExplosionSpatial === 'function') {
+        this.sound.updateBuildingExplosionSpatial(distance, pan, inMainOffice);
+      }
+
+      if (this._explosionTimer < BUILDING_EXPLOSION_DURATION_SECONDS) {
+        const rawAmp = this._computeWaveformShakeAmplitude(this._explosionTimer);
+        const proxScale = inMainOffice
+          ? Math.max(0.72, 1.05 - Math.max(0, distance - 8.0) * 0.024)
+          : Math.min(1.32, 1.12 + Math.max(0, 6.0 - distance) * 0.032);
+        const amp = rawAmp * proxScale;
+
+        if (amp > 0.001) {
+          const t = this._explosionTimer;
+          const rollWave = Math.sin(t * 23.4) * 0.55 + Math.cos(t * 38.7) * 0.45;
+          const heaveWave = Math.sin(t * 18.6 + 0.9) * 0.60 + Math.sin(t * 45.2) * 0.40;
+          const lateralWave = Math.cos(t * 20.5 + 1.4) * 0.55 + Math.sin(t * 33.9) * 0.45;
+
+          this._camRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+          this._camUp.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
+
+          this.camera.position.addScaledVector(this._camRight, lateralWave * 0.024 * amp);
+          this.camera.position.addScaledVector(this._camUp, heaveWave * 0.029 * amp);
+
+          this.camera.rotation.x += heaveWave * 0.0125 * amp;
+          this.camera.rotation.z += rollWave * 0.0275 * amp;
+        }
+      }
+    }
+
+    this._updateSmokePool(delta);
+    this._updateDebrisPhysics(delta);
   }
 
   _resetPhoneToIdle() {
@@ -633,7 +1304,12 @@ export class IntroSequence {
     }
 
     // Fade in tutorial hint right as the elevator doors finish opening (~2.45s after START)
-    if (!this.tutorialDismissed && this.state !== INTRO_STATES.PHONE_ANSWERED && this.state !== INTRO_STATES.CALL_ENDED) {
+    if (
+      !this.tutorialDismissed &&
+      this.state !== INTRO_STATES.PHONE_ANSWERED &&
+      this.state !== INTRO_STATES.CALL_ENDED &&
+      this.state !== INTRO_STATES.BUILDING_EXPLOSION
+    ) {
       if (!this.tutorialShown) {
         if (this.state !== INTRO_STATES.ELEVATOR_ARRIVING || this._elevatorTimer >= TUTORIAL_REVEAL_TIME_SECONDS) {
           this.tutorialShown = true;
@@ -673,6 +1349,13 @@ export class IntroSequence {
       this._updateRingingVisualsAndAudio(performance.now() * 0.001);
     } else if (this.state === INTRO_STATES.PHONE_ANSWERED) {
       this._updateDialogue(delta);
+    } else if (this.state === INTRO_STATES.CALL_ENDED) {
+      this._callEndedTimer += delta;
+      if (this._callEndedTimer >= POST_CALL_EXPLOSION_DELAY_SECONDS) {
+        this._triggerBuildingExplosion();
+      }
+    } else if (this.state === INTRO_STATES.BUILDING_EXPLOSION) {
+      this._updateBuildingExplosion(delta);
     }
   }
 
@@ -698,15 +1381,31 @@ export class IntroSequence {
     this._callerDisplayedText = '';
     this._playerDisplayedText = '';
     this._showPlayerRow = false;
+    this._callEndedTimer = 0;
+    this._explosionTimer = 0;
+    this._explosionWave2Triggered = false;
+    this._explosionWave3Triggered = false;
+    this._explosionFadeTriggered = false;
+    this._explosionAudioStopped = false;
+    this._stanchionClatterPlayed = false;
 
     if (this.player && typeof this.player.setJumpSuppressed === 'function') {
       this.player.setJumpSuppressed(false);
     }
     if (this.sound) {
       this.sound.stopPhoneRingtone();
+      if (typeof this.sound.stopBuildingExplosion === 'function') {
+        this.sound.stopBuildingExplosion();
+      }
     }
     if (this.arrowMesh) {
       this.arrowMesh.visible = false;
+    }
+
+    this._hideAllDebris();
+    this._hideAllSmoke();
+    if (this.warehouse && this.warehouse.stairwellStanchions) {
+      this.warehouse.stairwellStanchions.resetStairwellStanchions();
     }
 
     this._resetPhoneToIdle();
