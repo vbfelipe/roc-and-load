@@ -2348,4 +2348,123 @@ export class SoundManager {
       nSrc.stop(clackT + 0.055);
     }
   }
+
+  /**
+   * Procedural two-tone resonant elevator arrival chime ("pin-dun!").
+   * G5 (~784 Hz, 0.5s decay) followed 0.38s later by D5 (~587 Hz, 0.85s decay).
+   */
+  playElevatorArrivalChime() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const strikeNote = (startT, baseFreq, decaySec, peakGain) => {
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.setValueAtTime(4800, startT);
+      lp.connect(this.masterGain);
+
+      const partials = [
+        { mult: 1.0, level: 1.0, dec: decaySec },
+        { mult: 2.0, level: 0.32, dec: decaySec * 0.65 },
+        { mult: 2.756, level: 0.14, dec: 0.095 },
+      ];
+
+      for (const p of partials) {
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFreq * p.mult, startT);
+
+        const targetGain = Math.max(0.002, peakGain * p.level);
+        g.gain.setValueAtTime(0.0005, startT);
+        g.gain.linearRampToValueAtTime(targetGain, startT + 0.004);
+        g.gain.exponentialRampToValueAtTime(0.0005, startT + p.dec);
+
+        osc.connect(g);
+        g.connect(lp);
+        osc.start(startT);
+        osc.stop(startT + p.dec + 0.02);
+      }
+    };
+
+    strikeNote(t, 783.99, 0.50, 0.34);        // "Pin" (G5)
+    strikeNote(t + 0.38, 587.33, 0.85, 0.36); // "Dun" (D5)
+  }
+
+  /**
+   * Procedural electric elevator sliding-door motor glide, track roller hum & end latch (~1.5s).
+   */
+  playElevatorDoorSlide() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+    const dur = 1.50;
+
+    // 1. Subtle low-frequency electric door motor servo glide
+    const motorOsc = this.ctx.createOscillator();
+    const motorFilter = this.ctx.createBiquadFilter();
+    const motorGain = this.ctx.createGain();
+    motorOsc.type = 'triangle';
+    motorOsc.frequency.setValueAtTime(68, t);
+    motorOsc.frequency.linearRampToValueAtTime(94, t + 0.35);
+    motorOsc.frequency.linearRampToValueAtTime(86, t + 1.15);
+    motorOsc.frequency.linearRampToValueAtTime(52, t + dur);
+
+    motorFilter.type = 'lowpass';
+    motorFilter.frequency.setValueAtTime(220, t);
+
+    motorGain.gain.setValueAtTime(0.001, t);
+    motorGain.gain.linearRampToValueAtTime(0.075, t + 0.16);
+    motorGain.gain.setValueAtTime(0.070, t + 1.22);
+    motorGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+    motorOsc.connect(motorFilter);
+    motorFilter.connect(motorGain);
+    motorGain.connect(this.masterGain);
+    motorOsc.start(t);
+    motorOsc.stop(t + dur + 0.03);
+
+    // 2. Smooth steel-track ball-bearing roller hiss
+    const noiseBuf = this._createNoiseBuffer(dur + 0.05);
+    if (noiseBuf) {
+      const nSrc = this.ctx.createBufferSource();
+      nSrc.buffer = noiseBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(380, t);
+      bp.frequency.linearRampToValueAtTime(640, t + 0.55);
+      bp.frequency.linearRampToValueAtTime(320, t + dur);
+      bp.Q.setValueAtTime(1.8, t);
+
+      const nGain = this.ctx.createGain();
+      nGain.gain.setValueAtTime(0.001, t);
+      nGain.gain.linearRampToValueAtTime(0.065, t + 0.22);
+      nGain.gain.setValueAtTime(0.055, t + 1.20);
+      nGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+      nSrc.connect(bp);
+      bp.connect(nGain);
+      nGain.connect(this.masterGain);
+      nSrc.start(t);
+      nSrc.stop(t + dur + 0.03);
+    }
+
+    // 3. Soft mechanical pocket-bumper / latch stop at ~1.44s
+    const stopT = t + 1.44;
+    const stopOsc = this.ctx.createOscillator();
+    const stopGain = this.ctx.createGain();
+    stopOsc.type = 'sine';
+    stopOsc.frequency.setValueAtTime(115, stopT);
+    stopOsc.frequency.exponentialRampToValueAtTime(44, stopT + 0.065);
+
+    stopGain.gain.setValueAtTime(0.001, t);
+    stopGain.gain.setValueAtTime(0.18, stopT);
+    stopGain.gain.exponentialRampToValueAtTime(0.001, stopT + 0.075);
+
+    stopOsc.connect(stopGain);
+    stopGain.connect(this.masterGain);
+    stopOsc.start(stopT);
+    stopOsc.stop(stopT + 0.09);
+  }
 }

@@ -2799,8 +2799,8 @@ function createVestibuleHalfWallTexture() {
 }
 
 /**
- * Procedural Brushed Stainless Steel Texture (512x512)
- * for the double elevator doors, call button plate, and cylindrical office trash bin.
+ * Procedural Vertical-Brushed Stainless Steel Texture (512x512)
+ * for elevator cab walls, double sliding elevator doors, call button plate, and trash bin.
  */
 function createBrushedStainlessTexture() {
   const size = 512;
@@ -2809,11 +2809,22 @@ function createBrushedStainlessTexture() {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  const grad = ctx.createLinearGradient(0, 0, size, size);
-  grad.addColorStop(0, '#c8cfd8');
-  grad.addColorStop(0.5, '#e2e7ee');
-  grad.addColorStop(1, '#bcc4ce');
+  // Subtle horizontal cool/warm metallic sheen gradient across stainless sheet
+  const grad = ctx.createLinearGradient(0, 0, size, 0);
+  grad.addColorStop(0.0, '#bac2cc');
+  grad.addColorStop(0.28, '#dce2ea');
+  grad.addColorStop(0.55, '#c6ced8');
+  grad.addColorStop(0.80, '#e3e8ef');
+  grad.addColorStop(1.0, '#b8c0ca');
   ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  // Soft vertical subtle illumination gradient top-to-bottom
+  const vGrad = ctx.createLinearGradient(0, 0, 0, size);
+  vGrad.addColorStop(0.0, 'rgba(255, 255, 255, 0.08)');
+  vGrad.addColorStop(0.55, 'rgba(0, 0, 0, 0.0)');
+  vGrad.addColorStop(1.0, 'rgba(15, 23, 42, 0.12)');
+  ctx.fillStyle = vGrad;
   ctx.fillRect(0, 0, size, size);
 
   let seed = 91823;
@@ -2822,18 +2833,26 @@ function createBrushedStainlessTexture() {
     return (seed - 1) / 2147483646;
   };
 
-  for (let i = 0; i < 1600; i++) {
+  // Fine vertical brushed hairline scratches
+  for (let i = 0; i < 3400; i++) {
     const x = rand() * size;
     const y = rand() * size;
-    const len = 18 + rand() * 70;
-    const bright = rand() > 0.5 ? 250 : 165;
-    ctx.strokeStyle = `rgba(${bright}, ${bright}, ${bright + 4}, 0.08)`;
-    ctx.lineWidth = 1;
+    const len = 24 + rand() * 110;
+    const bright = rand() > 0.48 ? 248 : 148;
+    const alpha = 0.04 + rand() * 0.07;
+    ctx.strokeStyle = `rgba(${bright}, ${bright + 2}, ${bright + 6}, ${alpha.toFixed(3)})`;
+    ctx.lineWidth = rand() > 0.85 ? 1.2 : 0.7;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x, y + len);
     ctx.stroke();
   }
+
+  // Subtle vertical panel seam lines along edges (u = 0 / 1)
+  ctx.fillStyle = 'rgba(25, 32, 42, 0.28)';
+  ctx.fillRect(0, 0, 2, size);
+  ctx.fillStyle = 'rgba(248, 250, 252, 0.16)';
+  ctx.fillRect(2, 0, 1, size);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
@@ -2989,6 +3008,671 @@ function createElevatorDisplayTextures() {
   drawCallButton(128, 384, true, false);
   // Bottom-Right: DOWN Button ('▼', active/lit)
   drawCallButton(384, 384, false, true);
+
+  const diffuse = new THREE.CanvasTexture(diffCanvas);
+  diffuse.colorSpace = THREE.SRGBColorSpace;
+  diffuse.anisotropy = 8;
+  const emissive = new THREE.CanvasTexture(emCanvas);
+  emissive.colorSpace = THREE.SRGBColorSpace;
+  emissive.anisotropy = 8;
+  return { diffuse, emissive };
+}
+
+/**
+ * Procedural "R&C SERVICE" Vertical Hanging Vinyl Banner Texture (512x1024, SRGBColorSpace).
+ * Replicates the turquoise/dark-navy diagonal split, pixelated R&C geometric monogram logo,
+ * tilted SERVICE / INTELIGÊNCIA EM SERVIÇOS typography, and bottom #FAMILIAR&C35ANOS hashtag.
+ */
+function createElevatorBannerTexture() {
+  const w = 512;
+  const h = 1024;
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+
+  // 1. Deep navy lower-right background with subtle diagonal tech stripes
+  const navyGrad = ctx.createLinearGradient(0, 420, w, h);
+  navyGrad.addColorStop(0.0, '#0f1e36');
+  navyGrad.addColorStop(0.55, '#0b1526');
+  navyGrad.addColorStop(1.0, '#070e1a');
+  ctx.fillStyle = navyGrad;
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.save();
+  ctx.strokeStyle = 'rgba(58, 230, 199, 0.055)';
+  ctx.lineWidth = 14;
+  for (let offset = -400; offset < 1400; offset += 42) {
+    ctx.beginPath();
+    ctx.moveTo(0, offset + 320);
+    ctx.lineTo(w, offset);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 2. Vibrant turquoise/mint-cyan upper-left diagonal region + faceted triangle accents
+  const tealGrad = ctx.createLinearGradient(0, 0, w, 720);
+  tealGrad.addColorStop(0.0, '#49ebd0');
+  tealGrad.addColorStop(0.5, '#29d7bc');
+  tealGrad.addColorStop(1.0, '#14b8a6');
+  ctx.fillStyle = tealGrad;
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(w, 0);
+  ctx.lineTo(w, 330);
+  ctx.lineTo(0, 775);
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle overlapping mid-teal facet triangle at diagonal seam
+  ctx.fillStyle = 'rgba(13, 148, 136, 0.55)';
+  ctx.beginPath();
+  ctx.moveTo(0, 775);
+  ctx.lineTo(285, 525);
+  ctx.lineTo(135, 860);
+  ctx.closePath();
+  ctx.fill();
+
+  // Subtle halftone / brushed vinyl sheen overlay
+  const sheen = ctx.createLinearGradient(0, 0, w, 0);
+  sheen.addColorStop(0.0, 'rgba(255,255,255,0.08)');
+  sheen.addColorStop(0.35, 'rgba(255,255,255,0.0)');
+  sheen.addColorStop(0.7, 'rgba(0,0,0,0.08)');
+  sheen.addColorStop(1.0, 'rgba(255,255,255,0.04)');
+  ctx.fillStyle = sheen;
+  ctx.fillRect(0, 0, w, h);
+
+  // 3. Large stylized dark-navy "RC" Geometric Monogram + Cyan Gradient Bar + Pixelated Blocks
+  ctx.save();
+  ctx.translate(250, 305);
+  ctx.rotate(-0.49); // ~ -28 deg angled parallel to diagonal split
+
+  // Bold geometric 'R' (outer silhouette + inner bowl cutout using evenodd rule)
+  ctx.fillStyle = '#0b1526';
+  ctx.beginPath();
+  ctx.moveTo(-192, -88);
+  ctx.lineTo(-76, -88);
+  ctx.lineTo(-42, -56);
+  ctx.lineTo(-42, -16);
+  ctx.lineTo(-68, 8);
+  ctx.lineTo(-92, 8);
+  ctx.lineTo(-34, 88);
+  ctx.lineTo(-88, 88);
+  ctx.lineTo(-142, 14);
+  ctx.lineTo(-146, 14);
+  ctx.lineTo(-146, 88);
+  ctx.lineTo(-192, 88);
+  ctx.closePath();
+  // Inner counter hole of 'R'
+  ctx.moveTo(-146, -50);
+  ctx.lineTo(-94, -50);
+  ctx.lineTo(-82, -38);
+  ctx.lineTo(-82, -26);
+  ctx.lineTo(-94, -18);
+  ctx.lineTo(-146, -18);
+  ctx.closePath();
+  ctx.fill('evenodd');
+
+  // Matching bold geometric 'C' with chamfered corners and wide open mouth
+  ctx.beginPath();
+  ctx.moveTo(20, -88);
+  ctx.lineTo(138, -88);
+  ctx.lineTo(138, -42);
+  ctx.lineTo(38, -42);
+  ctx.lineTo(24, -28);
+  ctx.lineTo(24, 28);
+  ctx.lineTo(38, 42);
+  ctx.lineTo(138, 42);
+  ctx.lineTo(138, 88);
+  ctx.lineTo(20, 88);
+  ctx.lineTo(-20, 48);
+  ctx.lineTo(-20, -48);
+  ctx.closePath();
+  ctx.fill();
+
+  // Sharp cyan geometric cutout accent wedge inside the 'C' lower pocket
+  ctx.fillStyle = '#29d7bc';
+  ctx.beginPath();
+  ctx.moveTo(42, 4);
+  ctx.lineTo(86, 36);
+  ctx.lineTo(130, 4);
+  ctx.lineTo(86, 56);
+  ctx.closePath();
+  ctx.fill();
+
+  // Vertical cyan-to-white gradient bar + pixelated trailing square blocks on upper-right edge of 'C'
+  const barGrad = ctx.createLinearGradient(0, -100, 0, -32);
+  barGrad.addColorStop(0.0, '#ffffff');
+  barGrad.addColorStop(0.35, '#67e8f9');
+  barGrad.addColorStop(1.0, '#0284c7');
+  ctx.fillStyle = barGrad;
+  ctx.fillRect(114, -100, 32, 68);
+
+  const pixelColors = ['#a5f3fc', '#38bdf8', '#5eead4', '#e0f2fe', '#2dd4bf'];
+  const pixelOffsets = [
+    [154, -96, 18],
+    [154, -70, 18],
+    [178, -82, 18],
+    [154, -44, 18],
+    [178, -44, 18],
+  ];
+  for (let i = 0; i < pixelOffsets.length; i++) {
+    const [px, py, ps] = pixelOffsets[i];
+    ctx.fillStyle = pixelColors[i];
+    ctx.fillRect(px, py, ps, ps);
+  }
+  ctx.restore();
+
+  // 4. Rotated Typography: Bold "R&C", thin uppercase "SERVICE", and spaced subtitle
+  ctx.save();
+  ctx.translate(256, 548);
+  ctx.rotate(-0.56); // ~ -32 deg parallel to diagonal split
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  ctx.fillStyle = '#ffffff';
+  ctx.font = '900 88px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('R&C', -4, -36);
+
+  ctx.font = '300 62px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('S E R V I C E', 2, 34);
+
+  ctx.fillStyle = 'rgba(226, 248, 244, 0.94)';
+  ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('I N T E L I G Ê N C I A   E M   S E R V I Ç O S', 6, 86);
+  ctx.restore();
+
+  // 5. Crisp white diagonal hashtag near bottom edge
+  ctx.save();
+  ctx.translate(274, 835);
+  ctx.rotate(-0.59);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'italic 800 28px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('#FAMILIAR&C35ANOS', 0, 0);
+  ctx.restore();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
+/**
+ * Procedural Elevator Control Panel Faceplate, LED Dot-Matrix Readout & Brazilian Safety Notices Atlas (1024x1024).
+ * Combines:
+ *  - Left Column (u = 0..0.4492, v = 0..1): Brushed-steel COP with header, glowing red dot-matrix '30',
+ *    capacity sticker, speaker grilles & push-button icon faces.
+ *  - Upper-Right (u = 0.5117..0.9883, v = 0.7383..0.9844): "ASSISTÊNCIA TÉCNICA - Plantão 24h" placard.
+ *  - Lower-Right (u = 0.5117..0.9883, v = 0.0156..0.7168): "ATENÇÃO - Lei Nº 2.743..." safety placard.
+ */
+function createElevatorCopAndNoticesAtlas() {
+  const w = 2048;
+  const h = 1024;
+  const diffCanvas = document.createElement('canvas');
+  diffCanvas.width = w;
+  diffCanvas.height = h;
+  const ctx = diffCanvas.getContext('2d');
+
+  const emCanvas = document.createElement('canvas');
+  emCanvas.width = w;
+  emCanvas.height = h;
+  const eCtx = emCanvas.getContext('2d');
+
+  ctx.fillStyle = '#b9c1cc';
+  ctx.fillRect(0, 0, w, h);
+  eCtx.fillStyle = '#000000';
+  eCtx.fillRect(0, 0, w, h);
+
+  const drawLogo = (c, cx, cy, scale = 1.0) => {
+    c.save();
+    c.translate(cx, cy);
+    c.scale(scale, scale);
+    c.strokeStyle = '#0284c7';
+    c.lineWidth = 4;
+    c.beginPath();
+    c.arc(0, 0, 20, 0, Math.PI * 2);
+    c.stroke();
+    c.fillStyle = '#0f172a';
+    c.font = '900 18px sans-serif';
+    c.textAlign = 'center';
+    c.textBaseline = 'middle';
+    c.fillText('R&C', 0, 1);
+    c.restore();
+  };
+
+  // =========================================================================
+  // 1. LEFT COLUMN (x = 0..460): CONTROL PANEL FACEPLATE ARTWORK
+  // =========================================================================
+  const copGrad = ctx.createLinearGradient(0, 0, 460, 0);
+  copGrad.addColorStop(0.0, '#9aa4b2');
+  copGrad.addColorStop(0.28, '#dce2ea');
+  copGrad.addColorStop(0.55, '#c2cad4');
+  copGrad.addColorStop(0.85, '#e2e8f0');
+  copGrad.addColorStop(1.0, '#949eae');
+  ctx.fillStyle = copGrad;
+  ctx.fillRect(0, 0, 460, 1024);
+
+  // Subtle vertical brushed streaks inside faceplate
+  for (let i = 0; i < 900; i++) {
+    const sx = ((i * 137) % 456) + 2;
+    const sy = (i * 293) % 1000;
+    ctx.strokeStyle = i % 2 === 0 ? 'rgba(255,255,255,0.10)' : 'rgba(30,41,59,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(sx, sy + 44);
+    ctx.stroke();
+  }
+
+  // Beveled edge border
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(3, 3, 454, 1018);
+
+  // Top Header Emblem & Etched Brand Text
+  ctx.save();
+  ctx.strokeStyle = '#d4af37';
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.arc(230, 62, 26, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#1e293b';
+  ctx.font = '900 22px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('R&C', 230, 63);
+  ctx.fillStyle = '#334155';
+  ctx.font = '700 17px sans-serif';
+  ctx.fillText('Elevadores & Serviços', 230, 106);
+  ctx.restore();
+
+  // Recessed Black Digital Floor Display Window (x = 128..332, y = 136..292)
+  ctx.fillStyle = '#090b10';
+  ctx.fillRect(126, 136, 208, 156);
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 5;
+  ctx.strokeRect(126, 136, 208, 156);
+
+  // Glowing Red Dot-Matrix '▼ 30' inside Display
+  const digit3 = [
+    [1,1,1,1],
+    [0,0,0,1],
+    [0,1,1,1],
+    [0,0,0,1],
+    [1,1,1,1],
+  ];
+  const digit0 = [
+    [1,1,1,1],
+    [1,0,0,1],
+    [1,0,0,1],
+    [1,0,0,1],
+    [1,1,1,1],
+  ];
+  const downArrow = [
+    [0,1,0],
+    [0,1,0],
+    [1,1,1],
+    [0,1,0],
+  ];
+
+  const drawDotMatrix = (grid, ox, oy, step, r, activeCol, offCol) => {
+    for (let row = 0; row < grid.length; row++) {
+      for (let col = 0; col < grid[row].length; col++) {
+        const px = ox + col * step;
+        const py = oy + row * step;
+        const isOn = grid[row][col] === 1;
+        ctx.fillStyle = isOn ? activeCol : offCol;
+        ctx.beginPath();
+        ctx.arc(px, py, r, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (isOn) {
+          eCtx.fillStyle = '#ff2a08';
+          eCtx.beginPath();
+          eCtx.arc(px, py, r * 1.15, 0, Math.PI * 2);
+          eCtx.fill();
+        }
+      }
+    }
+  };
+
+  drawDotMatrix(downArrow, 148, 198, 13, 4.2, '#ff4d2e', '#1f0b0b');
+  drawDotMatrix(digit3, 202, 168, 16, 5.4, '#ff3b1f', '#1f0b0b');
+  drawDotMatrix(digit0, 276, 168, 16, 5.4, '#ff3b1f', '#1f0b0b');
+
+  // Capacity & No-Smoking White Sticker (x = 90..370, y = 334..434)
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(90, 334, 280, 100);
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(90, 334, 280, 100);
+  drawLogo(ctx, 230, 355, 0.55);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'center';
+  ctx.font = '700 13px sans-serif';
+  ctx.fillText('CAPACIDADE 08 PASSAGEIROS - 600 kg', 230, 386);
+  ctx.font = '800 13px sans-serif';
+  ctx.fillText('PROIBIDO FUMAR', 210, 413);
+
+  // Tiny Red No-Smoking Icon on Sticker
+  ctx.save();
+  ctx.translate(292, 412);
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(-7, -1.5, 11, 3);
+  ctx.fillStyle = '#dc2626';
+  ctx.fillRect(4, -1.5, 3, 3);
+  ctx.strokeStyle = '#dc2626';
+  ctx.lineWidth = 2.6;
+  ctx.beginPath();
+  ctx.arc(0, 0, 11, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(-7, -7);
+  ctx.lineTo(7, 7);
+  ctx.stroke();
+  ctx.restore();
+
+  // Two Circular Perforated Speaker Grilles (centered at y = 492, x = 166 and x = 294)
+  for (const gx of [166, 294]) {
+    ctx.fillStyle = '#111827';
+    for (let ring = 0; ring <= 2; ring++) {
+      if (ring === 0) {
+        ctx.beginPath();
+        ctx.arc(gx, 492, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        const count = ring * 6;
+        const rr = ring * 8.5;
+        for (let k = 0; k < count; k++) {
+          const ang = (k / count) * Math.PI * 2;
+          ctx.beginPath();
+          ctx.arc(gx + Math.cos(ang) * rr, 492 + Math.sin(ang) * rr, 2.3, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+
+  // Aspect-corrected mounting recess shadows on the flat COP plate (matches true 3D circle footprint: no oval stretch!)
+  const drawButtonRecess = (cx, cy) => {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(1.0, (0.255 / 460) * (1024 / 1.150)); // ~0.493 vertical compensation for 0.255m x 1.150m panel
+    const recGrad = ctx.createRadialGradient(0, 0, 26, 0, 0, 38);
+    recGrad.addColorStop(0.0, 'rgba(15, 23, 42, 0.55)');
+    recGrad.addColorStop(0.75, 'rgba(30, 41, 59, 0.35)');
+    recGrad.addColorStop(1.0, 'rgba(15, 23, 42, 0.0)');
+    ctx.fillStyle = recGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, 38, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  for (const [bx, by] of [
+    [230, 602],
+    [230, 672],
+    [230, 742],
+    [148, 824],
+    [312, 824],
+    [148, 888],
+    [312, 888],
+    [148, 952],
+    [312, 952],
+  ]) {
+    drawButtonRecess(bx, by);
+  }
+
+  // Dedicated 256x256 HD Pushbutton Cap Sprites in right half (x = 1064..2024, 1:1 non-stretched aspect)
+  const drawButtonCapSprite = (slotIdx, kind, textLabel) => {
+    const col = slotIdx % 3;
+    const row = Math.floor(slotIdx / 3);
+    const cx = 1064 + col * 320 + 128;
+    const cy = 32 + row * 320 + 128;
+    const rFill = 126;
+    const rRing = 108;
+
+    const isAlarm = kind === 'alarm';
+    const isFloor = kind === 'floor';
+    const faceGrad = ctx.createRadialGradient(cx - 28, cy - 34, 12, cx, cy, rFill);
+    if (isAlarm) {
+      faceGrad.addColorStop(0.0, '#fef08a');
+      faceGrad.addColorStop(0.55, '#facc15');
+      faceGrad.addColorStop(1.0, '#ca8a04');
+    } else {
+      faceGrad.addColorStop(0.0, '#f8fafc');
+      faceGrad.addColorStop(0.55, '#dce3ec');
+      faceGrad.addColorStop(1.0, '#94a3b8');
+    }
+    ctx.fillStyle = faceGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rFill, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Subtle circular brushed highlight ring + clean illuminated halo
+    ctx.strokeStyle = isAlarm ? '#854d0e' : isFloor ? '#ffffff' : '#475569';
+    ctx.lineWidth = isFloor ? 8 : 6;
+    ctx.beginPath();
+    ctx.arc(cx, cy, rRing, 0, Math.PI * 2);
+    ctx.stroke();
+
+    if (isFloor) {
+      eCtx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+      eCtx.lineWidth = 7;
+      eCtx.beginPath();
+      eCtx.arc(cx, cy, rRing, 0, Math.PI * 2);
+      eCtx.stroke();
+    } else if (isAlarm) {
+      eCtx.fillStyle = 'rgba(250, 204, 21, 0.40)';
+      eCtx.beginPath();
+      eCtx.arc(cx, cy, rRing - 6, 0, Math.PI * 2);
+      eCtx.fill();
+    }
+
+    ctx.fillStyle = '#0f172a';
+    ctx.strokeStyle = '#0f172a';
+    if (kind === 'floor') {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 112px sans-serif';
+      ctx.fillText(textLabel, cx, cy + 5);
+    } else if (kind === 'open' || kind === 'close') {
+      // Crisp vector triangles: ◄ | ► (open) or ► | ◄ (close)
+      ctx.fillRect(cx - 5, cy - 48, 10, 96);
+      const drawTri = (tipX, baseX, halfH) => {
+        ctx.beginPath();
+        ctx.moveTo(tipX, cy);
+        ctx.lineTo(baseX, cy - halfH);
+        ctx.lineTo(baseX, cy + halfH);
+        ctx.closePath();
+        ctx.fill();
+      };
+      if (kind === 'open') {
+        drawTri(cx - 66, cx - 20, 34);
+        drawTri(cx + 66, cx + 20, 34);
+      } else {
+        drawTri(cx - 18, cx - 64, 34);
+        drawTri(cx + 18, cx + 64, 34);
+      }
+    } else if (kind === 'phone') {
+      // Sleek vector intercom telephone handset
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate(-0.62);
+      ctx.lineWidth = 22;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(0, 12, 46, Math.PI * 1.15, Math.PI * 1.85);
+      ctx.stroke();
+      ctx.fillRect(-48, -16, 22, 28);
+      ctx.fillRect(26, -16, 22, 28);
+      ctx.restore();
+    } else if (kind === 'alarm') {
+      // Bold bell silhouette
+      ctx.beginPath();
+      ctx.arc(cx, cy - 10, 32, Math.PI, 0);
+      ctx.lineTo(cx + 44, cy + 28);
+      ctx.lineTo(cx - 44, cy + 28);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(cx, cy + 40, 11, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 10;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 50);
+      ctx.lineTo(cx, cy - 38);
+      ctx.stroke();
+    } else if (kind === 'stop') {
+      // Crisp octagonal emergency stop icon
+      ctx.lineWidth = 10;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const ang = (i / 8) * Math.PI * 2 + Math.PI / 8;
+        const px = cx + Math.cos(ang) * 44;
+        const py = cy + Math.sin(ang) * 44;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.stroke();
+      ctx.fillRect(cx - 18, cy - 18, 36, 36);
+    }
+  };
+
+  drawButtonCapSprite(0, 'floor', '3');
+  drawButtonCapSprite(1, 'floor', '2');
+  drawButtonCapSprite(2, 'floor', '1');
+  drawButtonCapSprite(3, 'open');
+  drawButtonCapSprite(4, 'close');
+  drawButtonCapSprite(5, 'phone');
+  drawButtonCapSprite(6, 'alarm');
+  drawButtonCapSprite(7, 'stop');
+
+  // =========================================================================
+  // 2. UPPER-RIGHT QUADRANT (x = 524..1012, y = 16..268): "ASSISTÊNCIA TÉCNICA"
+  // =========================================================================
+  const px2 = 524;
+  const py2 = 16;
+  const pw2 = 488;
+  const ph2 = 252;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(px2, py2, pw2, ph2);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(px2, py2, pw2, ph2);
+
+  drawLogo(ctx, px2 + 54, py2 + 34, 0.85);
+  ctx.fillStyle = '#0f172a';
+  ctx.textAlign = 'center';
+  ctx.font = '700 15px sans-serif';
+  ctx.fillText('Expressamente proibido fumar', px2 + 276, py2 + 28);
+  ctx.font = '600 14px sans-serif';
+  ctx.fillText('dentro do elevador.', px2 + 276, py2 + 48);
+
+  // Blue Title Bar
+  ctx.fillStyle = '#0369a1';
+  ctx.fillRect(px2 + 14, py2 + 66, pw2 - 28, 38);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.font = '800 22px sans-serif';
+  ctx.fillText('ASSISTÊNCIA TÉCNICA', px2 + pw2 * 0.5, py2 + 91);
+
+  // Two Blue Phone Number Boxes
+  const fakeLandlines = ['0148-9203 / 0731-4850', '0582-1940 / 0319-6047'];
+  const fakeMobiles = ['00412-8394 / 00759-1028', '00836-4712 / 00294-8510'];
+  for (let cIdx = 0; cIdx < 2; cIdx++) {
+    const bx = px2 + 16 + cIdx * 232;
+    ctx.fillStyle = '#0284c7';
+    ctx.fillRect(bx, py2 + 114, 224, 90);
+    ctx.fillStyle = '#ffffff';
+    ctx.font = '800 18px sans-serif';
+    ctx.fillText(cIdx === 0 ? 'Dias Úteis' : 'Plantão 24h', bx + 112, py2 + 138);
+    ctx.font = '700 14px monospace';
+    ctx.fillText(fakeLandlines[cIdx], bx + 112, py2 + 166);
+    ctx.fillText(fakeMobiles[cIdx], bx + 112, py2 + 190);
+  }
+
+  // Dark Navy Footer Strip
+  ctx.fillStyle = '#0c4a6e';
+  ctx.fillRect(px2 + 14, py2 + 212, pw2 - 28, 28);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = '700 13px sans-serif';
+  ctx.fillText('R&C Elevadores & Serviços • Atendimento Emergencial 24h', px2 + pw2 * 0.5, py2 + 230);
+
+  // =========================================================================
+  // 3. LOWER-RIGHT QUADRANT (x = 524..1012, y = 290..1008): "ATENÇÃO" NOTICE
+  // =========================================================================
+  const py3 = 290;
+  const ph3 = 718;
+  const cardCenterX = px2 + pw2 * 0.5;
+  ctx.fillStyle = '#f8fafc';
+  ctx.fillRect(px2, py3, pw2, ph3);
+  ctx.strokeStyle = '#0284c7';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(px2, py3, pw2, ph3);
+
+  drawLogo(ctx, px2 + 64, py3 + 52, 1.15);
+  ctx.fillStyle = '#dc2626';
+  ctx.textAlign = 'center';
+  ctx.font = '900 44px sans-serif';
+  ctx.fillText('ATENÇÃO', px2 + 305, py3 + 60);
+
+  ctx.fillStyle = '#1e293b';
+  ctx.textAlign = 'center';
+  ctx.font = '700 14px sans-serif';
+  ctx.fillText('Lorem ipsum dolor sit amet, consectetur adipiscing elit:', cardCenterX, py3 + 106);
+
+  ctx.strokeStyle = '#cbd5e1';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(px2 + 20, py3 + 118);
+  ctx.lineTo(px2 + pw2 - 20, py3 + 118);
+  ctx.stroke();
+
+  const rules = [
+    'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+    '1. Sed do eiusmod tempor incididunt ut labore et dolore',
+    'magna aliqua. Ut enim ad minim veniam, quis nostrud.',
+    '2. Exercitation ullamco laboris nisi ut aliquip ex ea',
+    'commodo consequat. Duis aute irure dolor in.',
+    '3. Reprehenderit in voluptate velit esse cillum dolore',
+    'eu fugiat nulla pariatur. Excepteur sint occaecat.',
+    '4. Cupidatat non proident, sunt in culpa qui officia',
+    'deserunt mollit anim id est laborum sit amet.',
+    '5. Curabitur pretium tincidunt lacus nulla gravida orci',
+    'a odio nullam varius turpis et commodo pharetra.',
+  ];
+  ctx.font = '600 13px sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.textAlign = 'center';
+  let ry = py3 + 146;
+  for (const line of rules) {
+    ctx.fillText(line, cardCenterX, ry);
+    ry += 25;
+  }
+
+  ctx.strokeStyle = '#94a3b8';
+  ctx.strokeRect(px2 + 20, ry + 8, pw2 - 40, 120);
+  ctx.font = '700 13px sans-serif';
+  ctx.fillStyle = '#0f172a';
+  ctx.fillText('Lorem ipsum dolor • Consectetur adipiscing elit sed', cardCenterX, ry + 38);
+  ctx.font = '600 13px sans-serif';
+  ctx.fillStyle = '#334155';
+  ctx.fillText('do eiusmod tempor incididunt ut labore et dolore.', cardCenterX, ry + 66);
+  ctx.fillText('Ut enim ad minim veniam • Tel. 0000 019 2837', cardCenterX, ry + 96);
+
+  // Solid Blue Footer Bar
+  ctx.fillStyle = '#0284c7';
+  ctx.fillRect(px2 + 12, py3 + ph3 - 54, pw2 - 24, 42);
+  ctx.fillStyle = '#ffffff';
+  ctx.textAlign = 'center';
+  ctx.font = '800 13px sans-serif';
+  ctx.fillText('R&C Elevadores & Serviços • Tel: (00) 0148-9203 / 0731-4850', cardCenterX, py3 + ph3 - 28);
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
@@ -13289,6 +13973,11 @@ export class WarehouseBuilder {
     this.vestibuleHalfWallTex = createVestibuleHalfWallTexture();
     this.brushedStainlessTex = createBrushedStainlessTexture();
     const elevDisplayTex = createElevatorDisplayTextures();
+    const elevBannerTex = createElevatorBannerTexture();
+    const elevCopAtlasTex = createElevatorCopAndNoticesAtlas();
+    this.elevatorBannerTexture = elevBannerTex;
+    this.elevatorCopDiffuseTexture = elevCopAtlasTex.diffuse;
+    this.elevatorCopEmissiveTexture = elevCopAtlasTex.emissive;
     const exitSignTex = createExitSignTextures();
 
     this.vestibuleGlassMaterial = new THREE.MeshBasicMaterial({
@@ -13368,10 +14057,10 @@ export class WarehouseBuilder {
 
     this.elevatorStainlessMaterial = new THREE.MeshStandardMaterial({
       map: this.brushedStainlessTex,
-      color: 0xb8c0ca,
-      roughness: 0.28,
-      metalness: 0.78,
-      envMapIntensity: 0.55,
+      color: 0xd0d7e0,
+      roughness: 0.25,
+      metalness: 0.82,
+      envMapIntensity: 0.75,
     });
 
     this.elevatorPortalMaterial = new THREE.MeshStandardMaterial({
@@ -13388,6 +14077,35 @@ export class WarehouseBuilder {
       emissiveIntensity: 1.15,
       roughness: 0.22,
       metalness: 0.30,
+    });
+
+    this.elevatorCeilingLightMaterial = new THREE.MeshBasicMaterial({
+      color: 0xe2e8f0,
+      toneMapped: false,
+    });
+
+    this.elevatorBannerMaterial = new THREE.MeshStandardMaterial({
+      map: elevBannerTex,
+      roughness: 0.48,
+      metalness: 0.04,
+      envMapIntensity: 0.45,
+    });
+
+    this.elevatorCopMaterial = new THREE.MeshStandardMaterial({
+      map: elevCopAtlasTex.diffuse,
+      emissiveMap: elevCopAtlasTex.emissive,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 1.55,
+      roughness: 0.28,
+      metalness: 0.35,
+      envMapIntensity: 0.65,
+    });
+
+    this.elevatorSillMaterial = new THREE.MeshStandardMaterial({
+      color: 0x9ca3af,
+      metalness: 0.85,
+      roughness: 0.3,
+      envMapIntensity: 0.70,
     });
 
     this.exitSignMaterial = new THREE.MeshStandardMaterial({
@@ -13946,6 +14664,10 @@ export class WarehouseBuilder {
       elevatorStainless: [],
       elevatorPortal: [],
       elevatorDisplay: [],
+      elevatorCeilingLight: [],
+      elevatorBanner: [],
+      elevatorCop: [],
+      elevatorSill: [],
       exitSign: [],
       vestibuleCeilingLight: [],
       serverPodAlumFrame: [],
@@ -14552,6 +15274,10 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.elevatorStainless, material: this.elevatorStainlessMaterial, name: 'DC_ElevatorStainless' },
       { bucket: visualBuckets.elevatorPortal, material: this.elevatorPortalMaterial, name: 'DC_ElevatorPortal' },
       { bucket: visualBuckets.elevatorDisplay, material: this.elevatorDisplayMaterial, name: 'DC_ElevatorDisplay' },
+      { bucket: visualBuckets.elevatorCeilingLight, material: this.elevatorCeilingLightMaterial, name: 'DC_ElevatorCeilingPanel' },
+      { bucket: visualBuckets.elevatorBanner, material: this.elevatorBannerMaterial, name: 'DC_ElevatorBanner' },
+      { bucket: visualBuckets.elevatorCop, material: this.elevatorCopMaterial, name: 'DC_ElevatorCopAtlas' },
+      { bucket: visualBuckets.elevatorSill, material: this.elevatorSillMaterial, name: 'DC_ElevatorSillPlate' },
       { bucket: visualBuckets.exitSign, material: this.exitSignMaterial, name: 'DC_ExitSign' },
       { bucket: visualBuckets.vestibuleCeilingLight, material: this.vestibuleCeilingLightMaterial, name: 'DC_VestibuleCeilingLight' },
       { bucket: visualBuckets.serverPodAlumFrame, material: this.serverPodAlumFrameMaterial, name: 'DC_ServerPodAlumFrame' },
@@ -17247,10 +17973,82 @@ export class WarehouseBuilder {
     addPart(visualBuckets.vestibuleWhiteWall, southWallGeo, endWallMidX, vestH * 0.5, vestZSouth - 0.125);
     southWallGeo.dispose();
 
-    // North Elevator Wall (Z = 11.300 to 11.550, X = -14.198 to -10.182 -> 18.2cm away from office wall face X = -10.00!)
-    const northWallGeo = new THREE.BoxGeometry(endWallSpanX, vestH, 0.25);
-    addPart(visualBuckets.vestibuleWhiteWall, northWallGeo, endWallMidX, vestH * 0.5, vestZNorth + 0.125);
-    northWallGeo.dispose();
+    // North Elevator Wall (Z = 11.300 to 11.550, rough opening X = -13.170..-11.730, Y = 0..2.250
+    // keeps a clean 30mm masonry margin tucked completely behind the elevator portal casing -> ZERO Z-fighting!)
+    const elevWallOpenXMin = -13.170;
+    const elevWallOpenXMax = -11.730;
+    const elevWallOpenH = 2.250;
+    const elevCabOuterXMin = -13.435;
+    const elevCabOuterXMax = -11.465;
+    const elevCabOuterH = 2.655;
+
+    // 1. Continuous front facade plaster strip above rough opening (Y = 2.250 to 3.800, Z = 11.300 to 11.330)
+    const northHeaderFrontGeo = new THREE.BoxGeometry(endWallSpanX, vestH - elevWallOpenH, 0.030);
+    addPart(
+      visualBuckets.vestibuleWhiteWall,
+      northHeaderFrontGeo,
+      endWallMidX,
+      elevWallOpenH + (vestH - elevWallOpenH) * 0.5,
+      vestZNorth + 0.015
+    );
+    northHeaderFrontGeo.dispose();
+
+    // 2. Front plaster flanking pillars left & right of rough opening (Z = 11.300 to 11.330, Y = 0..2.249)
+    const northSideH = elevWallOpenH - 0.001;
+    const northLeftFrontW = elevWallOpenXMin - (-14.198);
+    const northLeftFrontGeo = new THREE.BoxGeometry(northLeftFrontW, northSideH, 0.030);
+    addPart(
+      visualBuckets.vestibuleWhiteWall,
+      northLeftFrontGeo,
+      (-14.198 + elevWallOpenXMin) * 0.5,
+      northSideH * 0.5,
+      vestZNorth + 0.015
+    );
+    northLeftFrontGeo.dispose();
+
+    const northRightFrontW = (-10.182) - elevWallOpenXMax;
+    const northRightFrontGeo = new THREE.BoxGeometry(northRightFrontW, northSideH, 0.030);
+    addPart(
+      visualBuckets.vestibuleWhiteWall,
+      northRightFrontGeo,
+      (elevWallOpenXMax + -10.182) * 0.5,
+      northSideH * 0.5,
+      vestZNorth + 0.015
+    );
+    northRightFrontGeo.dispose();
+
+    // 3. Outer masonry backing outside cab shaft (Z = 11.390 to 11.550) + upper header above cab roof (Y = 2.655..3.800)
+    const northOuterLeftW = elevCabOuterXMin - (-14.198);
+    const northOuterLeftGeo = new THREE.BoxGeometry(northOuterLeftW, elevCabOuterH, 0.160);
+    addPart(
+      visualBuckets.vestibuleWhiteWall,
+      northOuterLeftGeo,
+      (-14.198 + elevCabOuterXMin) * 0.5,
+      elevCabOuterH * 0.5,
+      vestZNorth + 0.170
+    );
+    northOuterLeftGeo.dispose();
+
+    const northOuterRightW = (-10.182) - elevCabOuterXMax;
+    const northOuterRightGeo = new THREE.BoxGeometry(northOuterRightW, elevCabOuterH, 0.160);
+    addPart(
+      visualBuckets.vestibuleWhiteWall,
+      northOuterRightGeo,
+      (elevCabOuterXMax + -10.182) * 0.5,
+      elevCabOuterH * 0.5,
+      vestZNorth + 0.170
+    );
+    northOuterRightGeo.dispose();
+
+    const northUpperShaftFillGeo = new THREE.BoxGeometry(endWallSpanX, vestH - elevCabOuterH, 0.220);
+    addPart(
+      visualBuckets.vestibuleWhiteWall,
+      northUpperShaftFillGeo,
+      endWallMidX,
+      elevCabOuterH + (vestH - elevCabOuterH) * 0.5,
+      vestZNorth + 0.140
+    );
+    northUpperShaftFillGeo.dispose();
 
     // Vestibule Ceiling Slab (Y = 3.802m to 3.962m, strictly above walls)
     const vestCeilingGeo = new THREE.BoxGeometry(vestW, 0.16, vestL);
@@ -17528,31 +18326,34 @@ export class WarehouseBuilder {
     southStairBarrierGeo.dispose();
 
     // =========================================================================
-    // 5. ELEVATOR DOOR, ILLUMINATED EXIT SIGN & CYLINDRICAL OFFICE TRASH BIN
+    // 5. ELEVATOR PORTAL, ANIMATED SLIDING DOORS, CAB INTERIOR & HARDWARE
     // =========================================================================
-    // A. Recessed Brushed Stainless-Steel Double Elevator Door on North Vestibule Wall (Z = +11.30, facing -Z)
+    // A. Recessed Brushed Stainless-Steel Double Elevator Door & Cab on North Vestibule Wall (Z = +11.30)
     const elevCenterX = -12.45;
     const elevWallZ = vestZNorth; // 11.300m
     const elevDoorW = 1.38;
     const elevDoorH = 2.22;
     const portalFrameW = 0.12;
-    const portalDepthZ = 0.070;
+    const portalDepthZ = 0.074;
 
-    // Dark-gray metallic elevator portal jambs & header surround (Z = 11.225 to 11.295, 5mm in front of northWall Z = 11.300)
-    const portalZCenter = elevWallZ - 0.005 - portalDepthZ * 0.5;
-    const portalJambGeo = new THREE.BoxGeometry(portalFrameW, elevDoorH, portalDepthZ);
+    // Vestibule-side dark-gray metallic architrave jambs & header (Z = 11.230 to 11.304, overlapping plaster only outside rough opening)
+    const portalZCenter = elevWallZ - portalDepthZ * 0.5 + 0.004; // 11.267m
+    const jambBottomY = 0.001;
+    const jambTopGapH = elevDoorH - jambBottomY - 0.001; // Y = 0.001 to 2.219 (1mm clear below header -> ZERO coplanar Z-fighting)
+    const jambMidY = jambBottomY + jambTopGapH * 0.5;
+    const portalJambGeo = new THREE.BoxGeometry(portalFrameW, jambTopGapH, portalDepthZ);
     addPart(
       visualBuckets.elevatorPortal,
       portalJambGeo,
       elevCenterX - elevDoorW * 0.5 - portalFrameW * 0.5,
-      elevDoorH * 0.5 + 0.002,
+      jambMidY,
       portalZCenter
     );
     addPart(
       visualBuckets.elevatorPortal,
       portalJambGeo,
       elevCenterX + elevDoorW * 0.5 + portalFrameW * 0.5,
-      elevDoorH * 0.5 + 0.002,
+      jambMidY,
       portalZCenter
     );
     portalJambGeo.dispose();
@@ -17562,34 +18363,123 @@ export class WarehouseBuilder {
       visualBuckets.elevatorPortal,
       portalHeaderGeo,
       elevCenterX,
-      elevDoorH + 0.004 + portalFrameW * 0.5,
+      elevDoorH + portalFrameW * 0.5,
       portalZCenter
     );
     portalHeaderGeo.dispose();
 
-    // Left & Right Brushed Stainless-Steel Sliding Door Panels (Z = 11.255 to 11.295)
-    const panelW = (elevDoorW - 0.018) * 0.5;
-    const panelGeo = new THREE.BoxGeometry(panelW, elevDoorH, 0.040);
-    addPart(
-      visualBuckets.elevatorStainless,
-      panelGeo,
-      elevCenterX - panelW * 0.5 - 0.009,
-      elevDoorH * 0.5 + 0.002,
-      elevWallZ - 0.025
+    // Cab-side dark-gray metallic architrave jambs & header (Z = 11.446 to 11.466, protruding 16mm proud of cabZFront 11.450)
+    const cabArchW = 0.070;
+    const cabArchDepthZ = 0.020;
+    const cabArchZCenter = elevWallZ + 0.156; // Z = 11.446 to 11.466
+    const cabJambGeo = new THREE.BoxGeometry(cabArchW, jambTopGapH, cabArchDepthZ);
+    addVisual(
+      visualBuckets.elevatorPortal,
+      cabJambGeo,
+      elevCenterX - elevDoorW * 0.5 - cabArchW * 0.5,
+      jambMidY,
+      cabArchZCenter
     );
-    addPart(
-      visualBuckets.elevatorStainless,
-      panelGeo,
-      elevCenterX + panelW * 0.5 + 0.009,
-      elevDoorH * 0.5 + 0.002,
-      elevWallZ - 0.025
+    addVisual(
+      visualBuckets.elevatorPortal,
+      cabJambGeo,
+      elevCenterX + elevDoorW * 0.5 + cabArchW * 0.5,
+      jambMidY,
+      cabArchZCenter
     );
-    panelGeo.dispose();
+    cabJambGeo.dispose();
 
-    // Dark vertical center seam between the double elevator doors (Non-overlapping between left & right panels)
-    const centerSeamGeo = new THREE.BoxGeometry(0.014, elevDoorH, 0.036);
-    addVisual(visualBuckets.vestibuleVoid, centerSeamGeo, elevCenterX, elevDoorH * 0.5 + 0.002, elevWallZ - 0.025);
-    centerSeamGeo.dispose();
+    const cabHeaderGeo = new THREE.BoxGeometry(elevDoorW + cabArchW * 2, cabArchW, cabArchDepthZ);
+    addVisual(
+      visualBuckets.elevatorPortal,
+      cabHeaderGeo,
+      elevCenterX,
+      elevDoorH + cabArchW * 0.5,
+      cabArchZCenter
+    );
+    cabHeaderGeo.dispose();
+
+    // Inner throat reveal casings strictly tucked between front architrave (Z=11.304), pocket slit (Z=11.334..11.386), and cab architrave (Z=11.446)
+    const revealH = elevDoorH - 0.005; // Y = 0.004 to 2.219 (clears sill plate Y = 0.004)
+    const revealMidY = 0.004 + revealH * 0.5;
+    const frontRevealGeo = new THREE.BoxGeometry(0.032, revealH, 0.029); // Z = 11.305 to 11.334
+    addVisual(visualBuckets.elevatorPortal, frontRevealGeo, elevCenterX - elevDoorW * 0.5 - 0.016, revealMidY, elevWallZ + 0.0195);
+    addVisual(visualBuckets.elevatorPortal, frontRevealGeo, elevCenterX + elevDoorW * 0.5 + 0.016, revealMidY, elevWallZ + 0.0195);
+    frontRevealGeo.dispose();
+
+    const rearRevealGeo = new THREE.BoxGeometry(0.032, revealH, 0.059); // Z = 11.386 to 11.445
+    addVisual(visualBuckets.elevatorPortal, rearRevealGeo, elevCenterX - elevDoorW * 0.5 - 0.016, revealMidY, elevWallZ + 0.1155);
+    addVisual(visualBuckets.elevatorPortal, rearRevealGeo, elevCenterX + elevDoorW * 0.5 + 0.016, revealMidY, elevWallZ + 0.1155);
+    rearRevealGeo.dispose();
+
+    const throatTopGeo = new THREE.BoxGeometry(elevDoorW - 0.002, 0.028, 0.140); // Z = 11.305 to 11.445, Y = 2.220 to 2.248 (2mm clear of rough opening!)
+    addVisual(visualBuckets.elevatorPortal, throatTopGeo, elevCenterX, elevDoorH + 0.014, elevWallZ + 0.075);
+    throatTopGeo.dispose();
+
+    // Doorway Floor Collider + Flush Grooved Aluminum Door-Track Sill Plate (color: 0x9ca3af, metalness: 0.85, roughness: 0.3)
+    const sillSlabColGeo = new THREE.BoxGeometry(elevDoorW + 0.04, 0.160, 0.155);
+    registerCollider(sillSlabColGeo, elevCenterX, -0.080, elevWallZ + 0.076);
+    sillSlabColGeo.dispose();
+
+    const sillPlateGeo = new THREE.BoxGeometry(elevDoorW, 0.004, 0.155);
+    addVisual(visualBuckets.elevatorSill, sillPlateGeo, elevCenterX, 0.002, elevWallZ + 0.076);
+    sillPlateGeo.dispose();
+
+    const sillRibGeo = new THREE.BoxGeometry(elevDoorW - 0.01, 0.0015, 0.007);
+    for (const rOff of [-0.058, -0.042, -0.026, 0.024, 0.040, 0.056]) {
+      addVisual(visualBuckets.elevatorSill, sillRibGeo, elevCenterX, 0.0048, elevWallZ + 0.075 + rOff);
+    }
+    sillRibGeo.dispose();
+
+    const sillGrooveGeo = new THREE.BoxGeometry(elevDoorW - 0.002, 0.0018, 0.012);
+    addVisual(visualBuckets.vestibuleVoid, sillGrooveGeo, elevCenterX, 0.0042, elevWallZ + 0.060);
+    sillGrooveGeo.dispose();
+
+    // Dynamic Animated Brushed Stainless-Steel Sliding Door Panels (Inside pocket Z = 11.342..11.378)
+    const panelW = (elevDoorW - 0.010) * 0.5; // 0.685m
+    const panelH = elevDoorH - 0.006;         // 2.214m
+    const panelD = 0.036;
+    const panelY = 0.005 + panelH * 0.5;
+    const panelZ = elevWallZ + 0.060;         // 11.360m
+    const closedLeftX = elevCenterX - panelW * 0.5 - 0.002;
+    const closedRightX = elevCenterX + panelW * 0.5 + 0.002;
+
+    const buildDynamicDoorLeaf = (name, startX, bumperSideSign) => {
+      const leafGeo = new THREE.BoxGeometry(panelW, panelH, panelD);
+      const leafMesh = new THREE.Mesh(leafGeo, this.elevatorStainlessMaterial);
+      leafMesh.name = name;
+      leafMesh.position.set(startX, panelY, panelZ);
+
+      // Leading-edge rubber bumper strip moves smoothly with the leaf
+      const bumperGeo = new THREE.BoxGeometry(0.006, panelH, panelD - 0.006);
+      const bumperMesh = new THREE.Mesh(bumperGeo, this.vestibuleVoidMaterial);
+      bumperMesh.position.set(bumperSideSign * (panelW * 0.5 + 0.001), 0, 0);
+      leafMesh.add(bumperMesh);
+
+      group.add(leafMesh);
+      return leafMesh;
+    };
+
+    this.elevatorDoorClosedLeftX = closedLeftX;
+    this.elevatorDoorClosedRightX = closedRightX;
+    this.elevatorDoorSlideDistance = 0.695;
+    this.elevatorLeftDoorMesh = buildDynamicDoorLeaf('ElevatorDoorLeft', closedLeftX, 1);
+    this.elevatorRightDoorMesh = buildDynamicDoorLeaf('ElevatorDoorRight', closedRightX, -1);
+
+    // Toggleable temporary doorway blocker collider while elevator doors are closed
+    this.elevatorDoorBlocker = {
+      minX: elevCenterX - elevDoorW * 0.5,
+      maxX: elevCenterX + elevDoorW * 0.5,
+      minY: 0.0,
+      maxY: elevDoorH + 0.05,
+      minZ: elevWallZ - 0.01,
+      maxZ: elevWallZ + 0.13,
+      active: true,
+    };
+
+    // Build Stainless-Steel Elevator Cab Interior, Ceiling LED Diffuser, "R&C SERVICE" Banner,
+    // Control Panel (COP) with 3D Dangling Key, and Laminated Brazilian Safety Notices
+    this._buildElevatorCabInterior(addPart, addVisual, visualBuckets, elevCenterX, elevWallZ + 0.150, elevDoorW, elevDoorH);
 
     // Top Digital Floor Indicator Display ('▼ 30') above the elevator frame (Housed in dark metallic bezel)
     const displayY = elevDoorH + portalFrameW + 0.15;
@@ -17700,6 +18590,354 @@ export class WarehouseBuilder {
     // rotated at a dynamic organic angle (~16° / +0.28 rad yaw away from the west wall) with mop bucket pointing
     // toward the elevator/vestibule doorway and yellow refuse bag toward the stairwell.
     this._buildJanitorCart(addPartMatrix, registerPlayerOnlyCollider, visualBuckets, -13.56, 0.0, 8.98, 0.28);
+  }
+
+  /**
+   * Builds the Enclosed Stainless-Steel Elevator Cab Interior ("R&C SERVICE") directly
+   * behind the vestibule doorway (`1.95m W x 1.85m D x 2.65m H`), featuring:
+   *  - Matching Nero Marquina black veined marble floor
+   *  - Vertical-brushed stainless walls with modular seam grooves & chevron baseboard vents
+   *  - Unlit emissive ceiling diffuser panel (ZERO PointLights)
+   *  - "R&C SERVICE" vinyl hanging banner with white dowel rods on left wall
+   *  - Control Panel (COP) with red dot-matrix '30', stickers, speakers, chrome buttons & 3D key
+   *  - Laminated Brazilian safety notices ("ASSISTÊNCIA TÉCNICA" & "ATENÇÃO")
+   */
+  _buildElevatorCabInterior(addPart, addVisual, visualBuckets, centerX, cabZFront, doorW, doorH) {
+    const cabW = 1.950;
+    const cabD = 1.850;
+    const cabH = 2.650;
+    const wallT = 0.060;
+    const xWest = centerX - cabW * 0.5; // -13.425
+    const xEast = centerX + cabW * 0.5; // -11.475
+    const zBack = cabZFront + cabD;     // 13.300
+    const zMid = cabZFront + cabD * 0.5;
+
+    // 1. Matching Black Veined Marble Cab Floor (Z = cabZFront + 0.005 to zBack + 0.010, strictly behind sill plate -> ZERO Z-fighting)
+    const floorThick = 0.160;
+    const cabFloorZStart = cabZFront + 0.005;
+    const cabFloorZEnd = zBack + 0.010;
+    const cabFloorD = cabFloorZEnd - cabFloorZStart;
+    const cabFloorMidZ = (cabFloorZStart + cabFloorZEnd) * 0.5;
+    const cabFloorGeo = createMarbleFloorBoxGeometry(cabW + 0.02, floorThick, cabFloorD, centerX, cabFloorMidZ, 2.4);
+    addPart(visualBuckets.vestibuleBlackMarble, cabFloorGeo, centerX, -floorThick * 0.5, cabFloorMidZ, 0, 0, 0, true);
+    cabFloorGeo.dispose();
+
+    // 2. Brushed Stainless-Steel Cab Walls & Ceiling Enclosure (all collidable)
+    const backWallGeo = new THREE.BoxGeometry(cabW + wallT * 2, cabH, wallT);
+    addPart(visualBuckets.elevatorStainless, backWallGeo, centerX, cabH * 0.5, zBack + wallT * 0.5);
+    backWallGeo.dispose();
+
+    const sideWallGeo = new THREE.BoxGeometry(wallT, cabH, cabD);
+    addPart(visualBuckets.elevatorStainless, sideWallGeo, xWest - wallT * 0.5, cabH * 0.5, zMid);
+    addPart(visualBuckets.elevatorStainless, sideWallGeo, xEast + wallT * 0.5, cabH * 0.5, zMid);
+    sideWallGeo.dispose();
+
+    // Front Return Walls flanking rough opening (30mm masonry inset behind 70mm cab architrave -> ZERO Z-fighting)
+    const roughOpenPad = 0.030;
+    const returnW = (cabW - doorW) * 0.5 - roughOpenPad; // 0.255m
+    const frontReturnH = doorH + roughOpenPad - 0.001; // 2.249m (1mm clear below transom)
+    const frontReturnGeo = new THREE.BoxGeometry(returnW, frontReturnH, wallT);
+    addPart(visualBuckets.elevatorStainless, frontReturnGeo, xWest + returnW * 0.5, frontReturnH * 0.5, cabZFront - wallT * 0.5);
+    addPart(visualBuckets.elevatorStainless, frontReturnGeo, xEast - returnW * 0.5, frontReturnH * 0.5, cabZFront - wallT * 0.5);
+    frontReturnGeo.dispose();
+
+    const frontTransomStartY = doorH + roughOpenPad; // 2.250m
+    const frontTransomH = cabH - frontTransomStartY;
+    const frontTransomGeo = new THREE.BoxGeometry(cabW, frontTransomH, wallT);
+    addPart(visualBuckets.elevatorStainless, frontTransomGeo, centerX, frontTransomStartY + frontTransomH * 0.5, cabZFront - wallT * 0.5);
+    frontTransomGeo.dispose();
+
+    // 3. Architectural Vertical Panel Reveal Seams (dark hairline grooves)
+    const seamH = cabH - 0.145;
+    const seamY = 0.140 + seamH * 0.5;
+    const backSeamGeo = new THREE.BoxGeometry(0.005, seamH, 0.003);
+    for (const sx of [centerX - 0.34, centerX + 0.34]) {
+      addVisual(visualBuckets.elevatorPortal, backSeamGeo, sx, seamY, zBack - 0.0015);
+    }
+    backSeamGeo.dispose();
+
+    const sideSeamGeo = new THREE.BoxGeometry(0.003, seamH, 0.005);
+    for (const sz of [cabZFront + 0.62, cabZFront + 1.24]) {
+      addVisual(visualBuckets.elevatorPortal, sideSeamGeo, xWest + 0.0015, seamY, sz);
+      addVisual(visualBuckets.elevatorPortal, sideSeamGeo, xEast - 0.0015, seamY, sz);
+    }
+    sideSeamGeo.dispose();
+
+    // 4. Raised Stainless Baseboard Trim + Diagonal Chevron Air-Vent Slots (/ \ / \)
+    const bbH = 0.135;
+    const bbT = 0.018;
+    const bbY = 0.002 + bbH * 0.5;
+
+    const backBbGeo = new THREE.BoxGeometry(cabW - 0.004, bbH, bbT);
+    addVisual(visualBuckets.elevatorStainless, backBbGeo, centerX, bbY, zBack - bbT * 0.5);
+    backBbGeo.dispose();
+
+    const sideBbGeo = new THREE.BoxGeometry(bbT, bbH, cabD - bbT);
+    addVisual(visualBuckets.elevatorStainless, sideBbGeo, xWest + bbT * 0.5, bbY, zMid - bbT * 0.5);
+    addVisual(visualBuckets.elevatorStainless, sideBbGeo, xEast - bbT * 0.5, bbY, zMid - bbT * 0.5);
+    sideBbGeo.dispose();
+
+    // Front baseboards stop 4mm clear of the 70mm cab architrave jambs (-13.210 and -11.690)
+    const cabArchOuterHalf = doorW * 0.5 + 0.074;
+    const retBbW = cabW * 0.5 - bbT - cabArchOuterHalf; // 0.193m
+    const retBbGeo = new THREE.BoxGeometry(retBbW, bbH, bbT);
+    addVisual(visualBuckets.elevatorStainless, retBbGeo, xWest + bbT + retBbW * 0.5, bbY, cabZFront + bbT * 0.5);
+    addVisual(visualBuckets.elevatorStainless, retBbGeo, xEast - bbT - retBbW * 0.5, bbY, cabZFront + bbT * 0.5);
+    retBbGeo.dispose();
+
+    // Diagonal chevron air-vent louvers along lower baseboards
+    const ventSlotSideGeo = new THREE.BoxGeometry(0.003, 0.036, 0.007);
+    const chevronCount = 6;
+    const addSideVentCluster = (wx, zCenter, faceDirX) => {
+      for (let i = 0; i < chevronCount; i++) {
+        const vz = zCenter + (i - (chevronCount - 1) * 0.5) * 0.034;
+        const rotX = (i % 2 === 0 ? 1 : -1) * 0.52;
+        addVisual(visualBuckets.vestibuleVoid, ventSlotSideGeo, wx + faceDirX * 0.0015, 0.056, vz, rotX, 0, 0);
+      }
+    };
+    addSideVentCluster(xWest + bbT, cabZFront + 0.34, 1);
+    addSideVentCluster(xWest + bbT, cabZFront + 1.44, 1);
+    addSideVentCluster(xEast - bbT, cabZFront + 0.34, -1);
+    addSideVentCluster(xEast - bbT, cabZFront + 1.44, -1);
+    ventSlotSideGeo.dispose();
+
+    const ventSlotBackGeo = new THREE.BoxGeometry(0.007, 0.036, 0.003);
+    for (let i = 0; i < 8; i++) {
+      const vx = centerX + (i - 3.5) * 0.036;
+      const rotZ = (i % 2 === 0 ? 1 : -1) * 0.52;
+      addVisual(visualBuckets.vestibuleVoid, ventSlotBackGeo, vx, 0.056, zBack - bbT - 0.0015, 0, 0, rotZ);
+    }
+    ventSlotBackGeo.dispose();
+
+    // 5. Overhead Metallic Frame & Glowing Unlit Ceiling Diffuser Panel (ZERO PointLights!)
+    const diffW = 1.34;
+    const diffD = 1.24;
+    const frameRimX = (cabW - diffW) * 0.5;
+    const frameRimZ = (cabD - diffD) * 0.5;
+    const ceilThick = 0.045;
+    const ceilY = cabH + ceilThick * 0.5;
+
+    const ceilSideGeo = new THREE.BoxGeometry(frameRimX, ceilThick, cabD);
+    addPart(visualBuckets.elevatorPortal, ceilSideGeo, xWest + frameRimX * 0.5, ceilY, zMid, 0, 0, 0, true);
+    addPart(visualBuckets.elevatorPortal, ceilSideGeo, xEast - frameRimX * 0.5, ceilY, zMid, 0, 0, 0, true);
+    ceilSideGeo.dispose();
+
+    const ceilEndGeo = new THREE.BoxGeometry(diffW, ceilThick, frameRimZ);
+    addPart(visualBuckets.elevatorPortal, ceilEndGeo, centerX, ceilY, cabZFront + frameRimZ * 0.5, 0, 0, 0, true);
+    addPart(visualBuckets.elevatorPortal, ceilEndGeo, centerX, ceilY, zBack - frameRimZ * 0.5, 0, 0, 0, true);
+    ceilEndGeo.dispose();
+
+    // Cross-mullion grid bars beneath glowing ceiling panel
+    const ceilBarZGeo = new THREE.BoxGeometry(0.028, 0.014, diffD);
+    addVisual(visualBuckets.elevatorPortal, ceilBarZGeo, centerX - diffW * 0.22, cabH + 0.005, zMid);
+    addVisual(visualBuckets.elevatorPortal, ceilBarZGeo, centerX + diffW * 0.22, cabH + 0.005, zMid);
+    ceilBarZGeo.dispose();
+
+    const ceilDiffuserGeo = new THREE.PlaneGeometry(diffW, diffD);
+    ceilDiffuserGeo.rotateX(Math.PI * 0.5);
+    addVisual(visualBuckets.elevatorCeilingLight, ceilDiffuserGeo, centerX, cabH + 0.012, zMid);
+    ceilDiffuserGeo.dispose();
+
+    // 6. "R&C SERVICE" Hanging Vinyl Banner + White Dowel Rods on West Wall (Top edge aligned with COP top Y = 1.825m)
+    const bannerW = 0.68;
+    const bannerH = 1.45;
+    const bannerCenterY = 1.100;
+    const bannerCenterZ = cabZFront + 0.37; // 11.82m
+    const bannerX = xWest + 0.014;
+
+    const bannerGeo = new THREE.PlaneGeometry(bannerW, bannerH);
+    bannerGeo.rotateY(Math.PI * 0.5);
+    addVisual(visualBuckets.elevatorBanner, bannerGeo, bannerX, bannerCenterY, bannerCenterZ);
+    bannerGeo.dispose();
+
+    const dowelGeo = new THREE.CylinderGeometry(0.011, 0.011, bannerW + 0.04, 12);
+    dowelGeo.rotateX(Math.PI * 0.5);
+    addVisual(visualBuckets.printerWhite, dowelGeo, bannerX + 0.002, bannerCenterY + bannerH * 0.5 + 0.005, bannerCenterZ);
+    addVisual(visualBuckets.printerWhite, dowelGeo, bannerX + 0.002, bannerCenterY - bannerH * 0.5 - 0.005, bannerCenterZ);
+    dowelGeo.dispose();
+
+    const clipGeo = new THREE.BoxGeometry(0.014, 0.016, 0.014);
+    for (const cz of [bannerCenterZ - 0.24, bannerCenterZ + 0.24]) {
+      addVisual(visualBuckets.vestibuleChrome, clipGeo, xWest + 0.007, bannerCenterY + bannerH * 0.5 + 0.010, cz);
+    }
+    clipGeo.dispose();
+
+    // 7. Brushed Stainless Control Panel (COP) on West Side Wall (Z = 12.89m, facing +X into cab)
+    const copW = 0.255;
+    const copH = 1.150;
+    const copXBase = xWest + 0.003;
+    const copCenterY = 1.250;
+    const copCenterZ = cabZFront + 1.440; // 12.89m (between rear corner and seam left of banner)
+
+    const copMountPos = new THREE.Vector3(copXBase, copCenterY, copCenterZ);
+    const copMountQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI * 0.5);
+    const copMountMatrix = new THREE.Matrix4().compose(copMountPos, copMountQuat, new THREE.Vector3(1, 1, 1));
+    const copLocalPos = new THREE.Vector3();
+    const copLocalEuler = new THREE.Euler();
+    const copLocalQuat = new THREE.Quaternion();
+    const copLocalScale = new THREE.Vector3(1, 1, 1);
+    const copPartMatrix = new THREE.Matrix4();
+
+    const addCopVisual = (bucket, geo, lx, ly, lz, rx = 0, ry = 0, rz = 0) => {
+      copLocalPos.set(lx, ly, lz);
+      copLocalEuler.set(rx, ry, rz);
+      copLocalQuat.setFromEuler(copLocalEuler);
+      copPartMatrix.compose(copLocalPos, copLocalQuat, copLocalScale).premultiply(copMountMatrix);
+      const g = geo.index ? geo.toNonIndexed() : geo.clone();
+      g.applyMatrix4(copPartMatrix);
+      bucket.push(g);
+    };
+
+    // Beveled stainless faceplate substrate (front at lz = +0.0025)
+    const copPlateGeo = new THREE.BoxGeometry(copW + 0.004, copH + 0.004, 0.005);
+    addCopVisual(visualBuckets.elevatorStainless, copPlateGeo, 0, 0, 0);
+    copPlateGeo.dispose();
+
+    // Mapped COP face graphic (left 0..460/2048 of 2048x1024 atlas, 1.7mm clear of plate front)
+    const copUWidth = 460 / 2048;
+    const copFaceGeo = new THREE.PlaneGeometry(copW, copH);
+    const copUv = copFaceGeo.attributes.uv;
+    for (let i = 0; i < copUv.count; i++) {
+      copUv.setX(i, copUv.getX(i) * copUWidth);
+    }
+    copUv.needsUpdate = true;
+    addCopVisual(visualBuckets.elevatorCop, copFaceGeo, 0, 0, 0.0042);
+    copFaceGeo.dispose();
+
+    const copPxToLocal = (px, py) => ({
+      x: ((px - 230) / 460) * copW,
+      y: (0.5 - py / 1024) * copH,
+    });
+
+    // 6 Silver Countersunk Mounting Screws
+    const copScrewGeo = new THREE.CylinderGeometry(0.0032, 0.0032, 0.002, 10);
+    copScrewGeo.rotateX(Math.PI * 0.5);
+    for (const py of [36, 480, 988]) {
+      for (const px of [40, 420]) {
+        const pt = copPxToLocal(px, py);
+        addCopVisual(visualBuckets.vestibuleChrome, copScrewGeo, pt.x, pt.y, 0.0052);
+      }
+    }
+    copScrewGeo.dispose();
+
+    // Raised 3D Chrome Pushbuttons + Dedicated 256x256 HD Circular Faces (open-ended barrel capped seamlessly by capGeo -> ZERO Z-fighting!)
+    const copBezelGeo = new THREE.CylinderGeometry(0.0175, 0.0185, 0.004, 24);
+    copBezelGeo.rotateX(Math.PI * 0.5);
+    const copBarrelGeo = new THREE.CylinderGeometry(0.0140, 0.0145, 0.006, 24, 1, true);
+    copBarrelGeo.rotateX(Math.PI * 0.5);
+
+    const copButtonDefs = [
+      { px: 230, py: 602, slotIdx: 0, isKeyswitch: false }, // 3
+      { px: 230, py: 672, slotIdx: 1, isKeyswitch: false }, // 2
+      { px: 230, py: 742, slotIdx: 2, isKeyswitch: false }, // 1
+      { px: 148, py: 824, slotIdx: 3, isKeyswitch: false }, // Door Open
+      { px: 312, py: 824, slotIdx: 4, isKeyswitch: false }, // Door Close
+      { px: 148, py: 888, slotIdx: 5, isKeyswitch: false }, // Intercom
+      { px: 312, py: 888, slotIdx: 6, isKeyswitch: false }, // Yellow Alarm Bell
+      { px: 148, py: 952, slotIdx: 7, isKeyswitch: false }, // Emergency Stop
+      { px: 312, py: 952, slotIdx: -1, isKeyswitch: true }, // Keyswitch Cylinder + 3D Dangling Key
+    ];
+
+    const copCapUHalf = 112 / 2048;
+    const copCapVHalf = 112 / 1024;
+    for (const b of copButtonDefs) {
+      const pt = copPxToLocal(b.px, b.py);
+      addCopVisual(visualBuckets.vestibuleChrome, copBezelGeo, pt.x, pt.y, 0.0065);
+
+      if (!b.isKeyswitch) {
+        addCopVisual(visualBuckets.elevatorStainless, copBarrelGeo, pt.x, pt.y, 0.0082);
+
+        const col = b.slotIdx % 3;
+        const row = Math.floor(b.slotIdx / 3);
+        const uCenter = (1064 + col * 320 + 128) / 2048;
+        const vCenter = 1 - (32 + row * 320 + 128) / 1024;
+
+        const capGeo = new THREE.CircleGeometry(0.0140, 24);
+        const uv = capGeo.attributes.uv;
+        for (let i = 0; i < uv.count; i++) {
+          const lx = (uv.getX(i) - 0.5) * 2;
+          const ly = (uv.getY(i) - 0.5) * 2;
+          uv.setXY(i, uCenter + lx * copCapUHalf, vCenter + ly * copCapVHalf);
+        }
+        uv.needsUpdate = true;
+        addCopVisual(visualBuckets.elevatorCop, capGeo, pt.x, pt.y, 0.0112);
+        capGeo.dispose();
+      } else {
+        // Keyswitch Lock Cylinder + Inserted 3D Key + Split Keyring + Dangling Blade
+        const lockCylGeo = new THREE.CylinderGeometry(0.013, 0.013, 0.008, 16);
+        lockCylGeo.rotateX(Math.PI * 0.5);
+        addCopVisual(visualBuckets.vestibuleChrome, lockCylGeo, pt.x, pt.y, 0.0088);
+        lockCylGeo.dispose();
+
+        const keywayGeo = new THREE.BoxGeometry(0.0022, 0.011, 0.003);
+        addCopVisual(visualBuckets.vestibuleVoid, keywayGeo, pt.x, pt.y, 0.0132);
+        keywayGeo.dispose();
+
+        // Inserted key bow protruding from cylinder
+        const keyNeckGeo = new THREE.BoxGeometry(0.0025, 0.007, 0.016);
+        addCopVisual(visualBuckets.vestibuleChrome, keyNeckGeo, pt.x, pt.y, 0.0195);
+        keyNeckGeo.dispose();
+
+        const keyBowGeo = new THREE.CylinderGeometry(0.0085, 0.0085, 0.0025, 14);
+        keyBowGeo.rotateZ(Math.PI * 0.5);
+        addCopVisual(visualBuckets.vestibuleChrome, keyBowGeo, pt.x, pt.y - 0.005, 0.0265, 0.45, 0, 0);
+        keyBowGeo.dispose();
+
+        // Chrome split keyring hanging vertically below the lock bow
+        const ringGeo = new THREE.TorusGeometry(0.0105, 0.0017, 8, 18);
+        addCopVisual(visualBuckets.vestibuleChrome, ringGeo, pt.x, pt.y - 0.020, 0.0275);
+        ringGeo.dispose();
+
+        // Second metal blade key dangling downward from the split keyring
+        const dangleHeadGeo = new THREE.CylinderGeometry(0.007, 0.007, 0.0022, 12);
+        dangleHeadGeo.rotateX(Math.PI * 0.5);
+        addCopVisual(visualBuckets.vestibuleChrome, dangleHeadGeo, pt.x, pt.y - 0.032, 0.0275);
+        dangleHeadGeo.dispose();
+
+        const dangleBladeGeo = new THREE.BoxGeometry(0.0042, 0.026, 0.0018);
+        addCopVisual(visualBuckets.vestibuleChrome, dangleBladeGeo, pt.x, pt.y - 0.048, 0.0275);
+        dangleBladeGeo.dispose();
+      }
+    }
+    copBezelGeo.dispose();
+    copBarrelGeo.dispose();
+
+    // 8. Two Laminated Brazilian Safety Notices (Mounted on East Wall facing -X)
+    const noticeX = xEast - 0.004;
+    const noticeZ = cabZFront + 0.19; // Right beside front-right return wall
+
+    const mapSubAtlasPlane = (w, h, uMin, uMax, vMin, vMax) => {
+      const g = new THREE.PlaneGeometry(w, h);
+      const uv = g.attributes.uv;
+      for (let i = 0; i < uv.count; i++) {
+        uv.setXY(i, uMin + uv.getX(i) * (uMax - uMin), vMin + uv.getY(i) * (vMax - vMin));
+      }
+      uv.needsUpdate = true;
+      g.rotateY(-Math.PI * 0.5);
+      return g;
+    };
+
+    // Top small laminated card: "ASSISTÊNCIA TÉCNICA - Plantão 24h"
+    const topCardW = 0.25;
+    const topCardH = 0.13;
+    const topCardBackGeo = new THREE.BoxGeometry(0.002, topCardH + 0.004, topCardW + 0.004);
+    addVisual(visualBuckets.elevatorPortal, topCardBackGeo, noticeX + 0.0015, 1.71, noticeZ);
+    topCardBackGeo.dispose();
+
+    const topCardFaceGeo = mapSubAtlasPlane(topCardW, topCardH, 524 / 2048, 1012 / 2048, 756 / 1024, 1008 / 1024);
+    addVisual(visualBuckets.elevatorCop, topCardFaceGeo, noticeX, 1.71, noticeZ);
+    topCardFaceGeo.dispose();
+
+    // Bottom tall laminated card: "ATENÇÃO - Lei Nº 2.743..."
+    const botCardW = 0.25;
+    const botCardH = 0.39;
+    const botCardBackGeo = new THREE.BoxGeometry(0.002, botCardH + 0.004, botCardW + 0.004);
+    addVisual(visualBuckets.elevatorPortal, botCardBackGeo, noticeX + 0.0015, 1.40, noticeZ);
+    botCardBackGeo.dispose();
+
+    const botCardFaceGeo = mapSubAtlasPlane(botCardW, botCardH, 524 / 2048, 1012 / 2048, 16 / 1024, 734 / 1024);
+    addVisual(visualBuckets.elevatorCop, botCardFaceGeo, noticeX, 1.40, noticeZ);
+    botCardFaceGeo.dispose();
   }
 
   /**
@@ -20712,6 +21950,10 @@ export class WarehouseBuilder {
       this.telestreamBodyEmissiveTexture,
       this.telestreamLcdTexture,
       this.telestreamHandsetTexture,
+      this.brushedStainlessTex,
+      this.elevatorBannerTexture,
+      this.elevatorCopDiffuseTexture,
+      this.elevatorCopEmissiveTexture,
     ].filter(Boolean);
   }
 }

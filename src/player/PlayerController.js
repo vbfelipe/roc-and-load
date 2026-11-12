@@ -52,6 +52,7 @@ export class PlayerController {
     this.maxFallSpeed = 0;
 
     this.colliderMesh = null;
+    this.dynamicBlockers = [];
     this.gameState = 'MENU';
     this.jumpSuppressed = false;
 
@@ -76,6 +77,13 @@ export class PlayerController {
 
   setCollider(colliderMesh) {
     this.colliderMesh = colliderMesh;
+  }
+
+  /**
+   * Registers toggleable axis-aligned blocker volumes (e.g. closed elevator doors).
+   */
+  setDynamicBlockers(blockers = []) {
+    this.dynamicBlockers = Array.isArray(blockers) ? blockers : [];
   }
 
   teleport(x, y, z) {
@@ -225,8 +233,9 @@ export class PlayerController {
     this.position.y += this.velocity.y * subDelta;
     this.position.z += this.velocity.z * subDelta;
 
-    // 4. Resolve Capsule Collisions against BVH
+    // 4. Resolve Capsule Collisions against BVH & active dynamic blockers
     this._resolveCapsuleCollisions();
+    this._resolveDynamicBlockers();
 
     // 5. Detect landing impact (subtle, clean bump and procedural touchdown SFX)
     if (!this.wasGrounded && this.isGrounded) {
@@ -349,6 +358,46 @@ export class PlayerController {
     });
 
     this.isGrounded = groundedThisFrame;
+  }
+
+  /**
+   * Resolves horizontal player capsule collision against toggleable dynamic AABB blockers.
+   */
+  _resolveDynamicBlockers() {
+    if (!this.dynamicBlockers || this.dynamicBlockers.length === 0) return;
+    const pTop = this.position.y + this.height;
+    const rSq = this.radius * this.radius;
+
+    for (let i = 0; i < this.dynamicBlockers.length; i++) {
+      const b = this.dynamicBlockers[i];
+      if (!b || !b.active) continue;
+      if (this.position.y >= b.maxY || pTop <= b.minY) continue;
+
+      const cx = Math.max(b.minX, Math.min(this.position.x, b.maxX));
+      const cz = Math.max(b.minZ, Math.min(this.position.z, b.maxZ));
+      const dx = this.position.x - cx;
+      const dz = this.position.z - cz;
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq < rSq) {
+        if (distSq > 1e-8) {
+          const dist = Math.sqrt(distSq);
+          const nx = dx / dist;
+          const nz = dz / dist;
+          const push = this.radius - dist;
+          this.position.x += nx * push;
+          this.position.z += nz * push;
+          const vDot = this.velocity.x * nx + this.velocity.z * nz;
+          if (vDot < 0) {
+            this.velocity.x -= vDot * nx;
+            this.velocity.z -= vDot * nz;
+          }
+        } else {
+          this.position.z = b.maxZ + this.radius;
+          if (this.velocity.z < 0) this.velocity.z = 0;
+        }
+      }
+    }
   }
 
   /**

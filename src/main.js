@@ -9,7 +9,7 @@ import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
 import { LightingTuner } from './ui/LightingTuner.js';
 import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
-import { IntroSequence, VESTIBULE_SPAWN } from './game/IntroSequence.js';
+import { IntroSequence, ELEVATOR_SPAWN } from './game/IntroSequence.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -65,9 +65,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const player = new PlayerController(engine.camera, input, sound);
   player.setCollider(warehouse.playerColliderMesh || colliderMesh);
-  player.teleport(VESTIBULE_SPAWN.x, VESTIBULE_SPAWN.y, VESTIBULE_SPAWN.z);
-  player.yaw = VESTIBULE_SPAWN.yaw;
-  player.pitch = VESTIBULE_SPAWN.pitch;
+  if (warehouse.elevatorDoorBlocker) {
+    player.setDynamicBlockers([warehouse.elevatorDoorBlocker]);
+  }
+  player.teleport(ELEVATOR_SPAWN.x, ELEVATOR_SPAWN.y, ELEVATOR_SPAWN.z);
+  player.yaw = ELEVATOR_SPAWN.yaw;
+  player.pitch = ELEVATOR_SPAWN.pitch;
   if (typeof player._updateCameraTransform === 'function') {
     player._updateCameraTransform();
   }
@@ -263,11 +266,20 @@ window.addEventListener('DOMContentLoaded', () => {
       `[rocAndLoad] Boot ready in ${Math.round(performance.now() - bootStart)}ms (assets: ${assetsMs}ms, GPU warmup: ${warmupMs}ms)`
     );
 
-    // Preloader is 100% complete: reset showroom sweep to s = 0 (Monitors first), start render loop & unlock menu
+    // Preloader is 100% complete: reset showroom sweep to s = 0 (Monitors first), render clean menu frames
+    // behind the opaque loading screen so the dirty GPU warmup buffer never flashes during fade-out
     menuCameraElapsed = 0;
+    viewmodel.root.visible = false;
+    engine.camera.position.set(-2.6, 1.98, -5.2);
+    engine.camera.up.set(0, 1, 0);
+    engine.camera.lookAt(2.1, 1.04, 3.2);
     isPreloading = false;
     sound.setPreloading(false);
     engine.start();
+
+    // Flush at least two clean MAIN_MENU frames before revealing the canvas under #loading-screen
+    await nextFrame();
+    await nextFrame();
 
     if (loadingScreen) {
       loadingScreen.classList.add('hidden');

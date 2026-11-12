@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 export const INTRO_STATES = Object.freeze({
+  ELEVATOR_ARRIVING: 'ELEVATOR_ARRIVING',
   UNARMED_INTRO: 'UNARMED_INTRO',
   PHONE_RINGING: 'PHONE_RINGING',
   PHONE_ANSWERED: 'PHONE_ANSWERED',
@@ -17,19 +18,26 @@ export const PHONE_DIALOGUE_SCRIPT = Object.freeze([
   { speaker: 'roc', text: 'Vai dormir, Jório. Se você atrasar meu relatório na segunda-feira, quem vai te morder sou eu.' },
 ]);
 
-export const VESTIBULE_SPAWN = Object.freeze({
+export const ELEVATOR_SPAWN = Object.freeze({
   x: -12.45,
   y: 0.0,
-  z: 10.30,
-  yaw: -Math.PI / 2,
+  z: 12.93,
+  yaw: 0.0,
   pitch: 0.0,
 });
+
+export const VESTIBULE_SPAWN = ELEVATOR_SPAWN;
+
+// Elevator arrival timing
+const ELEVATOR_CHIME_DELAY_SECONDS = 0.65;
+const ELEVATOR_DOOR_SLIDE_START_SECONDS = 1.10;
+const ELEVATOR_DOOR_SLIDE_DURATION_SECONDS = 1.50;
+const TUTORIAL_REVEAL_TIME_SECONDS = 2.45;
 
 // Threshold X coordinate stepping out of the glass partition doorway into the main office room
 const MAIN_ROOM_THRESHOLD_X = -9.8;
 const PHONE_RING_DELAY_AFTER_ENTRY_SECONDS = 6.0;
 const PHONE_INTERACT_RADIUS = 1.22;
-const TUTORIAL_DELAY_SECONDS = 2.0;
 const TUTORIAL_MAX_DURATION_SECONDS = 12.0;
 const TYPEWRITER_CHARS_PER_SEC = 38.0;
 const TYPEWRITER_PUNCT_PAUSE = 0.18;
@@ -38,7 +46,7 @@ const DIALOGUE_AUTO_ADVANCE_SECONDS = 3.0;
 
 /**
  * Coordinates the opening gameplay state sequence:
- *  UNARMED_INTRO -> PHONE_RINGING -> PHONE_ANSWERED
+ *  ELEVATOR_ARRIVING -> UNARMED_INTRO -> PHONE_RINGING -> PHONE_ANSWERED -> CALL_ENDED
  */
 export class IntroSequence {
   constructor({ scene, camera, player, weaponSystem, hud, sound, input, warehouse }) {
@@ -51,13 +59,16 @@ export class IntroSequence {
     this.input = input;
     this.warehouse = warehouse;
 
-    this.state = INTRO_STATES.UNARMED_INTRO;
+    this.state = INTRO_STATES.ELEVATOR_ARRIVING;
     this._gameState = 'MAIN_MENU';
     this.hasStarted = false;
     this.tutorialShown = false;
     this.tutorialDismissed = false;
     this.tutorialTimer = 0;
     this.tutorialVisibleTimer = 0;
+    this._elevatorTimer = 0;
+    this._chimePlayed = false;
+    this._doorSoundPlayed = false;
     this._enteredMainRoom = false;
     this._mainRoomRingTimer = 0;
 
@@ -166,26 +177,51 @@ export class IntroSequence {
   }
 
   /**
-   * Positions Roc inside the elevator vestibule facing the open double doors
-   * and sets up unarmed state.
+   * Positions Roc inside the closed elevator cab facing straight toward the steel doors
+   * and ensures closed door panels + blocker collider are in their initial state.
    */
-  spawnInVestibule(useReset = false) {
+  spawnInElevator(useReset = false) {
+    this._setElevatorDoorsProgress(0);
+    this._setElevatorDoorBlockerActive(true);
     if (!this.player) return;
     if (useReset && typeof this.player.reset === 'function') {
       this.player.reset(
-        VESTIBULE_SPAWN.x,
-        VESTIBULE_SPAWN.y,
-        VESTIBULE_SPAWN.z,
-        VESTIBULE_SPAWN.yaw,
-        VESTIBULE_SPAWN.pitch
+        ELEVATOR_SPAWN.x,
+        ELEVATOR_SPAWN.y,
+        ELEVATOR_SPAWN.z,
+        ELEVATOR_SPAWN.yaw,
+        ELEVATOR_SPAWN.pitch
       );
     } else {
-      this.player.teleport(VESTIBULE_SPAWN.x, VESTIBULE_SPAWN.y, VESTIBULE_SPAWN.z);
-      this.player.yaw = VESTIBULE_SPAWN.yaw;
-      this.player.pitch = VESTIBULE_SPAWN.pitch;
+      this.player.teleport(ELEVATOR_SPAWN.x, ELEVATOR_SPAWN.y, ELEVATOR_SPAWN.z);
+      this.player.yaw = ELEVATOR_SPAWN.yaw;
+      this.player.pitch = ELEVATOR_SPAWN.pitch;
       if (typeof this.player._updateCameraTransform === 'function') {
         this.player._updateCameraTransform();
       }
+    }
+  }
+
+  /** @deprecated Alias kept for compatibility with external callers */
+  spawnInVestibule(useReset = false) {
+    this.spawnInElevator(useReset);
+  }
+
+  _setElevatorDoorsProgress(progress = 0) {
+    if (!this.warehouse) return;
+    const t = Math.max(0, Math.min(1, progress));
+    const slide = this.warehouse.elevatorDoorSlideDistance ?? 0.695;
+    if (this.warehouse.elevatorLeftDoorMesh && this.warehouse.elevatorDoorClosedLeftX !== undefined) {
+      this.warehouse.elevatorLeftDoorMesh.position.x = this.warehouse.elevatorDoorClosedLeftX - t * slide;
+    }
+    if (this.warehouse.elevatorRightDoorMesh && this.warehouse.elevatorDoorClosedRightX !== undefined) {
+      this.warehouse.elevatorRightDoorMesh.position.x = this.warehouse.elevatorDoorClosedRightX + t * slide;
+    }
+  }
+
+  _setElevatorDoorBlockerActive(active) {
+    if (this.warehouse && this.warehouse.elevatorDoorBlocker) {
+      this.warehouse.elevatorDoorBlocker.active = !!active;
     }
   }
 
@@ -193,16 +229,22 @@ export class IntroSequence {
     if (this.hasStarted) return;
     this.hasStarted = true;
     this._gameState = 'PLAYING';
-    this.state = INTRO_STATES.UNARMED_INTRO;
+    this.state = INTRO_STATES.ELEVATOR_ARRIVING;
     this.tutorialTimer = 0;
     this.tutorialVisibleTimer = 0;
     this.tutorialShown = false;
     this.tutorialDismissed = false;
+    this._elevatorTimer = 0;
+    this._chimePlayed = false;
+    this._doorSoundPlayed = false;
     this._enteredMainRoom = false;
     this._mainRoomRingTimer = 0;
     this._dialogueActive = false;
 
-    this.spawnInVestibule(false);
+    this.spawnInElevator(false);
+    if (this.sound && typeof this.sound.resume === 'function') {
+      this.sound.resume();
+    }
     if (this.player && typeof this.player.setJumpSuppressed === 'function') {
       this.player.setJumpSuppressed(false);
     }
@@ -561,11 +603,39 @@ export class IntroSequence {
     this._gameState = gameState;
     if (!this.hasStarted || gameState !== 'PLAYING') return;
 
-    // 2-second delayed tutorial controls HUD, auto-hidden after at most 12 seconds on screen
+    // Elevator Arrival Sequence: "pin-dun" chime -> smooth sliding steel doors -> unlock exit
+    if (this.state === INTRO_STATES.ELEVATOR_ARRIVING) {
+      this._elevatorTimer += delta;
+      if (!this._chimePlayed && this._elevatorTimer >= ELEVATOR_CHIME_DELAY_SECONDS) {
+        this._chimePlayed = true;
+        if (this.sound && typeof this.sound.playElevatorArrivalChime === 'function') {
+          this.sound.playElevatorArrivalChime();
+        }
+      }
+      if (!this._doorSoundPlayed && this._elevatorTimer >= ELEVATOR_DOOR_SLIDE_START_SECONDS) {
+        this._doorSoundPlayed = true;
+        if (this.sound && typeof this.sound.playElevatorDoorSlide === 'function') {
+          this.sound.playElevatorDoorSlide();
+        }
+      }
+      if (this._elevatorTimer >= ELEVATOR_DOOR_SLIDE_START_SECONDS) {
+        const rawT = Math.min(
+          1.0,
+          (this._elevatorTimer - ELEVATOR_DOOR_SLIDE_START_SECONDS) / ELEVATOR_DOOR_SLIDE_DURATION_SECONDS
+        );
+        const smooth = rawT * rawT * (3 - 2 * rawT);
+        this._setElevatorDoorsProgress(smooth);
+        if (rawT >= 1.0) {
+          this._setElevatorDoorBlockerActive(false);
+          this.state = INTRO_STATES.UNARMED_INTRO;
+        }
+      }
+    }
+
+    // Fade in tutorial hint right as the elevator doors finish opening (~2.45s after START)
     if (!this.tutorialDismissed && this.state !== INTRO_STATES.PHONE_ANSWERED && this.state !== INTRO_STATES.CALL_ENDED) {
       if (!this.tutorialShown) {
-        this.tutorialTimer += delta;
-        if (this.tutorialTimer >= TUTORIAL_DELAY_SECONDS) {
+        if (this.state !== INTRO_STATES.ELEVATOR_ARRIVING || this._elevatorTimer >= TUTORIAL_REVEAL_TIME_SECONDS) {
           this.tutorialShown = true;
           this.tutorialVisibleTimer = 0;
           if (this.hud) {
@@ -607,13 +677,16 @@ export class IntroSequence {
   }
 
   reset() {
-    this.state = INTRO_STATES.UNARMED_INTRO;
+    this.state = INTRO_STATES.ELEVATOR_ARRIVING;
     this._gameState = 'MAIN_MENU';
     this.hasStarted = false;
     this.tutorialShown = false;
     this.tutorialDismissed = false;
     this.tutorialTimer = 0;
     this.tutorialVisibleTimer = 0;
+    this._elevatorTimer = 0;
+    this._chimePlayed = false;
+    this._doorSoundPlayed = false;
     this._enteredMainRoom = false;
     this._mainRoomRingTimer = 0;
     this._dialogueActive = false;
@@ -659,6 +732,6 @@ export class IntroSequence {
     if (this.weaponSystem && typeof this.weaponSystem.setUnarmed === 'function') {
       this.weaponSystem.setUnarmed(true);
     }
-    this.spawnInVestibule(true);
+    this.spawnInElevator(true);
   }
 }
