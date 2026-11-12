@@ -2809,21 +2809,22 @@ function createBrushedStainlessTexture() {
   canvas.height = size;
   const ctx = canvas.getContext('2d');
 
-  // Subtle horizontal cool/warm metallic sheen gradient across stainless sheet
+  // Subtle uniform metallic sheen across stainless sheet (no heavy dark-light bands or edge seams
+  // that would distort narrow trim strips or create barrel-like shading discontinuities)
   const grad = ctx.createLinearGradient(0, 0, size, 0);
-  grad.addColorStop(0.0, '#bac2cc');
-  grad.addColorStop(0.28, '#dce2ea');
-  grad.addColorStop(0.55, '#c6ced8');
-  grad.addColorStop(0.80, '#e3e8ef');
-  grad.addColorStop(1.0, '#b8c0ca');
+  grad.addColorStop(0.0, '#ccd3dd');
+  grad.addColorStop(0.30, '#d5dce6');
+  grad.addColorStop(0.60, '#cdd4de');
+  grad.addColorStop(0.85, '#d7dee7');
+  grad.addColorStop(1.0, '#ccd3dd');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
 
   // Soft vertical subtle illumination gradient top-to-bottom
   const vGrad = ctx.createLinearGradient(0, 0, 0, size);
-  vGrad.addColorStop(0.0, 'rgba(255, 255, 255, 0.08)');
+  vGrad.addColorStop(0.0, 'rgba(255, 255, 255, 0.05)');
   vGrad.addColorStop(0.55, 'rgba(0, 0, 0, 0.0)');
-  vGrad.addColorStop(1.0, 'rgba(15, 23, 42, 0.12)');
+  vGrad.addColorStop(1.0, 'rgba(15, 23, 42, 0.07)');
   ctx.fillStyle = vGrad;
   ctx.fillRect(0, 0, size, size);
 
@@ -2847,12 +2848,6 @@ function createBrushedStainlessTexture() {
     ctx.lineTo(x, y + len);
     ctx.stroke();
   }
-
-  // Subtle vertical panel seam lines along edges (u = 0 / 1)
-  ctx.fillStyle = 'rgba(25, 32, 42, 0.28)';
-  ctx.fillRect(0, 0, 2, size);
-  ctx.fillStyle = 'rgba(248, 250, 252, 0.16)';
-  ctx.fillRect(2, 0, 1, size);
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = THREE.RepeatWrapping;
@@ -3031,7 +3026,10 @@ function createElevatorBannerTexture() {
   canvas.height = h;
   const ctx = canvas.getContext('2d');
 
-  // 1. Deep navy lower-right background with subtle diagonal tech stripes
+  // Exact slope and angle of the diagonal seam from (0, 775) to (w, 330)
+  const diagAngle = Math.atan2(330 - 775, w); // ~ -0.71558 rad (-41.0 deg)
+
+  // 1. Deep navy lower-right background with subtle diagonal tech stripes aligned with diagAngle
   const navyGrad = ctx.createLinearGradient(0, 420, w, h);
   navyGrad.addColorStop(0.0, '#0f1e36');
   navyGrad.addColorStop(0.55, '#0b1526');
@@ -3044,7 +3042,7 @@ function createElevatorBannerTexture() {
   ctx.lineWidth = 14;
   for (let offset = -400; offset < 1400; offset += 42) {
     ctx.beginPath();
-    ctx.moveTo(0, offset + 320);
+    ctx.moveTo(0, offset + 445);
     ctx.lineTo(w, offset);
     ctx.stroke();
   }
@@ -3082,10 +3080,11 @@ function createElevatorBannerTexture() {
   ctx.fillStyle = sheen;
   ctx.fillRect(0, 0, w, h);
 
-  // 3. Large stylized dark-navy "RC" Geometric Monogram + Cyan Gradient Bar + Pixelated Blocks
+  // 3. Large stylized dark-navy "RC" Geometric Monogram:
+  // Centered horizontally at x = 256 and rotated at diagAngle (-41.0 deg) to harmonize completely with the diagonal cut!
   ctx.save();
-  ctx.translate(250, 305);
-  ctx.rotate(-0.49); // ~ -28 deg angled parallel to diagonal split
+  ctx.translate(256, 275);
+  ctx.rotate(diagAngle);
 
   // Bold geometric 'R' (outer silhouette + inner bowl cutout using evenodd rule)
   ctx.fillStyle = '#0b1526';
@@ -3114,6 +3113,7 @@ function createElevatorBannerTexture() {
   ctx.fill('evenodd');
 
   // Matching bold geometric 'C' with chamfered corners and wide open mouth
+  // Top arm runs horizontally in local space from x = 20..138, bounded by top line y = -88 and bottom line y = -42
   ctx.beginPath();
   ctx.moveTo(20, -88);
   ctx.lineTo(138, -88);
@@ -3140,52 +3140,58 @@ function createElevatorBannerTexture() {
   ctx.closePath();
   ctx.fill();
 
-  // Vertical cyan-to-white gradient bar + pixelated trailing square blocks on upper-right edge of 'C'
-  const barGrad = ctx.createLinearGradient(0, -100, 0, -32);
-  barGrad.addColorStop(0.0, '#ffffff');
-  barGrad.addColorStop(0.35, '#67e8f9');
-  barGrad.addColorStop(1.0, '#0284c7');
+  // Gradient transition bar + trailing digital pixel blocks strictly aligned between
+  // the top line (y = -88) and bottom line (y = -42) of the C's top arm
+  const barGrad = ctx.createLinearGradient(126, 0, 152, 0);
+  barGrad.addColorStop(0.0, '#0284c7');
+  barGrad.addColorStop(0.4, '#38bdf8');
+  barGrad.addColorStop(1.0, '#67e8f9');
   ctx.fillStyle = barGrad;
-  ctx.fillRect(114, -100, 32, 68);
+  ctx.fillRect(126, -88, 26, 46);
 
-  const pixelColors = ['#a5f3fc', '#38bdf8', '#5eead4', '#e0f2fe', '#2dd4bf'];
-  const pixelOffsets = [
-    [154, -96, 18],
-    [154, -70, 18],
-    [178, -82, 18],
-    [154, -44, 18],
-    [178, -44, 18],
+  const pixelBlocks = [
+    // Top row: flush with top line y = -88
+    [156, -88, 20, 20, '#a5f3fc'],
+    [180, -88, 20, 20, '#5eead4'],
+    [204, -88, 14, 14, '#e0f2fe'],
+    // Bottom row: flush with bottom line y = -42 (-62 + 20 = -42, -58 + 16 = -42, -54 + 12 = -42)
+    [156, -62, 20, 20, '#38bdf8'],
+    [180, -58, 16, 16, '#2dd4bf'],
+    [200, -54, 12, 12, '#67e8f9'],
   ];
-  for (let i = 0; i < pixelOffsets.length; i++) {
-    const [px, py, ps] = pixelOffsets[i];
-    ctx.fillStyle = pixelColors[i];
-    ctx.fillRect(px, py, ps, ps);
+  for (const [px, py, pw, ph, col] of pixelBlocks) {
+    ctx.fillStyle = col;
+    ctx.fillRect(px, py, pw, ph);
   }
   ctx.restore();
 
   // 4. Rotated Typography: Bold "R&C", thin uppercase "SERVICE", and spaced subtitle
+  // Aligned with the exact diagonal split line (diagAngle) that separates cyan and dark navy
   ctx.save();
-  ctx.translate(256, 548);
-  ctx.rotate(-0.56); // ~ -32 deg parallel to diagonal split
+  ctx.translate(256, 552.5);
+  ctx.rotate(diagAngle);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
 
+  // "R&C" positioned in cyan zone above the diagonal cut (y < 0)
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 88px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('R&C', -4, -36);
+  ctx.font = '900 84px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('R&C', 0, -46);
 
-  ctx.font = '300 62px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('S E R V I C E', 2, 34);
+  // "SERVICE" positioned in dark navy zone below the diagonal cut (y > 0)
+  ctx.font = '300 56px "Segoe UI", Arial, sans-serif';
+  ctx.fillText('S E R V I C E', 0, 42);
 
+  // Spaced subtitle running parallel below SERVICE
   ctx.fillStyle = 'rgba(226, 248, 244, 0.94)';
   ctx.font = '600 13px "Segoe UI", Arial, sans-serif';
-  ctx.fillText('I N T E L I G Ê N C I A   E M   S E R V I Ç O S', 6, 86);
+  ctx.fillText('I N T E L I G Ê N C I A   E M   S E R V I Ç O S', 0, 88);
   ctx.restore();
 
-  // 5. Crisp white diagonal hashtag near bottom edge
+  // 5. Crisp white diagonal hashtag near bottom edge (also aligned with diagAngle)
   ctx.save();
-  ctx.translate(274, 835);
-  ctx.rotate(-0.59);
+  ctx.translate(268, 835);
+  ctx.rotate(diagAngle);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#ffffff';
@@ -3620,7 +3626,7 @@ function createElevatorCopAndNoticesAtlas() {
   ctx.fillStyle = '#dc2626';
   ctx.textAlign = 'center';
   ctx.font = '900 44px sans-serif';
-  ctx.fillText('ATENÇÃO', px2 + 305, py3 + 60);
+  ctx.fillText('ATENÇÃO', cardCenterX, py3 + 60);
 
   ctx.fillStyle = '#1e293b';
   ctx.textAlign = 'center';
@@ -17982,40 +17988,25 @@ export class WarehouseBuilder {
     const elevCabOuterXMax = -11.465;
     const elevCabOuterH = 2.655;
 
-    // 1. Continuous front facade plaster strip above rough opening (Y = 2.250 to 3.800, Z = 11.300 to 11.330)
-    const northHeaderFrontGeo = new THREE.BoxGeometry(endWallSpanX, vestH - elevWallOpenH, 0.030);
-    addPart(
-      visualBuckets.vestibuleWhiteWall,
-      northHeaderFrontGeo,
-      endWallMidX,
-      elevWallOpenH + (vestH - elevWallOpenH) * 0.5,
-      vestZNorth + 0.015
-    );
-    northHeaderFrontGeo.dispose();
+    // 1. Single Seamless Front Plaster Facade with Rough Opening (Z = 11.300 to 11.330)
+    // One continuous polygon perimeter with cutout: eliminates all internal box seams (zero horizontal slits, zero vertical lines).
+    const northFacadeShape = new THREE.Shape();
+    northFacadeShape.moveTo(-14.198, 0);
+    northFacadeShape.lineTo(elevWallOpenXMin, 0);
+    northFacadeShape.lineTo(elevWallOpenXMin, elevWallOpenH);
+    northFacadeShape.lineTo(elevWallOpenXMax, elevWallOpenH);
+    northFacadeShape.lineTo(elevWallOpenXMax, 0);
+    northFacadeShape.lineTo(-10.182, 0);
+    northFacadeShape.lineTo(-10.182, vestH);
+    northFacadeShape.lineTo(-14.198, vestH);
+    northFacadeShape.closePath();
 
-    // 2. Front plaster flanking pillars left & right of rough opening (Z = 11.300 to 11.330, Y = 0..2.249)
-    const northSideH = elevWallOpenH - 0.001;
-    const northLeftFrontW = elevWallOpenXMin - (-14.198);
-    const northLeftFrontGeo = new THREE.BoxGeometry(northLeftFrontW, northSideH, 0.030);
-    addPart(
-      visualBuckets.vestibuleWhiteWall,
-      northLeftFrontGeo,
-      (-14.198 + elevWallOpenXMin) * 0.5,
-      northSideH * 0.5,
-      vestZNorth + 0.015
-    );
-    northLeftFrontGeo.dispose();
-
-    const northRightFrontW = (-10.182) - elevWallOpenXMax;
-    const northRightFrontGeo = new THREE.BoxGeometry(northRightFrontW, northSideH, 0.030);
-    addPart(
-      visualBuckets.vestibuleWhiteWall,
-      northRightFrontGeo,
-      (elevWallOpenXMax + -10.182) * 0.5,
-      northSideH * 0.5,
-      vestZNorth + 0.015
-    );
-    northRightFrontGeo.dispose();
+    const northFacadeGeo = new THREE.ExtrudeGeometry(northFacadeShape, {
+      depth: 0.030,
+      bevelEnabled: false,
+    });
+    addPart(visualBuckets.vestibuleWhiteWall, northFacadeGeo, 0, 0, vestZNorth);
+    northFacadeGeo.dispose();
 
     // 3. Outer masonry backing outside cab shaft (Z = 11.390 to 11.550) + upper header above cab roof (Y = 2.655..3.800)
     const northOuterLeftW = elevCabOuterXMin - (-14.198);
@@ -18054,6 +18045,14 @@ export class WarehouseBuilder {
     const vestCeilingGeo = new THREE.BoxGeometry(vestW, 0.16, vestL);
     addPart(visualBuckets.vestibuleWhiteWall, vestCeilingGeo, vestXMid, vestH + 0.082, vestZMid, 0, 0, 0, true);
     vestCeilingGeo.dispose();
+
+    // Elevator Shaft Concrete Roof Enclosure (Z = 11.300 to 13.500, Y = 3.802m to 3.962m)
+    // Fully encloses the shaft ceiling above the elevator cab: zero open sky above elevator
+    const shaftRoofL = 2.20;
+    const shaftRoofMidZ = 11.300 + shaftRoofL * 0.5; // 12.40m
+    const shaftRoofGeo = new THREE.BoxGeometry(vestW, 0.16, shaftRoofL);
+    addPart(visualBuckets.vestibuleWhiteWall, shaftRoofGeo, vestXMid, vestH + 0.082, shaftRoofMidZ, 0, 0, 0, true);
+    shaftRoofGeo.dispose();
 
     // 6 Recessed Circular LED Downlight Fixtures in Vestibule Ceiling
     const downlightRingGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.010, 20);
@@ -18479,7 +18478,7 @@ export class WarehouseBuilder {
 
     // Build Stainless-Steel Elevator Cab Interior, Ceiling LED Diffuser, "R&C SERVICE" Banner,
     // Control Panel (COP) with 3D Dangling Key, and Laminated Brazilian Safety Notices
-    this._buildElevatorCabInterior(addPart, addVisual, visualBuckets, elevCenterX, elevWallZ + 0.150, elevDoorW, elevDoorH);
+    this._buildElevatorCabInterior(addPart, addVisual, registerCollider, visualBuckets, elevCenterX, elevWallZ + 0.150, elevDoorW, elevDoorH);
 
     // Top Digital Floor Indicator Display ('▼ 30') above the elevator frame (Housed in dark metallic bezel)
     const displayY = elevDoorH + portalFrameW + 0.15;
@@ -18602,7 +18601,7 @@ export class WarehouseBuilder {
    *  - Control Panel (COP) with red dot-matrix '30', stickers, speakers, chrome buttons & 3D key
    *  - Laminated Brazilian safety notices ("ASSISTÊNCIA TÉCNICA" & "ATENÇÃO")
    */
-  _buildElevatorCabInterior(addPart, addVisual, visualBuckets, centerX, cabZFront, doorW, doorH) {
+  _buildElevatorCabInterior(addPart, addVisual, registerCollider, visualBuckets, centerX, cabZFront, doorW, doorH) {
     const cabW = 1.950;
     const cabD = 1.850;
     const cabH = 2.650;
@@ -18633,18 +18632,44 @@ export class WarehouseBuilder {
     sideWallGeo.dispose();
 
     // Front Return Walls flanking rough opening (30mm masonry inset behind 70mm cab architrave -> ZERO Z-fighting)
+    // Left & right returns run full-height (Y = 0..cabH) with planar facade UVs so no horizontal texture/geometry break appears above the frame.
     const roughOpenPad = 0.030;
     const returnW = (cabW - doorW) * 0.5 - roughOpenPad; // 0.255m
-    const frontReturnH = doorH + roughOpenPad - 0.001; // 2.249m (1mm clear below transom)
-    const frontReturnGeo = new THREE.BoxGeometry(returnW, frontReturnH, wallT);
-    addPart(visualBuckets.elevatorStainless, frontReturnGeo, xWest + returnW * 0.5, frontReturnH * 0.5, cabZFront - wallT * 0.5);
-    addPart(visualBuckets.elevatorStainless, frontReturnGeo, xEast - returnW * 0.5, frontReturnH * 0.5, cabZFront - wallT * 0.5);
-    frontReturnGeo.dispose();
+    const frontReturnH = cabH; // 2.650m (full floor-to-ceiling height)
+    const leftReturnX = xWest + returnW * 0.5;
+    const rightReturnX = xEast - returnW * 0.5;
+    const frontWallZ = cabZFront - wallT * 0.5;
+
+    const applyFrontCabUVs = (geo, boxCenterX, boxCenterY) => {
+      const pos = geo.attributes.position;
+      const norm = geo.attributes.normal;
+      const uv = geo.attributes.uv;
+      for (let i = 0; i < pos.count; i++) {
+        if (Math.abs(norm.getZ(i)) > 0.5) {
+          const wx = boxCenterX + pos.getX(i);
+          const wy = boxCenterY + pos.getY(i);
+          uv.setXY(i, (wx - xWest) / cabW, wy / cabH);
+        }
+      }
+      uv.needsUpdate = true;
+    };
+
+    const leftReturnGeo = new THREE.BoxGeometry(returnW, frontReturnH, wallT);
+    applyFrontCabUVs(leftReturnGeo, leftReturnX, frontReturnH * 0.5);
+    addPart(visualBuckets.elevatorStainless, leftReturnGeo, leftReturnX, frontReturnH * 0.5, frontWallZ);
+    leftReturnGeo.dispose();
+
+    const rightReturnGeo = new THREE.BoxGeometry(returnW, frontReturnH, wallT);
+    applyFrontCabUVs(rightReturnGeo, rightReturnX, frontReturnH * 0.5);
+    addPart(visualBuckets.elevatorStainless, rightReturnGeo, rightReturnX, frontReturnH * 0.5, frontWallZ);
+    rightReturnGeo.dispose();
 
     const frontTransomStartY = doorH + roughOpenPad; // 2.250m
     const frontTransomH = cabH - frontTransomStartY;
-    const frontTransomGeo = new THREE.BoxGeometry(cabW, frontTransomH, wallT);
-    addPart(visualBuckets.elevatorStainless, frontTransomGeo, centerX, frontTransomStartY + frontTransomH * 0.5, cabZFront - wallT * 0.5);
+    const frontTransomW = cabW - returnW * 2 - 0.002; // 1.438m (side seams tucked behind cab architrave jambs)
+    const frontTransomGeo = new THREE.BoxGeometry(frontTransomW, frontTransomH, wallT);
+    applyFrontCabUVs(frontTransomGeo, centerX, frontTransomStartY + frontTransomH * 0.5);
+    addPart(visualBuckets.elevatorStainless, frontTransomGeo, centerX, frontTransomStartY + frontTransomH * 0.5, frontWallZ);
     frontTransomGeo.dispose();
 
     // 3. Architectural Vertical Panel Reveal Seams (dark hairline grooves)
@@ -18709,7 +18734,13 @@ export class WarehouseBuilder {
     }
     ventSlotBackGeo.dispose();
 
-    // 5. Overhead Metallic Frame & Glowing Unlit Ceiling Diffuser Panel (ZERO PointLights!)
+    // 5. Overhead Metallic Frame & Glowing Unlit Ceiling Diffuser Panel + Invisible Physics Ceiling Collider
+    // A. Invisible Full-Span Ceiling Collider (cabW x cabD): physics stops jumping players with zero visual occlusion
+    const cabCeilColGeo = new THREE.BoxGeometry(cabW + wallT * 2, 0.080, cabD + wallT * 2);
+    registerCollider(cabCeilColGeo, centerX, cabH + 0.012 + 0.040, zMid);
+    cabCeilColGeo.dispose();
+
+    // B. Architectural Overhead Metallic Perimeter Frame Trim
     const diffW = 1.34;
     const diffD = 1.24;
     const frameRimX = (cabW - diffW) * 0.5;
@@ -18718,21 +18749,22 @@ export class WarehouseBuilder {
     const ceilY = cabH + ceilThick * 0.5;
 
     const ceilSideGeo = new THREE.BoxGeometry(frameRimX, ceilThick, cabD);
-    addPart(visualBuckets.elevatorPortal, ceilSideGeo, xWest + frameRimX * 0.5, ceilY, zMid, 0, 0, 0, true);
-    addPart(visualBuckets.elevatorPortal, ceilSideGeo, xEast - frameRimX * 0.5, ceilY, zMid, 0, 0, 0, true);
+    addVisual(visualBuckets.elevatorPortal, ceilSideGeo, xWest + frameRimX * 0.5, ceilY, zMid);
+    addVisual(visualBuckets.elevatorPortal, ceilSideGeo, xEast - frameRimX * 0.5, ceilY, zMid);
     ceilSideGeo.dispose();
 
     const ceilEndGeo = new THREE.BoxGeometry(diffW, ceilThick, frameRimZ);
-    addPart(visualBuckets.elevatorPortal, ceilEndGeo, centerX, ceilY, cabZFront + frameRimZ * 0.5, 0, 0, 0, true);
-    addPart(visualBuckets.elevatorPortal, ceilEndGeo, centerX, ceilY, zBack - frameRimZ * 0.5, 0, 0, 0, true);
+    addVisual(visualBuckets.elevatorPortal, ceilEndGeo, centerX, ceilY, cabZFront + frameRimZ * 0.5);
+    addVisual(visualBuckets.elevatorPortal, ceilEndGeo, centerX, ceilY, zBack - frameRimZ * 0.5);
     ceilEndGeo.dispose();
 
-    // Cross-mullion grid bars beneath glowing ceiling panel
+    // C. Cross-mullion architectural grid bars beneath glowing ceiling panel
     const ceilBarZGeo = new THREE.BoxGeometry(0.028, 0.014, diffD);
     addVisual(visualBuckets.elevatorPortal, ceilBarZGeo, centerX - diffW * 0.22, cabH + 0.005, zMid);
     addVisual(visualBuckets.elevatorPortal, ceilBarZGeo, centerX + diffW * 0.22, cabH + 0.005, zMid);
     ceilBarZGeo.dispose();
 
+    // D. Glowing Illuminated Ceiling Diffuser Light Panel
     const ceilDiffuserGeo = new THREE.PlaneGeometry(diffW, diffD);
     ceilDiffuserGeo.rotateX(Math.PI * 0.5);
     addVisual(visualBuckets.elevatorCeilingLight, ceilDiffuserGeo, centerX, cabH + 0.012, zMid);
@@ -18742,7 +18774,7 @@ export class WarehouseBuilder {
     const bannerW = 0.68;
     const bannerH = 1.45;
     const bannerCenterY = 1.100;
-    const bannerCenterZ = cabZFront + 0.37; // 11.82m
+    const bannerCenterZ = cabZFront + 0.54; // 11.99m (slid left along west wall)
     const bannerX = xWest + 0.014;
 
     const bannerGeo = new THREE.PlaneGeometry(bannerW, bannerH);
@@ -18767,7 +18799,9 @@ export class WarehouseBuilder {
     const copH = 1.150;
     const copXBase = xWest + 0.003;
     const copCenterY = 1.250;
-    const copCenterZ = cabZFront + 1.440; // 12.89m (between rear corner and seam left of banner)
+    // Mathematically centered on the rear stainless-steel wall panel (seam at 1.240m to rear corner at 1.850m)
+    // Midpoint Z = cabZFront + (1.240 + 1.850) * 0.5 = cabZFront + 1.545m (exact 177.5mm margin to both seam and corner)
+    const copCenterZ = cabZFront + 1.545;
 
     const copMountPos = new THREE.Vector3(copXBase, copCenterY, copCenterZ);
     const copMountQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI * 0.5);
@@ -18904,7 +18938,10 @@ export class WarehouseBuilder {
 
     // 8. Two Laminated Brazilian Safety Notices (Mounted on East Wall facing -X)
     const noticeX = xEast - 0.004;
-    const noticeZ = cabZFront + 0.19; // Right beside front-right return wall
+    // Mathematically dead-centered on the front stainless-steel wall panel:
+    // Panel spans from front cab corner (cabZFront) to first vertical seam (cabZFront + 0.620m).
+    // Midpoint Z = cabZFront + 0.620 * 0.5 = cabZFront + 0.310m (exact 185.0mm margin to both corner and seam).
+    const noticeZ = cabZFront + 0.310;
 
     const mapSubAtlasPlane = (w, h, uMin, uMax, vMin, vMax) => {
       const g = new THREE.PlaneGeometry(w, h);

@@ -91,7 +91,7 @@ export class SoundManager {
       this.menuMusic.volume = 0.0;
       const p = this.menuMusic.play();
       if (p !== undefined) {
-        p.catch(() => {});
+        p.catch(() => { });
       }
     }
     this._fadeVolume(this.menuMusicTargetVolume, fadeDurationMs);
@@ -281,7 +281,7 @@ export class SoundManager {
       try {
         source.stop();
         source.disconnect();
-      } catch (e) {}
+      } catch (e) { }
     }
     this.activeActionSources.clear();
   }
@@ -2123,7 +2123,7 @@ export class SoundManager {
       try {
         r.spatialGain.gain.cancelScheduledValues(now);
         r.spatialGain.gain.setTargetAtTime(0.0, now, 0.015);
-      } catch (e) {}
+      } catch (e) { }
 
       const cleanupNodes = () => {
         const nodes = [
@@ -2133,11 +2133,11 @@ export class SoundManager {
           r.cadenceGain, r.lowpassFilter, r.stereoPanner, r.spatialGain,
         ];
         for (const osc of [r.oscA, r.oscB, r.oscHarm, r.warbleLfo]) {
-          try { osc.stop(); } catch (e) {}
+          try { osc.stop(); } catch (e) { }
         }
         for (const node of nodes) {
           if (node) {
-            try { node.disconnect(); } catch (e) {}
+            try { node.disconnect(); } catch (e) { }
           }
         }
       };
@@ -2415,8 +2415,8 @@ export class SoundManager {
     motorFilter.frequency.setValueAtTime(220, t);
 
     motorGain.gain.setValueAtTime(0.001, t);
-    motorGain.gain.linearRampToValueAtTime(0.075, t + 0.16);
-    motorGain.gain.setValueAtTime(0.070, t + 1.22);
+    motorGain.gain.linearRampToValueAtTime(0.20, t + 0.16);
+    motorGain.gain.setValueAtTime(0.18, t + 1.22);
     motorGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
 
     motorOsc.connect(motorFilter);
@@ -2425,7 +2425,7 @@ export class SoundManager {
     motorOsc.start(t);
     motorOsc.stop(t + dur + 0.03);
 
-    // 2. Smooth steel-track ball-bearing roller hiss
+    // 2. Smooth steel-track ball-bearing roller hiss (the main sliding "vuuush")
     const noiseBuf = this._createNoiseBuffer(dur + 0.05);
     if (noiseBuf) {
       const nSrc = this.ctx.createBufferSource();
@@ -2439,8 +2439,8 @@ export class SoundManager {
 
       const nGain = this.ctx.createGain();
       nGain.gain.setValueAtTime(0.001, t);
-      nGain.gain.linearRampToValueAtTime(0.065, t + 0.22);
-      nGain.gain.setValueAtTime(0.055, t + 1.20);
+      nGain.gain.linearRampToValueAtTime(0.25, t + 0.22);
+      nGain.gain.setValueAtTime(0.21, t + 1.20);
       nGain.gain.exponentialRampToValueAtTime(0.001, t + dur);
 
       nSrc.connect(bp);
@@ -2459,7 +2459,7 @@ export class SoundManager {
     stopOsc.frequency.exponentialRampToValueAtTime(44, stopT + 0.065);
 
     stopGain.gain.setValueAtTime(0.001, t);
-    stopGain.gain.setValueAtTime(0.18, stopT);
+    stopGain.gain.setValueAtTime(0.30, stopT);
     stopGain.gain.exponentialRampToValueAtTime(0.001, stopT + 0.075);
 
     stopOsc.connect(stopGain);
