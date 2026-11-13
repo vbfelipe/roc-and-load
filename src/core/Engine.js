@@ -290,7 +290,7 @@ export class Engine {
     }
     if (!this.zombieManager) {
       for (let i = 0; i < this.enemies.length; i++) {
-        this.enemies[i].update(delta);
+        this.enemies[i].update(delta, this.camera);
       }
     }
 

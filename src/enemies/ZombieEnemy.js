@@ -27,6 +27,34 @@ const _tmpMat4 = new THREE.Matrix4();
 const _unitY = new THREE.Vector3(0, 1, 0);
 const _hitboxMeta = new WeakMap();
 
+// Lightweight 3D overhead health bar geometry & color gradient constants (zero runtime allocations)
+const _HB_WIDTH = 0.42;
+const _HB_HEIGHT = 0.044;
+const _HB_RIM_PAD = 0.012;
+const _HB_HEAD_CLEARANCE = 0.26;
+const _HB_CHIP_DURATION = 0.22;
+const _HB_DEATH_HOLD_SECONDS = 0.65;
+const _HB_DEATH_FADE_SECONDS = 0.45;
+const _HB_RIM_OPACITY = 0.94;
+const _HB_BG_OPACITY = 0.92;
+const _HB_CHIP_OPACITY = 0.90;
+const _HB_FILL_OPACITY = 0.98;
+const _HB_COLOR_GREEN = new THREE.Color(0x22c55e);
+const _HB_COLOR_YELLOW = new THREE.Color(0xeab308);
+const _HB_COLOR_ORANGE = new THREE.Color(0xf97316);
+const _HB_COLOR_RED = new THREE.Color(0xdc2626);
+
+function applyHealthBarColor(targetColor, hpPercent) {
+  const pct = THREE.MathUtils.clamp(hpPercent / 100, 0, 1);
+  if (pct >= 0.55) {
+    targetColor.lerpColors(_HB_COLOR_YELLOW, _HB_COLOR_GREEN, (pct - 0.55) / 0.45);
+  } else if (pct >= 0.25) {
+    targetColor.lerpColors(_HB_COLOR_ORANGE, _HB_COLOR_YELLOW, (pct - 0.25) / 0.30);
+  } else {
+    targetColor.lerpColors(_HB_COLOR_RED, _HB_COLOR_ORANGE, THREE.MathUtils.clamp((pct - 0.01) / 0.24, 0, 1));
+  }
+}
+
 /**
  * Live Walk locomotion calibration shared across test & Wave-1 zombies and tuned via F9.
  */
@@ -346,7 +374,13 @@ export class ZombieEnemy {
     // Combat / Health / Corpse & Audio lifecycle
     this.sound = options.sound ?? null;
     this.isWaveZombie = !!options.isWaveZombie;
-    const defaultPitch = (options.logTag || options.rootName || '').includes('Man') ? 0.84 : 1.00;
+    const isMan =
+      options.archetype === 'man' ||
+      options.cloneFrom?.archetype === 'man' ||
+      (options.logTag || options.rootName || '').includes('Man');
+    this.archetype = options.archetype ?? (isMan ? 'man' : 'woman');
+    this.isFemale = !isMan;
+    const defaultPitch = isMan ? 0.84 : 1.55;
     this.vocalPitchBase = options.vocalPitchBase ?? defaultPitch;
     this.vocalChannel = null;
     this._walkVocalTimer = options.initialWalkVocalDelay ?? (0.5 + Math.random() * 2.5);
@@ -354,7 +388,7 @@ export class ZombieEnemy {
     this._chaseVocalTimer = 0;
     this._prevTestAttackNorm = 0;
 
-    this.maxHp = options.maxHp ?? 3;
+    this.maxHp = options.maxHp ?? 100;
     this.hp = this.maxHp;
     this.isDead = false;
     this.collisionRadius = options.collisionRadius ?? 0.42;
@@ -367,6 +401,20 @@ export class ZombieEnemy {
     this._deathBaseY = 0;
     this._attachedWoundDecals = [];
     this._decalManager = null;
+
+    // Floating 3D graphical overhead health bar (hidden at 100% HP until first hit)
+    this._billboardCamera = options.camera ?? null;
+    this.healthBarGroup = null;
+    this._hbRimMesh = null;
+    this._hbBgMesh = null;
+    this._hbChipMesh = null;
+    this._hbFillMesh = null;
+    this._hbChipFromRatio = 1.0;
+    this._hbChipTargetRatio = 1.0;
+    this._hbChipCurrentRatio = 1.0;
+    this._hbChipTimer = _HB_CHIP_DURATION;
+    this._hbDeathPhase = 'IDLE'; // 'IDLE' | 'HOLD' | 'FADE' | 'DONE'
+    this._hbDeathTimer = 0;
 
     if (options.cloneFrom) {
       this.initFromTemplate(options.cloneFrom);
@@ -722,8 +770,12 @@ export class ZombieEnemy {
    * Builds a tight, anatomically calibrated multi-bone hitbox rig directly attached to the
    * Mixamo skeleton (Head sphere + Chest/Shoulders box + Pelvis box + articulated Arm/Leg capsules).
    */
+  /**
+   * Builds the bone hitbox rig and ensures the floating 3D graphical health bar exists.
+   */
   _setupHitboxes() {
-    return this._createHitboxes();
+    this._createHitboxes();
+    this._createHealthBar();
   }
 
   _createHitboxes() {
@@ -1011,6 +1063,243 @@ export class ZombieEnemy {
     addLimbSegment(rightLeg, rightFoot, 'RightShinHitbox', 0.082, 0.04);
   }
 
+  setCamera(camera) {
+    this._billboardCamera = camera || null;
+  }
+
+  /**
+   * Builds the lightweight 3D billboard health bar (rim + black track + trailing chip + fill).
+   * Pure MeshBasicMaterial quads with depthTest:true, zero DOM/Canvas2D overhead.
+   */
+  _createHealthBar() {
+    this._disposeHealthBar();
+
+    const group = new THREE.Group();
+    group.name = `${this.root.name}_HealthBar`;
+    group.visible = false;
+
+    const rimGeo = new THREE.PlaneGeometry(_HB_WIDTH + _HB_RIM_PAD, _HB_HEIGHT + _HB_RIM_PAD);
+    const rimMat = new THREE.MeshBasicMaterial({
+      color: 0x1e293b,
+      transparent: true,
+      opacity: _HB_RIM_OPACITY,
+      depthTest: true,
+      depthWrite: false,
+    });
+    const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+    rimMesh.position.set(0, 0, -0.002);
+    rimMesh.renderOrder = 10;
+    rimMesh.frustumCulled = false;
+
+    const bgGeo = new THREE.PlaneGeometry(_HB_WIDTH, _HB_HEIGHT);
+    const bgMat = new THREE.MeshBasicMaterial({
+      color: 0x070709,
+      transparent: true,
+      opacity: _HB_BG_OPACITY,
+      depthTest: true,
+      depthWrite: false,
+    });
+    const bgMesh = new THREE.Mesh(bgGeo, bgMat);
+    bgMesh.position.set(0, 0, 0);
+    bgMesh.renderOrder = 11;
+    bgMesh.frustumCulled = false;
+
+    const chipGeo = new THREE.PlaneGeometry(_HB_WIDTH, _HB_HEIGHT);
+    chipGeo.translate(_HB_WIDTH * 0.5, 0, 0);
+    const chipMat = new THREE.MeshBasicMaterial({
+      color: 0xf87171,
+      transparent: true,
+      opacity: _HB_CHIP_OPACITY,
+      depthTest: true,
+      depthWrite: false,
+    });
+    const chipMesh = new THREE.Mesh(chipGeo, chipMat);
+    chipMesh.position.set(-_HB_WIDTH * 0.5, 0, 0.0015);
+    chipMesh.renderOrder = 12;
+    chipMesh.visible = false;
+    chipMesh.frustumCulled = false;
+
+    const fillGeo = new THREE.PlaneGeometry(_HB_WIDTH, _HB_HEIGHT);
+    fillGeo.translate(_HB_WIDTH * 0.5, 0, 0);
+    const fillMat = new THREE.MeshBasicMaterial({
+      color: _HB_COLOR_GREEN.getHex(),
+      transparent: true,
+      opacity: _HB_FILL_OPACITY,
+      depthTest: true,
+      depthWrite: false,
+    });
+    const fillMesh = new THREE.Mesh(fillGeo, fillMat);
+    fillMesh.position.set(-_HB_WIDTH * 0.5, 0, 0.003);
+    fillMesh.renderOrder = 13;
+    fillMesh.frustumCulled = false;
+
+    group.add(rimMesh, bgMesh, chipMesh, fillMesh);
+    this.root.add(group);
+
+    this.healthBarGroup = group;
+    this._hbRimMesh = rimMesh;
+    this._hbBgMesh = bgMesh;
+    this._hbChipMesh = chipMesh;
+    this._hbFillMesh = fillMesh;
+    this._resetHealthBar();
+  }
+
+  _disposeHealthBar() {
+    const meshes = [this._hbRimMesh, this._hbBgMesh, this._hbChipMesh, this._hbFillMesh];
+    for (const mesh of meshes) {
+      if (!mesh) continue;
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) mesh.material.dispose();
+    }
+    if (this.healthBarGroup && this.healthBarGroup.parent) {
+      this.healthBarGroup.parent.remove(this.healthBarGroup);
+    }
+    this.healthBarGroup = null;
+    this._hbRimMesh = null;
+    this._hbBgMesh = null;
+    this._hbChipMesh = null;
+    this._hbFillMesh = null;
+  }
+
+  _setHealthBarAlpha(alpha = 1.0) {
+    if (this._hbRimMesh?.material) this._hbRimMesh.material.opacity = _HB_RIM_OPACITY * alpha;
+    if (this._hbBgMesh?.material) this._hbBgMesh.material.opacity = _HB_BG_OPACITY * alpha;
+    if (this._hbChipMesh?.material) this._hbChipMesh.material.opacity = _HB_CHIP_OPACITY * alpha;
+    if (this._hbFillMesh?.material) this._hbFillMesh.material.opacity = _HB_FILL_OPACITY * alpha;
+  }
+
+  _resetHealthBar() {
+    this._hbChipFromRatio = 1.0;
+    this._hbChipTargetRatio = 1.0;
+    this._hbChipCurrentRatio = 1.0;
+    this._hbChipTimer = _HB_CHIP_DURATION;
+    this._hbDeathPhase = 'IDLE';
+    this._hbDeathTimer = 0;
+
+    this._setHealthBarAlpha(1.0);
+    if (this._hbFillMesh) {
+      this._hbFillMesh.scale.set(1, 1, 1);
+      this._hbFillMesh.visible = true;
+      if (this._hbFillMesh.material) {
+        this._hbFillMesh.material.color.copy(_HB_COLOR_GREEN);
+      }
+    }
+    if (this._hbChipMesh) {
+      this._hbChipMesh.scale.set(1, 1, 1);
+      this._hbChipMesh.visible = false;
+    }
+    if (this.healthBarGroup) {
+      this.healthBarGroup.visible = false;
+    }
+  }
+
+  _syncHealthBarOnHit(prevHp, nextHp) {
+    if (!this.healthBarGroup || !this._hbFillMesh || !this._hbChipMesh) return;
+
+    const max = Math.max(1, this.maxHp);
+    const prevRatio = THREE.MathUtils.clamp(prevHp / max, 0, 1);
+    const nextRatio = THREE.MathUtils.clamp(nextHp / max, 0, 1);
+
+    this.healthBarGroup.visible = true;
+    this._setHealthBarAlpha(1.0);
+
+    this._hbFillMesh.scale.x = nextRatio;
+    if (nextRatio <= 0) {
+      this._hbFillMesh.visible = false;
+    } else {
+      this._hbFillMesh.visible = true;
+      applyHealthBarColor(this._hbFillMesh.material.color, nextRatio * 100);
+    }
+
+    if (prevRatio > nextRatio) {
+      this._hbChipFromRatio = Math.max(this._hbChipCurrentRatio, prevRatio);
+      this._hbChipTargetRatio = nextRatio;
+      this._hbChipCurrentRatio = this._hbChipFromRatio;
+      this._hbChipTimer = 0;
+      this._hbChipMesh.scale.x = this._hbChipCurrentRatio;
+      this._hbChipMesh.visible = this._hbChipCurrentRatio > 0.001;
+    }
+
+    if (nextHp <= 0) {
+      this._hbDeathPhase = 'HOLD';
+      this._hbDeathTimer = 0;
+    } else {
+      this._hbDeathPhase = 'IDLE';
+      this._hbDeathTimer = 0;
+    }
+  }
+
+  _updateHealthBar(delta, camera = null) {
+    if (!this.healthBarGroup || !this.healthBarGroup.visible) return;
+
+    if (this._hbChipMesh && this._hbChipMesh.visible) {
+      this._hbChipTimer = Math.min(_HB_CHIP_DURATION, this._hbChipTimer + delta);
+      const p = _HB_CHIP_DURATION > 0 ? this._hbChipTimer / _HB_CHIP_DURATION : 1.0;
+      const easeOut = 1.0 - (1.0 - p) * (1.0 - p);
+      this._hbChipCurrentRatio = THREE.MathUtils.lerp(
+        this._hbChipFromRatio,
+        this._hbChipTargetRatio,
+        easeOut
+      );
+      this._hbChipMesh.scale.x = Math.max(0, this._hbChipCurrentRatio);
+      if (p >= 1.0 || this._hbChipCurrentRatio <= this._hbChipTargetRatio + 0.002) {
+        this._hbChipCurrentRatio = this._hbChipTargetRatio;
+        this._hbChipMesh.visible = false;
+      }
+    }
+
+    if (this._hbDeathPhase === 'HOLD') {
+      this._hbDeathTimer += delta;
+      if (this._hbDeathTimer >= _HB_DEATH_HOLD_SECONDS) {
+        this._hbDeathPhase = 'FADE';
+        this._hbDeathTimer -= _HB_DEATH_HOLD_SECONDS;
+      }
+    } else if (this._hbDeathPhase === 'FADE') {
+      this._hbDeathTimer += delta;
+    }
+    if (this._hbDeathPhase === 'FADE') {
+      const p = Math.min(1.0, this._hbDeathTimer / _HB_DEATH_FADE_SECONDS);
+      this._setHealthBarAlpha(1.0 - p);
+      if (p >= 1.0) {
+        this._hbDeathPhase = 'DONE';
+        this.healthBarGroup.visible = false;
+        return;
+      }
+    }
+
+    this.root.updateMatrixWorld(true);
+    if (this._headTopBone) {
+      this._headTopBone.getWorldPosition(_tmpVecA);
+      _tmpVecA.y += _HB_HEAD_CLEARANCE;
+    } else if (this._headBone) {
+      this._headBone.getWorldPosition(_tmpVecA);
+      _tmpVecA.y += 0.27 + _HB_HEAD_CLEARANCE;
+    } else {
+      _tmpVecA.set(
+        this.root.position.x,
+        this.root.position.y + this.targetHeight + _HB_HEAD_CLEARANCE,
+        this.root.position.z
+      );
+    }
+
+    _tmpVecB.copy(_tmpVecA);
+    this.root.worldToLocal(_tmpVecA);
+    this.healthBarGroup.position.copy(_tmpVecA);
+
+    const cam = camera || this._billboardCamera;
+    if (cam) {
+      cam.getWorldPosition(_tmpVecC);
+      const dx = _tmpVecC.x - _tmpVecB.x;
+      const dz = _tmpVecC.z - _tmpVecB.z;
+      if (dx * dx + dz * dz > 1e-6) {
+        const worldYaw = Math.atan2(dx, dz);
+        _tmpQuatA.setFromAxisAngle(_unitY, worldYaw);
+        this.root.getWorldQuaternion(_tmpQuatB).invert();
+        this.healthBarGroup.quaternion.multiplyQuaternions(_tmpQuatB, _tmpQuatA);
+      }
+    }
+  }
+
   /**
    * Toggles visible wireframe debug display on headHitbox and bodyHitbox.
    */
@@ -1085,9 +1374,9 @@ export class ZombieEnemy {
   }
 
   /**
-   * Applies a USP/weapon bullet hit to either 'head' (1-hit kill) or 'body' (3-hit kill),
-   * spawning 3D dark-red blood droplets inward at the struck bone/mesh and floor/wall splatter,
-   * and interrupting with hurt/dead real vocal stems + flesh thud.
+   * Applies percentage-based weapon bullet damage (100% HP scale) to either 'head' or 'body',
+   * updates the overhead 3D health bar, spawns 3D dark-red blood droplets & decals,
+   * and interrupts with hurt/dead real vocal stems + flesh thud.
    */
   applyBulletHit({
     part = 'body',
@@ -1098,6 +1387,9 @@ export class ZombieEnemy {
     decalManager = null,
     sound = null,
     distance = 5,
+    damage = null,
+    playHitAudio = true,
+    playHurtVocal = true,
   }) {
     if (this.isDead || !this.isActive || !this.isLoaded) {
       return { killed: false, ignored: true };
@@ -1119,30 +1411,32 @@ export class ZombieEnemy {
       decalManager.projectBloodSplatter(_tmpVecB, rayDirection, isHeadshot);
     }
 
-    if (activeSound && typeof activeSound.playZombieBodyHit === 'function') {
+    if (playHitAudio && activeSound && typeof activeSound.playZombieBodyHit === 'function') {
       activeSound.playZombieBodyHit(isHeadshot, distance);
     }
 
-    if (isHeadshot) {
-      this.hp = 0;
-      this.die({ isHeadshot: true, sound: activeSound, decalManager, distance });
-      return { killed: true, headshot: true };
-    }
+    const appliedDamage =
+      typeof damage === 'number' && Number.isFinite(damage)
+        ? Math.max(0, damage)
+        : (isHeadshot ? 75 : 35);
 
-    this.hp = Math.max(0, this.hp - 1);
+    const prevHp = this.hp;
+    this.hp = Math.max(0, this.hp - appliedDamage);
+    this._syncHealthBarOnHit(prevHp, this.hp);
+
     if (this.hp <= 0) {
-      this.die({ isHeadshot: false, sound: activeSound, decalManager, distance });
-      return { killed: true, headshot: false };
+      this.die({ isHeadshot, sound: activeSound, decalManager, distance });
+      return { killed: true, headshot: isHeadshot, damage: appliedDamage, hpRemaining: 0 };
     }
 
-    if (activeSound && typeof activeSound.playZombieVocal === 'function') {
+    if (playHurtVocal && activeSound && typeof activeSound.playZombieVocal === 'function') {
       activeSound.playZombieVocal(this, 'hurt');
     }
 
-    // Body hit 1 or 2: brief 0.12s upper-body hit flinch & immediate chase aggro
+    // Non-lethal hit: brief 0.12s upper-body hit flinch & immediate chase aggro
     this._flinchTimer = 0.12;
     this.tookDamageAggro = true;
-    return { killed: false, headshot: false, hpRemaining: this.hp };
+    return { killed: false, headshot: isHeadshot, damage: appliedDamage, hpRemaining: this.hp };
   }
 
   /**
@@ -1303,6 +1597,7 @@ export class ZombieEnemy {
       this._deathPhase = 'NONE';
       this.setActive(true);
       this.die({ isHeadshot: false, sound: activeSound });
+      this._resetHealthBar();
       if (wasDead) {
         this.playAnimation('Death', 0.20);
       }
@@ -1312,6 +1607,7 @@ export class ZombieEnemy {
     const wasDead = this.isDead;
     this.isDead = false;
     this.hp = this.maxHp;
+    this._resetHealthBar();
     this._deathPhase = 'NONE';
     this._deathTimer = 0;
     this.setFadeMode(false, 1.0);
@@ -1352,6 +1648,7 @@ export class ZombieEnemy {
 
   reset() {
     this.hp = this.maxHp;
+    this._resetHealthBar();
     this.isDead = false;
     this.tookDamageAggro = false;
     this.hasExitedVestibule = this.spawnPosition.x > -9.2;
@@ -1395,7 +1692,10 @@ export class ZombieEnemy {
     }
   }
 
-  update(delta) {
+  update(delta, camera = null) {
+    if (camera) {
+      this._billboardCamera = camera;
+    }
     if (!this.isActive || !this.isLoaded || !this.mixer) return;
     this.mixer.update(delta);
 
@@ -1465,6 +1765,9 @@ export class ZombieEnemy {
       }
     }
 
+    // Track level world-space billboard health bar (+0.26m above head) only when visible
+    this._updateHealthBar(delta, camera);
+
     // Autonomous state-driven vocal scheduler for F9 test showcase zombies
     if (!this.isWaveZombie && !this.isDead) {
       const activeSound = this._getSound();
@@ -1533,6 +1836,7 @@ export class ZombieEnemy {
 
   dispose() {
     this.clearWoundDecals();
+    this._disposeHealthBar();
     for (const hb of this.hitboxes) {
       if (hb) {
         if (hb.geometry) hb.geometry.dispose();

@@ -7,7 +7,7 @@ import { WALK_CALIBRATION } from '../enemies/ZombieEnemy.js';
  * - Toggle test zombies (ZombieWoman + ZombieMan) on/off
  * - Cycle / jump between Idle -> Walk -> Run -> Attack -> Death
  * - Live Walk Locomotion Calibration (Foot-Lock Pinning, Walk timeScale, Stride Pin Multiplier)
- * - Trigger or reset the 3-Zombie Stairwell Wave immediately
+ * - Trigger or reset the 6-Zombie Stairwell Wave (4 ZombieWoman + 2 ZombieMan) immediately
  * - Toggle visible wireframe rendering on headHitbox & bodyHitbox colliders
  */
 export class ZombieTuner {
@@ -330,8 +330,9 @@ export class ZombieTuner {
       if (!this.zombieManager.waveActive) {
         info.textContent = 'Wave 1: Standby';
       } else {
+        const total = this.zombieManager.waveZombies.length || 6;
         const alive = this.zombieManager.waveZombies.filter((z) => z && !z.isDead).length;
-        info.textContent = `Wave 1 Active: ${alive}/3 Alive`;
+        info.textContent = `Wave 1 Active: ${alive}/${total} Alive`;
       }
     }
   }

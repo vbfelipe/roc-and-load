@@ -26,6 +26,8 @@ export class ZombieMan extends ZombieEnemy {
       spawnPosition: options.spawnPosition ?? new THREE.Vector3(1.6, 0.0, 2.5),
       lookAtPosition: options.lookAtPosition ?? new THREE.Vector3(0.0, 0.0, -3.0),
       targetHeight: options.targetHeight ?? 2.22,
+      archetype: options.archetype ?? 'man',
+      maxHp: options.maxHp ?? 100,
     });
   }
 }

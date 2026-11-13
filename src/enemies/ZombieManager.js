@@ -1,10 +1,76 @@
 import * as THREE from 'three';
 import { ZombieEnemy, getZombieHitboxMeta } from './ZombieEnemy.js';
 
-const STAIR_LANES_X = [-0.35, 0.0, 0.35];
-const WAVE_STAGGER_SECONDS = [0.0, 2.2, 4.4];
-const WAVE_WALK_VOCAL_STAGGER = [0.4, 1.9, 3.3];
-const WAVE_PITCH_BASES = [1.00, 0.96, 1.04];
+// Interleaved Wave 1 schedule: 4 ZombieWoman (100% HP, pitch 1.51-1.61) + 2 ZombieMan (100% HP, untouched 0.82-0.84)
+const WAVE_1_SPAWN_SPECS = [
+  { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Wave1_ZombieWoman_1', logTag: 'Wave1_ZW_1' },
+  { archetype: 'woman', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 1.65, rootName: 'Wave1_ZombieWoman_2', logTag: 'Wave1_ZW_2' },
+  { archetype: 'man', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 2.35, rootName: 'Wave1_ZombieMan_1', logTag: 'Wave1_ZM_1' },
+  { archetype: 'woman', delay: 5.4, laneX: -0.35, maxHp: 100, pitchBase: 1.58, walkVocalDelay: 3.15, rootName: 'Wave1_ZombieWoman_3', logTag: 'Wave1_ZW_3' },
+  { archetype: 'man', delay: 7.2, laneX: 0.35, maxHp: 100, pitchBase: 0.82, walkVocalDelay: 3.95, rootName: 'Wave1_ZombieMan_2', logTag: 'Wave1_ZM_2' },
+  { archetype: 'woman', delay: 9.0, laneX: 0.00, maxHp: 100, pitchBase: 1.61, walkVocalDelay: 4.75, rootName: 'Wave1_ZombieWoman_4', logTag: 'Wave1_ZW_4' },
+];
+
+/**
+ * Normalizes weapon identifiers ('hk_usp'/'usp', 'pistol'/'deagle'/'desert_eagle',
+ * 'shotgun'/'remington_870', 'hk_mp5'/'mp5') to canonical damage matrix keys.
+ */
+export function normalizeWeaponId(weaponId = 'hk_usp') {
+  const id = String(weaponId || 'hk_usp').toLowerCase();
+  if (id === 'pistol' || id === 'deagle' || id === 'desert_eagle') return 'deagle';
+  if (id === 'shotgun' || id === 'remington_870') return 'shotgun';
+  if (id === 'hk_mp5' || id === 'mp5') return 'hk_mp5';
+  return 'hk_usp';
+}
+
+/**
+ * Calculates percentage damage (0..100 scale) from Weapon ID, Target Archetype ('woman' | 'man'),
+ * Hit Zone ('head' | 'body'), and Shot Distance (meters).
+ */
+export function getWeaponZombieDamage(weaponId = 'hk_usp', archetype = 'woman', zone = 'body', distance = 5.0) {
+  const weapon = normalizeWeaponId(weaponId);
+  const isMan = archetype === 'man';
+  const isHead = zone === 'head';
+  const dist = typeof distance === 'number' && Number.isFinite(distance) ? distance : 5.0;
+
+  if (weapon === 'hk_usp') {
+    if (isMan) return isHead ? 45 : 18;
+    return isHead ? 75 : 35;
+  }
+
+  if (weapon === 'deagle') {
+    if (isHead) return 100;
+    if (isMan) return dist <= 7.0 ? 45 : 38;
+    return dist <= 7.0 ? 70 : 60;
+  }
+
+  if (weapon === 'shotgun') {
+    if (isMan) {
+      if (isHead) {
+        if (dist <= 4.5) return 100;
+        return dist <= 8.5 ? 65 : 40;
+      }
+      if (dist <= 4.0) return 55;
+      return dist <= 8.5 ? 35 : 18;
+    }
+    if (isHead) {
+      return dist <= 8.5 ? 100 : 65;
+    }
+    if (dist <= 4.0) return 80;
+    return dist <= 8.5 ? 55 : 30;
+  }
+
+  if (weapon === 'hk_mp5') {
+    if (isMan) {
+      if (isHead) return 32;
+      return dist <= 8.0 ? 14 : 11;
+    }
+    if (isHead) return 50;
+    return dist <= 8.0 ? 24 : 20;
+  }
+
+  return isMan ? (isHead ? 45 : 18) : (isHead ? 75 : 35);
+}
 
 // Strict position-gated vestibule exit portal chain (never skipped on a timer)
 const VESTIBULE_PORTALS = [
@@ -80,7 +146,14 @@ const WHISKER_SIN = WHISKER_ANGLES.map((a) => Math.sin(a));
 const ZOMBIE_BODY_RADIUS = 0.38;
 const WHISKER_PROBE_PAD = ZOMBIE_BODY_RADIUS + 0.14; // 0.52m
 const DOOR_PROBE_PAD = ZOMBIE_BODY_RADIUS + 0.04;    // 0.42m around 1.1m aperture jambs
-const CHASE_FLANK_ANGLES = [0, (30 * Math.PI) / 180, (-30 * Math.PI) / 180];
+const CHASE_FLANK_ANGLES = [
+  0,
+  (24 * Math.PI) / 180,
+  (-24 * Math.PI) / 180,
+  (48 * Math.PI) / 180,
+  (-48 * Math.PI) / 180,
+  (14 * Math.PI) / 180,
+];
 
 // Keep grounded zombies on Y=0 out of the stairwell pit opening once they've climbed up
 const STAIRWELL_PIT_AABB = { minX: -14.00, maxX: -11.30, minZ: 2.05, maxZ: 7.45, isDesk: false };
@@ -158,8 +231,8 @@ export class ZombieManager {
   _syncSoundToTemplates() {
     if (this.womanTemplate) {
       this.womanTemplate.sound = this.sound;
-      this.womanTemplate.vocalPitchBase = 1.00;
-      this.sound?.initZombieVocalChannel?.(this.womanTemplate, 1.00);
+      this.womanTemplate.vocalPitchBase = 1.55;
+      this.sound?.initZombieVocalChannel?.(this.womanTemplate, 1.55);
     }
     if (this.manTemplate) {
       this.manTemplate.sound = this.sound;
@@ -169,10 +242,10 @@ export class ZombieManager {
     for (let i = 0; i < this.waveZombies.length; i++) {
       const zom = this.waveZombies[i];
       if (!zom) continue;
-      const pBase = WAVE_PITCH_BASES[i % WAVE_PITCH_BASES.length];
+      const spec = WAVE_1_SPAWN_SPECS[i % WAVE_1_SPAWN_SPECS.length];
       zom.sound = this.sound;
-      zom.vocalPitchBase = pBase;
-      this.sound?.initZombieVocalChannel?.(zom, pBase);
+      zom.vocalPitchBase = spec.pitchBase;
+      this.sound?.initZombieVocalChannel?.(zom, spec.pitchBase);
     }
   }
 
@@ -194,8 +267,8 @@ export class ZombieManager {
   }
 
   /**
-   * Pre-allocates the 3 Wave-1 ZombieWoman instances using SkeletonUtils.clone()
-   * at load time (sharing the single set of 1024x1024 textures & clips).
+   * Pre-allocates the 6 Wave-1 zombies (4 ZombieWoman + 2 ZombieMan) using SkeletonUtils.clone()
+   * at load time (sharing the single set of 1024x1024 PBR textures & clips).
    */
   initWavePool() {
     this._syncSoundToTemplates();
@@ -203,43 +276,51 @@ export class ZombieManager {
       return;
     }
 
-    for (let i = 0; i < 3; i++) {
-      const pitchBase = WAVE_PITCH_BASES[i % WAVE_PITCH_BASES.length];
-      const walkStagger = WAVE_WALK_VOCAL_STAGGER[i % WAVE_WALK_VOCAL_STAGGER.length];
+    const manReady = !!(this.manTemplate && this.manTemplate.isLoaded);
+
+    for (let i = 0; i < WAVE_1_SPAWN_SPECS.length; i++) {
+      const spec = WAVE_1_SPAWN_SPECS[i];
+      const useMan = spec.archetype === 'man' && manReady;
+      const template = useMan ? this.manTemplate : this.womanTemplate;
+      const maxHp = spec.maxHp ?? 100;
+
       const zom = new ZombieEnemy(this.scene, {
-        cloneFrom: this.womanTemplate,
-        rootName: `Wave1_ZombieWoman_${i + 1}`,
-        logTag: `Wave1_ZW_${i + 1}`,
-        spawnPosition: new THREE.Vector3(-12.60 + STAIR_LANES_X[i], -2.60, 2.75),
-        lookAtPosition: new THREE.Vector3(-12.60 + STAIR_LANES_X[i], 0.0, 9.0),
+        cloneFrom: template,
+        archetype: spec.archetype,
+        maxHp,
+        rootName: spec.rootName,
+        logTag: spec.logTag,
+        spawnPosition: new THREE.Vector3(-12.60 + spec.laneX, -2.60, 2.75),
+        lookAtPosition: new THREE.Vector3(-12.60 + spec.laneX, 0.0, 9.0),
         active: false,
         sound: this.sound,
         isWaveZombie: true,
-        vocalPitchBase: pitchBase,
-        initialWalkVocalDelay: walkStagger,
+        vocalPitchBase: spec.pitchBase,
+        initialWalkVocalDelay: spec.walkVocalDelay,
       });
-      this.sound?.initZombieVocalChannel?.(zom, pitchBase);
+      this.sound?.initZombieVocalChannel?.(zom, spec.pitchBase);
       zom.setHitboxesVisible(this.hitboxesVisible);
 
       this.waveZombies.push(zom);
       this.waveEntries.push({
         zombie: zom,
         index: i,
-        laneX: STAIR_LANES_X[i],
-        spawnDelay: WAVE_STAGGER_SECONDS[i],
+        laneX: spec.laneX,
+        spawnDelay: spec.delay,
+        walkVocalDelay: spec.walkVocalDelay,
         spawned: false,
         aiState: 'WAITING', // 'WAITING' | 'CLIMB_STAIRS' | 'WANDER_IDLE' | 'RUN_CHASE' | 'ATTACK' | 'DEAD'
         subState: 'WALK',   // 'IDLE' | 'WALK'
         stateTimer: 0,
         portalIndex: 0,     // Mandatory position-gated vestibule exit portal 0..2
-        targetX: -12.35 + STAIR_LANES_X[i] * 0.45,
+        targetX: -12.35 + spec.laneX * 0.45,
         targetZ: 8.25,
         yaw: 0,
         attackCooldown: 0,
         attackSwungThisCycle: false,
         prevAttackNorm: 0,
         hasPlayedAggroHiss: false,
-        walkVocalTimer: walkStagger,
+        walkVocalTimer: spec.walkVocalDelay,
         idleVocalTimer: randRange(1.0, 3.2),
         chaseVocalTimer: randRange(2.8, 4.6),
         steerCommitTimer: 0,
@@ -256,7 +337,7 @@ export class ZombieManager {
   }
 
   /**
-   * Starts the staggered 3-zombie stairwell Wave 1 immediately (0.0s, 2.2s, 4.4s).
+   * Starts the staggered 6-zombie stairwell Wave 1 immediately (0.0s .. 9.0s, every 1.8s).
    */
   triggerWave1() {
     this.initWavePool();
@@ -283,7 +364,7 @@ export class ZombieManager {
       entry.attackSwungThisCycle = false;
       entry.prevAttackNorm = 0;
       entry.hasPlayedAggroHiss = false;
-      entry.walkVocalTimer = WAVE_WALK_VOCAL_STAGGER[i % WAVE_WALK_VOCAL_STAGGER.length];
+      entry.walkVocalTimer = entry.walkVocalDelay;
       entry.idleVocalTimer = randRange(1.0, 3.2);
       entry.chaseVocalTimer = randRange(2.8, 4.6);
       entry.steerCommitTimer = 0;
@@ -312,7 +393,7 @@ export class ZombieManager {
     entry.targetX = -12.35 + entry.laneX * 0.45;
     entry.targetZ = 8.25;
     entry.yaw = 0; // Facing +Z up the stairs
-    entry.walkVocalTimer = WAVE_WALK_VOCAL_STAGGER[entry.index % WAVE_WALK_VOCAL_STAGGER.length];
+    entry.walkVocalTimer = entry.walkVocalDelay;
     entry.idleVocalTimer = randRange(1.0, 3.2);
     entry.chaseVocalTimer = randRange(2.8, 4.6);
     entry.steerCommitTimer = 0;
@@ -465,13 +546,52 @@ export class ZombieManager {
   }
 
   /**
-   * Handles bullet damage from WeaponSystem onto a hit zombie hitbox mesh.
+   * Resolves hitbox mesh metadata ({ zombie, part, zone, bone }) for WeaponSystem pellet grouping.
    */
-  onBulletHit(hitMesh, hitPoint, hitNormal, rayDirection, distance = 5) {
+  resolveHitboxTarget(hitMesh) {
+    return getZombieHitboxMeta(hitMesh);
+  }
+
+  /**
+   * Spawns visual blood burst & floor/wall splatter for individual pellets without advancing damage.
+   */
+  spawnPelletBloodImpact(hitMesh, hitPoint, rayDirection) {
+    if (!this.decalManager || !hitPoint) return;
     const meta = getZombieHitboxMeta(hitMesh);
     const zombie = meta?.zombie;
     const part = meta?.part || hitMesh?.userData?.part || 'body';
+    const isHeadshot = part === 'head';
+    if (!zombie) {
+      this.decalManager.spawnBloodBurst(hitPoint, rayDirection, isHeadshot);
+      this.decalManager.projectBloodSplatter(hitPoint, rayDirection, isHeadshot);
+      return;
+    }
+    zombie._decalManager = this.decalManager;
+    const refBone = meta?.bone || (isHeadshot ? zombie._headBone : (zombie._spine2Bone || zombie._spineBone)) || zombie.model;
+    if (refBone) {
+      refBone.getWorldPosition(_losOrigin);
+      _losTarget.copy(_losOrigin).lerp(hitPoint, 0.55);
+    } else {
+      _losTarget.copy(hitPoint);
+    }
+    this.decalManager.spawnBloodBurst(_losTarget, rayDirection, isHeadshot);
+    this.decalManager.projectBloodSplatter(_losTarget, rayDirection, isHeadshot);
+  }
+
+  /**
+   * Handles bullet damage from WeaponSystem onto a hit zombie hitbox mesh using the 100% Weapon/Distance Damage Matrix.
+   */
+  onBulletHit(hitMesh, hitPoint, hitNormal, rayDirection, distance = 5, options = {}) {
+    const meta = getZombieHitboxMeta(hitMesh);
+    const zombie = options.zombie || meta?.zombie;
+    const part = options.zoneOverride || meta?.part || hitMesh?.userData?.part || 'body';
     if (!zombie || typeof zombie.applyBulletHit !== 'function') return { killed: false };
+
+    const weaponId = options.weaponId || 'hk_usp';
+    const damage =
+      typeof options.damageOverride === 'number' && Number.isFinite(options.damageOverride)
+        ? options.damageOverride
+        : getWeaponZombieDamage(weaponId, zombie.archetype, part, distance);
 
     return zombie.applyBulletHit({
       part,
@@ -479,9 +599,12 @@ export class ZombieManager {
       hitPoint,
       hitNormal,
       rayDirection,
-      decalManager: this.decalManager,
+      decalManager: options.skipDecals ? null : this.decalManager,
       sound: this.sound,
       distance,
+      damage,
+      playHitAudio: options.playHitAudio !== undefined ? options.playHitAudio : true,
+      playHurtVocal: options.playHurtVocal !== undefined ? options.playHurtVocal : true,
     });
   }
 
@@ -1428,13 +1551,13 @@ export class ZombieManager {
 
     // Update showcase/test zombies (e.g., toggled via F9) + real-time 3D spatial audio
     if (this.womanTemplate && this.womanTemplate.isActive) {
-      this.womanTemplate.update(delta);
+      this.womanTemplate.update(delta, cam);
       if (this.sound && cam) {
         this.sound.updateZombieSpatialAudio(this.womanTemplate, cam, pPos);
       }
     }
     if (this.manTemplate && this.manTemplate.isActive) {
-      this.manTemplate.update(delta);
+      this.manTemplate.update(delta, cam);
       if (this.sound && cam) {
         this.sound.updateZombieSpatialAudio(this.manTemplate, cam, pPos);
       }
@@ -1457,7 +1580,7 @@ export class ZombieManager {
       if (gameState === 'PLAYING') {
         this._updateEntryAI(entry, delta);
       }
-      entry.zombie.update(delta);
+      entry.zombie.update(delta, cam);
 
       if (
         this.sound &&

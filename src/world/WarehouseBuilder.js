@@ -18460,19 +18460,32 @@ export class WarehouseBuilder {
     this.elevatorDoorClosedLeftX = closedLeftX;
     this.elevatorDoorClosedRightX = closedRightX;
     this.elevatorDoorSlideDistance = 0.695;
+    this.elevatorDoorHalfWidth = panelW * 0.5;
     this.elevatorLeftDoorMesh = buildDynamicDoorLeaf('ElevatorDoorLeft', closedLeftX, 1);
     this.elevatorRightDoorMesh = buildDynamicDoorLeaf('ElevatorDoorRight', closedRightX, -1);
 
-    // Toggleable temporary doorway blocker collider while elevator doors are closed
-    this.elevatorDoorBlocker = {
-      minX: elevCenterX - elevDoorW * 0.5,
-      maxX: elevCenterX + elevDoorW * 0.5,
+    // Toggleable per-leaf doorway blockers that slide in lockstep with each steel door leaf
+    const doorBlockerMinZ = elevWallZ - 0.01;
+    const doorBlockerMaxZ = elevWallZ + 0.085;
+    this.elevatorLeftDoorBlocker = {
+      minX: closedLeftX - this.elevatorDoorHalfWidth,
+      maxX: closedLeftX + this.elevatorDoorHalfWidth + 0.002,
       minY: 0.0,
       maxY: elevDoorH + 0.05,
-      minZ: elevWallZ - 0.01,
-      maxZ: elevWallZ + 0.13,
+      minZ: doorBlockerMinZ,
+      maxZ: doorBlockerMaxZ,
       active: true,
     };
+    this.elevatorRightDoorBlocker = {
+      minX: closedRightX - this.elevatorDoorHalfWidth - 0.002,
+      maxX: closedRightX + this.elevatorDoorHalfWidth,
+      minY: 0.0,
+      maxY: elevDoorH + 0.05,
+      minZ: doorBlockerMinZ,
+      maxZ: doorBlockerMaxZ,
+      active: true,
+    };
+    this.elevatorDoorBlockers = [this.elevatorLeftDoorBlocker, this.elevatorRightDoorBlocker];
 
     // Build Stainless-Steel Elevator Cab Interior, Ceiling LED Diffuser, "R&C SERVICE" Banner,
     // Control Panel (COP) with 3D Dangling Key, and Laminated Brazilian Safety Notices

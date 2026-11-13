@@ -68,7 +68,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const player = new PlayerController(engine.camera, input, sound);
   player.setCollider(warehouse.playerColliderMesh || colliderMesh);
-  if (warehouse.elevatorDoorBlocker) {
+  if (Array.isArray(warehouse.elevatorDoorBlockers) && warehouse.elevatorDoorBlockers.length > 0) {
+    player.setDynamicBlockers(warehouse.elevatorDoorBlockers);
+  } else if (warehouse.elevatorDoorBlocker) {
     player.setDynamicBlockers([warehouse.elevatorDoorBlocker]);
   }
   player.teleport(ELEVATOR_SPAWN.x, ELEVATOR_SPAWN.y, ELEVATOR_SPAWN.z);

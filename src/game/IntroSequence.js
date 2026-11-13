@@ -418,17 +418,36 @@ export class IntroSequence {
     if (!this.warehouse) return;
     const t = Math.max(0, Math.min(1, progress));
     const slide = this.warehouse.elevatorDoorSlideDistance ?? 0.695;
+    const halfLeafW = this.warehouse.elevatorDoorHalfWidth ?? 0.3425;
+
     if (this.warehouse.elevatorLeftDoorMesh && this.warehouse.elevatorDoorClosedLeftX !== undefined) {
-      this.warehouse.elevatorLeftDoorMesh.position.x = this.warehouse.elevatorDoorClosedLeftX - t * slide;
+      const leftX = this.warehouse.elevatorDoorClosedLeftX - t * slide;
+      this.warehouse.elevatorLeftDoorMesh.position.x = leftX;
+      if (this.warehouse.elevatorLeftDoorBlocker) {
+        this.warehouse.elevatorLeftDoorBlocker.minX = leftX - halfLeafW;
+        this.warehouse.elevatorLeftDoorBlocker.maxX = leftX + halfLeafW + 0.002;
+      }
     }
     if (this.warehouse.elevatorRightDoorMesh && this.warehouse.elevatorDoorClosedRightX !== undefined) {
-      this.warehouse.elevatorRightDoorMesh.position.x = this.warehouse.elevatorDoorClosedRightX + t * slide;
+      const rightX = this.warehouse.elevatorDoorClosedRightX + t * slide;
+      this.warehouse.elevatorRightDoorMesh.position.x = rightX;
+      if (this.warehouse.elevatorRightDoorBlocker) {
+        this.warehouse.elevatorRightDoorBlocker.minX = rightX - halfLeafW - 0.002;
+        this.warehouse.elevatorRightDoorBlocker.maxX = rightX + halfLeafW;
+      }
     }
   }
 
   _setElevatorDoorBlockerActive(active) {
-    if (this.warehouse && this.warehouse.elevatorDoorBlocker) {
-      this.warehouse.elevatorDoorBlocker.active = !!active;
+    if (!this.warehouse) return;
+    const isActive = !!active;
+    if (Array.isArray(this.warehouse.elevatorDoorBlockers)) {
+      for (const blocker of this.warehouse.elevatorDoorBlockers) {
+        if (blocker) blocker.active = isActive;
+      }
+    }
+    if (this.warehouse.elevatorDoorBlocker) {
+      this.warehouse.elevatorDoorBlocker.active = isActive;
     }
   }
 

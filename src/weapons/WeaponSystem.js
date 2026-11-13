@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import * as TWEEN from '@tweenjs/tween.js';
 import { ObjectPool } from '../core/ObjectPool.js';
+import { getWeaponZombieDamage } from '../enemies/ZombieManager.js';
 
 // Pre-allocated scratch variables for zero-GC hitscan and transforms
 const _rayOrigin = new THREE.Vector3();
@@ -657,6 +658,7 @@ export class WeaponSystem {
     // Zombie & blood decal integrations (injected after boot)
     this.zombieManager = null;
     this.decalManager = null;
+    this._shotgunZombieHits = new Map();
   }
 
   setZombieManager(zombieManager) {
@@ -1071,9 +1073,9 @@ export class WeaponSystem {
       }
 
       const canDrawUnlocked = this.gameState === 'PLAYING' &&
-                              this.input.isLocked &&
-                              document.pointerLockElement !== null &&
-                              performance.now() >= this.armedAt;
+        this.input.isLocked &&
+        document.pointerLockElement !== null &&
+        performance.now() >= this.armedAt;
       if (canDrawUnlocked && pressed1 && this.isWeaponUnlocked('hk_usp')) {
         this.equipUnlockedWeaponFromUnarmed('hk_usp');
         return;
@@ -1089,9 +1091,9 @@ export class WeaponSystem {
 
     // 2. Strict Game State Gate: block weapon inputs while in MENU, unlocked, or during 150ms arming cooldown
     const isArmed = this.gameState === 'PLAYING' &&
-                    this.input.isLocked &&
-                    document.pointerLockElement !== null &&
-                    performance.now() >= this.armedAt;
+      this.input.isLocked &&
+      document.pointerLockElement !== null &&
+      performance.now() >= this.armedAt;
 
     if (!isArmed) {
       this.wasMouseDown0 = true; // Prevents click-bleed
@@ -1495,6 +1497,8 @@ export class WeaponSystem {
     const maxSpread = this.viewmodel.isADS ? 0.038 : 0.068;
     const baseAngleOffset = Math.random() * Math.PI * 2;
     let playedGlassTickThisBlast = false;
+    const zombiePelletHits = this._shotgunZombieHits;
+    zombiePelletHits.clear();
 
     for (let i = 0; i < numPellets; i++) {
       _rayDirection.copy(_pelletForward);
@@ -1622,12 +1626,93 @@ export class WeaponSystem {
         } else if (hitObject === 'box' && this.boxManager) {
           this.boxManager.onHit(closestHit);
         } else if (hitObject === 'zombie' && hitZombieMesh && this.zombieManager) {
-          this.zombieManager.onBulletHit(hitZombieMesh, _hitPoint, normal, _rayDirection, closestHit.distance);
+          const meta = this.zombieManager.resolveHitboxTarget?.(hitZombieMesh);
+          const zom = meta?.zombie;
+          const part = meta?.part || hitZombieMesh?.userData?.part || 'body';
+          if (typeof this.zombieManager.spawnPelletBloodImpact === 'function') {
+            this.zombieManager.spawnPelletBloodImpact(hitZombieMesh, _hitPoint, _rayDirection);
+          }
+          if (zom) {
+            let rec = zombiePelletHits.get(zom);
+            if (!rec) {
+              rec = {
+                zombie: zom,
+                totalPellets: 0,
+                headPellets: 0,
+                bodyPellets: 0,
+                closestDist: closestHit.distance,
+                bestMesh: hitZombieMesh,
+                bestHeadMesh: null,
+                bestBodyMesh: null,
+                bestPoint: _hitPoint.clone(),
+                bestNormal: normal.clone(),
+              };
+              zombiePelletHits.set(zom, rec);
+            }
+            rec.totalPellets += 1;
+            if (closestHit.distance < rec.closestDist) {
+              rec.closestDist = closestHit.distance;
+              rec.bestPoint.copy(_hitPoint);
+              rec.bestNormal.copy(normal);
+            }
+            if (part === 'head') {
+              rec.headPellets += 1;
+              if (!rec.bestHeadMesh) rec.bestHeadMesh = hitZombieMesh;
+            } else {
+              rec.bodyPellets += 1;
+              if (!rec.bestBodyMesh) rec.bestBodyMesh = hitZombieMesh;
+            }
+          } else {
+            this.zombieManager.onBulletHit(hitZombieMesh, _hitPoint, normal, _rayDirection, closestHit.distance, {
+              weaponId: 'shotgun',
+              skipDecals: true,
+            });
+          }
         }
       } else {
         _hitPoint.copy(_rayOrigin).addScaledVector(_rayDirection, 100);
         this._spawnTracer(_muzzlePos, _hitPoint, true);
       }
+    }
+
+    // Apply one normalized weapon/distance matrix blast per struck zombie so center-mass or head blasts
+    // deliver exact 100%-scale matrix chunks without stacking 8x hit SFX/hurt vocals
+    if (zombiePelletHits.size > 0 && this.zombieManager) {
+      zombiePelletHits.forEach((rec) => {
+        const effectiveZone =
+          rec.headPellets >= 2 || (rec.headPellets >= 1 && rec.headPellets >= rec.bodyPellets)
+            ? 'head'
+            : 'body';
+        const targetMesh =
+          effectiveZone === 'head'
+            ? (rec.bestHeadMesh || rec.bestMesh)
+            : (rec.bestBodyMesh || rec.bestMesh);
+        const fullBlastDamage = getWeaponZombieDamage(
+          'shotgun',
+          rec.zombie.archetype,
+          effectiveZone,
+          rec.closestDist
+        );
+        const pelletScale =
+          rec.totalPellets >= 3 ? 1.0 :
+            rec.totalPellets === 2 ? 0.75 : 0.45;
+        const consolidatedDamage = Math.min(fullBlastDamage, Math.round(fullBlastDamage * pelletScale));
+        this.zombieManager.onBulletHit(
+          targetMesh,
+          rec.bestPoint,
+          rec.bestNormal,
+          _pelletForward,
+          rec.closestDist,
+          {
+            zombie: rec.zombie,
+            weaponId: 'shotgun',
+            zoneOverride: effectiveZone,
+            damageOverride: consolidatedDamage,
+            skipDecals: true,
+          }
+        );
+      });
+      zombiePelletHits.clear();
     }
   }
 
@@ -1759,7 +1844,14 @@ export class WeaponSystem {
       } else if (hitObject === 'box' && this.boxManager) {
         this.boxManager.onHit(closestHit);
       } else if (hitObject === 'zombie' && hitZombieMesh && this.zombieManager) {
-        this.zombieManager.onBulletHit(hitZombieMesh, _hitPoint, normal, _rayDirection, closestHit.distance);
+        this.zombieManager.onBulletHit(
+          hitZombieMesh,
+          _hitPoint,
+          normal,
+          _rayDirection,
+          closestHit.distance,
+          { weaponId: this.currentWeapon }
+        );
       }
     } else {
       // Whiff into distance (100 units forward along camera ray)
@@ -1969,14 +2061,14 @@ export class WeaponSystem {
         if (!list) continue;
         for (const tex of list) {
           if (tex) {
-            try { renderer.initTexture(tex); } catch (e) {}
+            try { renderer.initTexture(tex); } catch (e) { }
           }
         }
       }
       const singles = [this.decalTexture, this.glassDecalTexture, this.heavyGlassDecalTexture];
       for (const tex of singles) {
         if (tex) {
-          try { renderer.initTexture(tex); } catch (e) {}
+          try { renderer.initTexture(tex); } catch (e) { }
         }
       }
     }

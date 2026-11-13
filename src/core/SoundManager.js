@@ -27,6 +27,10 @@ const ZOMBIE_VOCAL_GAIN = {
   walk: 0.60,
 };
 
+const FEMALE_BASE_PITCH = 1.55;
+const FEMALE_CHEST_CUT_HZ = 420;
+const FEMALE_FORMANT_BOOST_DB = 10.0;
+
 export class SoundManager {
   constructor() {
     this.ctx = null;
@@ -2871,6 +2875,11 @@ export class SoundManager {
   initZombieVocalChannel(zombie, pitchBase = null) {
     if (!zombie || !this.ctx || !this.masterGain) return zombie?.vocalChannel || null;
 
+    const isFemale =
+      zombie.isFemale !== undefined
+        ? !!zombie.isFemale
+        : zombie.archetype !== 'man' && !(zombie.logTag || zombie.rootName || '').includes('Man');
+
     if (zombie.vocalChannel) {
       if (pitchBase !== null && pitchBase !== undefined) {
         zombie.vocalChannel.pitchBase = pitchBase;
@@ -2887,6 +2896,25 @@ export class SoundManager {
     filterNode.frequency.setValueAtTime(9000, now);
     filterNode.Q.setValueAtTime(0.65, now);
 
+    // 3-Stage Female Vocal Formant Chain (ZombieWoman ONLY; ZombieMan bypasses directly to filterNode)
+    let inputNode = filterNode;
+    if (isFemale) {
+      const highpassNode = ctx.createBiquadFilter();
+      highpassNode.type = 'highpass';
+      highpassNode.frequency.setValueAtTime(FEMALE_CHEST_CUT_HZ, now);
+      highpassNode.Q.setValueAtTime(0.75, now);
+
+      const formantNode = ctx.createBiquadFilter();
+      formantNode.type = 'peaking';
+      formantNode.frequency.setValueAtTime(1850, now);
+      formantNode.Q.setValueAtTime(1.15, now);
+      formantNode.gain.setValueAtTime(FEMALE_FORMANT_BOOST_DB, now);
+
+      highpassNode.connect(formantNode);
+      formantNode.connect(filterNode);
+      inputNode = highpassNode;
+    }
+
     const gainNode = ctx.createGain();
     gainNode.gain.setValueAtTime(1.0, now);
 
@@ -2896,7 +2924,7 @@ export class SoundManager {
     const wetSend = ctx.createGain();
     wetSend.gain.setValueAtTime(1.0, now);
 
-    // Filter (wall occlusion) -> Gain (distance attenuation) -> StereoPanner -> masterGain + room send
+    // [Optional Female EQ] -> Filter (wall occlusion) -> Gain (distance attenuation) -> StereoPanner -> masterGain + room send
     filterNode.connect(gainNode);
     gainNode.connect(pannerNode);
     pannerNode.connect(this.masterGain);
@@ -2905,8 +2933,9 @@ export class SoundManager {
       wetSend.connect(ambienceIn);
     }
 
-    const defaultPitch = pitchBase ?? zombie.vocalPitchBase ?? 1.0;
+    const defaultPitch = pitchBase ?? zombie.vocalPitchBase ?? (isFemale ? FEMALE_BASE_PITCH : 0.84);
     const ch = {
+      isFemale,
       pitchBase: defaultPitch,
       lastVariantIndex: {
         attack: -1,
@@ -2922,6 +2951,7 @@ export class SoundManager {
       currentPriority: 0,
       isPlaying: false,
       lastEndedAt: 0,
+      inputNode,
       filterNode,
       gainNode,
       pannerNode,
@@ -3007,9 +3037,16 @@ export class SoundManager {
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
 
-    // Distinct gender/individual pitch base +/- 0.03 jitter per play
-    const basePitch = ch.pitchBase ?? zombie.vocalPitchBase ?? 1.0;
-    const rate = Math.max(0.60, Math.min(1.45, basePitch + (Math.random() * 2 - 1) * 0.03));
+    // Distinct gender/individual pitch + female vocal inflection (attack/chase/hurt +0.05)
+    let rate;
+    if (ch.isFemale) {
+      const baseFemale = ch.pitchBase ?? zombie.vocalPitchBase ?? FEMALE_BASE_PITCH;
+      const inflection = (category === 'attack' || category === 'chase' || category === 'hurt') ? 0.05 : 0.0;
+      rate = Math.max(0.85, Math.min(1.80, baseFemale + inflection + (Math.random() * 2 - 1) * 0.025));
+    } else {
+      const basePitch = ch.pitchBase ?? zombie.vocalPitchBase ?? 0.84;
+      rate = Math.max(0.60, Math.min(1.45, basePitch + (Math.random() * 2 - 1) * 0.03));
+    }
     src.playbackRate.setValueAtTime(rate, now);
 
     const srcGain = this.ctx.createGain();
@@ -3018,7 +3055,7 @@ export class SoundManager {
     srcGain.gain.linearRampToValueAtTime(targetGain, now + 0.008);
 
     src.connect(srcGain);
-    srcGain.connect(ch.filterNode);
+    srcGain.connect(ch.inputNode || ch.filterNode);
 
     ch.currentSource = src;
     ch.currentSourceGain = srcGain;
