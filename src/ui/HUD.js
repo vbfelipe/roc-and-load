@@ -22,6 +22,12 @@ export class HUD {
     this.isPulsing = false;
     this.onReloadClick = null;
 
+    this.damageVignetteEl = null;
+    this.gameOverScreenEl = null;
+    this._damageFlashAlpha = 0;
+    this._damagePulsePhase = 0;
+    this._lastVignetteOpacity = -1;
+
     this._createDOM();
   }
 
@@ -33,6 +39,8 @@ export class HUD {
     // Find ui-layer or fallback to body
     const uiLayer = document.getElementById('ui-layer') || document.body;
     this.uiLayer = uiLayer;
+    this.damageVignetteEl = document.getElementById('hud-damage-vignette');
+    this.gameOverScreenEl = document.getElementById('game-over-screen');
 
     // Track unarmed & opening sequence HUD state (dirty checked)
     this.isUnarmed = false;
@@ -718,7 +726,50 @@ export class HUD {
     }
   }
 
+  triggerDamageFlash(currentHp, _maxHp = 3) {
+    this._damageFlashAlpha = currentHp <= 0 ? 0.96 : 0.85;
+  }
+
+  updateDamageVignette(delta, currentHp = 3) {
+    if (!this.damageVignetteEl) return;
+    if (this._damageFlashAlpha > 0) {
+      this._damageFlashAlpha = Math.max(0, this._damageFlashAlpha - delta * 2.1);
+    }
+
+    let baseCritical = 0;
+    if (currentHp === 1) {
+      this._damagePulsePhase += delta * 5.2;
+      baseCritical = 0.20 + 0.09 * Math.sin(this._damagePulsePhase);
+    } else if (currentHp === 2) {
+      baseCritical = 0.08;
+    }
+
+    const targetOpacity = Math.min(1.0, Math.max(this._damageFlashAlpha, baseCritical));
+    if (Math.abs(targetOpacity - this._lastVignetteOpacity) > 0.005) {
+      this._lastVignetteOpacity = targetOpacity;
+      this.damageVignetteEl.style.opacity = targetOpacity.toFixed(3);
+    }
+  }
+
+  resetDamageVignette() {
+    this._damageFlashAlpha = 0;
+    this._damagePulsePhase = 0;
+    this._lastVignetteOpacity = 0;
+    if (this.damageVignetteEl) {
+      this.damageVignetteEl.style.opacity = '0';
+    }
+  }
+
+  setGameOverVisible(visible) {
+    if (!this.gameOverScreenEl) return;
+    const isVis = !!visible;
+    this.gameOverScreenEl.classList.toggle('active', isVis);
+    this.gameOverScreenEl.setAttribute('aria-hidden', isVis ? 'false' : 'true');
+  }
+
   reset() {
+    this.resetDamageVignette();
+    this.setGameOverVisible(false);
     this.setWeapon('hk_usp', 12, 12);
     this.resetTutorialBar();
     this.setTutorialVisible(false, true);

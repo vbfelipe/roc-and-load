@@ -9,7 +9,10 @@ import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
 import { LightingTuner } from './ui/LightingTuner.js';
 import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
+import { ZombieTuner } from './ui/ZombieTuner.js';
 import { IntroSequence, ELEVATOR_SPAWN } from './game/IntroSequence.js';
+import { DecalManager } from './world/DecalManager.js';
+import { ZombieManager } from './enemies/ZombieManager.js';
 
 window.addEventListener('DOMContentLoaded', () => {
   const canvas = document.getElementById('game-canvas');
@@ -108,12 +111,56 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const lightingTuner = new LightingTuner(engine, warehouse);
   const viewmodelTuner = new ViewmodelTuner(viewmodel, weaponSystem);
+
+  const decalManager = new DecalManager(engine.scene, warehouse.weaponColliderMesh || colliderMesh);
+  const zombieManager = new ZombieManager(engine.scene, {
+    womanTemplate: engine.zombie,
+    manTemplate: engine.zombieMan,
+    sound,
+    decalManager,
+  });
+  zombieManager.setCollider(warehouse.weaponColliderMesh || colliderMesh);
+  zombieManager.setPlayer(player);
+  engine.setZombieManager(zombieManager);
+  weaponSystem.setZombieManager(zombieManager);
+  weaponSystem.setDecalManager(decalManager);
+  introSequence.setZombieManager(zombieManager);
+  player.setZombieColliders(() => zombieManager.getSolidColliders());
+
+  const zombieTuner = new ZombieTuner(engine, zombieManager, weaponSystem);
+
   window.__rocWarehouse = warehouse;
   window.__rocTuner = lightingTuner;
   window.__rocViewmodelTuner = viewmodelTuner;
+  window.__rocZombieManager = zombieManager;
+  window.__rocDecalManager = decalManager;
+  window.__rocZombieTuner = zombieTuner;
 
   let gameState = 'MAIN_MENU';
   let menuCameraElapsed = 0;
+  let deathCollapseElapsed = 0;
+  let gameOverShown = false;
+  window.getGameState = () => gameState;
+
+  zombieManager.onPlayerHit = () => {
+    if (gameState !== 'PLAYING') return;
+    const remainingHp = player.takeDamage(1);
+    if (typeof sound.playPlayerHit === 'function') {
+      sound.playPlayerHit(remainingHp <= 0);
+    }
+    if (typeof hud.triggerDamageFlash === 'function') {
+      hud.triggerDamageFlash(remainingHp, player.maxHp);
+    }
+    if (remainingHp <= 0) {
+      deathCollapseElapsed = 0;
+      gameOverShown = false;
+      player.startDeathCollapse();
+      setGameState('GAME_OVER');
+      if (document.pointerLockElement) {
+        try { document.exitPointerLock(); } catch (e) {}
+      }
+    }
+  };
 
   function setGameState(state) {
     gameState = state;
@@ -133,6 +180,14 @@ window.addEventListener('DOMContentLoaded', () => {
       engine.camera.rotation.order = 'YXZ';
       player.updateBobAndCamera(0);
       sound.fadeMenuMusicOut(220);
+    } else if (state === 'GAME_OVER') {
+      startModal.classList.add('hidden');
+      if (uiLayer) uiLayer.classList.add('menu-hidden');
+      viewmodel.root.visible = false;
+      input.clearInputs();
+      if (window.isZombieTunerOpen) zombieTuner.close();
+      if (window.isViewmodelTunerOpen) viewmodelTuner.close();
+      if (window.isLightingTunerOpen) lightingTuner.close();
     } else if (state === 'PAUSED') {
       startModal.classList.remove('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
@@ -243,10 +298,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const warmupStart = performance.now();
     try {
+      zombieManager.initWavePool();
+
       if (engine.renderer && typeof engine.renderer.initTexture === 'function') {
         const texturesToWarm = [
           ...(warehouse && typeof warehouse.getPreloadTextures === 'function' ? warehouse.getPreloadTextures() : []),
           ...(typeof engine.getEnemyPreloadTextures === 'function' ? engine.getEnemyPreloadTextures() : []),
+          ...(typeof decalManager.getPreloadTextures === 'function' ? decalManager.getPreloadTextures() : []),
         ];
         for (const tex of texturesToWarm) {
           if (tex) {
@@ -255,7 +313,11 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       }
       engine.setTestZombiesVisible(true);
+      const zmWarmState = zombieManager.prepareWarmUp();
+      const dmWarmState = decalManager.prepareWarmUp(engine.renderer);
       await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera, engine.composer, weaponSystem);
+      decalManager.finishWarmUp(dmWarmState);
+      zombieManager.finishWarmUp(zmWarmState);
       engine.setTestZombiesVisible(false);
     } catch (err) {
       console.warn('GPU warm-up warning:', err);
@@ -382,6 +444,22 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
 
+      if (gameState === 'GAME_OVER') {
+        viewmodel.root.visible = false;
+        deathCollapseElapsed += delta;
+        player.updateDeathCollapse(deathCollapseElapsed);
+        if (!gameOverShown && deathCollapseElapsed >= 0.60) {
+          gameOverShown = true;
+          hud.setGameOverVisible(true);
+        }
+        zombieManager.update(delta, gameState);
+        decalManager.update(delta);
+        hud.updateDamageVignette(delta, player.hp);
+        weaponSystem.update(delta);
+        TWEEN.update();
+        return;
+      }
+
       // Playing state: ensure viewmodel is visible
       viewmodel.root.visible = true;
 
@@ -402,6 +480,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // 4b. Opening gameplay sequence state machine (tutorial fade-in, phone ringing, proximity pickup)
       introSequence.update(delta, gameState);
+
+      // 4c. Wave-1 zombie AI, animations, blood decals/droplets & edge vignette pulse
+      zombieManager.update(delta, gameState);
+      decalManager.update(delta);
+      hud.updateDamageVignette(delta, player.hp);
 
       // 5. Update position diagnostics (throttled to 4Hz to eliminate per-frame DOM updates)
       const now = performance.now();
@@ -450,6 +533,24 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  const gameOverExitBtn = document.getElementById('game-over-exit-btn');
+
+  function returnToMainMenu() {
+    sound.playExitClick();
+    deathCollapseElapsed = 0;
+    gameOverShown = false;
+    player.resetHealth();
+    hud.resetDamageVignette();
+    hud.setGameOverVisible(false);
+    weaponSystem.reset();
+    warehouse.resetMonitors();
+    decalManager.clearBloodDecals();
+    zombieManager.resetAll();
+    if (typeof engine.setTestZombiesVisible === 'function') engine.setTestZombiesVisible(false);
+    introSequence.reset();
+    setGameState('MAIN_MENU');
+  }
+
   if (exitBtn) {
     exitBtn.addEventListener('pointerenter', () => {
       if (exitBtn.offsetParent !== null && exitBtn.style.display !== 'none') {
@@ -461,13 +562,22 @@ window.addEventListener('DOMContentLoaded', () => {
     exitBtn.addEventListener('mouseup', (e) => e.stopPropagation());
     exitBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      sound.playExitClick();
-      weaponSystem.reset();
-      warehouse.resetMonitors();
-      if (typeof engine.resetEnemies === 'function') engine.resetEnemies();
-      if (typeof engine.setTestZombiesVisible === 'function') engine.setTestZombiesVisible(false);
-      introSequence.reset();
-      setGameState('MAIN_MENU');
+      returnToMainMenu();
+    });
+  }
+
+  if (gameOverExitBtn) {
+    gameOverExitBtn.addEventListener('pointerenter', () => {
+      if (gameOverExitBtn.offsetParent !== null) {
+        sound.playButtonHover();
+      }
+    });
+
+    gameOverExitBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    gameOverExitBtn.addEventListener('mouseup', (e) => e.stopPropagation());
+    gameOverExitBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      returnToMainMenu();
     });
   }
 
@@ -535,17 +645,29 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   input.onLock(() => {
+    if (gameState === 'GAME_OVER') {
+      if (document.pointerLockElement) {
+        try { document.exitPointerLock(); } catch (e) {}
+      }
+      return;
+    }
     sound.resume();
     setGameState('PLAYING');
   });
 
-  // Global flags for F7 lighting tuner and F8 viewmodel tuner to prevent pause menu interference
+  // Global flags for F7 lighting, F8 viewmodel, and F9 zombie tuners to prevent pause menu interference
   window.isViewmodelTunerOpen = false;
   window.isLightingTunerOpen = false;
+  window.isZombieTunerOpen = false;
 
   input.onUnlock(() => {
-    if (window.isViewmodelTunerOpen || window.isLightingTunerOpen) {
-      // Tuner is open: DO NOT pause the game, keep playing state and live viewmodel rendering!
+    if (
+      window.isViewmodelTunerOpen ||
+      window.isLightingTunerOpen ||
+      window.isZombieTunerOpen ||
+      gameState === 'GAME_OVER'
+    ) {
+      // Tuner open or Game Over collapse active: DO NOT open pause menu!
       return;
     }
     if (gameState === 'PLAYING') {
@@ -553,9 +675,13 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Handle ESC to guarantee pause triggering even in headless/synthetic event environments
+  // Handle ESC to close open tuners or pause cleanly
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.key === 'Escape') {
+      if (window.isZombieTunerOpen) {
+        zombieTuner.close();
+        return;
+      }
       if (window.isViewmodelTunerOpen) {
         viewmodelTuner.close();
         return;
@@ -572,15 +698,6 @@ window.addEventListener('DOMContentLoaded', () => {
         }
       }
       return;
-    }
-
-    // Debug key P: toggle test zombies visible/active anytime during gameplay
-    if (!e.repeat && (e.code === 'KeyP' || e.key === 'p' || e.key === 'P')) {
-      const tag = e.target?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-      if (gameState === 'PLAYING') {
-        engine.toggleTestZombies();
-      }
     }
   });
 

@@ -53,8 +53,18 @@ export class PlayerController {
 
     this.colliderMesh = null;
     this.dynamicBlockers = [];
+    this.zombieColliderSource = null;
     this.gameState = 'MENU';
     this.jumpSuppressed = false;
+
+    // Player combat health & hit-punch jolt state
+    this.maxHp = 3;
+    this.hp = 3;
+    this.hitPunchPitch = 0;
+    this.hitPunchRoll = 0;
+    this._deathCollapseStartY = 1.65;
+    this._deathCollapseStartPitch = 0;
+    this._deathCollapseStartRoll = 0;
 
     // Initial camera placement
     this._updateCameraTransform();
@@ -86,6 +96,56 @@ export class PlayerController {
     this.dynamicBlockers = Array.isArray(blockers) ? blockers : [];
   }
 
+  /**
+   * Registers a callback or array supplying living zombie cylinder colliders ({ x, z, radius }).
+   */
+  setZombieColliders(source) {
+    this.zombieColliderSource = source;
+  }
+
+  resetHealth() {
+    this.hp = this.maxHp;
+    this.hitPunchPitch = 0;
+    this.hitPunchRoll = 0;
+  }
+
+  takeDamage(amount = 1) {
+    if (this.hp <= 0) return 0;
+    this.hp = Math.max(0, this.hp - amount);
+    this.applyHitPunch();
+    return this.hp;
+  }
+
+  applyHitPunch() {
+    this.hitPunchPitch += 0.085;
+    this.hitPunchRoll += (Math.random() > 0.5 ? 1 : -1) * 0.145;
+  }
+
+  startDeathCollapse() {
+    this.velocity.set(0, 0, 0);
+    this._deathCollapseStartY = this.camera ? this.camera.position.y : (this.position.y + this.eyeHeight);
+    this._deathCollapseStartPitch = this.camera ? this.camera.rotation.x : this.pitch;
+    this._deathCollapseStartRoll = this.camera ? this.camera.rotation.z : 0;
+  }
+
+  updateDeathCollapse(elapsed) {
+    if (!this.camera) return;
+    const dur = 0.85;
+    const rawT = Math.max(0, Math.min(1, elapsed / dur));
+    // Smooth falling acceleration then heavy settle
+    const ease = rawT < 0.5 ? 2 * rawT * rawT : 1 - Math.pow(-2 * rawT + 2, 2) * 0.5;
+    const targetFloorY = this.position.y + 0.26;
+
+    this.camera.position.x = this.position.x;
+    this.camera.position.z = this.position.z;
+    this.camera.position.y = THREE.MathUtils.lerp(this._deathCollapseStartY, targetFloorY, ease);
+
+    this.camera.rotation.order = 'YXZ';
+    this.camera.rotation.y = this.yaw;
+    this.camera.rotation.x = THREE.MathUtils.lerp(this._deathCollapseStartPitch, -0.16, ease);
+    this.camera.rotation.z = THREE.MathUtils.lerp(this._deathCollapseStartRoll, 1.10, ease);
+  }
+
   teleport(x, y, z) {
     this.position.set(x, y, z);
     this.velocity.set(0, 0, 0);
@@ -101,6 +161,7 @@ export class PlayerController {
     this.pitch = pitch;
     this.yaw = yaw;
     this.recoilPitch = 0;
+    this.resetHealth();
     this.bobCycle = 0;
     this.bobOffset.set(0, 0, 0);
     this.landingSpring.reset(0, 0);
@@ -233,9 +294,10 @@ export class PlayerController {
     this.position.y += this.velocity.y * subDelta;
     this.position.z += this.velocity.z * subDelta;
 
-    // 4. Resolve Capsule Collisions against BVH & active dynamic blockers
-    this._resolveCapsuleCollisions();
+    // 4. Resolve solid zombie cylinders, dynamic blockers & BVH capsule collisions
+    this._resolveDynamicCylinders();
     this._resolveDynamicBlockers();
+    this._resolveCapsuleCollisions();
 
     // 5. Detect landing impact (subtle, clean bump and procedural touchdown SFX)
     if (!this.wasGrounded && this.isGrounded) {
@@ -401,6 +463,43 @@ export class PlayerController {
   }
 
   /**
+   * Resolves horizontal player-vs-living-zombie cylinder collisions (min distance ~0.88m).
+   */
+  _resolveDynamicCylinders() {
+    if (!this.zombieColliderSource) return;
+    const cylinders = typeof this.zombieColliderSource === 'function'
+      ? this.zombieColliderSource()
+      : this.zombieColliderSource;
+    if (!cylinders || cylinders.length === 0) return;
+
+    for (let i = 0; i < cylinders.length; i++) {
+      const c = cylinders[i];
+      if (!c) continue;
+      const minDist = Math.max(0.88, this.radius + (c.radius || 0.42));
+      const dx = this.position.x - c.x;
+      const dz = this.position.z - c.z;
+      const distSq = dx * dx + dz * dz;
+      if (distSq >= minDist * minDist) continue;
+
+      if (distSq > 1e-8) {
+        const dist = Math.sqrt(distSq);
+        const nx = dx / dist;
+        const nz = dz / dist;
+        const push = minDist - dist;
+        this.position.x += nx * push;
+        this.position.z += nz * push;
+        const vDot = this.velocity.x * nx + this.velocity.z * nz;
+        if (vDot < 0) {
+          this.velocity.x -= vDot * nx;
+          this.velocity.z -= vDot * nz;
+        }
+      } else {
+        this.position.z += minDist;
+      }
+    }
+  }
+
+  /**
    * Smooth, subtle modern FPS camera motion, footstep cadence, and landing recovery.
    */
   updateBobAndCamera(frameDelta) {
@@ -441,18 +540,29 @@ export class PlayerController {
       }
     }
 
-    // 2. Smoothly settle camera recoil kick back down over ~0.35s
+    // 2. Smoothly settle camera recoil kick & melee hit-punch back down
     if (Math.abs(this.recoilPitch) > 0.0001) {
       this.recoilPitch = THREE.MathUtils.damp(this.recoilPitch, 0, 8.5, frameDelta);
     } else {
       this.recoilPitch = 0;
     }
 
+    if (Math.abs(this.hitPunchPitch) > 0.0001) {
+      this.hitPunchPitch = THREE.MathUtils.damp(this.hitPunchPitch, 0, 9.5, frameDelta);
+    } else {
+      this.hitPunchPitch = 0;
+    }
+    if (Math.abs(this.hitPunchRoll) > 0.0001) {
+      this.hitPunchRoll = THREE.MathUtils.damp(this.hitPunchRoll, 0, 9.5, frameDelta);
+    } else {
+      this.hitPunchRoll = 0;
+    }
+
     // 3. Update landing spring
     const landingY = this.landingSpring.update(frameDelta);
 
     // 4. Final camera transform
-    this._updateCameraTransform(landingY, 0);
+    this._updateCameraTransform(landingY, this.hitPunchRoll);
   }
 
   /**
@@ -471,7 +581,7 @@ export class PlayerController {
 
     this.camera.rotation.order = 'YXZ';
     this.camera.rotation.y = this.yaw;
-    this.camera.rotation.x = this.pitch + this.recoilPitch;
+    this.camera.rotation.x = this.pitch + this.recoilPitch + this.hitPunchPitch;
     this.camera.rotation.z = cameraRoll;
   }
 }

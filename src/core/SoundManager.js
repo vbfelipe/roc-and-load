@@ -2756,4 +2756,223 @@ export class SoundManager {
     hitImpulse(0.14, 520, 0.40);
     hitImpulse(0.22, 480, 0.22);
   }
+
+  /**
+   * Subtle guttural zombie aggro hiss when transitioning into RUN_CHASE.
+   */
+  playZombieAggro(distance = 5) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    const att = Math.max(0.20, Math.min(1.0, 1.0 / (1.0 + Math.max(0, distance - 2.0) * 0.14)));
+
+    // 1. Guttural vocal cord sawtooth growl
+    const osc = this.ctx.createOscillator();
+    const filt = this.ctx.createBiquadFilter();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(165, now);
+    osc.frequency.linearRampToValueAtTime(220, now + 0.10);
+    osc.frequency.exponentialRampToValueAtTime(105, now + 0.52);
+
+    filt.type = 'bandpass';
+    filt.frequency.setValueAtTime(680, now);
+    filt.Q.setValueAtTime(2.6, now);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.20 * att, now + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.54);
+
+    osc.connect(filt);
+    filt.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.56);
+
+    // 2. Raspy breathy hiss layer
+    const noiseBuf = this._noiseBufferCache.get(0.25) || this._createNoiseBuffer(0.25);
+    if (noiseBuf) {
+      const nSrc = this.ctx.createBufferSource();
+      nSrc.buffer = noiseBuf;
+      const nFilt = this.ctx.createBiquadFilter();
+      nFilt.type = 'bandpass';
+      nFilt.frequency.setValueAtTime(2400, now);
+      nFilt.Q.setValueAtTime(1.8, now);
+      const nGain = this.ctx.createGain();
+      nGain.gain.setValueAtTime(0.001, now);
+      nGain.gain.linearRampToValueAtTime(0.11 * att, now + 0.04);
+      nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
+      nSrc.connect(nFilt);
+      nFilt.connect(nGain);
+      nGain.connect(this.masterGain);
+      nSrc.start(now);
+    }
+  }
+
+  /**
+   * Meaty bullet impact on zombie flesh (+ sharp wet crunch on headshot).
+   */
+  playZombieBodyHit(isHeadshot = false, distance = 5) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    const att = Math.max(0.25, Math.min(1.0, 1.0 / (1.0 + Math.max(0, distance - 1.5) * 0.10)));
+
+    // Low meaty impact punch
+    const thud = this.ctx.createOscillator();
+    const thudG = this.ctx.createGain();
+    thud.type = 'triangle';
+    thud.frequency.setValueAtTime(isHeadshot ? 190 : 140, now);
+    thud.frequency.exponentialRampToValueAtTime(48, now + 0.09);
+    thudG.gain.setValueAtTime(0.001, now);
+    thudG.gain.linearRampToValueAtTime((isHeadshot ? 0.34 : 0.26) * att, now + 0.004);
+    thudG.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+    thud.connect(thudG);
+    thudG.connect(this.masterGain);
+    thud.start(now);
+    thud.stop(now + 0.12);
+
+    // Wet splatter / skull crack burst
+    const nBuf = this._noiseBufferCache.get(0.025) || this._createNoiseBuffer(0.025);
+    if (nBuf) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = nBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(isHeadshot ? 2100 : 1150, now);
+      bp.Q.setValueAtTime(1.1, now);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime((isHeadshot ? 0.38 : 0.24) * att, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.055);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.masterGain);
+      src.start(now);
+    }
+  }
+
+  /**
+   * Descending zombie death groan + floor collapse body thud.
+   */
+  playZombieDeath(isHeadshot = false, distance = 5) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+    const att = Math.max(0.25, Math.min(1.0, 1.0 / (1.0 + Math.max(0, distance - 2.0) * 0.12)));
+
+    if (!isHeadshot) {
+      const osc = this.ctx.createOscillator();
+      const filt = this.ctx.createBiquadFilter();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(175, now);
+      osc.frequency.exponentialRampToValueAtTime(62, now + 0.58);
+      filt.type = 'lowpass';
+      filt.frequency.setValueAtTime(640, now);
+      filt.frequency.exponentialRampToValueAtTime(220, now + 0.58);
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(0.20 * att, now + 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.62);
+      osc.connect(filt);
+      filt.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + 0.64);
+    }
+
+    // Delayed body collapse thud onto floor
+    const thudAt = now + (isHeadshot ? 0.36 : 0.52);
+    const body = this.ctx.createOscillator();
+    const bodyG = this.ctx.createGain();
+    body.type = 'sine';
+    body.frequency.setValueAtTime(92, thudAt);
+    body.frequency.exponentialRampToValueAtTime(34, thudAt + 0.18);
+    bodyG.gain.setValueAtTime(0.001, thudAt);
+    bodyG.gain.linearRampToValueAtTime(0.28 * att, thudAt + 0.01);
+    bodyG.gain.exponentialRampToValueAtTime(0.001, thudAt + 0.22);
+    body.connect(bodyG);
+    bodyG.connect(this.masterGain);
+    body.start(thudAt);
+    body.stop(thudAt + 0.24);
+  }
+
+  /**
+   * Visceral flesh hit + Roc grunt when struck by a zombie claw swipe.
+   */
+  playPlayerHit(isFatal = false) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const now = this.ctx.currentTime;
+
+    // 1. Heavy impact chest thud
+    const thud = this.ctx.createOscillator();
+    const thudG = this.ctx.createGain();
+    thud.type = 'triangle';
+    thud.frequency.setValueAtTime(128, now);
+    thud.frequency.exponentialRampToValueAtTime(38, now + 0.18);
+    thudG.gain.setValueAtTime(0.001, now);
+    thudG.gain.linearRampToValueAtTime(isFatal ? 0.52 : 0.40, now + 0.006);
+    thudG.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    thud.connect(thudG);
+    thudG.connect(this.masterGain);
+    thud.start(now);
+    thud.stop(now + 0.24);
+
+    // 2. Sharp claw tear transient
+    const nBuf = this._noiseBufferCache.get(0.025) || this._createNoiseBuffer(0.025);
+    if (nBuf) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = nBuf;
+      const hp = this.ctx.createBiquadFilter();
+      hp.type = 'bandpass';
+      hp.frequency.setValueAtTime(1700, now);
+      hp.Q.setValueAtTime(0.9, now);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.36, now);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+      src.connect(hp);
+      hp.connect(g);
+      g.connect(this.masterGain);
+      src.start(now);
+    }
+
+    // 3. Low male pained grunt
+    const grunt = this.ctx.createOscillator();
+    const gruntFilt = this.ctx.createBiquadFilter();
+    const gruntG = this.ctx.createGain();
+    grunt.type = 'sawtooth';
+    grunt.frequency.setValueAtTime(isFatal ? 132 : 148, now + 0.02);
+    grunt.frequency.exponentialRampToValueAtTime(isFatal ? 72 : 95, now + (isFatal ? 0.42 : 0.22));
+    gruntFilt.type = 'lowpass';
+    gruntFilt.frequency.setValueAtTime(520, now + 0.02);
+    gruntG.gain.setValueAtTime(0.001, now + 0.02);
+    gruntG.gain.linearRampToValueAtTime(0.22, now + 0.05);
+    gruntG.gain.exponentialRampToValueAtTime(0.001, now + (isFatal ? 0.45 : 0.24));
+    grunt.connect(gruntFilt);
+    gruntFilt.connect(gruntG);
+    gruntG.connect(this.masterGain);
+    grunt.start(now + 0.02);
+    grunt.stop(now + (isFatal ? 0.48 : 0.26));
+
+    // Optional body collapse floor thud on 3rd (fatal) hit
+    if (isFatal) {
+      const dropAt = now + 0.62;
+      const fall = this.ctx.createOscillator();
+      const fallG = this.ctx.createGain();
+      fall.type = 'sine';
+      fall.frequency.setValueAtTime(84, dropAt);
+      fall.frequency.exponentialRampToValueAtTime(30, dropAt + 0.24);
+      fallG.gain.setValueAtTime(0.001, dropAt);
+      fallG.gain.linearRampToValueAtTime(0.45, dropAt + 0.015);
+      fallG.gain.exponentialRampToValueAtTime(0.001, dropAt + 0.28);
+      fall.connect(fallG);
+      fallG.connect(this.masterGain);
+      fall.start(dropAt);
+      fall.stop(dropAt + 0.30);
+    }
+  }
 }

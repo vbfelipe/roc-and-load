@@ -52,8 +52,9 @@ export class Engine {
     // 6. Post-Processing Pipeline (Zero-AO, half-res bloom)
     this._initPostProcessing();
 
-    // 7. NPC Entities (hidden & paused at start so 3:00 AM office is eerie; toggled via debug key P)
+    // 7. NPC Entities (hidden & paused at start so 3:00 AM office is eerie; toggled via F9 Zombie Tuner)
     this.testZombiesVisible = false;
+    this.zombieManager = null;
     this.zombie = new ZombieEnemy(this.scene, {
       spawnPosition: new THREE.Vector3(-0.6, 0.0, 2.5),
       lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
@@ -230,6 +231,10 @@ export class Engine {
     }
   }
 
+  setZombieManager(zombieManager) {
+    this.zombieManager = zombieManager;
+  }
+
   addPhysicsUpdatable(obj) {
     this.physicsUpdatables.push(obj);
   }
@@ -283,8 +288,10 @@ export class Engine {
     for (let i = 0; i < this.visualUpdatables.length; i++) {
       this.visualUpdatables[i].update(delta);
     }
-    for (let i = 0; i < this.enemies.length; i++) {
-      this.enemies[i].update(delta);
+    if (!this.zombieManager) {
+      for (let i = 0; i < this.enemies.length; i++) {
+        this.enemies[i].update(delta);
+      }
     }
 
     // 3. Render Post-Processing Pipeline

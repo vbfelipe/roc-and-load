@@ -63,7 +63,7 @@ const PLASTER_DEBRIS_COUNT = 12;
  *  ELEVATOR_ARRIVING -> UNARMED_INTRO -> PHONE_RINGING -> PHONE_ANSWERED -> CALL_ENDED -> BUILDING_EXPLOSION
  */
 export class IntroSequence {
-  constructor({ scene, camera, player, weaponSystem, hud, sound, input, warehouse }) {
+  constructor({ scene, camera, player, weaponSystem, hud, sound, input, warehouse, zombieManager = null }) {
     this.scene = scene;
     this.camera = camera;
     this.player = player;
@@ -72,6 +72,7 @@ export class IntroSequence {
     this.sound = sound;
     this.input = input;
     this.warehouse = warehouse;
+    this.zombieManager = zombieManager;
 
     this.state = INTRO_STATES.ELEVATOR_ARRIVING;
     this._gameState = 'MAIN_MENU';
@@ -106,6 +107,7 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._wave1Triggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;
@@ -452,6 +454,7 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._wave1Triggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;
@@ -746,6 +749,7 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._wave1Triggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;
@@ -1173,6 +1177,12 @@ export class IntroSequence {
         this.sound.stopBuildingExplosion();
       }
     }
+    if (!this._wave1Triggered && this._explosionTimer >= BUILDING_EXPLOSION_DURATION_SECONDS) {
+      this._wave1Triggered = true;
+      if (this.zombieManager && typeof this.zombieManager.triggerWave1 === 'function') {
+        this.zombieManager.triggerWave1();
+      }
+    }
 
     // Animate toppling stairwell stanchions until settled
     if (this.warehouse && this.warehouse.stairwellStanchions) {
@@ -1417,6 +1427,10 @@ export class IntroSequence {
     }
   }
 
+  setZombieManager(zombieManager) {
+    this.zombieManager = zombieManager;
+  }
+
   reset() {
     this.state = INTRO_STATES.ELEVATOR_ARRIVING;
     this._gameState = 'MAIN_MENU';
@@ -1446,6 +1460,7 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._wave1Triggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;

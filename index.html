@@ -1748,6 +1748,54 @@
       box-shadow: 0 0 12px rgba(245, 158, 11, 0.75);
       transition: width 0.12s ease-out;
     }
+
+    /* Fullscreen Crimson Damage Vignette Overlay */
+    #hud-damage-vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 940;
+      background: radial-gradient(circle, rgba(160, 0, 0, 0.10) 32%, rgba(155, 0, 0, 0.78) 100%);
+      opacity: 0;
+      will-change: opacity;
+    }
+
+    /* Minimal Pitch-Black Game Over Screen */
+    #game-over-screen {
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 28px;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.48s ease-out, visibility 0.48s ease-out;
+    }
+
+    #game-over-screen.active {
+      opacity: 1;
+      visibility: visible;
+      pointer-events: auto;
+    }
+
+    .game-over-title {
+      font-family: 'Chakra Petch', 'Inter', sans-serif;
+      font-size: clamp(2.6rem, 6.2vw, 4.6rem);
+      font-weight: 800;
+      font-style: italic;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #dc2626;
+      text-shadow: 0 0 26px rgba(220, 38, 38, 0.55), 0 4px 18px rgba(0, 0, 0, 0.9);
+      user-select: none;
+      text-align: center;
+      padding-left: 0.18em;
+    }
   </style>
 </head>
 
@@ -1861,6 +1909,18 @@
       <!-- Clean Official Menu Footer Credit -->
       <div class="menu-footer">© 2026 Felipe Vicentini</div>
     </div>
+  </div>
+
+  <div id="hud-damage-vignette" aria-hidden="true"></div>
+
+  <div id="game-over-screen" aria-hidden="true">
+    <div class="game-over-title">GAME OVER</div>
+    <button id="game-over-exit-btn" type="button" class="tactical-btn exit-btn">
+      <span class="btn-content">
+        <span>EXIT</span>
+        <span class="btn-chevron">▸</span>
+      </span>
+    </button>
   </div>
 
   <script type="module" src="/src/main.js"></script>

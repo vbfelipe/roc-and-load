@@ -653,6 +653,41 @@ export class WeaponSystem {
     this.armedAt = 0;
     this.isUnarmed = false;
     this.unlockedWeapons = new Set(['hk_usp', 'pistol', 'shotgun', 'hk_mp5']);
+
+    // Zombie & blood decal integrations (injected after boot)
+    this.zombieManager = null;
+    this.decalManager = null;
+  }
+
+  setZombieManager(zombieManager) {
+    this.zombieManager = zombieManager;
+  }
+
+  setDecalManager(decalManager) {
+    this.decalManager = decalManager;
+  }
+
+  _raycastZombies(raycaster) {
+    if (!this.zombieManager || typeof this.zombieManager.getActiveHitboxes !== 'function') {
+      return null;
+    }
+    const hitboxes = this.zombieManager.getActiveHitboxes();
+    if (!hitboxes || hitboxes.length === 0) return null;
+
+    const zHits = raycaster.intersectObjects(hitboxes, false);
+    if (zHits.length === 0) return null;
+
+    const first = zHits[0];
+    if ((first.object?.userData?.zone || first.object?.userData?.part) !== 'head') {
+      for (let i = 1; i < zHits.length; i++) {
+        const alt = zHits[i];
+        if (alt.distance - first.distance > 0.06) break;
+        if ((alt.object?.userData?.zone || alt.object?.userData?.part) === 'head') {
+          return alt;
+        }
+      }
+    }
+    return first;
   }
 
   lockAllWeapons() {
@@ -1486,6 +1521,7 @@ export class WeaponSystem {
       let closestHit = null;
       let hitObject = null;
       let hitScreenMesh = null;
+      let hitZombieMesh = null;
 
       if (this.boxManager && typeof this.boxManager.raycast === 'function') {
         const boxHit = this.boxManager.raycast(_raycaster);
@@ -1527,6 +1563,14 @@ export class WeaponSystem {
             hitScreenMesh = null;
           }
         }
+      }
+
+      const zHit = this._raycastZombies(_raycaster);
+      if (zHit && (!closestHit || zHit.distance < closestHit.distance)) {
+        closestHit = zHit;
+        hitObject = 'zombie';
+        hitScreenMesh = null;
+        hitZombieMesh = zHit.object;
       }
 
       if (closestHit) {
@@ -1577,6 +1621,8 @@ export class WeaponSystem {
           this._spawnDecal(_hitPoint, normal, true, false, 'shotgun');
         } else if (hitObject === 'box' && this.boxManager) {
           this.boxManager.onHit(closestHit);
+        } else if (hitObject === 'zombie' && hitZombieMesh && this.zombieManager) {
+          this.zombieManager.onBulletHit(hitZombieMesh, _hitPoint, normal, _rayDirection, closestHit.distance);
         }
       } else {
         _hitPoint.copy(_rayOrigin).addScaledVector(_rayDirection, 100);
@@ -1605,6 +1651,7 @@ export class WeaponSystem {
     let closestHit = null;
     let hitObject = null;
     let hitScreenMesh = null;
+    let hitZombieMesh = null;
 
     if (this.boxManager && typeof this.boxManager.raycast === 'function') {
       const boxHit = this.boxManager.raycast(_raycaster);
@@ -1649,6 +1696,15 @@ export class WeaponSystem {
           hitScreenMesh = null;
         }
       }
+    }
+
+    // Raycast against lightweight bone-parented zombie hitboxes (occluded by walls/glass above)
+    const zHit = this._raycastZombies(_raycaster);
+    if (zHit && (!closestHit || zHit.distance < closestHit.distance)) {
+      closestHit = zHit;
+      hitObject = 'zombie';
+      hitScreenMesh = null;
+      hitZombieMesh = zHit.object;
     }
 
     // EXACT world-space muzzle position from the dedicated barrel socket
@@ -1702,6 +1758,8 @@ export class WeaponSystem {
         this._spawnDecal(_hitPoint, normal, false, false, this.currentWeapon);
       } else if (hitObject === 'box' && this.boxManager) {
         this.boxManager.onHit(closestHit);
+      } else if (hitObject === 'zombie' && hitZombieMesh && this.zombieManager) {
+        this.zombieManager.onBulletHit(hitZombieMesh, _hitPoint, normal, _rayDirection, closestHit.distance);
       }
     } else {
       // Whiff into distance (100 units forward along camera ray)

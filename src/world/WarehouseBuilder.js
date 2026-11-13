@@ -15026,14 +15026,12 @@ export class WarehouseBuilder {
     const endClipGeo = new THREE.BoxGeometry(0.024, 0.090, 0.020);
 
     // 4 Stanchion Posts in Hero Scale relocated to the Left Wall under the first glass partition window
-    // (exact position indicated in front of the access vestibule window, Z ≈ 7.4m to 8.85m, X ≈ -9.55m to -9.02m)
-    // Post 0 & 1: wall-adjacent pair linked with sagging fabric belt (Z = 7.40m to 8.35m, 0.20m clear of wall)
-    // Post 2 & 3: front-row staggered posts (X = -9.02m and -9.18m, generous clearances >= 0.60m from all posts)
+    // (shifted 0.80m south to Z ≈ 6.60m to 8.05m so the doorway exit corridor Z ≈ 10.3m is wide & clear)
     const stanchionPosts = [
-      { x: -9.55, z: 7.40, yaw: 0.28 },  // Connected pair (near wall)
-      { x: -9.52, z: 8.35, yaw: -0.36 }, // Connected pair (near wall)
-      { x: -9.02, z: 7.95, yaw: 1.12 },  // Standalone post (staggered forward)
-      { x: -9.18, z: 8.85, yaw: -1.74 }  // Standalone post (staggered forward)
+      { x: -9.55, z: 6.60, yaw: 0.28 },  // Connected pair (near wall)
+      { x: -9.52, z: 7.55, yaw: -0.36 }, // Connected pair (near wall)
+      { x: -9.02, z: 7.15, yaw: 1.12 },  // Standalone post (staggered forward)
+      { x: -9.18, z: 8.05, yaw: -1.74 }  // Standalone post (staggered forward)
     ];
 
     // Assemble 4 Hero Scale stanchion posts
