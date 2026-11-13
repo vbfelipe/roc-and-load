@@ -644,12 +644,83 @@ export class WeaponSystem {
     this.muzzleLight.visible = true; // Kept permanently visible to eliminate Three.js shader re-compilation freezes!
     this.scene.add(this.muzzleLight);
     this.flashDuration = 0;
+    this._flashMaxDuration = 0.045;
+    this._flashPeakIntensity = 3.0;
     this._lastCrosshairHidden = null;
 
     // Strict game state gating (MENU vs PLAYING) and arming cooldown
     this.gameState = 'MENU';
     this.armedAt = 0;
     this.isUnarmed = false;
+    this.unlockedWeapons = new Set(['hk_usp', 'pistol', 'shotgun', 'hk_mp5']);
+  }
+
+  lockAllWeapons() {
+    this.unlockedWeapons.clear();
+  }
+
+  unlockWeapon(weaponType) {
+    if (!weaponType) return;
+    this.unlockedWeapons.add(weaponType);
+  }
+
+  unlockStartingPistol() {
+    this.unlockWeapon('hk_usp');
+    if (this.input && this.input.justPressedKeys) {
+      this.input.justPressedKeys.Digit1 = false;
+      this.input.justPressedKeys['1'] = false;
+    }
+  }
+
+  unlockAllWeapons() {
+    this.unlockedWeapons.add('hk_usp');
+    this.unlockedWeapons.add('pistol');
+    this.unlockedWeapons.add('shotgun');
+    this.unlockedWeapons.add('hk_mp5');
+  }
+
+  isWeaponUnlocked(weaponType) {
+    if (window.isViewmodelTunerOpen) return true;
+    return this.unlockedWeapons.has(weaponType);
+  }
+
+  /**
+   * Transitions out of unarmed bare-hands mode into an unlocked weapon (e.g. pressing 1 for USP),
+   * reveals the ammo HUD, and triggers its tactical draw animation and equip sound.
+   */
+  equipUnlockedWeaponFromUnarmed(weaponType = 'hk_usp') {
+    if (!this.isUnarmed || !this.isWeaponUnlocked(weaponType)) return false;
+
+    const targetState = this.weapons[weaponType];
+    if (!targetState) return false;
+
+    this.currentWeapon = weaponType;
+    this.currentAmmo = targetState.currentAmmo;
+    this.maxAmmo = targetState.maxAmmo;
+    this.fireRate = targetState.fireRate;
+    this.isSlideLocked = targetState.isSlideLocked;
+    this.isReloading = false;
+
+    if (this.viewmodel) {
+      this.viewmodel.currentWeapon = weaponType;
+    }
+
+    this.setUnarmed(false);
+
+    if (this.viewmodel && (weaponType === 'hk_usp' || weaponType === 'pistol')) {
+      this.viewmodel.setSlideLocked(this.isSlideLocked);
+    }
+    if (this.hud) {
+      if (typeof this.hud.setWeapon === 'function') {
+        this.hud.setWeapon(weaponType, this.currentAmmo, this.maxAmmo);
+      } else {
+        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true);
+      }
+    }
+
+    this.playInitialEquip();
+    this.wasMouseDown0 = true;
+    return true;
   }
 
   /**
@@ -736,6 +807,7 @@ export class WeaponSystem {
     if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
     if (weaponType === 4 || weaponType === '4') weaponType = 'hk_mp5';
     if (weaponType !== 'hk_usp' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
+    if (!force && !this.isWeaponUnlocked(weaponType)) return;
     if (this.currentWeapon === weaponType && (!this.viewmodel || this.viewmodel.currentWeapon === weaponType) && !force) return;
 
     // 1. Persist current weapon state
@@ -947,8 +1019,31 @@ export class WeaponSystem {
     // 1. Always update in-flight visual effects (tracers, casings, sparks, decals, light fade)
     this._updateVisualEffects(delta);
 
-    // Block all weapon controls, ADS, and firing while unarmed
+    // Block firing/ADS/reloading while unarmed, except allow drawing unlocked USP with key [1]
     if (this.isUnarmed) {
+      const pressed1 = this.input.consumeKeyJustPressed('Digit1') || this.input.consumeKeyJustPressed('1');
+      // Drain other weapon inputs while unarmed so pre-unlock presses never bleed through later
+      this.input.consumeKeyJustPressed('Digit2');
+      this.input.consumeKeyJustPressed('2');
+      this.input.consumeKeyJustPressed('Digit3');
+      this.input.consumeKeyJustPressed('3');
+      this.input.consumeKeyJustPressed('Digit4');
+      this.input.consumeKeyJustPressed('4');
+      this.input.consumeKeyJustPressed('KeyR');
+      this.input.consumeKeyJustPressed('r');
+      if (typeof this.input.consumeWheelDelta === 'function') {
+        this.input.consumeWheelDelta();
+      }
+
+      const canDrawUnlocked = this.gameState === 'PLAYING' &&
+                              this.input.isLocked &&
+                              document.pointerLockElement !== null &&
+                              performance.now() >= this.armedAt;
+      if (canDrawUnlocked && pressed1 && this.isWeaponUnlocked('hk_usp')) {
+        this.equipUnlockedWeaponFromUnarmed('hk_usp');
+        return;
+      }
+
       this.wasMouseDown0 = true;
       if (this.camera && Math.abs(75 - this.camera.fov) > 0.05) {
         this.camera.fov += (75 - this.camera.fov) * Math.min(delta * 14.0, 1.0);
@@ -994,18 +1089,20 @@ export class WeaponSystem {
       return;
     }
 
-    // 3c. Mouse Wheel Cycling
+    // 3c. Mouse Wheel Cycling (strictly restricted to currently unlocked weapons)
     if (typeof this.input.consumeWheelDelta === 'function') {
       const wheelDelta = this.input.consumeWheelDelta();
       if (wheelDelta !== 0) {
-        const order = ['hk_usp', 'pistol', 'shotgun', 'hk_mp5'];
-        const curIdx = order.indexOf(this.currentWeapon);
-        if (curIdx !== -1) {
-          const nextIdx = wheelDelta > 0
-            ? (curIdx + 1) % order.length
-            : (curIdx - 1 + order.length) % order.length;
-          this.switchWeapon(order[nextIdx]);
-          return;
+        const order = ['hk_usp', 'pistol', 'shotgun', 'hk_mp5'].filter((w) => this.isWeaponUnlocked(w));
+        if (order.length > 1) {
+          const curIdx = order.indexOf(this.currentWeapon);
+          if (curIdx !== -1) {
+            const nextIdx = wheelDelta > 0
+              ? (curIdx + 1) % order.length
+              : (curIdx - 1 + order.length) % order.length;
+            this.switchWeapon(order[nextIdx]);
+            return;
+          }
         }
       }
     }
@@ -1054,13 +1151,14 @@ export class WeaponSystem {
   }
 
   _updateVisualEffects(delta) {
-    // 1. Update Muzzle Flash Light (Warm firelight fadeout over 45ms, disable visible when off)
+    // 1. Update Muzzle Flash Light (Warm firelight fadeout scaled to each weapon's peak intensity)
     if (this.flashDuration > 0) {
       this.flashDuration -= delta;
       if (this.flashDuration <= 0) {
         this.muzzleLight.intensity = 0;
       } else {
-        this.muzzleLight.intensity = (this.flashDuration / 0.045) * 6.0;
+        const denom = this._flashMaxDuration > 0 ? this._flashMaxDuration : 0.045;
+        this.muzzleLight.intensity = (this.flashDuration / denom) * this._flashPeakIntensity;
       }
     }
 
@@ -1236,8 +1334,10 @@ export class WeaponSystem {
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this.muzzleLight.intensity = isShotgun ? 8.5 : (isUSP ? 4.5 : (isMP5 ? 4.2 : 6.0));
-    this.flashDuration = isMP5 ? 0.035 : 0.045;
+    this._flashPeakIntensity = isShotgun ? 4.8 : (isUSP ? 2.4 : (isMP5 ? 2.2 : 3.4));
+    this._flashMaxDuration = isMP5 ? 0.035 : 0.045;
+    this.muzzleLight.intensity = this._flashPeakIntensity;
+    this.flashDuration = this._flashMaxDuration;
 
     if (isShotgun) {
       // Multi-pellet 12-gauge buckshot spread hitscan

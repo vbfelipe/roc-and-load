@@ -91,6 +91,7 @@ window.addEventListener('DOMContentLoaded', () => {
   weaponSystem.setMonitorScreens(warehouse.monitorScreens);
   weaponSystem.setPlayer(player);
   weaponSystem.setHUD(hud);
+  weaponSystem.lockAllWeapons();
   weaponSystem.setUnarmed(true);
 
   const introSequence = new IntroSequence({
@@ -583,10 +584,15 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Direct fail-safe KeyR reload and Digit1-4 weapon slot bindings (strictly blocked when unarmed or not playing)
+  // Direct fail-safe KeyR reload and Digit1-4 weapon slot bindings (gates locked slots & unarmed mode cleanly)
   window.addEventListener('keydown', (e) => {
-    if (weaponSystem.isUnarmed) return;
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
+    if (weaponSystem.isUnarmed) {
+      if ((e.code === 'Digit1' || e.key === '1') && weaponSystem.isWeaponUnlocked('hk_usp')) {
+        weaponSystem.equipUnlockedWeaponFromUnarmed('hk_usp');
+      }
+      return;
+    }
     if (e.code === 'Digit1' || e.key === '1') {
       weaponSystem.switchWeapon('hk_usp');
       return;

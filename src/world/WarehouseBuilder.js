@@ -14064,9 +14064,9 @@ export class WarehouseBuilder {
     this.elevatorStainlessMaterial = new THREE.MeshStandardMaterial({
       map: this.brushedStainlessTex,
       color: 0xd0d7e0,
-      roughness: 0.25,
-      metalness: 0.82,
-      envMapIntensity: 0.75,
+      roughness: 0.54,
+      metalness: 0.56,
+      envMapIntensity: 0.88,
     });
 
     this.elevatorPortalMaterial = new THREE.MeshStandardMaterial({
@@ -14109,9 +14109,9 @@ export class WarehouseBuilder {
 
     this.elevatorSillMaterial = new THREE.MeshStandardMaterial({
       color: 0x9ca3af,
-      metalness: 0.85,
-      roughness: 0.3,
-      envMapIntensity: 0.70,
+      metalness: 0.65,
+      roughness: 0.50,
+      envMapIntensity: 0.78,
     });
 
     this.exitSignMaterial = new THREE.MeshStandardMaterial({
@@ -19073,7 +19073,7 @@ export class WarehouseBuilder {
 
     const bannerGeo = new THREE.PlaneGeometry(bannerW, bannerH);
     bannerGeo.rotateY(Math.PI * 0.5);
-    addVisual(visualBuckets.elevatorBanner, bannerGeo, bannerX, bannerCenterY, bannerCenterZ);
+    addPart(visualBuckets.elevatorBanner, bannerGeo, bannerX, bannerCenterY, bannerCenterZ);
     bannerGeo.dispose();
 
     const dowelGeo = new THREE.CylinderGeometry(0.011, 0.011, bannerW + 0.04, 12);

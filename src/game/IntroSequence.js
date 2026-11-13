@@ -50,6 +50,9 @@ const PHONE_DISCONNECT_FINISH_SECONDS = 1.25;
 const POST_CALL_SILENCE_SECONDS = 2.20;
 const POST_CALL_EXPLOSION_DELAY_SECONDS = PHONE_DISCONNECT_FINISH_SECONDS + POST_CALL_SILENCE_SECONDS;
 const BUILDING_EXPLOSION_DURATION_SECONDS = 9.0;
+const COMBAT_UNLOCK_EXPLOSION_TIME_SECONDS = 5.2;
+const COMBAT_TUTORIAL_MIN_DURATION_SECONDS = 7.5;
+const COMBAT_TUTORIAL_POST_EQUIP_SECONDS = 3.5;
 const STAIRWELL_BLAST_POS = Object.freeze({ x: -11.0, y: 1.2, z: 11.5 });
 const SMOKE_POOL_COUNT = 120;
 const CONCRETE_DEBRIS_COUNT = 24;
@@ -103,6 +106,11 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._combatUnlocked = false;
+    this._combatTutorialVisible = false;
+    this._combatTutorialTimer = 0;
+    this._combatEquipDetected = false;
+    this._postEquipTutorialTimer = 0;
     this._debrisAllSettled = true;
     this._smokeActiveCount = 0;
 
@@ -444,6 +452,11 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._combatUnlocked = false;
+    this._combatTutorialVisible = false;
+    this._combatTutorialTimer = 0;
+    this._combatEquipDetected = false;
+    this._postEquipTutorialTimer = 0;
 
     this._hideAllDebris();
     this._hideAllSmoke();
@@ -458,11 +471,19 @@ export class IntroSequence {
     if (this.player && typeof this.player.setJumpSuppressed === 'function') {
       this.player.setJumpSuppressed(false);
     }
-    if (this.weaponSystem && typeof this.weaponSystem.setUnarmed === 'function') {
-      this.weaponSystem.setUnarmed(true);
+    if (this.weaponSystem) {
+      if (typeof this.weaponSystem.lockAllWeapons === 'function') {
+        this.weaponSystem.lockAllWeapons();
+      }
+      if (typeof this.weaponSystem.setUnarmed === 'function') {
+        this.weaponSystem.setUnarmed(true);
+      }
     }
     if (this.hud) {
-      this.hud.setTutorialVisible(false);
+      if (typeof this.hud.resetTutorialBar === 'function') {
+        this.hud.resetTutorialBar();
+      }
+      this.hud.setTutorialVisible(false, true);
       this.hud.setObjectiveVisible(false);
       this.hud.setInteractVisible(false);
       if (typeof this.hud.setPhoneDialogueVisible === 'function') {
@@ -725,6 +746,11 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._combatUnlocked = false;
+    this._combatTutorialVisible = false;
+    this._combatTutorialTimer = 0;
+    this._combatEquipDetected = false;
+    this._postEquipTutorialTimer = 0;
 
     if (this.sound && typeof this.sound.playBuildingExplosion === 'function') {
       this.sound.playBuildingExplosion();
@@ -1103,6 +1129,38 @@ export class IntroSequence {
       this._launchSmokeWave(3);
       this._launchDebrisWave(26, 36, 1.12);
     }
+    if (!this._combatUnlocked && this._explosionTimer >= COMBAT_UNLOCK_EXPLOSION_TIME_SECONDS) {
+      this._combatUnlocked = true;
+      this._combatTutorialVisible = true;
+      this._combatTutorialTimer = 0;
+      this._combatEquipDetected = !!(this.weaponSystem && !this.weaponSystem.isUnarmed);
+      this._postEquipTutorialTimer = 0;
+
+      if (this.weaponSystem && typeof this.weaponSystem.unlockStartingPistol === 'function') {
+        this.weaponSystem.unlockStartingPistol();
+      }
+      if (this.hud && typeof this.hud.showCombatTutorialBar === 'function') {
+        this.hud.showCombatTutorialBar(true);
+      }
+    }
+    if (this._combatTutorialVisible) {
+      this._combatTutorialTimer += delta;
+      if (!this._combatEquipDetected && this.weaponSystem && !this.weaponSystem.isUnarmed) {
+        this._combatEquipDetected = true;
+        this._postEquipTutorialTimer = 0;
+      } else if (this._combatEquipDetected) {
+        this._postEquipTutorialTimer += delta;
+      }
+
+      const expiredTotal = this._combatTutorialTimer >= COMBAT_TUTORIAL_MIN_DURATION_SECONDS;
+      const expiredAfterEquip = !this._combatEquipDetected || this._postEquipTutorialTimer >= COMBAT_TUTORIAL_POST_EQUIP_SECONDS;
+      if (expiredTotal && expiredAfterEquip) {
+        this._combatTutorialVisible = false;
+        if (this.hud) {
+          this.hud.setTutorialVisible(false);
+        }
+      }
+    }
     if (!this._explosionFadeTriggered && this._explosionTimer >= 7.9) {
       this._explosionFadeTriggered = true;
       if (this.sound && typeof this.sound.fadeOutBuildingExplosion === 'function') {
@@ -1388,6 +1446,11 @@ export class IntroSequence {
     this._explosionFadeTriggered = false;
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
+    this._combatUnlocked = false;
+    this._combatTutorialVisible = false;
+    this._combatTutorialTimer = 0;
+    this._combatEquipDetected = false;
+    this._postEquipTutorialTimer = 0;
 
     if (this.player && typeof this.player.setJumpSuppressed === 'function') {
       this.player.setJumpSuppressed(false);
@@ -1411,7 +1474,10 @@ export class IntroSequence {
     this._resetPhoneToIdle();
 
     if (this.hud) {
-      this.hud.setTutorialVisible(false);
+      if (typeof this.hud.resetTutorialBar === 'function') {
+        this.hud.resetTutorialBar();
+      }
+      this.hud.setTutorialVisible(false, true);
       this.hud.setObjectiveVisible(false);
       this.hud.setInteractVisible(false);
       if (typeof this.hud.setPhoneDialogueVisible === 'function') {
@@ -1428,8 +1494,13 @@ export class IntroSequence {
       }
     }
 
-    if (this.weaponSystem && typeof this.weaponSystem.setUnarmed === 'function') {
-      this.weaponSystem.setUnarmed(true);
+    if (this.weaponSystem) {
+      if (typeof this.weaponSystem.lockAllWeapons === 'function') {
+        this.weaponSystem.lockAllWeapons();
+      }
+      if (typeof this.weaponSystem.setUnarmed === 'function') {
+        this.weaponSystem.setUnarmed(true);
+      }
     }
     this.spawnInElevator(true);
   }

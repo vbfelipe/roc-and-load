@@ -402,12 +402,8 @@ export class HUD {
     `;
     introHost.appendChild(this.interactPromptEl);
 
-    // Delayed Opening Tutorial Bar
-    this.tutorialBarEl = document.createElement('div');
-    this.tutorialBarEl.id = 'hud-tutorial-bar';
-    this.tutorialBarEl.className = 'hud-tutorial-bar hidden';
-    this.tutorialBarEl.style.display = 'none';
-    this.tutorialBarEl.innerHTML = `
+    // Delayed Opening Tutorial Bar (stores both movement & combat templates for clean reset)
+    this._movementTutorialHtml = `
       <span class="tut-item">
         <span class="tut-keys">
           <span class="tut-key">W</span><span class="tut-key">A</span><span class="tut-key">S</span><span class="tut-key">D</span>
@@ -434,6 +430,43 @@ export class HUD {
         <span class="tut-label">câmera</span>
       </span>
     `;
+
+    this._combatTutorialHtml = `
+      <span class="tut-item">
+        <span class="tut-key">1</span>
+        <span class="tut-label">equipar arma</span>
+      </span>
+      <span class="tut-item">
+        <span class="tut-mouse-badge" aria-hidden="true">
+          <svg width="11" height="14" viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 1.25 7.5 L 1.25 7 A 5.75 5.75 0 0 1 7 1.25 L 7 7.5 Z" fill="#ffffff"/>
+            <path d="M 7 1.25 A 5.75 5.75 0 0 1 12.75 7 L 12.75 7.5 L 7 7.5 Z" fill="rgba(255,255,255,0.12)"/>
+            <rect x="1.25" y="1.25" width="11.5" height="15.5" rx="5.75" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="7" y1="1.5" x2="7" y2="7.5" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="1.5" y1="7.5" x2="12.5" y2="7.5" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </span>
+        <span class="tut-label">atirar</span>
+      </span>
+      <span class="tut-item">
+        <span class="tut-mouse-badge" aria-hidden="true">
+          <svg width="11" height="14" viewBox="0 0 14 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M 1.25 7.5 L 1.25 7 A 5.75 5.75 0 0 1 7 1.25 L 7 7.5 Z" fill="rgba(255,255,255,0.12)"/>
+            <path d="M 7 1.25 A 5.75 5.75 0 0 1 12.75 7 L 12.75 7.5 L 7 7.5 Z" fill="#ffffff"/>
+            <rect x="1.25" y="1.25" width="11.5" height="15.5" rx="5.75" stroke="currentColor" stroke-width="1.5"/>
+            <line x1="7" y1="1.5" x2="7" y2="7.5" stroke="currentColor" stroke-width="1.3"/>
+            <line x1="1.5" y1="7.5" x2="12.5" y2="7.5" stroke="currentColor" stroke-width="1.2"/>
+          </svg>
+        </span>
+        <span class="tut-label">mirar</span>
+      </span>
+    `;
+
+    this.tutorialBarEl = document.createElement('div');
+    this.tutorialBarEl.id = 'hud-tutorial-bar';
+    this.tutorialBarEl.className = 'hud-tutorial-bar hidden';
+    this.tutorialBarEl.style.display = 'none';
+    this.tutorialBarEl.innerHTML = this._movementTutorialHtml;
     introHost.appendChild(this.tutorialBarEl);
 
     // Top-Center Objective Banner
@@ -590,9 +623,29 @@ export class HUD {
     }
   }
 
-  setTutorialVisible(visible) {
+  setTutorialVisible(visible, instant = false) {
     this._tutorialActive = !!visible;
-    this._syncIntroOverlays();
+    this._syncIntroOverlays(instant);
+  }
+
+  /**
+   * Swaps #hud-tutorial-bar content to the Combat Tutorial ([1] equipar arma / atirar / mirar)
+   * and fades it in using the same pill container and transition.
+   */
+  showCombatTutorialBar(visible = true) {
+    if (this.tutorialBarEl && this._combatTutorialHtml) {
+      this.tutorialBarEl.innerHTML = this._combatTutorialHtml;
+    }
+    this.setTutorialVisible(!!visible);
+  }
+
+  /**
+   * Restores #hud-tutorial-bar back to the initial movement tutorial template.
+   */
+  resetTutorialBar() {
+    if (this.tutorialBarEl && this._movementTutorialHtml) {
+      this.tutorialBarEl.innerHTML = this._movementTutorialHtml;
+    }
   }
 
   setObjectiveText(text) {
@@ -667,7 +720,8 @@ export class HUD {
 
   reset() {
     this.setWeapon('hk_usp', 12, 12);
-    this.setTutorialVisible(false);
+    this.resetTutorialBar();
+    this.setTutorialVisible(false, true);
     this.setObjectiveVisible(false);
     this.setInteractVisible(false);
     this.setPhoneDialogueVisible(false, true);

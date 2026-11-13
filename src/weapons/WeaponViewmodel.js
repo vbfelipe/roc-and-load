@@ -1951,6 +1951,22 @@ export class WeaponViewmodel {
     this.reloadTweens.push(equipTween);
     equipTween.start();
 
+    // Snap root immediately to starting low-ready draw offset so exiting unarmed has zero 1-frame pop
+    const targetPos = this.isADS ? this.adsPosition : this.hipPosition;
+    const targetRot = this.isADS ? this.adsRotation : this.hipRotation;
+    if (targetPos && targetRot) {
+      this.root.position.set(
+        targetPos.x + this.reloadTilt.x,
+        targetPos.y + this.reloadTilt.y,
+        targetPos.z + this.reloadTilt.z
+      );
+      this.root.rotation.set(
+        targetRot.x + this.reloadTilt.pitch,
+        targetRot.y + this.reloadTilt.yaw,
+        targetRot.z + this.reloadTilt.roll
+      );
+    }
+
     if (this.sound && typeof this.sound.playWeaponSwitch === 'function') {
       this.sound.playWeaponSwitch(weaponType);
     }
