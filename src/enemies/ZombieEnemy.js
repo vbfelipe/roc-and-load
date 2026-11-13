@@ -343,13 +343,23 @@ export class ZombieEnemy {
     this._footPinPrevRightZ = 0;
     this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
 
-    // Combat / Health / Corpse lifecycle
+    // Combat / Health / Corpse & Audio lifecycle
+    this.sound = options.sound ?? null;
+    this.isWaveZombie = !!options.isWaveZombie;
+    const defaultPitch = (options.logTag || options.rootName || '').includes('Man') ? 0.84 : 1.00;
+    this.vocalPitchBase = options.vocalPitchBase ?? defaultPitch;
+    this.vocalChannel = null;
+    this._walkVocalTimer = options.initialWalkVocalDelay ?? (0.5 + Math.random() * 2.5);
+    this._idleVocalTimer = 0.8 + Math.random() * 2.0;
+    this._chaseVocalTimer = 0;
+    this._prevTestAttackNorm = 0;
+
     this.maxHp = options.maxHp ?? 3;
     this.hp = this.maxHp;
     this.isDead = false;
     this.collisionRadius = options.collisionRadius ?? 0.42;
     this.tookDamageAggro = false;
-    this.hasExitedVestibule = false;
+    this.hasExitedVestibule = this.spawnPosition.x > -9.2;
     this._flinchTimer = 0;
     this._deathPhase = 'NONE'; // 'NONE' | 'PLAYING' | 'HOLDING' | 'FADING' | 'DONE'
     this._deathTimer = 0;
@@ -1070,9 +1080,14 @@ export class ZombieEnemy {
     }
   }
 
+  _getSound(overrideSound = null) {
+    return overrideSound || this.sound || (typeof window !== 'undefined' ? window.sound : null);
+  }
+
   /**
    * Applies a USP/weapon bullet hit to either 'head' (1-hit kill) or 'body' (3-hit kill),
-   * spawning 3D dark-red blood droplets inward at the struck bone/mesh and floor/wall splatter.
+   * spawning 3D dark-red blood droplets inward at the struck bone/mesh and floor/wall splatter,
+   * and interrupting with hurt/dead real vocal stems + flesh thud.
    */
   applyBulletHit({
     part = 'body',
@@ -1088,6 +1103,7 @@ export class ZombieEnemy {
       return { killed: false, ignored: true };
     }
 
+    const activeSound = this._getSound(sound);
     const isHeadshot = part === 'head';
     if (decalManager && hitPoint) {
       this._decalManager = decalManager;
@@ -1103,20 +1119,24 @@ export class ZombieEnemy {
       decalManager.projectBloodSplatter(_tmpVecB, rayDirection, isHeadshot);
     }
 
-    if (sound && typeof sound.playZombieBodyHit === 'function') {
-      sound.playZombieBodyHit(isHeadshot, distance);
+    if (activeSound && typeof activeSound.playZombieBodyHit === 'function') {
+      activeSound.playZombieBodyHit(isHeadshot, distance);
     }
 
     if (isHeadshot) {
       this.hp = 0;
-      this.die({ isHeadshot: true, sound, decalManager, distance });
+      this.die({ isHeadshot: true, sound: activeSound, decalManager, distance });
       return { killed: true, headshot: true };
     }
 
     this.hp = Math.max(0, this.hp - 1);
     if (this.hp <= 0) {
-      this.die({ isHeadshot: false, sound, decalManager, distance });
+      this.die({ isHeadshot: false, sound: activeSound, decalManager, distance });
       return { killed: true, headshot: false };
+    }
+
+    if (activeSound && typeof activeSound.playZombieVocal === 'function') {
+      activeSound.playZombieVocal(this, 'hurt');
     }
 
     // Body hit 1 or 2: brief 0.12s upper-body hit flinch & immediate chase aggro
@@ -1127,12 +1147,13 @@ export class ZombieEnemy {
 
   /**
    * Transitions zombie cleanly into death state: disables hitboxes & collision immediately,
-   * plays Death clip + death groan/thud, holds corpse 2.0s, then fades & sinks over 1.5s.
+   * plays Death clip + real dead vocal + body collapse thud, holds corpse 2.0s, then fades & sinks over 1.5s.
    */
   die({ isHeadshot = false, sound = null, decalManager = null, distance = 5 } = {}) {
     if (this.isDead) return;
     if (decalManager) this._decalManager = decalManager;
 
+    const activeSound = this._getSound(sound);
     this.isDead = true;
     this.hp = 0;
     this._flinchTimer = 0;
@@ -1148,8 +1169,11 @@ export class ZombieEnemy {
       }
     }
 
-    if (sound && typeof sound.playZombieDeath === 'function') {
-      sound.playZombieDeath(isHeadshot, distance);
+    if (activeSound && typeof activeSound.playZombieVocal === 'function') {
+      activeSound.playZombieVocal(this, 'dead');
+    }
+    if (activeSound && typeof activeSound.playZombieDeath === 'function') {
+      activeSound.playZombieDeath(isHeadshot, distance);
     }
 
     this.playAnimation('Death', 0.15);
@@ -1266,26 +1290,63 @@ export class ZombieEnemy {
 
   /**
    * Jumps directly to a named animation state for the F9 Zombie Test Tuner,
-   * reviving death/fade/hitbox state cleanly when switching away from Death.
+   * reviving death/fade/hitbox state cleanly when switching away from Death
+   * and triggering the corresponding real .wav vocal category.
    */
-  playTestAnimation(stateName) {
+  playTestAnimation(stateName, sound = null) {
     if (!this.isLoaded) return null;
-    if (stateName !== 'Death') {
+    const activeSound = this._getSound(sound);
+
+    if (stateName === 'Death') {
+      const wasDead = this.isDead;
       this.isDead = false;
-      this.hp = this.maxHp;
       this._deathPhase = 'NONE';
-      this._deathTimer = 0;
-      this.setFadeMode(false, 1.0);
-      this.root.position.y = this.spawnPosition.y;
-      for (const hb of this.hitboxes) {
-        if (hb) {
-          hb.visible = true;
-          if (hb.userData) hb.userData.enabled = true;
-        }
-      }
       this.setActive(true);
+      this.die({ isHeadshot: false, sound: activeSound });
+      if (wasDead) {
+        this.playAnimation('Death', 0.20);
+      }
+      return stateName;
     }
+
+    const wasDead = this.isDead;
+    this.isDead = false;
+    this.hp = this.maxHp;
+    this._deathPhase = 'NONE';
+    this._deathTimer = 0;
+    this.setFadeMode(false, 1.0);
+    this.root.position.y = this.spawnPosition.y;
+    for (const hb of this.hitboxes) {
+      if (hb) {
+        hb.visible = true;
+        if (hb.userData) hb.userData.enabled = true;
+      }
+    }
+    this.setActive(true);
+
+    if (wasDead && activeSound && typeof activeSound.stopZombieVocal === 'function') {
+      activeSound.stopZombieVocal(this, 0.025);
+    }
+
     this.playAnimation(stateName, 0.25);
+
+    const isMan = this.vocalPitchBase < 0.9;
+    if (stateName === 'Run') {
+      this._chaseVocalTimer = 2.8 + Math.random() * 1.8;
+      if (activeSound && typeof activeSound.playZombieVocal === 'function') {
+        activeSound.playZombieVocal(this, 'chase');
+      }
+    } else if (stateName === 'Attack') {
+      this._prevTestAttackNorm = 0;
+      if (activeSound && typeof activeSound.playZombieVocal === 'function') {
+        activeSound.playZombieVocal(this, 'attack');
+      }
+    } else if (stateName === 'Walk') {
+      this._walkVocalTimer = isMan ? 1.4 : 0.12;
+    } else if (stateName === 'Idle') {
+      this._idleVocalTimer = isMan ? 1.6 : 0.18;
+    }
+
     return stateName;
   }
 
@@ -1293,12 +1354,17 @@ export class ZombieEnemy {
     this.hp = this.maxHp;
     this.isDead = false;
     this.tookDamageAggro = false;
-    this.hasExitedVestibule = false;
+    this.hasExitedVestibule = this.spawnPosition.x > -9.2;
     this._flinchTimer = 0;
     this._deathPhase = 'NONE';
     this._deathTimer = 0;
     this._footPinInitialized = false;
+    this._prevTestAttackNorm = 0;
     this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
+    const activeSound = this._getSound();
+    if (activeSound && typeof activeSound.stopZombieVocal === 'function') {
+      activeSound.stopZombieVocal(this, 0.015);
+    }
     this.clearWoundDecals();
     this.setFadeMode(false, 1.0);
 
@@ -1320,6 +1386,12 @@ export class ZombieEnemy {
     this.isActive = !!active;
     if (this.root) {
       this.root.visible = this.isActive;
+    }
+    if (!this.isActive) {
+      const activeSound = this._getSound();
+      if (activeSound && typeof activeSound.stopZombieVocal === 'function') {
+        activeSound.stopZombieVocal(this, 0.02);
+      }
     }
   }
 
@@ -1390,6 +1462,43 @@ export class ZombieEnemy {
       if (flinchTarget) {
         const k = Math.sin((this._flinchTimer / 0.12) * Math.PI);
         flinchTarget.rotation.x -= k * 0.26;
+      }
+    }
+
+    // Autonomous state-driven vocal scheduler for F9 test showcase zombies
+    if (!this.isWaveZombie && !this.isDead) {
+      const activeSound = this._getSound();
+      if (activeSound && typeof activeSound.playZombieVocal === 'function') {
+        if (this.currentState === 'Walk') {
+          this._walkVocalTimer -= delta;
+          if (this._walkVocalTimer <= 0) {
+            activeSound.playZombieVocal(this, 'walk');
+            this._walkVocalTimer = 3.2 + Math.random() * 2.6;
+          }
+        } else if (this.currentState === 'Idle') {
+          this._idleVocalTimer -= delta;
+          if (this._idleVocalTimer <= 0) {
+            activeSound.playZombieVocal(this, 'idle');
+            this._idleVocalTimer = 3.0 + Math.random() * 2.2;
+          }
+        } else if (this.currentState === 'Run') {
+          if (!this.vocalChannel?.isPlaying) {
+            this._chaseVocalTimer -= delta;
+            if (this._chaseVocalTimer <= 0) {
+              activeSound.playZombieVocal(this, 'chase');
+              this._chaseVocalTimer = 2.8 + Math.random() * 1.8;
+            }
+          }
+        } else if (this.currentState === 'Attack') {
+          const attackAction = this.actions.Attack;
+          const attackClip = this.clips.Attack;
+          const clipDur = attackClip ? Math.max(0.4, attackClip.duration) : 1.4;
+          const normTime = attackAction ? (attackAction.time % clipDur) / clipDur : 0.5;
+          if (normTime < this._prevTestAttackNorm) {
+            activeSound.playZombieVocal(this, 'attack');
+          }
+          this._prevTestAttackNorm = normTime;
+        }
       }
     }
 

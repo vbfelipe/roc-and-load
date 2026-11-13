@@ -1475,6 +1475,9 @@ export class IntroSequence {
       if (typeof this.sound.stopBuildingExplosion === 'function') {
         this.sound.stopBuildingExplosion();
       }
+      if (typeof this.sound.stopAllZombieVocals === 'function') {
+        this.sound.stopAllZombieVocals();
+      }
     }
     if (this.arrowMesh) {
       this.arrowMesh.visible = false;

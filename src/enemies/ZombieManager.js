@@ -3,6 +3,8 @@ import { ZombieEnemy, getZombieHitboxMeta } from './ZombieEnemy.js';
 
 const STAIR_LANES_X = [-0.35, 0.0, 0.35];
 const WAVE_STAGGER_SECONDS = [0.0, 2.2, 4.4];
+const WAVE_WALK_VOCAL_STAGGER = [0.4, 1.9, 3.3];
+const WAVE_PITCH_BASES = [1.00, 0.96, 1.04];
 
 // Strict position-gated vestibule exit portal chain (never skipped on a timer)
 const VESTIBULE_PORTALS = [
@@ -149,6 +151,29 @@ export class ZombieManager {
     this._hitboxesCache = [];
     this._solidCollidersCache = [];
     this.hitboxesVisible = false;
+
+    this._syncSoundToTemplates();
+  }
+
+  _syncSoundToTemplates() {
+    if (this.womanTemplate) {
+      this.womanTemplate.sound = this.sound;
+      this.womanTemplate.vocalPitchBase = 1.00;
+      this.sound?.initZombieVocalChannel?.(this.womanTemplate, 1.00);
+    }
+    if (this.manTemplate) {
+      this.manTemplate.sound = this.sound;
+      this.manTemplate.vocalPitchBase = 0.84;
+      this.sound?.initZombieVocalChannel?.(this.manTemplate, 0.84);
+    }
+    for (let i = 0; i < this.waveZombies.length; i++) {
+      const zom = this.waveZombies[i];
+      if (!zom) continue;
+      const pBase = WAVE_PITCH_BASES[i % WAVE_PITCH_BASES.length];
+      zom.sound = this.sound;
+      zom.vocalPitchBase = pBase;
+      this.sound?.initZombieVocalChannel?.(zom, pBase);
+    }
   }
 
   setCollider(weaponColliderMesh) {
@@ -165,6 +190,7 @@ export class ZombieManager {
 
   setSoundManager(sound) {
     this.sound = sound;
+    this._syncSoundToTemplates();
   }
 
   /**
@@ -172,11 +198,14 @@ export class ZombieManager {
    * at load time (sharing the single set of 1024x1024 textures & clips).
    */
   initWavePool() {
+    this._syncSoundToTemplates();
     if (!this.womanTemplate || !this.womanTemplate.isLoaded || this.waveZombies.length > 0) {
       return;
     }
 
     for (let i = 0; i < 3; i++) {
+      const pitchBase = WAVE_PITCH_BASES[i % WAVE_PITCH_BASES.length];
+      const walkStagger = WAVE_WALK_VOCAL_STAGGER[i % WAVE_WALK_VOCAL_STAGGER.length];
       const zom = new ZombieEnemy(this.scene, {
         cloneFrom: this.womanTemplate,
         rootName: `Wave1_ZombieWoman_${i + 1}`,
@@ -184,7 +213,12 @@ export class ZombieManager {
         spawnPosition: new THREE.Vector3(-12.60 + STAIR_LANES_X[i], -2.60, 2.75),
         lookAtPosition: new THREE.Vector3(-12.60 + STAIR_LANES_X[i], 0.0, 9.0),
         active: false,
+        sound: this.sound,
+        isWaveZombie: true,
+        vocalPitchBase: pitchBase,
+        initialWalkVocalDelay: walkStagger,
       });
+      this.sound?.initZombieVocalChannel?.(zom, pitchBase);
       zom.setHitboxesVisible(this.hitboxesVisible);
 
       this.waveZombies.push(zom);
@@ -205,6 +239,9 @@ export class ZombieManager {
         attackSwungThisCycle: false,
         prevAttackNorm: 0,
         hasPlayedAggroHiss: false,
+        walkVocalTimer: walkStagger,
+        idleVocalTimer: randRange(1.0, 3.2),
+        chaseVocalTimer: randRange(2.8, 4.6),
         steerCommitTimer: 0,
         steerCommitSign: 0,
         watchdogTimer: 0,
@@ -223,6 +260,7 @@ export class ZombieManager {
    */
   triggerWave1() {
     this.initWavePool();
+    this.sound?.stopAllZombieVocals?.();
     this.waveActive = true;
     this._waveElapsed = 0;
 
@@ -245,6 +283,9 @@ export class ZombieManager {
       entry.attackSwungThisCycle = false;
       entry.prevAttackNorm = 0;
       entry.hasPlayedAggroHiss = false;
+      entry.walkVocalTimer = WAVE_WALK_VOCAL_STAGGER[i % WAVE_WALK_VOCAL_STAGGER.length];
+      entry.idleVocalTimer = randRange(1.0, 3.2);
+      entry.chaseVocalTimer = randRange(2.8, 4.6);
       entry.steerCommitTimer = 0;
       entry.steerCommitSign = 0;
       entry.watchdogTimer = 0;
@@ -271,6 +312,9 @@ export class ZombieManager {
     entry.targetX = -12.35 + entry.laneX * 0.45;
     entry.targetZ = 8.25;
     entry.yaw = 0; // Facing +Z up the stairs
+    entry.walkVocalTimer = WAVE_WALK_VOCAL_STAGGER[entry.index % WAVE_WALK_VOCAL_STAGGER.length];
+    entry.idleVocalTimer = randRange(1.0, 3.2);
+    entry.chaseVocalTimer = randRange(2.8, 4.6);
     entry.steerCommitTimer = 0;
     entry.steerCommitSign = 0;
     entry.watchdogTimer = 0;
@@ -296,6 +340,7 @@ export class ZombieManager {
   resetWave1() {
     this.waveActive = false;
     this._waveElapsed = 0;
+    this.sound?.stopAllZombieVocals?.();
     for (const entry of this.waveEntries) {
       entry.spawned = false;
       entry.aiState = 'WAITING';
@@ -320,6 +365,7 @@ export class ZombieManager {
     this.resetWave1();
     if (this.womanTemplate) this.womanTemplate.reset();
     if (this.manTemplate) this.manTemplate.reset();
+    this.sound?.stopAllZombieVocals?.();
   }
 
   applyWalkCalibration() {
@@ -486,19 +532,14 @@ export class ZombieManager {
     entry.sidestepTimer = 0;
     entry.steerCommitTimer = 0;
     entry.watchdogTimer = 0;
+    entry.chaseVocalTimer = randRange(2.8, 4.6);
     const zom = entry.zombie;
     entry.watchdogLastX = zom.root.position.x;
     entry.watchdogLastZ = zom.root.position.z;
     zom.playAnimation('Run', 0.18);
-    if (!entry.hasPlayedAggroHiss) {
-      entry.hasPlayedAggroHiss = true;
-      if (this.sound && typeof this.sound.playZombieAggro === 'function' && this.player) {
-        const dist = Math.hypot(
-          this.player.position.x - zom.root.position.x,
-          this.player.position.z - zom.root.position.z
-        );
-        this.sound.playZombieAggro(dist);
-      }
+    entry.hasPlayedAggroHiss = true;
+    if (this.sound && typeof this.sound.playZombieVocal === 'function') {
+      this.sound.playZombieVocal(zom, 'chase');
     }
   }
 
@@ -509,6 +550,9 @@ export class ZombieManager {
     entry.attackSwungThisCycle = false;
     entry.prevAttackNorm = 0;
     entry.zombie.playAnimation('Attack', 0.15);
+    if (this.sound && typeof this.sound.playZombieVocal === 'function') {
+      this.sound.playZombieVocal(entry.zombie, 'attack');
+    }
   }
 
   _pickNextOfficeWaypoint(entry, minDist = 2.0) {
@@ -1150,6 +1194,15 @@ export class ZombieManager {
         zom.syncRunTimeScale(actualDist / delta);
       }
 
+      // Stairwell walk vocalization on staggered 3.2s - 5.8s cycle
+      if (!zom.tookDamageAggro && !entry.queuePaused && this.sound?.playZombieVocal) {
+        entry.walkVocalTimer -= delta;
+        if (entry.walkVocalTimer <= 0) {
+          this.sound.playZombieVocal(zom, 'walk');
+          entry.walkVocalTimer = randRange(3.2, 5.8);
+        }
+      }
+
       // Smooth stair elevation curve matching WarehouseBuilder 12 steps (Z=3.68 -> 7.40, Y=-2.22 -> 0.0)
       if (pos.z <= 3.68) {
         const t = Math.max(0, Math.min(1, (pos.z - 2.75) / (3.68 - 2.75)));
@@ -1204,6 +1257,21 @@ export class ZombieManager {
         }
         const walkSpeed = zom.getDesiredWalkSpeed();
         this._moveZombieWithObstacles(entry, activePortal.x, activePortal.z, walkSpeed, delta, true);
+        if (this.sound?.playZombieVocal) {
+          if (entry.queuePaused) {
+            entry.idleVocalTimer -= delta;
+            if (entry.idleVocalTimer <= 0) {
+              this.sound.playZombieVocal(zom, 'idle');
+              entry.idleVocalTimer = randRange(3.0, 5.2);
+            }
+          } else {
+            entry.walkVocalTimer -= delta;
+            if (entry.walkVocalTimer <= 0) {
+              this.sound.playZombieVocal(zom, 'walk');
+              entry.walkVocalTimer = randRange(3.2, 5.8);
+            }
+          }
+        }
         // Re-check portal completion immediately after moving
         if (this._getActivePortalGoal(entry) === null && zom.hasExitedVestibule) {
           this._pickNextOfficeWaypoint(entry);
@@ -1215,6 +1283,13 @@ export class ZombieManager {
       // Free patrol inside Main Office (only after PORTAL_2_OFFICE_ENTRY is cleared!)
       if (entry.subState === 'IDLE') {
         entry.stateTimer -= delta;
+        if (this.sound?.playZombieVocal) {
+          entry.idleVocalTimer -= delta;
+          if (entry.idleVocalTimer <= 0) {
+            this.sound.playZombieVocal(zom, 'idle');
+            entry.idleVocalTimer = randRange(3.0, 5.2);
+          }
+        }
         if (entry.stateTimer <= 0) {
           entry.subState = 'WALK';
           this._pickNextOfficeWaypoint(entry);
@@ -1225,9 +1300,17 @@ export class ZombieManager {
         entry.stateTimer -= delta;
         const walkSpeed = zom.getDesiredWalkSpeed();
         const remaining = this._moveZombieWithObstacles(entry, entry.targetX, entry.targetZ, walkSpeed, delta, false);
+        if (this.sound?.playZombieVocal) {
+          entry.walkVocalTimer -= delta;
+          if (entry.walkVocalTimer <= 0) {
+            this.sound.playZombieVocal(zom, 'walk');
+            entry.walkVocalTimer = randRange(3.2, 5.8);
+          }
+        }
         if (remaining <= 0.45 || entry.stateTimer <= 0) {
           entry.subState = 'IDLE';
           entry.stateTimer = randRange(1.2, 2.5);
+          entry.idleVocalTimer = randRange(0.5, 2.0);
           zom.playAnimation('Idle', 0.25);
         }
       }
@@ -1279,6 +1362,15 @@ export class ZombieManager {
       }
 
       this._moveZombieWithObstacles(entry, goalX, goalZ, 3.10, delta, true);
+
+      // Sustained chase snarls: wait 2.8s - 4.6s AFTER the previous vocal clip finishes
+      if (!zom.vocalChannel?.isPlaying && this.sound?.playZombieVocal) {
+        entry.chaseVocalTimer -= delta;
+        if (entry.chaseVocalTimer <= 0) {
+          this.sound.playZombieVocal(zom, 'chase');
+          entry.chaseVocalTimer = randRange(2.8, 4.6);
+        }
+      }
       return;
     }
 
@@ -1302,9 +1394,12 @@ export class ZombieManager {
       const clipDur = attackClip ? Math.max(0.4, attackClip.duration) : 1.4;
       const normTime = attackAction ? (attackAction.time % clipDur) / clipDur : 0.5;
 
-      // Reset swing latch whenever animation wraps into a new swing cycle
+      // Reset swing latch & trigger attack vocal whenever animation wraps into a new swing windup
       if (normTime < entry.prevAttackNorm) {
         entry.attackSwungThisCycle = false;
+        if (this.sound && typeof this.sound.playZombieVocal === 'function') {
+          this.sound.playZombieVocal(zom, 'attack');
+        }
       }
       entry.prevAttackNorm = normTime;
 
@@ -1328,12 +1423,21 @@ export class ZombieManager {
   update(delta, gameState = 'PLAYING') {
     if (gameState !== 'PLAYING' && gameState !== 'GAME_OVER') return;
 
-    // Update showcase/test zombies (e.g., toggled via F9)
+    const cam = this.player?.camera || null;
+    const pPos = this.player?.position || null;
+
+    // Update showcase/test zombies (e.g., toggled via F9) + real-time 3D spatial audio
     if (this.womanTemplate && this.womanTemplate.isActive) {
       this.womanTemplate.update(delta);
+      if (this.sound && cam) {
+        this.sound.updateZombieSpatialAudio(this.womanTemplate, cam, pPos);
+      }
     }
     if (this.manTemplate && this.manTemplate.isActive) {
       this.manTemplate.update(delta);
+      if (this.sound && cam) {
+        this.sound.updateZombieSpatialAudio(this.manTemplate, cam, pPos);
+      }
     }
 
     if (!this.waveActive) return;
@@ -1354,6 +1458,14 @@ export class ZombieManager {
         this._updateEntryAI(entry, delta);
       }
       entry.zombie.update(delta);
+
+      if (
+        this.sound &&
+        cam &&
+        (entry.aiState !== 'DEAD' || entry.zombie.vocalChannel?.isPlaying)
+      ) {
+        this.sound.updateZombieSpatialAudio(entry.zombie, cam, pPos);
+      }
     }
 
     if (gameState === 'PLAYING') {

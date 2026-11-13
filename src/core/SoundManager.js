@@ -1,4 +1,31 @@
-// Procedural Web Audio API sound synthesizer
+// Procedural Web Audio API sound synthesizer + preloaded WAV/MP3 sample engine
+
+const ZOMBIE_VOCAL_FILES = {
+  attack: ['./sounds/zombie_sounds/zombie_attack_11_dry.wav', './sounds/zombie_sounds/zombie_attack_16_dry.wav'],
+  chase:  ['./sounds/zombie_sounds/zombie_chase_01_dry.wav',  './sounds/zombie_sounds/zombie_chase_11_dry.wav'],
+  dead:   ['./sounds/zombie_sounds/zombie_dead_05_dry.wav',   './sounds/zombie_sounds/zombie_dead_23_dry.wav'],
+  hurt:   ['./sounds/zombie_sounds/zombie_hurt_04_dry.wav',   './sounds/zombie_sounds/zombie_hurt_20_dry.wav'],
+  idle:   ['./sounds/zombie_sounds/zombie_idle_10_dry.wav',   './sounds/zombie_sounds/zombie_idle_23_dry.wav'],
+  walk:   ['./sounds/zombie_sounds/zombie_walk_08_dry.wav',   './sounds/zombie_sounds/zombie_walk_26_dry.wav'],
+};
+
+const ZOMBIE_VOCAL_PRIORITY = {
+  dead: 5,
+  hurt: 4,
+  attack: 3,
+  chase: 2,
+  idle: 1,
+  walk: 1,
+};
+
+const ZOMBIE_VOCAL_GAIN = {
+  dead: 0.96,
+  hurt: 0.90,
+  attack: 0.94,
+  chase: 0.90,
+  idle: 0.56,
+  walk: 0.60,
+};
 
 export class SoundManager {
   constructor() {
@@ -13,6 +40,17 @@ export class SoundManager {
     this._fadeRaf = null;
 
     this.audioBuffers = new Map();
+    this.zombieBuffers = {
+      attack: [],
+      chase: [],
+      dead: [],
+      hurt: [],
+      idle: [],
+      walk: [],
+    };
+    this._zombieVocalChannels = new Set();
+    this._zombieAmbienceInput = null;
+
     this._noiseBufferCache = new Map();
     this._fractureBufferCache = new Map();
     this._fractureVariantIdx = 0;
@@ -182,42 +220,68 @@ export class SoundManager {
     };
 
     const entries = Object.entries(soundFiles);
-    let completed = 0;
-    const total = entries.length;
+    const zombieTasks = [];
+    for (const [cat, urls] of Object.entries(ZOMBIE_VOCAL_FILES)) {
+      this.zombieBuffers[cat] = new Array(urls.length).fill(null);
+      urls.forEach((url, idx) => {
+        zombieTasks.push({ cat, idx, url });
+      });
+    }
 
-    await Promise.all(
-      entries.map(async ([key, url]) => {
-        try {
-          const resp = await fetch(url);
-          if (resp.ok) {
-            const arrayBuffer = await resp.arrayBuffer();
-            const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
-            // Automatically detect & trim leading MP3 encoder/pre-attack silence on immediate weapon sounds
-            // so gunshots fire at 0.0ms on click and never lag behind impact effects!
-            if (key === '9mm_fire' || key === 'desert_eagle_fire' || key === 'remington_870_fire' || key === '9mm_dryfire') {
-              const ch0 = audioBuffer.getChannelData(0);
-              const threshold = 0.022;
-              let firstSample = 0;
-              const maxScan = Math.min(ch0.length, Math.floor(audioBuffer.sampleRate * 0.25));
-              for (let i = 0; i < maxScan; i++) {
-                if (Math.abs(ch0[i]) >= threshold) {
-                  firstSample = Math.max(0, i - 16);
-                  break;
-                }
+    let completed = 0;
+    const total = entries.length + zombieTasks.length;
+
+    const loadWeaponAudio = entries.map(async ([key, url]) => {
+      try {
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const arrayBuffer = await resp.arrayBuffer();
+          const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+          // Automatically detect & trim leading MP3 encoder/pre-attack silence on immediate weapon sounds
+          // so gunshots fire at 0.0ms on click and never lag behind impact effects!
+          if (key === '9mm_fire' || key === 'desert_eagle_fire' || key === 'remington_870_fire' || key === '9mm_dryfire') {
+            const ch0 = audioBuffer.getChannelData(0);
+            const threshold = 0.022;
+            let firstSample = 0;
+            const maxScan = Math.min(ch0.length, Math.floor(audioBuffer.sampleRate * 0.25));
+            for (let i = 0; i < maxScan; i++) {
+              if (Math.abs(ch0[i]) >= threshold) {
+                firstSample = Math.max(0, i - 16);
+                break;
               }
-              audioBuffer._attackOffset = firstSample / audioBuffer.sampleRate;
-            } else {
-              audioBuffer._attackOffset = 0;
             }
-            this.audioBuffers.set(key, audioBuffer);
+            audioBuffer._attackOffset = firstSample / audioBuffer.sampleRate;
+          } else {
+            audioBuffer._attackOffset = 0;
           }
-        } catch (err) {
-          console.warn(`[SoundManager] Could not load sample ${url}, using procedural synth fallback:`, err);
+          this.audioBuffers.set(key, audioBuffer);
         }
-        completed++;
-        if (onProgress) onProgress(completed / total, key);
-      })
-    );
+      } catch (err) {
+        console.warn(`[SoundManager] Could not load sample ${url}, using procedural synth fallback:`, err);
+      }
+      completed++;
+      if (onProgress) onProgress(completed / total, key);
+    });
+
+    const loadZombieAudio = zombieTasks.map(async ({ cat, idx, url }) => {
+      try {
+        const resp = await fetch(url);
+        if (resp.ok) {
+          const arrayBuffer = await resp.arrayBuffer();
+          const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
+          this.zombieBuffers[cat][idx] = audioBuffer;
+        }
+      } catch (err) {
+        console.warn(`[SoundManager] Could not load zombie vocal ${url}:`, err);
+      }
+      completed++;
+      if (onProgress) onProgress(completed / total, `zombie_${cat}_${idx}`);
+    });
+
+    await Promise.all([...loadWeaponAudio, ...loadZombieAudio]);
+    for (const cat of Object.keys(this.zombieBuffers)) {
+      this.zombieBuffers[cat] = this.zombieBuffers[cat].filter(Boolean);
+    }
 
     // Pre-warm procedural noise and brittle-fracture buffers at startup so zero AudioBuffer
     // allocations or CPU synthesis loops ever run on the main thread when shooting!
@@ -2758,55 +2822,307 @@ export class SoundManager {
   }
 
   /**
-   * Subtle guttural zombie aggro hiss when transitioning into RUN_CHASE.
+   * Ensures the shared Office Room Ambience slapback/reverb send exists (~14% wet mix)
+   * so _dry zombie vocal stems sit naturally inside the glass office and marble vestibule.
    */
-  playZombieAggro(distance = 5) {
-    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+  _ensureZombieAmbienceSend() {
+    if (this._zombieAmbienceInput || !this.ctx || !this.masterGain) return this._zombieAmbienceInput;
+    const ctx = this.ctx;
+
+    const sendIn = ctx.createGain();
+    sendIn.gain.value = 1.0;
+
+    // Dual early-reflection room slapback (~0.18s damped decay tail across marble/glass walls)
+    const tapA = ctx.createDelay(0.25);
+    tapA.delayTime.value = 0.036;
+    const lpA = ctx.createBiquadFilter();
+    lpA.type = 'lowpass';
+    lpA.frequency.value = 3200;
+
+    const tapB = ctx.createDelay(0.25);
+    tapB.delayTime.value = 0.074;
+    const lpB = ctx.createBiquadFilter();
+    lpB.type = 'lowpass';
+    lpB.frequency.value = 2100;
+    const fb = ctx.createGain();
+    fb.gain.value = 0.24;
+
+    const wetGain = ctx.createGain();
+    wetGain.gain.value = 0.14;
+
+    sendIn.connect(tapA);
+    tapA.connect(lpA);
+    lpA.connect(wetGain);
+
+    sendIn.connect(tapB);
+    tapB.connect(lpB);
+    lpB.connect(fb);
+    fb.connect(tapB);
+    lpB.connect(wetGain);
+
+    wetGain.connect(this.masterGain);
+    this._zombieAmbienceInput = sendIn;
+    return sendIn;
+  }
+
+  /**
+   * Initializes or updates the persistent per-zombie 3D "single-mouth" vocal channel.
+   */
+  initZombieVocalChannel(zombie, pitchBase = null) {
+    if (!zombie || !this.ctx || !this.masterGain) return zombie?.vocalChannel || null;
+
+    if (zombie.vocalChannel) {
+      if (pitchBase !== null && pitchBase !== undefined) {
+        zombie.vocalChannel.pitchBase = pitchBase;
+      }
+      return zombie.vocalChannel;
+    }
+
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+    const ambienceIn = this._ensureZombieAmbienceSend();
+
+    const filterNode = ctx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    filterNode.frequency.setValueAtTime(9000, now);
+    filterNode.Q.setValueAtTime(0.65, now);
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.setValueAtTime(1.0, now);
+
+    const pannerNode = ctx.createStereoPanner();
+    pannerNode.pan.setValueAtTime(0, now);
+
+    const wetSend = ctx.createGain();
+    wetSend.gain.setValueAtTime(1.0, now);
+
+    // Filter (wall occlusion) -> Gain (distance attenuation) -> StereoPanner -> masterGain + room send
+    filterNode.connect(gainNode);
+    gainNode.connect(pannerNode);
+    pannerNode.connect(this.masterGain);
+    if (ambienceIn) {
+      gainNode.connect(wetSend);
+      wetSend.connect(ambienceIn);
+    }
+
+    const defaultPitch = pitchBase ?? zombie.vocalPitchBase ?? 1.0;
+    const ch = {
+      pitchBase: defaultPitch,
+      lastVariantIndex: {
+        attack: -1,
+        chase: -1,
+        dead: -1,
+        hurt: -1,
+        idle: -1,
+        walk: -1,
+      },
+      currentSource: null,
+      currentSourceGain: null,
+      currentCategory: null,
+      currentPriority: 0,
+      isPlaying: false,
+      lastEndedAt: 0,
+      filterNode,
+      gainNode,
+      pannerNode,
+      wetSend,
+    };
+
+    zombie.vocalChannel = ch;
+    this._zombieVocalChannels.add(ch);
+    return ch;
+  }
+
+  _fadeOutAndStopZombieChannel(ch, fadeSec = 0.025) {
+    if (!ch || !ch.currentSource) return;
+    const src = ch.currentSource;
+    const srcGain = ch.currentSourceGain;
+    src.onended = null;
+    ch.currentSource = null;
+    ch.currentSourceGain = null;
+    ch.isPlaying = false;
+    ch.currentCategory = null;
+    ch.currentPriority = 0;
+
+    const ctx = this.ctx;
+    if (!ctx) {
+      try { src.stop(); src.disconnect(); } catch (e) { }
+      return;
+    }
+
+    const now = ctx.currentTime;
+    const dur = Math.max(0.005, fadeSec);
+    if (srcGain) {
+      try {
+        srcGain.gain.cancelScheduledValues(now);
+        srcGain.gain.setValueAtTime(Math.max(0.0001, srcGain.gain.value), now);
+        srcGain.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+      } catch (e) { }
+    }
+    try {
+      src.stop(now + dur + 0.008);
+    } catch (e) {
+      try { src.disconnect(); } catch (err) { }
+    }
+  }
+
+  /**
+   * Plays a spatial zombie vocal clip from the 12 preloaded .wav files on the zombie's
+   * single-mouth vocalChannel with priority interruption and alternating variant selection.
+   */
+  playZombieVocal(zombie, category) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled || !zombie) return false;
     this.resume();
 
+    const buffers = this.zombieBuffers[category];
+    if (!buffers || buffers.length === 0) return false;
+
+    const ch = this.initZombieVocalChannel(zombie);
+    if (!ch) return false;
+
+    const nextPriority = ZOMBIE_VOCAL_PRIORITY[category] || 1;
+    if (ch.isPlaying) {
+      // Lower-priority requests never interrupt higher-priority active vocals
+      if (nextPriority < ch.currentPriority) {
+        return false;
+      }
+      // Interrupt >= priority active vocal cleanly with a 25ms crossfade-out
+      this._fadeOutAndStopZombieChannel(ch, 0.025);
+    }
+
+    // Alternate between the 2 variants instead of repeating the same clip twice in a row
+    const prevIdx = ch.lastVariantIndex[category] ?? -1;
+    let idx = 0;
+    if (buffers.length > 1) {
+      idx = prevIdx === 0 ? 1 : prevIdx === 1 ? 0 : Math.floor(Math.random() * buffers.length);
+      if (buffers.length > 2 && idx === prevIdx) {
+        idx = (prevIdx + 1) % buffers.length;
+      }
+    }
+    ch.lastVariantIndex[category] = idx;
+    const buffer = buffers[idx];
+    if (!buffer) return false;
+
     const now = this.ctx.currentTime;
-    const att = Math.max(0.20, Math.min(1.0, 1.0 / (1.0 + Math.max(0, distance - 2.0) * 0.14)));
+    const src = this.ctx.createBufferSource();
+    src.buffer = buffer;
 
-    // 1. Guttural vocal cord sawtooth growl
-    const osc = this.ctx.createOscillator();
-    const filt = this.ctx.createBiquadFilter();
-    const gain = this.ctx.createGain();
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(165, now);
-    osc.frequency.linearRampToValueAtTime(220, now + 0.10);
-    osc.frequency.exponentialRampToValueAtTime(105, now + 0.52);
+    // Distinct gender/individual pitch base +/- 0.03 jitter per play
+    const basePitch = ch.pitchBase ?? zombie.vocalPitchBase ?? 1.0;
+    const rate = Math.max(0.60, Math.min(1.45, basePitch + (Math.random() * 2 - 1) * 0.03));
+    src.playbackRate.setValueAtTime(rate, now);
 
-    filt.type = 'bandpass';
-    filt.frequency.setValueAtTime(680, now);
-    filt.Q.setValueAtTime(2.6, now);
+    const srcGain = this.ctx.createGain();
+    const targetGain = ZOMBIE_VOCAL_GAIN[category] ?? 0.85;
+    srcGain.gain.setValueAtTime(0.0001, now);
+    srcGain.gain.linearRampToValueAtTime(targetGain, now + 0.008);
 
-    gain.gain.setValueAtTime(0.001, now);
-    gain.gain.linearRampToValueAtTime(0.20 * att, now + 0.05);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.54);
+    src.connect(srcGain);
+    srcGain.connect(ch.filterNode);
 
-    osc.connect(filt);
-    filt.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(now);
-    osc.stop(now + 0.56);
+    ch.currentSource = src;
+    ch.currentSourceGain = srcGain;
+    ch.currentCategory = category;
+    ch.currentPriority = nextPriority;
+    ch.isPlaying = true;
 
-    // 2. Raspy breathy hiss layer
-    const noiseBuf = this._noiseBufferCache.get(0.25) || this._createNoiseBuffer(0.25);
-    if (noiseBuf) {
-      const nSrc = this.ctx.createBufferSource();
-      nSrc.buffer = noiseBuf;
-      const nFilt = this.ctx.createBiquadFilter();
-      nFilt.type = 'bandpass';
-      nFilt.frequency.setValueAtTime(2400, now);
-      nFilt.Q.setValueAtTime(1.8, now);
-      const nGain = this.ctx.createGain();
-      nGain.gain.setValueAtTime(0.001, now);
-      nGain.gain.linearRampToValueAtTime(0.11 * att, now + 0.04);
-      nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.24);
-      nSrc.connect(nFilt);
-      nFilt.connect(nGain);
-      nGain.connect(this.masterGain);
-      nSrc.start(now);
+    src.onended = () => {
+      if (ch.currentSource === src) {
+        ch.currentSource = null;
+        ch.currentSourceGain = null;
+        ch.currentCategory = null;
+        ch.currentPriority = 0;
+        ch.isPlaying = false;
+        ch.lastEndedAt = performance.now() * 0.001;
+      }
+      try {
+        src.disconnect();
+        srcGain.disconnect();
+      } catch (e) { }
+    };
+
+    src.start(now);
+    return true;
+  }
+
+  /**
+   * Immediately fades out and stops a specific zombie's active vocal source.
+   */
+  stopZombieVocal(zombie, fadeSec = 0.02) {
+    if (!zombie || !zombie.vocalChannel) return;
+    this._fadeOutAndStopZombieChannel(zombie.vocalChannel, fadeSec);
+  }
+
+  /**
+   * Immediately stops all active zombie vocal sources across the level (menu/reset/F9 off).
+   */
+  stopAllZombieVocals() {
+    for (const ch of this._zombieVocalChannels) {
+      this._fadeOutAndStopZombieChannel(ch, 0.015);
+    }
+  }
+
+  /**
+   * Updates per-zombie real-time stereo pan, inverse-distance attenuation, and stairwell/wall occlusion.
+   */
+  updateZombieSpatialAudio(zombie, camera, playerPos = null) {
+    if (!zombie || !this.ctx || !camera) return;
+    const ch = zombie.vocalChannel || this.initZombieVocalChannel(zombie);
+    if (!ch || !ch.gainNode || !ch.filterNode || !ch.pannerNode) return;
+
+    const zPos = zombie.root.position;
+    const refPos = playerPos || camera.position;
+    const dx = zPos.x - camera.position.x;
+    const dy = (zPos.y + 1.45) - camera.position.y;
+    const dz = zPos.z - camera.position.z;
+    const dist = Math.hypot(dx, dy, dz);
+    const hDist = Math.hypot(dx, dz);
+
+    // Camera local +X right vector projected onto XZ floor
+    const m = camera.matrixWorld.elements;
+    let rx = m[0];
+    let rz = m[2];
+    const rLen = Math.hypot(rx, rz) || 1;
+    rx /= rLen;
+    rz /= rLen;
+
+    const rightDot = hDist > 1e-4 ? (dx * rx + dz * rz) / hDist : 0;
+    const pan = Math.max(-0.92, Math.min(0.92, rightDot * 0.88));
+
+    // Inverse-distance rolloff: full volume <= 2.2m, ~12% at 18m
+    let distGain = 1.0;
+    if (dist > 2.2) {
+      distGain = Math.max(0.05, 1.0 / (1.0 + (dist - 2.2) * 0.464));
+    }
+
+    // Stairwell & vestibule glass partition low-pass occlusion
+    const playerX = refPos.x;
+    const playerY = refPos.y;
+    const inStairwell = zPos.y < -0.3;
+    const separatedByVestibuleWall =
+      (!zombie.hasExitedVestibule && playerX > -9.2) ||
+      (zPos.x > -9.2 && playerX <= -10.05) ||
+      (zPos.x <= -10.05 && playerX > -9.2);
+
+    let cutoff = 9000;
+    if (inStairwell && playerY >= -0.3) {
+      cutoff = 1150;
+    } else if (separatedByVestibuleWall) {
+      cutoff = 1400;
+    }
+
+    const now = this.ctx.currentTime;
+    ch.pannerNode.pan.setTargetAtTime(pan, now, 0.04);
+    ch.gainNode.gain.setTargetAtTime(distGain, now, 0.05);
+    ch.filterNode.frequency.setTargetAtTime(cutoff, now, 0.08);
+  }
+
+  /**
+   * Triggers zombie aggro vocal using the real preloaded chase .wav stems.
+   */
+  playZombieAggro(distance = 5, zombie = null) {
+    if (zombie) {
+      this.playZombieVocal(zombie, 'chase');
     }
   }
 
@@ -2854,7 +3170,7 @@ export class SoundManager {
   }
 
   /**
-   * Descending zombie death groan + floor collapse body thud.
+   * Delayed floor collapse body thud accompanying the real zombie dead vocal clip.
    */
   playZombieDeath(isHeadshot = false, distance = 5) {
     if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
@@ -2862,26 +3178,6 @@ export class SoundManager {
 
     const now = this.ctx.currentTime;
     const att = Math.max(0.25, Math.min(1.0, 1.0 / (1.0 + Math.max(0, distance - 2.0) * 0.12)));
-
-    if (!isHeadshot) {
-      const osc = this.ctx.createOscillator();
-      const filt = this.ctx.createBiquadFilter();
-      const gain = this.ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(175, now);
-      osc.frequency.exponentialRampToValueAtTime(62, now + 0.58);
-      filt.type = 'lowpass';
-      filt.frequency.setValueAtTime(640, now);
-      filt.frequency.exponentialRampToValueAtTime(220, now + 0.58);
-      gain.gain.setValueAtTime(0.001, now);
-      gain.gain.linearRampToValueAtTime(0.20 * att, now + 0.04);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.62);
-      osc.connect(filt);
-      filt.connect(gain);
-      gain.connect(this.masterGain);
-      osc.start(now);
-      osc.stop(now + 0.64);
-    }
 
     // Delayed body collapse thud onto floor
     const thudAt = now + (isHeadshot ? 0.36 : 0.52);

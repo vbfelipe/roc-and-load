@@ -171,10 +171,15 @@ export class ZombieTuner {
     overlay.querySelector('#zt-toggle-test-btn').onclick = () => {
       if (!this.engine) return;
       const next = !this.engine.testZombiesVisible;
+      const sound = this.zombieManager?.sound || null;
       this.engine.setTestZombiesVisible(next);
       if (next && this.engine.enemies) {
         for (const e of this.engine.enemies) {
-          if (e) e.playTestAnimation(this._currentTestAnim);
+          if (e) e.playTestAnimation(this._currentTestAnim, sound);
+        }
+      } else if (!next && sound && typeof sound.stopZombieVocal === 'function') {
+        for (const e of this.engine.enemies || []) {
+          if (e) sound.stopZombieVocal(e, 0.02);
         }
       }
       this.refresh();
@@ -194,8 +199,9 @@ export class ZombieTuner {
       const states = ['Idle', 'Walk', 'Run', 'Attack', 'Death'];
       const next = states[(states.indexOf(this._currentTestAnim) + 1) % states.length];
       this._currentTestAnim = next;
+      const sound = this.zombieManager?.sound || null;
       for (const e of this.engine.enemies || []) {
-        if (e) e.playTestAnimation(next);
+        if (e) e.playTestAnimation(next, sound);
       }
       this.refresh();
     };
@@ -208,8 +214,9 @@ export class ZombieTuner {
         if (!this.engine.testZombiesVisible) {
           this.engine.setTestZombiesVisible(true);
         }
+        const sound = this.zombieManager?.sound || null;
         for (const e of this.engine.enemies || []) {
-          if (e) e.playTestAnimation(anim);
+          if (e) e.playTestAnimation(anim, sound);
         }
         this.refresh();
       };
