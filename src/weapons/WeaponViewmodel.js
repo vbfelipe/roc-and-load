@@ -318,10 +318,10 @@ export class WeaponViewmodel {
     this.coltAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 6 (Glock Auto 30rd Flamengo - RARE) Hip & ADS Transforms
-    this.glockHipPosition = new THREE.Vector3(0.10, -0.10, -0.23);
-    this.glockAdsPosition = new THREE.Vector3(0, -0.077, -0.165);
-    this.glockHipRotation = new THREE.Euler(0.10, 0, 0.08);
-    this.glockAdsRotation = new THREE.Euler(0, 0, 0);
+    this.glockHipPosition = new THREE.Vector3(0.1, -0.05, -0.22);
+    this.glockAdsPosition = new THREE.Vector3(-0.0014, -0.0596, -0.14);
+    this.glockHipRotation = new THREE.Euler(0.1, 0, 0.1);
+    this.glockAdsRotation = new THREE.Euler(0.0025, 0.0784, 0.0204);
 
     // Slot 7 (AKMS Gold 7.62 Rifle - RARE) Hip & ADS Transforms
     this.akmsHipPosition = new THREE.Vector3(0.095, -0.12, -0.20);
@@ -468,8 +468,10 @@ export class WeaponViewmodel {
     this.glockElbowBone = null;
     this.glockTriggerFingerGroup = null;
     this.glockSlideMesh = null;
+    this.glockSlideRestY = 0;
     this.glockSlideRestZ = 0;
     this.glockSelectorMesh = null;
+    this.glockSelectorRestY = 0;
     this.glockSelectorRestZ = 0;
     this.glockMagMesh = null;
     this.glockMagRestY = 0;
@@ -766,10 +768,11 @@ export class WeaponViewmodel {
     this.glockHandGroup.name = 'GlockHandContainer';
     this.glockGroup.add(this.glockHandGroup);
 
-    this.glockMuzzleSocket.position.set(0, 0.048, -0.092);
+    this.glockMuzzleSocket.position.set(0.0089, 0.041, -0.089);
+    this.glockMuzzleSocket.rotation.set(-0.0025, -0.0784, -0.0204);
     this.glockGroup.add(this.glockMuzzleSocket);
 
-    this.glockEjectionAnchor.position.set(0.014, 0.060, 0.022);
+    this.glockEjectionAnchor.position.set(0.018, 0.054, 0.015);
     this.glockGroup.add(this.glockEjectionAnchor);
   }
 
@@ -1309,10 +1312,12 @@ export class WeaponViewmodel {
 
     this.glockSlideMesh = glockScene.getObjectByName('cima_glock_5') || glockScene.getObjectByName('Object_8');
     if (this.glockSlideMesh) {
+      this.glockSlideRestY = this.glockSlideMesh.position.y;
       this.glockSlideRestZ = this.glockSlideMesh.position.z;
     }
     this.glockSelectorMesh = glockScene.getObjectByName('seletor_3') || glockScene.getObjectByName('Object_12');
     if (this.glockSelectorMesh) {
+      this.glockSelectorRestY = this.glockSelectorMesh.position.y;
       this.glockSelectorRestZ = this.glockSelectorMesh.position.z;
     }
     this.glockMagMesh = glockScene.getObjectByName('tambor_2') || glockScene.getObjectByName('Object_14');
@@ -1908,20 +1913,22 @@ export class WeaponViewmodel {
     this.glockWristBone = handData.wristBone;
     this.glockElbowBone = handData.elbowBone;
 
-    this.glockHandPivot.position.set(0.02, -0.016, 0.11);
-    this.glockHandPivot.rotation.set(0.52, -3.0, 0.22);
+    this.glockHandPivot.position.set(0.02, -0.02, 0.116);
+    this.glockHandPivot.rotation.set(0.4, -3.0, 0.28);
     this.glockHandPivot.scale.setScalar(1.0);
 
     if (this.glockWristBone) {
-      this.glockWristBone.userData.pitch = 0.24;
-      this.glockWristBone.userData.roll = 0.02;
+      this.glockWristBone.userData.pitch = 0.36;
+      this.glockWristBone.userData.roll = 0.2;
       this.glockWristBone.quaternion.copy(this.glockWristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.02, 'XYZ'));
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.36, 0, 0.2, 'XYZ'));
       this.glockWristBone.quaternion.multiply(qDelta);
     }
     if (this.glockElbowBone) {
-      this.glockElbowBone.userData.bend = 0;
+      this.glockElbowBone.userData.bend = -0.02;
       this.glockElbowBone.quaternion.copy(this.glockElbowBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.02, 0, 0, 'XYZ'));
+      this.glockElbowBone.quaternion.multiply(qDelta);
     }
 
     this.glockHandPivot.userData.defaultPos = this.glockHandPivot.position.clone();
@@ -2141,8 +2148,8 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
     if (wrist && wrist.userData.restQuat) {
-      const defaultPitch = (isUSP || isColt || isGlock || isMP5 || isAkms) ? 0.24 : (isShotgun ? -0.08 : -0.02);
-      const defaultRoll = (isUSP || isColt || isGlock) ? 0.02 : (isShotgun ? -0.1 : ((isMP5 || isAkms) ? 0.04 : -0.02));
+      const defaultPitch = isGlock ? 0.36 : ((isUSP || isColt || isMP5 || isAkms) ? 0.24 : (isShotgun ? -0.08 : -0.02));
+      const defaultRoll = isGlock ? 0.2 : ((isUSP || isColt) ? 0.02 : (isShotgun ? -0.1 : ((isMP5 || isAkms) ? 0.04 : -0.02)));
       wrist.userData.pitch = defaultPitch;
       wrist.userData.roll = defaultRoll;
       wrist.quaternion.copy(wrist.userData.restQuat);
@@ -2154,7 +2161,7 @@ export class WeaponViewmodel {
       }
     }
     if (elbow && elbow.userData.restQuat) {
-      const defaultBend = (isUSP || isColt || isGlock) ? 0 : (isShotgun ? -0.22 : ((isMP5 || isAkms) ? -0.04 : -0.02));
+      const defaultBend = (isUSP || isColt) ? 0 : (isGlock ? -0.02 : (isShotgun ? -0.22 : ((isMP5 || isAkms) ? -0.04 : -0.02)));
       elbow.userData.bend = defaultBend;
       elbow.quaternion.copy(elbow.userData.restQuat);
       if (defaultBend !== 0) {
@@ -2179,8 +2186,8 @@ export class WeaponViewmodel {
         this.coltHipPosition.set(0.10, -0.105, -0.25);
         this.coltHipRotation.set(0.10, 0, 0.08);
       } else if (isGlock) {
-        this.glockHipPosition.set(0.10, -0.10, -0.23);
-        this.glockHipRotation.set(0.10, 0, 0.08);
+        this.glockHipPosition.set(0.1, -0.05, -0.22);
+        this.glockHipRotation.set(0.1, 0, 0.1);
       } else if (isAkms) {
         this.akmsHipPosition.set(0.095, -0.12, -0.20);
         this.akmsHipRotation.set(0.08, 0, 0.04);
@@ -2206,8 +2213,8 @@ export class WeaponViewmodel {
         this.coltAdsPosition.set(0, -0.080, -0.18);
         this.coltAdsRotation.set(0, 0, 0);
       } else if (isGlock) {
-        this.glockAdsPosition.set(0, -0.077, -0.165);
-        this.glockAdsRotation.set(0, 0, 0);
+        this.glockAdsPosition.set(-0.0014, -0.0596, -0.14);
+        this.glockAdsRotation.set(0.0025, 0.0784, 0.0204);
       } else if (isAkms) {
         this.akmsAdsPosition.set(0, -0.087, -0.12);
         this.akmsAdsRotation.set(0, 0, 0);
@@ -2268,10 +2275,12 @@ export class WeaponViewmodel {
     if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
     if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
     this.glockSlideBlowback = 0;
-    if (this.glockSlideMesh && this.glockSlideRestZ !== undefined) {
+    if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
+      this.glockSlideMesh.position.y = this.glockSlideRestY;
       this.glockSlideMesh.position.z = this.glockSlideRestZ;
     }
-    if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined) {
+    if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
+      this.glockSelectorMesh.position.y = this.glockSelectorRestY;
       this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
     }
     if (this.glockMagMesh && this.glockMagRestY !== undefined) {
@@ -2787,22 +2796,21 @@ export class WeaponViewmodel {
 
     // 2. Slide Blowback & Reciprocation
     if (this.currentWeapon === 'glock_flamengo') {
-      if (!this.isReloading) {
-        if (this.glockSlideBlowback > 0.001) {
-          this.glockSlideBlowback = THREE.MathUtils.lerp(this.glockSlideBlowback, 0, Math.min(delta * 42.0, 1.0));
-          if (this.glockSlideMesh && this.glockSlideRestZ !== undefined) {
-            this.glockSlideMesh.position.z = this.glockSlideRestZ + this.glockSlideBlowback;
-          }
-          if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined) {
-            this.glockSelectorMesh.position.z = this.glockSelectorRestZ + this.glockSlideBlowback;
-          }
-        } else {
-          if (this.glockSlideMesh && this.glockSlideRestZ !== undefined && this.glockSlideMesh.position.z !== this.glockSlideRestZ) {
-            this.glockSlideMesh.position.z = this.glockSlideRestZ;
-          }
-          if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined && this.glockSelectorMesh.position.z !== this.glockSelectorRestZ) {
-            this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
-          }
+      if (this.glockSlideBlowback > 0.001) {
+        this.glockSlideBlowback = THREE.MathUtils.lerp(this.glockSlideBlowback, 0, Math.min(delta * 42.0, 1.0));
+        // Scene_1 in glock_flamengo.glb is rotated ~83.5 deg around X, so local +Y is backward along the slide axis
+        if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
+          this.glockSlideMesh.position.y = this.glockSlideRestY + this.glockSlideBlowback;
+        }
+        if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
+          this.glockSelectorMesh.position.y = this.glockSelectorRestY + this.glockSlideBlowback;
+        }
+      } else {
+        if (this.glockSlideMesh && this.glockSlideRestY !== undefined && this.glockSlideMesh.position.y !== this.glockSlideRestY) {
+          this.glockSlideMesh.position.y = this.glockSlideRestY;
+        }
+        if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined && this.glockSelectorMesh.position.y !== this.glockSelectorRestY) {
+          this.glockSelectorMesh.position.y = this.glockSelectorRestY;
         }
       }
     } else if (this.currentWeapon === 'colt_peacemaker') {
@@ -3575,8 +3583,10 @@ export class WeaponViewmodel {
     const magDropTimer = setTimeout(() => {
       if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
       if (this.glockMagMesh) {
+        // Scene_1 in glock_flamengo.glb has basis Z = downward (-Y in viewmodel) and basis Y = backward (+Z in viewmodel).
+        // Dropping the drum magazine down along the grip angle requires +Z (+1.35) and slightly +Y (+0.26).
         const drop = new TWEEN.Tween(this.glockMagMesh.position, true)
-          .to({ y: this.glockMagRestY - 1.2, z: this.glockMagRestZ + 0.25 }, 200)
+          .to({ y: this.glockMagRestY + 0.26, z: this.glockMagRestZ + 1.35 }, 210)
           .easing(TWEEN.Easing.Quadratic.In)
           .onComplete(() => {
             if (this.glockMagMesh) this.glockMagMesh.visible = false;
@@ -3589,10 +3599,10 @@ export class WeaponViewmodel {
         if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
         if (this.glockMagMesh) {
           this.glockMagMesh.visible = true;
-          this.glockMagMesh.position.y = this.glockMagRestY - 1.2;
-          this.glockMagMesh.position.z = this.glockMagRestZ + 0.25;
+          this.glockMagMesh.position.y = this.glockMagRestY + 0.26;
+          this.glockMagMesh.position.z = this.glockMagRestZ + 1.35;
           const insert = new TWEEN.Tween(this.glockMagMesh.position, true)
-            .to({ y: this.glockMagRestY, z: this.glockMagRestZ }, 200)
+            .to({ y: this.glockMagRestY, z: this.glockMagRestZ }, 220)
             .easing(TWEEN.Easing.Back.Out)
             .onComplete(() => {
               this.posSpring.impulse(0, 0.048, 0);
@@ -3605,6 +3615,7 @@ export class WeaponViewmodel {
 
         const rackTimer = setTimeout(() => {
           if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
+          this.glockSlideBlowback = 0.26;
           this.posSpring.impulse(0, -0.012, -0.032);
           this.rotSpring.impulse(-0.048, 0, -0.022);
           if (this.sound && typeof this.sound.play9mmSlideRack === 'function') {
@@ -3796,10 +3807,12 @@ export class WeaponViewmodel {
     if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0;
     if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0;
     if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0;
-    if (this.glockSlideMesh && this.glockSlideRestZ !== undefined) {
+    if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
+      this.glockSlideMesh.position.y = this.glockSlideRestY;
       this.glockSlideMesh.position.z = this.glockSlideRestZ;
     }
-    if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined) {
+    if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
+      this.glockSelectorMesh.position.y = this.glockSelectorRestY;
       this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
     }
     if (this.glockMagMesh && this.glockMagRestY !== undefined) {
