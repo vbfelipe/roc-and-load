@@ -208,6 +208,103 @@ export class SoundManager {
   }
 
   /**
+   * Subtle crisp UI radial tick when hovering a different wedge in the GTA V Weapon Wheel.
+   */
+  playWheelHoverTick(isRare = false) {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const t = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    const baseFreq = isRare ? 1680 : 1320;
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(isRare ? 2240 : 680, t + 0.022);
+
+    gain.gain.setValueAtTime(0.18, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.026);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.028);
+  }
+
+  /**
+   * Colt Peacemaker .45 Single-Action Revolver Gunshot (RARE).
+   * Heavy vintage .45 Colt boom + single-action hammer/cylinder ratchet click.
+   */
+  playColtGunshot() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    if (this.audioBuffers.has('desert_eagle_fire')) {
+      const playbackRate = 0.85 + Math.random() * 0.06;
+      this._playSoundBuffer('desert_eagle_fire', { volume: 1.22, playbackRate });
+    } else {
+      this.playGunshot();
+    }
+
+    // Add single-action cylinder ratchet / hammer re-cock metallic click at +140ms
+    const t = this.ctx.currentTime + 0.14;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(2650, t);
+    osc.frequency.exponentialRampToValueAtTime(1400, t + 0.028);
+    gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
+    gain.gain.setValueAtTime(0.16, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.032);
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(t);
+    osc.stop(t + 0.035);
+  }
+
+  /**
+   * Full-Auto Custom Glock (30rd Extended Mag) Gunshot (RARE).
+   * Ultra-fast snappy 9mm full-auto crack (~880 RPM).
+   */
+  playGlockGunshot() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    if (this.audioBuffers.has('9mm_fire')) {
+      const playbackRate = 1.12 + (Math.random() - 0.5) * 0.09;
+      this._playSoundBuffer('9mm_fire', { volume: 0.92, playbackRate });
+      return;
+    }
+
+    this.play9mmGunshot();
+  }
+
+  /**
+   * Gold-Plated AKMS 7.62x39 Assault Rifle Gunshot (RARE).
+   * Heavy 7.62x39 bark + metallic AK bolt carrier reciprocation.
+   */
+  playAkmsGunshot() {
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+
+    const hasDeagle = this.audioBuffers.has('desert_eagle_fire');
+    const has9mm = this.audioBuffers.has('9mm_fire');
+    if (hasDeagle || has9mm) {
+      if (hasDeagle) {
+        const rate = 1.18 + (Math.random() - 0.5) * 0.07;
+        this._playSoundBuffer('desert_eagle_fire', { volume: 0.96, playbackRate: rate });
+      }
+      if (has9mm) {
+        const rate = 0.84 + (Math.random() - 0.5) * 0.06;
+        this._playSoundBuffer('9mm_fire', { volume: 0.78, playbackRate: rate });
+      }
+      return;
+    }
+
+    this.playGunshot();
+  }
+
+  /**
    * Preload and decode authentic weapon audio samples (9mm, .50 AE, 12-gauge).
    * Supports progress reporting and returns a Promise that resolves when all are decoded.
    */
@@ -365,10 +462,22 @@ export class SoundManager {
     this.resume();
 
     if (this.audioBuffers.has('9mm_reload')) {
-      const isPistol = weaponType === 'pistol';
-      const isMP5 = weaponType === 'hk_mp5';
-      const playbackRate = isPistol ? 0.90 : (isMP5 ? 1.65 : 2.13);
-      const volume = isPistol ? 1.05 : 0.95;
+      let playbackRate = 2.13;
+      let volume = 0.95;
+      if (weaponType === 'pistol') {
+        playbackRate = 0.90;
+        volume = 1.05;
+      } else if (weaponType === 'colt_peacemaker') {
+        playbackRate = 0.85;
+        volume = 1.05;
+      } else if (weaponType === 'hk_mp5') {
+        playbackRate = 1.65;
+      } else if (weaponType === 'glock_flamengo') {
+        playbackRate = 1.80;
+      } else if (weaponType === 'akms_gold') {
+        playbackRate = 1.18;
+        volume = 1.02;
+      }
 
       this.stopActionSounds();
       this.isSampleReloadActive = true;

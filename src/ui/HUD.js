@@ -87,7 +87,7 @@ export class HUD {
       <div class="panel-header">
         <div class="caliber-tag">
           <span class="status-led"></span>
-          <span id="hud-caliber-text">9MM</span>
+          <span id="hud-caliber-text">HK USP</span>
         </div>
         <div id="hud-mode-tag" class="mode-tag">SEMI-AUTO</div>
       </div>
@@ -96,7 +96,7 @@ export class HUD {
         <div class="numeric-readout">
           <span id="hud-ammo-current" class="ammo-num">12</span>
           <span class="ammo-divider">/</span>
-          <span class="ammo-reserve">∞</span>
+          <span id="hud-ammo-reserve" class="ammo-reserve">∞</span>
         </div>
 
         <div id="hud-bullet-pips" class="bullet-pips-row"></div>
@@ -105,6 +105,7 @@ export class HUD {
     uiLayer.appendChild(this.ammoPanelEl);
 
     this.ammoCountEl = this.ammoPanelEl.querySelector('#hud-ammo-current');
+    this.ammoReserveEl = this.ammoPanelEl.querySelector('#hud-ammo-reserve');
     this.caliberTextEl = this.ammoPanelEl.querySelector('#hud-caliber-text');
     this.modeTagEl = this.ammoPanelEl.querySelector('#hud-mode-tag');
     this.pipsContainerEl = this.ammoPanelEl.querySelector('#hud-bullet-pips');
@@ -120,7 +121,7 @@ export class HUD {
    * - Slot 3: 'shotgun' (12 GAUGE - 6 red shotshells)
    * - Slot 4: 'hk_mp5' (9MM - 30 submachine gun cartridges)
    */
-  setWeapon(weaponType, currentAmmo, maxAmmo) {
+  setWeapon(weaponType, currentAmmo, maxAmmo, reserveDisplay = null) {
     this.currentWeapon = weaponType;
     this.currentAmmo = currentAmmo;
     this.maxAmmo = maxAmmo;
@@ -128,26 +129,36 @@ export class HUD {
     this._lastReportedMax = null;
 
     if (this.caliberTextEl) {
-      if (weaponType === 'hk_usp' || weaponType === 'hk_mp5') {
-        this.caliberTextEl.textContent = '9MM';
+      if (weaponType === 'hk_usp') {
+        this.caliberTextEl.textContent = 'HK USP';
+      } else if (weaponType === 'hk_mp5') {
+        this.caliberTextEl.textContent = 'HK MP5';
       } else if (weaponType === 'shotgun') {
-        this.caliberTextEl.textContent = '12 GAUGE';
+        this.caliberTextEl.textContent = 'REMINGTON 870';
+      } else if (weaponType === 'colt_peacemaker') {
+        this.caliberTextEl.textContent = 'COLT PEACEMAKER';
+      } else if (weaponType === 'glock_flamengo') {
+        this.caliberTextEl.textContent = 'GLOCK P. 30 FLAMENGO';
+      } else if (weaponType === 'akms_gold') {
+        this.caliberTextEl.textContent = 'AKMS GOLD';
       } else {
-        this.caliberTextEl.textContent = '.50 AE';
+        this.caliberTextEl.textContent = 'DESERT EAGLE';
       }
     }
     if (this.modeTagEl) {
-      if (weaponType === 'hk_mp5') {
+      if (weaponType === 'hk_mp5' || weaponType === 'glock_flamengo' || weaponType === 'akms_gold') {
         this.modeTagEl.textContent = 'FULL-AUTO';
       } else if (weaponType === 'shotgun') {
         this.modeTagEl.textContent = 'PUMP-ACTION';
+      } else if (weaponType === 'colt_peacemaker') {
+        this.modeTagEl.textContent = 'REVOLVER';
       } else {
         this.modeTagEl.textContent = 'SEMI-AUTO';
       }
     }
 
     this._buildBulletPips();
-    this.updateAmmo(currentAmmo, maxAmmo, true);
+    this.updateAmmo(currentAmmo, maxAmmo, true, reserveDisplay);
   }
 
   _buildBulletPips() {
@@ -155,10 +166,10 @@ export class HUD {
     this.pipsContainerEl.innerHTML = '';
 
     const isShotgun = this.currentWeapon === 'shotgun';
-    const isMP5 = this.currentWeapon === 'hk_mp5';
-    const is9mm = this.currentWeapon === 'hk_usp' || isMP5;
+    const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+    const is9mm = this.currentWeapon === 'hk_usp' || is30Rd;
 
-    if (isMP5) {
+    if (is30Rd) {
       this.pipsContainerEl.classList.add('rack-mp5');
     } else {
       this.pipsContainerEl.classList.remove('rack-mp5');
@@ -175,7 +186,7 @@ export class HUD {
           <div class="shell-rim"></div>
         `;
       } else if (is9mm) {
-        pip.className = isMP5 ? 'bullet-pip pip-9mm pip-mp5' : 'bullet-pip pip-9mm';
+        pip.className = is30Rd ? 'bullet-pip pip-9mm pip-mp5' : 'bullet-pip pip-9mm';
         pip.innerHTML = `
           <div class="pip-9mm-ogive"></div>
           <div class="pip-9mm-casing"></div>
@@ -196,7 +207,19 @@ export class HUD {
   }
 
   // Update readout and bullet pips
-  updateAmmo(current, max = 7, force = false) {
+  updateAmmo(current, max = 7, force = false, reserveDisplay = null) {
+    if (this.ammoReserveEl) {
+      if (reserveDisplay !== null && reserveDisplay !== undefined) {
+        this.ammoReserveEl.textContent = String(reserveDisplay);
+      } else if (this.currentWeapon === 'hk_usp') {
+        this.ammoReserveEl.textContent = '∞';
+      } else {
+        const ws = typeof window !== 'undefined' ? (window.__rocWeaponSystem || window.weaponSystem) : null;
+        const wData = ws && ws.weapons ? ws.weapons[this.currentWeapon] : null;
+        this.ammoReserveEl.textContent = wData && wData.infiniteReserve ? '∞' : String(wData?.reserveAmmo ?? 0);
+      }
+    }
+
     if (!force && this._lastReportedAmmo === current && this._lastReportedMax === max) return;
     const prevAmmo = this._lastReportedAmmo;
     this._lastReportedAmmo = current;
@@ -251,7 +274,8 @@ export class HUD {
     // Reset warning classes
     this.ammoPanelEl.classList.remove('warning-low', 'warning-empty');
 
-    const lowThreshold = this.currentWeapon === 'hk_mp5' ? 6 : 2;
+    const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+    const lowThreshold = is30Rd ? 6 : 2;
 
     if (this.currentAmmo === 0) {
       this.ammoPanelEl.classList.add('warning-empty');
@@ -339,8 +363,8 @@ export class HUD {
    * Called each time a 12-gauge shotshell is thumb-loaded into the Winchester Model 1912 magazine.
    * Pops the corresponding red shotshell pip in real time.
    */
-  onShotgunShellInserted(current, max = 6) {
-    this.updateAmmo(current, max, true);
+  onShotgunShellInserted(current, max = 6, reserveDisplay = null) {
+    this.updateAmmo(current, max, true, reserveDisplay);
     const pipIdx = current - 1;
     if (pipIdx >= 0 && pipIdx < this.bulletPips.length) {
       const pip = this.bulletPips[pipIdx];
@@ -358,13 +382,15 @@ export class HUD {
   }
 
   // Reload finish callback: animate only the spent pips refilling
-  onReloadComplete(previousAmmo = 0) {
-    this.updateAmmo(this.maxAmmo, this.maxAmmo);
+  onReloadComplete(previousAmmo = 0, loadedAmmo = null, reserveDisplay = null) {
+    const finalAmmo = loadedAmmo !== null && loadedAmmo !== undefined ? loadedAmmo : this.maxAmmo;
+    this.updateAmmo(finalAmmo, this.maxAmmo, true, reserveDisplay);
 
     const startIdx = Math.max(0, Math.min(this.bulletPips.length, previousAmmo));
+    const endIdx = Math.max(startIdx, Math.min(this.bulletPips.length, finalAmmo));
 
-    // Staggered cartridge refill pop animation via CSS only for spent pips
-    for (let i = startIdx; i < this.bulletPips.length; i++) {
+    // Staggered cartridge refill pop animation via CSS only for newly loaded pips
+    for (let i = startIdx; i < endIdx; i++) {
       const pip = this.bulletPips[i];
       pip.classList.remove('spent');
       pip.style.transform = '';
@@ -373,8 +399,8 @@ export class HUD {
       // Trigger crisp CSS animation
       pip.classList.remove('refilling');
       void pip.offsetWidth; // Force reflow
-      const isMP5 = this.currentWeapon === 'hk_mp5';
-      const delayStep = isMP5 ? 18 : 35;
+      const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+      const delayStep = is30Rd ? 18 : 35;
       pip.style.animationDelay = `${(i - startIdx) * delayStep}ms`;
       pip.classList.add('refilling');
 
@@ -441,8 +467,8 @@ export class HUD {
 
     this._combatTutorialHtml = `
       <span class="tut-item">
-        <span class="tut-key">1</span>
-        <span class="tut-label">equipar arma</span>
+        <span class="tut-key">TAB</span>
+        <span class="tut-label">escolher arma</span>
       </span>
       <span class="tut-item">
         <span class="tut-mouse-badge" aria-hidden="true">

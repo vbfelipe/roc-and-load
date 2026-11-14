@@ -110,6 +110,10 @@ export class ZombieTuner {
         <span id="zt-status-badge" style="color:#f6ad55; font-weight:bold; font-size:10px; text-transform:uppercase;">TEST: OFF</span>
       </div>
 
+      <div style="margin-bottom:6px;">
+        <button id="zt-unlock-all-btn" style="width:100%; padding:6px 4px; background:linear-gradient(90deg, #d69e2e, #b7791f); color:#fff; border:1px solid #f6e05e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.4px;">[Unlock All 7 Weapons in TAB Wheel]</button>
+      </div>
+
       <div style="display:flex; gap:6px; margin-bottom:8px;">
         <button id="zt-toggle-test-btn" style="flex:1; padding:6px 4px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">Test Zombies: OFF</button>
         <button id="zt-hitbox-btn" style="flex:1; padding:6px 4px; background:#4a5568; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">Hitboxes: OFF</button>
@@ -167,6 +171,25 @@ export class ZombieTuner {
     this.overlay = overlay;
 
     overlay.querySelector('#zt-close-btn').onclick = () => this.close();
+
+    const unlockAllBtn = overlay.querySelector('#zt-unlock-all-btn');
+    if (unlockAllBtn) {
+      unlockAllBtn.onclick = () => {
+        const ws = this.weaponSystem || window.__rocWeaponSystem || window.weaponSystem;
+        if (ws && typeof ws.unlockAllWeapons === 'function') {
+          ws.unlockAllWeapons();
+        }
+        if (window.__rocWeaponWheel && typeof window.__rocWeaponWheel.refreshVisuals === 'function') {
+          window.__rocWeaponWheel.refreshVisuals();
+        }
+        unlockAllBtn.textContent = '✓ All 7 Weapons Unlocked in TAB!';
+        unlockAllBtn.style.background = '#2f855a';
+        setTimeout(() => {
+          unlockAllBtn.textContent = '[Unlock All 7 Weapons in TAB Wheel]';
+          unlockAllBtn.style.background = 'linear-gradient(90deg, #d69e2e, #b7791f)';
+        }, 1600);
+      };
+    }
 
     overlay.querySelector('#zt-toggle-test-btn').onclick = () => {
       if (!this.engine) return;

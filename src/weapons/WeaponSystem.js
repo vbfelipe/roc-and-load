@@ -541,27 +541,87 @@ export class WeaponSystem {
     this.currentWeapon = 'hk_usp';
     this.weapons = {
       hk_usp: {
+        name: 'HK USP',
         currentAmmo: 12,
         maxAmmo: 12,
+        reserveAmmo: Infinity,
+        defaultReserveAmmo: Infinity,
+        infiniteReserve: true,
         fireRate: 0.18,
+        isAutomatic: false,
+        isRare: false,
         isSlideLocked: false,
       },
       pistol: {
+        name: 'DESERT EAGLE',
         currentAmmo: 7,
         maxAmmo: 7,
+        reserveAmmo: 56,
+        defaultReserveAmmo: 56,
+        infiniteReserve: false,
         fireRate: 0.45,
+        isAutomatic: false,
+        isRare: false,
         isSlideLocked: false,
       },
       shotgun: {
+        name: 'REMINGTON 870',
         currentAmmo: 6,
         maxAmmo: 6,
+        reserveAmmo: 48,
+        defaultReserveAmmo: 48,
+        infiniteReserve: false,
         fireRate: 0.72,
+        isAutomatic: false,
+        isRare: false,
         isSlideLocked: false,
       },
       hk_mp5: {
+        name: 'HK MP5',
         currentAmmo: 30,
         maxAmmo: 30,
+        reserveAmmo: 150,
+        defaultReserveAmmo: 150,
+        infiniteReserve: false,
         fireRate: 0.075,
+        isAutomatic: true,
+        isRare: false,
+        isSlideLocked: false,
+      },
+      colt_peacemaker: {
+        name: 'COLT PEACEMAKER',
+        currentAmmo: 6,
+        maxAmmo: 6,
+        reserveAmmo: 36,
+        defaultReserveAmmo: 36,
+        infiniteReserve: false,
+        fireRate: 0.42,
+        isAutomatic: false,
+        isRare: true,
+        isSlideLocked: false,
+      },
+      glock_flamengo: {
+        name: 'GLOCK P. 30 FLAMENGO',
+        currentAmmo: 30,
+        maxAmmo: 30,
+        reserveAmmo: 150,
+        defaultReserveAmmo: 150,
+        infiniteReserve: false,
+        fireRate: 0.068,
+        isAutomatic: true,
+        isRare: true,
+        isSlideLocked: false,
+      },
+      akms_gold: {
+        name: 'AKMS GOLD',
+        currentAmmo: 30,
+        maxAmmo: 30,
+        reserveAmmo: 120,
+        defaultReserveAmmo: 120,
+        infiniteReserve: false,
+        fireRate: 0.10,
+        isAutomatic: true,
+        isRare: true,
         isSlideLocked: false,
       },
     };
@@ -696,17 +756,28 @@ export class WeaponSystem {
     this.unlockedWeapons.clear();
   }
 
+  _normalizeWeaponSlotKey(weaponType) {
+    if (!weaponType) return null;
+    const w = String(weaponType).toLowerCase();
+    if (w === 'unarmed' || w === 'fist' || w === 'fists' || w === 'desarmado') return 'unarmed';
+    if (w === 'usp' || w === 'hk_usp' || w === '1') return 'hk_usp';
+    if (w === 'pistol' || w === 'deagle' || w === 'desert_eagle' || w === '2') return 'pistol';
+    if (w === 'shotgun' || w === 'remington_870' || w === '3') return 'shotgun';
+    if (w === 'mp5' || w === 'hk_mp5' || w === '4') return 'hk_mp5';
+    if (w === 'colt' || w === 'peacemaker' || w === 'colt_peacemaker' || w === '5') return 'colt_peacemaker';
+    if (w === 'glock' || w === 'glock_flamengo' || w === '6') return 'glock_flamengo';
+    if (w === 'akms' || w === 'akms_gold' || w === '7') return 'akms_gold';
+    return weaponType;
+  }
+
   unlockWeapon(weaponType) {
-    if (!weaponType) return;
-    this.unlockedWeapons.add(weaponType);
+    const key = this._normalizeWeaponSlotKey(weaponType);
+    if (!key || key === 'unarmed') return;
+    this.unlockedWeapons.add(key);
   }
 
   unlockStartingPistol() {
     this.unlockWeapon('hk_usp');
-    if (this.input && this.input.justPressedKeys) {
-      this.input.justPressedKeys.Digit1 = false;
-      this.input.justPressedKeys['1'] = false;
-    }
   }
 
   unlockAllWeapons() {
@@ -714,11 +785,53 @@ export class WeaponSystem {
     this.unlockedWeapons.add('pistol');
     this.unlockedWeapons.add('shotgun');
     this.unlockedWeapons.add('hk_mp5');
+    this.unlockedWeapons.add('colt_peacemaker');
+    this.unlockedWeapons.add('glock_flamengo');
+    this.unlockedWeapons.add('akms_gold');
   }
 
   isWeaponUnlocked(weaponType) {
+    const key = this._normalizeWeaponSlotKey(weaponType);
+    if (key === 'unarmed') return true;
     if (window.isViewmodelTunerOpen) return true;
-    return this.unlockedWeapons.has(weaponType);
+    return this.unlockedWeapons.has(key);
+  }
+
+  getReserveAmmoDisplay(weaponType = this.currentWeapon) {
+    const key = this._normalizeWeaponSlotKey(weaponType) || this.currentWeapon;
+    const wState = this.weapons[key];
+    if (!wState || wState.infiniteReserve) return '∞';
+    return String(wState.reserveAmmo ?? 0);
+  }
+
+  /**
+   * Equips the weapon or unarmed state selected from the TAB Radial Weapon Wheel.
+   */
+  selectWheelSlot(slotId) {
+    const key = this._normalizeWeaponSlotKey(slotId);
+    if (!key) return false;
+    if (key === 'unarmed') {
+      if (!this.isUnarmed) {
+        this.setUnarmed(true);
+        if (this.sound && typeof this.sound.playWeaponSwitch === 'function') {
+          this.sound.playWeaponSwitch('unarmed');
+        }
+        return true;
+      }
+      return false;
+    }
+
+    if (!this.isWeaponUnlocked(key)) return false;
+
+    if (this.isUnarmed) {
+      return this.equipUnlockedWeaponFromUnarmed(key);
+    }
+
+    if (this.currentWeapon !== key) {
+      this.switchWeapon(key, true);
+      return true;
+    }
+    return false;
   }
 
   /**
@@ -748,10 +861,11 @@ export class WeaponSystem {
       this.viewmodel.setSlideLocked(this.isSlideLocked);
     }
     if (this.hud) {
+      const reserveDisp = this.getReserveAmmoDisplay(weaponType);
       if (typeof this.hud.setWeapon === 'function') {
-        this.hud.setWeapon(weaponType, this.currentAmmo, this.maxAmmo);
+        this.hud.setWeapon(weaponType, this.currentAmmo, this.maxAmmo, reserveDisp);
       } else {
-        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true);
+        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true, reserveDisp);
       }
     }
 
@@ -808,10 +922,11 @@ export class WeaponSystem {
   setHUD(hud) {
     this.hud = hud;
     if (this.hud) {
+      const reserveDisp = this.getReserveAmmoDisplay(this.currentWeapon);
       if (typeof this.hud.setWeapon === 'function') {
-        this.hud.setWeapon(this.currentWeapon, this.currentAmmo, this.maxAmmo);
+        this.hud.setWeapon(this.currentWeapon, this.currentAmmo, this.maxAmmo, reserveDisp);
       } else {
-        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
+        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, false, reserveDisp);
       }
       if (typeof this.hud.setUnarmedMode === 'function') {
         this.hud.setUnarmedMode(this.isUnarmed);
@@ -839,11 +954,8 @@ export class WeaponSystem {
 
     const canSwitch = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
     if (!canSwitch) return;
-    if (weaponType === 1 || weaponType === '1') weaponType = 'hk_usp';
-    if (weaponType === 2 || weaponType === '2') weaponType = 'pistol';
-    if (weaponType === 3 || weaponType === '3') weaponType = 'shotgun';
-    if (weaponType === 4 || weaponType === '4') weaponType = 'hk_mp5';
-    if (weaponType !== 'hk_usp' && weaponType !== 'pistol' && weaponType !== 'shotgun' && weaponType !== 'hk_mp5') return;
+    weaponType = this._normalizeWeaponSlotKey(weaponType);
+    if (!weaponType || weaponType === 'unarmed' || !this.weapons[weaponType]) return;
     if (!force && !this.isWeaponUnlocked(weaponType)) return;
     if (this.currentWeapon === weaponType && (!this.viewmodel || this.viewmodel.currentWeapon === weaponType) && !force) return;
 
@@ -880,10 +992,11 @@ export class WeaponSystem {
 
     // 4. Update HUD to display active weapon caliber, mode, ammo count, and cartridge/shotshell pips
     if (this.hud) {
+      const reserveDisp = this.getReserveAmmoDisplay(weaponType);
       if (typeof this.hud.setWeapon === 'function') {
-        this.hud.setWeapon(weaponType, this.currentAmmo, this.maxAmmo);
+        this.hud.setWeapon(weaponType, this.currentAmmo, this.maxAmmo, reserveDisp);
       } else {
-        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true);
+        this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true, reserveDisp);
       }
     }
   }
@@ -905,6 +1018,17 @@ export class WeaponSystem {
     if (!canReload) return;
     if (this.currentAmmo >= this.maxAmmo || this.isReloading) return;
 
+    const wState = this.weapons[this.currentWeapon];
+    if (wState && !wState.infiniteReserve && (wState.reserveAmmo ?? 0) <= 0) {
+      return;
+    }
+
+    const needed = this.maxAmmo - this.currentAmmo;
+    const shellsNeeded = (wState && !wState.infiniteReserve)
+      ? Math.min(needed, wState.reserveAmmo ?? 0)
+      : needed;
+    if (shellsNeeded <= 0) return;
+
     this.isReloading = true;
     if (!window.isViewmodelTunerOpen) {
       this.viewmodel.setADS(false);
@@ -915,20 +1039,28 @@ export class WeaponSystem {
     }
 
     const ammoBeforeReload = this.currentAmmo;
-    const shellsNeeded = this.maxAmmo - this.currentAmmo;
 
     this.viewmodel.startReloadAnimation({
       shellsToLoad: shellsNeeded,
       onShellInserted: () => {
         if (this.currentWeapon === 'shotgun' && this.currentAmmo < this.maxAmmo) {
+          const st = this.weapons.shotgun;
+          if (!st.infiniteReserve && (st.reserveAmmo ?? 0) <= 0) return;
           this.currentAmmo++;
-          this.weapons.shotgun.currentAmmo = this.currentAmmo;
+          st.currentAmmo = this.currentAmmo;
+          if (!st.infiniteReserve) {
+            st.reserveAmmo = Math.max(0, st.reserveAmmo - 1);
+          }
           if (this.hud) {
+            const reserveDisp = this.getReserveAmmoDisplay('shotgun');
             if (typeof this.hud.onShotgunShellInserted === 'function') {
-              this.hud.onShotgunShellInserted(this.currentAmmo, this.maxAmmo);
+              this.hud.onShotgunShellInserted(this.currentAmmo, this.maxAmmo, reserveDisp);
             } else {
-              this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
+              this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true, reserveDisp);
             }
+          }
+          if (typeof window !== 'undefined' && window.__rocWeaponWheel?.isOpen) {
+            window.__rocWeaponWheel.refreshVisuals();
           }
         }
       },
@@ -938,21 +1070,39 @@ export class WeaponSystem {
         }
       },
       onComplete: () => {
-        this.currentAmmo = this.maxAmmo;
+        const st = this.weapons[this.currentWeapon];
+        if (this.currentWeapon !== 'shotgun') {
+          if (st && !st.infiniteReserve) {
+            const magNeeded = Math.max(0, this.maxAmmo - this.currentAmmo);
+            const loaded = Math.min(magNeeded, st.reserveAmmo ?? 0);
+            this.currentAmmo += loaded;
+            st.currentAmmo = this.currentAmmo;
+            st.reserveAmmo = Math.max(0, (st.reserveAmmo ?? 0) - loaded);
+          } else {
+            this.currentAmmo = this.maxAmmo;
+            if (st) st.currentAmmo = this.maxAmmo;
+          }
+        } else if (st) {
+          st.currentAmmo = this.currentAmmo;
+        }
+
         this.isSlideLocked = false;
         this.isReloading = false;
-        this.weapons[this.currentWeapon].currentAmmo = this.maxAmmo;
-        this.weapons[this.currentWeapon].isSlideLocked = false;
+        if (st) st.isSlideLocked = false;
         if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'pistol') {
           this.viewmodel.setSlideLocked(false);
         }
 
         if (this.hud) {
-          this.hud.updateAmmo(this.currentAmmo, this.maxAmmo);
+          const reserveDisp = this.getReserveAmmoDisplay(this.currentWeapon);
+          this.hud.updateAmmo(this.currentAmmo, this.maxAmmo, true, reserveDisp);
           this.hud.setEmptyState(false);
-          if (this.currentWeapon === 'pistol' || this.currentWeapon === 'hk_usp' || this.currentWeapon === 'hk_mp5') {
-            this.hud.onReloadComplete(ammoBeforeReload);
+          if (this.currentWeapon !== 'shotgun') {
+            this.hud.onReloadComplete(ammoBeforeReload, this.currentAmmo, reserveDisp);
           }
+        }
+        if (typeof window !== 'undefined' && window.__rocWeaponWheel?.isOpen) {
+          window.__rocWeaponWheel.refreshVisuals();
         }
       }
     });
@@ -1056,31 +1206,10 @@ export class WeaponSystem {
     // 1. Always update in-flight visual effects (tracers, casings, sparks, decals, light fade)
     this._updateVisualEffects(delta);
 
-    // Block firing/ADS/reloading while unarmed, except allow drawing unlocked USP with key [1]
+    // Block firing/ADS/reloading while unarmed (weapon switching is handled exclusively by the TAB Radial Wheel)
     if (this.isUnarmed) {
-      const pressed1 = this.input.consumeKeyJustPressed('Digit1') || this.input.consumeKeyJustPressed('1');
-      // Drain other weapon inputs while unarmed so pre-unlock presses never bleed through later
-      this.input.consumeKeyJustPressed('Digit2');
-      this.input.consumeKeyJustPressed('2');
-      this.input.consumeKeyJustPressed('Digit3');
-      this.input.consumeKeyJustPressed('3');
-      this.input.consumeKeyJustPressed('Digit4');
-      this.input.consumeKeyJustPressed('4');
       this.input.consumeKeyJustPressed('KeyR');
       this.input.consumeKeyJustPressed('r');
-      if (typeof this.input.consumeWheelDelta === 'function') {
-        this.input.consumeWheelDelta();
-      }
-
-      const canDrawUnlocked = this.gameState === 'PLAYING' &&
-        this.input.isLocked &&
-        document.pointerLockElement !== null &&
-        performance.now() >= this.armedAt;
-      if (canDrawUnlocked && pressed1 && this.isWeaponUnlocked('hk_usp')) {
-        this.equipUnlockedWeaponFromUnarmed('hk_usp');
-        return;
-      }
-
       this.wasMouseDown0 = true;
       if (this.camera && Math.abs(75 - this.camera.fov) > 0.05) {
         this.camera.fov += (75 - this.camera.fov) * Math.min(delta * 14.0, 1.0);
@@ -1089,16 +1218,22 @@ export class WeaponSystem {
       return;
     }
 
-    // 2. Strict Game State Gate: block weapon inputs while in MENU, unlocked, or during 150ms arming cooldown
+    // 2. Strict Game State Gate & Weapon Wheel Suppression:
+    // Block weapon firing/ADS while in MENU, unlocked, during 150ms arming cooldown, or while TAB Weapon Wheel is open!
     const isArmed = this.gameState === 'PLAYING' &&
       this.input.isLocked &&
       document.pointerLockElement !== null &&
-      performance.now() >= this.armedAt;
+      performance.now() >= this.armedAt &&
+      !window.isWeaponWheelOpen;
 
     if (!isArmed) {
       this.wasMouseDown0 = true; // Prevents click-bleed
       if (!window.isViewmodelTunerOpen) {
         this.viewmodel.setADS(false);
+      }
+      if (this.camera && Math.abs(75 - this.camera.fov) > 0.05) {
+        this.camera.fov += (75 - this.camera.fov) * Math.min(delta * 14.0, 1.0);
+        this.camera.updateProjectionMatrix();
       }
       return;
     }
@@ -1106,42 +1241,6 @@ export class WeaponSystem {
     // 3. Advance fire timer
     if (this.fireTimer > 0) {
       this.fireTimer -= delta;
-    }
-
-    // 3b. Weapon Slot Switching (Key 1 = 9mm H&K USP, Key 2 = .50 AE Desert Eagle, Key 3 = Remington 870 Shotgun, Key 4 = H&K MP5)
-    if (this.input.consumeKeyJustPressed('Digit1') || this.input.consumeKeyJustPressed('1')) {
-      this.switchWeapon('hk_usp');
-      return;
-    }
-    if (this.input.consumeKeyJustPressed('Digit2') || this.input.consumeKeyJustPressed('2')) {
-      this.switchWeapon('pistol');
-      return;
-    }
-    if (this.input.consumeKeyJustPressed('Digit3') || this.input.consumeKeyJustPressed('3')) {
-      this.switchWeapon('shotgun');
-      return;
-    }
-    if (this.input.consumeKeyJustPressed('Digit4') || this.input.consumeKeyJustPressed('4')) {
-      this.switchWeapon('hk_mp5');
-      return;
-    }
-
-    // 3c. Mouse Wheel Cycling (strictly restricted to currently unlocked weapons)
-    if (typeof this.input.consumeWheelDelta === 'function') {
-      const wheelDelta = this.input.consumeWheelDelta();
-      if (wheelDelta !== 0) {
-        const order = ['hk_usp', 'pistol', 'shotgun', 'hk_mp5'].filter((w) => this.isWeaponUnlocked(w));
-        if (order.length > 1) {
-          const curIdx = order.indexOf(this.currentWeapon);
-          if (curIdx !== -1) {
-            const nextIdx = wheelDelta > 0
-              ? (curIdx + 1) % order.length
-              : (curIdx - 1 + order.length) % order.length;
-            this.switchWeapon(order[nextIdx]);
-            return;
-          }
-        }
-      }
     }
 
     // 4. Manual KeyR Reload check
@@ -1172,12 +1271,12 @@ export class WeaponSystem {
       this.camera.updateProjectionMatrix();
     }
 
-    // 6. Trigger handling: Full-Auto for MP5, Semi-Auto for USP, Pistol, Shotgun
+    // 6. Trigger handling: Full-Auto for MP5, Glock Auto, and AKMS Gold; Semi-Auto for USP, Pistol, Shotgun, Colt Peacemaker
     const isLeftDown = this.input.isMouseDown(0);
     const justClicked = isLeftDown && !this.wasMouseDown0;
     this.wasMouseDown0 = isLeftDown;
 
-    const isFullAuto = this.currentWeapon === 'hk_mp5';
+    const isFullAuto = !!(this.weapons[this.currentWeapon] && this.weapons[this.currentWeapon].isAutomatic);
     const shouldFire = isFullAuto
       ? (isLeftDown && this.fireTimer <= 0 && !this.isReloading && (this.currentAmmo > 0 || justClicked))
       : (justClicked && this.fireTimer <= 0);
@@ -1343,10 +1442,19 @@ export class WeaponSystem {
     const isShotgun = this.currentWeapon === 'shotgun';
     const isUSP = this.currentWeapon === 'hk_usp';
     const isMP5 = this.currentWeapon === 'hk_mp5';
+    const isColt = this.currentWeapon === 'colt_peacemaker';
+    const isGlock = this.currentWeapon === 'glock_flamengo';
+    const isAkms = this.currentWeapon === 'akms_gold';
 
     if (this.sound) {
       if (isMP5 && typeof this.sound.playMP5Gunshot === 'function') {
         this.sound.playMP5Gunshot();
+      } else if (isGlock && typeof this.sound.playGlockGunshot === 'function') {
+        this.sound.playGlockGunshot();
+      } else if (isColt && typeof this.sound.playColtGunshot === 'function') {
+        this.sound.playColtGunshot();
+      } else if (isAkms && typeof this.sound.playAkmsGunshot === 'function') {
+        this.sound.playAkmsGunshot();
       } else if (isUSP && typeof this.sound.play9mmGunshot === 'function') {
         this.sound.play9mmGunshot();
       } else if (isShotgun && typeof this.sound.playShotgunBlast === 'function') {
@@ -1359,20 +1467,21 @@ export class WeaponSystem {
       this.viewmodel.applyRecoil();
     }
     if (this.player && typeof this.player.applyCameraRecoil === 'function') {
-      const pitchKick = isShotgun
-        ? (this.viewmodel && this.viewmodel.isADS ? 0.036 : 0.062)
-        : (isUSP
-          ? (this.viewmodel && this.viewmodel.isADS ? 0.012 : 0.022)
-          : (isMP5
-            ? (this.viewmodel && this.viewmodel.isADS ? 0.007 : 0.013)
-            : (this.viewmodel && this.viewmodel.isADS ? 0.022 : 0.042)));
+      const isADS = !!(this.viewmodel && this.viewmodel.isADS);
+      let pitchKick = isADS ? 0.022 : 0.042;
+      if (isShotgun) pitchKick = isADS ? 0.036 : 0.062;
+      else if (isColt) pitchKick = isADS ? 0.026 : 0.048;
+      else if (isAkms) pitchKick = isADS ? 0.012 : 0.024;
+      else if (isUSP) pitchKick = isADS ? 0.012 : 0.022;
+      else if (isGlock) pitchKick = isADS ? 0.0065 : 0.012;
+      else if (isMP5) pitchKick = isADS ? 0.007 : 0.013;
       this.player.applyCameraRecoil(pitchKick);
     }
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this._flashPeakIntensity = isShotgun ? 4.8 : (isUSP ? 2.4 : (isMP5 ? 2.2 : 3.4));
-    this._flashMaxDuration = isMP5 ? 0.035 : 0.045;
+    this._flashPeakIntensity = isShotgun ? 4.8 : (isColt ? 3.8 : (isAkms ? 3.5 : ((isUSP || isGlock) ? 2.4 : (isMP5 ? 2.2 : 3.4))));
+    this._flashMaxDuration = (isMP5 || isGlock) ? 0.035 : 0.045;
     this.muzzleLight.intensity = this._flashPeakIntensity;
     this.flashDuration = this._flashMaxDuration;
 
@@ -1391,7 +1500,9 @@ export class WeaponSystem {
         this.hud.setEmptyState(true);
       }
     } else {
-      this._ejectShellCasing(this.currentWeapon);
+      if (!isColt) {
+        this._ejectShellCasing(this.currentWeapon);
+      }
       this._performHitscan();
 
       if (this.currentAmmo === 0) {
@@ -1428,7 +1539,7 @@ export class WeaponSystem {
     let pool = this.casingPool;
     if (weaponType === 'shotgun' && this.shotgunShellPool) {
       pool = this.shotgunShellPool;
-    } else if ((weaponType === 'hk_usp' || weaponType === 'hk_mp5') && this.casing9mmPool) {
+    } else if ((weaponType === 'hk_usp' || weaponType === 'hk_mp5' || weaponType === 'glock_flamengo') && this.casing9mmPool) {
       pool = this.casing9mmPool;
     }
     const casing = pool.acquire();
@@ -1723,7 +1834,8 @@ export class WeaponSystem {
     // Ray direction: camera world forward + subtle spread if not in ADS
     this.camera.getWorldDirection(_rayDirection);
     if (!this.viewmodel.isADS) {
-      const spread = this.currentWeapon === 'hk_mp5' ? 0.012 : 0.008;
+      const isAuto = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+      const spread = isAuto ? 0.012 : 0.008;
       _rayDirection.x += (Math.random() - 0.5) * spread;
       _rayDirection.y += (Math.random() - 0.5) * spread;
       _rayDirection.z += (Math.random() - 0.5) * spread;
@@ -1896,13 +2008,14 @@ export class WeaponSystem {
     decal.material.opacity = 1.0;
 
     const activeWeapon = isPellet ? 'shotgun' : (weaponId || this.currentWeapon);
+    const isHeavyCal = activeWeapon === 'pistol' || activeWeapon === 'colt_peacemaker' || activeWeapon === 'akms_gold';
 
     // Select pre-warmed texture map (zero material.needsUpdate shader rebuilds!)
-    let targetMap = (activeWeapon === 'pistol' && this.heavyGlassDecalTexture)
+    let targetMap = (isHeavyCal && this.heavyGlassDecalTexture)
       ? this.heavyGlassDecalTexture
       : this.glassDecalTexture;
     if (!isGlass) {
-      const texVariants = activeWeapon === 'pistol' ? this.heavyDecalTextures : this.decalTextures;
+      const texVariants = isHeavyCal ? this.heavyDecalTextures : this.decalTextures;
       if (texVariants && texVariants.length > 0) {
         let nextIdx = Math.floor(Math.random() * texVariants.length);
         if (texVariants.length > 1 && nextIdx === this._lastDecalVariantIdx) {
@@ -1933,31 +2046,24 @@ export class WeaponSystem {
     decal.rotateZ(Math.random() * Math.PI * 2);
 
     if (isGlass) {
-      // Caliber-differentiated glass spiderweb fractures (Shotgun Pellet < 9mm < .50 AE)
+      // Caliber-differentiated glass spiderweb fractures (Shotgun Pellet < 9mm < .50 AE / .45 Colt / 7.62)
       let s;
       if (isPellet || activeWeapon === 'shotgun') {
         s = 0.56 + Math.random() * 0.14;
-      } else if (activeWeapon === 'pistol') {
-        // .50 AE Desert Eagle punches a significantly larger glass fracture web & core hole than 9mm
-        s = 1.56 + Math.random() * 0.22;
+      } else if (isHeavyCal) {
+        s = 1.48 + Math.random() * 0.22;
       } else {
-        // 9mm ('hk_usp' and 'hk_mp5')
+        // 9mm ('hk_usp', 'hk_mp5', 'glock_flamengo')
         s = 0.96 + Math.random() * 0.16;
       }
       decal.scale.set(s, s, 1.0);
     } else {
-      // Caliber-specific world-space quad size (in meters) with ±8% random scale jitter
-      // Engineered so bullet holes & drywall spall craters are clearly visible at 1m, 5m, and 10m+
-      // Base decal PlaneGeometry is 0.24m x 0.24m
       let baseQuadMeters;
       if (isPellet || activeWeapon === 'shotgun') {
-        // 12 Gauge Buckshot ('shotgun' / Remington 870): ~0.082m per pellet crater (clearly readable cluster at 10m)
         baseQuadMeters = 0.082;
-      } else if (activeWeapon === 'pistol') {
-        // .50 AE ('pistol' / Desert Eagle): ~0.172m heavy hand-cannon blown-out drywall crater
-        baseQuadMeters = 0.172;
+      } else if (isHeavyCal) {
+        baseQuadMeters = 0.165;
       } else {
-        // 9mm ('hk_usp' and 'hk_mp5'): ~0.116m standard pistol/SMG drywall crater
         baseQuadMeters = 0.116;
       }
 
@@ -1973,13 +2079,26 @@ export class WeaponSystem {
 
     this.currentWeapon = 'hk_usp';
     this.weapons.hk_usp.currentAmmo = 12;
+    this.weapons.hk_usp.reserveAmmo = Infinity;
     this.weapons.hk_usp.isSlideLocked = false;
     this.weapons.pistol.currentAmmo = 7;
+    this.weapons.pistol.reserveAmmo = 56;
     this.weapons.pistol.isSlideLocked = false;
     this.weapons.shotgun.currentAmmo = 6;
+    this.weapons.shotgun.reserveAmmo = 48;
     this.weapons.shotgun.isSlideLocked = false;
     this.weapons.hk_mp5.currentAmmo = 30;
+    this.weapons.hk_mp5.reserveAmmo = 150;
     this.weapons.hk_mp5.isSlideLocked = false;
+    this.weapons.colt_peacemaker.currentAmmo = 6;
+    this.weapons.colt_peacemaker.reserveAmmo = 36;
+    this.weapons.colt_peacemaker.isSlideLocked = false;
+    this.weapons.glock_flamengo.currentAmmo = 30;
+    this.weapons.glock_flamengo.reserveAmmo = 150;
+    this.weapons.glock_flamengo.isSlideLocked = false;
+    this.weapons.akms_gold.currentAmmo = 30;
+    this.weapons.akms_gold.reserveAmmo = 120;
+    this.weapons.akms_gold.isSlideLocked = false;
 
     this.maxAmmo = 12;
     this.currentAmmo = 12;

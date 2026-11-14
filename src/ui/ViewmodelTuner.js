@@ -122,12 +122,20 @@ export class ViewmodelTuner {
         <strong style="color:#63b3ed; font-size:12px;">Viewmodel Tuner (F8)</strong>
         <span id="ht-weapon-badge" style="color:#f6ad55; font-weight:bold; font-size:11px; text-transform:uppercase;">H&K USP (9MM)</span>
       </div>
-      <div style="display:flex; gap:4px; margin-bottom:6px;">
+      <div style="margin-bottom:6px;">
+        <button id="ht-unlock-all-btn" style="width:100%; padding:6px 4px; background:linear-gradient(90deg, #d69e2e, #b7791f); color:#fff; border:1px solid #f6e05e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.4px;">[Unlock All 7 Weapons in TAB Wheel]</button>
+      </div>
+      <div style="display:flex; gap:4px; margin-bottom:4px;">
         <button id="ht-slot0-btn" style="flex:1; padding:4px 2px; background:#b7791f; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">0: Hands</button>
         <button id="ht-slot1-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">1: USP</button>
         <button id="ht-slot2-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">2: .50 AE</button>
         <button id="ht-slot3-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">3: 12G</button>
         <button id="ht-slot4-btn" style="flex:1; padding:4px 2px; background:#2b6cb0; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">4: MP5</button>
+      </div>
+      <div style="display:flex; gap:4px; margin-bottom:6px;">
+        <button id="ht-slot5-btn" style="flex:1; padding:4px 2px; background:#975a16; color:#fefcbf; border:1px solid #d69e2e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">5: Colt ★</button>
+        <button id="ht-slot6-btn" style="flex:1; padding:4px 2px; background:#975a16; color:#fefcbf; border:1px solid #d69e2e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">6: Glock ★</button>
+        <button id="ht-slot7-btn" style="flex:1; padding:4px 2px; background:#975a16; color:#fefcbf; border:1px solid #d69e2e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">7: AKMS ★</button>
         <button id="ht-ads-btn" style="flex:1; padding:4px 2px; background:#4a5568; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">Toggle ADS</button>
       </div>
       <div style="display:flex; gap:4px; margin-bottom:8px;">
@@ -149,13 +157,34 @@ export class ViewmodelTuner {
     document.body.appendChild(overlay);
     this.overlay = overlay;
 
-    // Close & Slot buttons
+    // Close, Unlock All & Slot buttons
     overlay.querySelector('#ht-close-btn').onclick = () => this.close();
+    const unlockAllBtn = overlay.querySelector('#ht-unlock-all-btn');
+    if (unlockAllBtn) {
+      unlockAllBtn.onclick = () => {
+        const ws = this.weaponSystem || window.__rocWeaponSystem || window.weaponSystem;
+        if (ws && typeof ws.unlockAllWeapons === 'function') {
+          ws.unlockAllWeapons();
+        }
+        if (window.__rocWeaponWheel && typeof window.__rocWeaponWheel.refreshVisuals === 'function') {
+          window.__rocWeaponWheel.refreshVisuals();
+        }
+        unlockAllBtn.textContent = '✓ All 7 Weapons Unlocked in TAB!';
+        unlockAllBtn.style.background = '#2f855a';
+        setTimeout(() => {
+          unlockAllBtn.textContent = '[Unlock All 7 Weapons in TAB Wheel]';
+          unlockAllBtn.style.background = 'linear-gradient(90deg, #d69e2e, #b7791f)';
+        }, 1600);
+      };
+    }
     overlay.querySelector('#ht-slot0-btn').onclick = () => this._switchToUnarmed();
     overlay.querySelector('#ht-slot1-btn').onclick = () => this._switchSlot('hk_usp');
     overlay.querySelector('#ht-slot2-btn').onclick = () => this._switchSlot('pistol');
     overlay.querySelector('#ht-slot3-btn').onclick = () => this._switchSlot('shotgun');
     overlay.querySelector('#ht-slot4-btn').onclick = () => this._switchSlot('hk_mp5');
+    overlay.querySelector('#ht-slot5-btn').onclick = () => this._switchSlot('colt_peacemaker');
+    overlay.querySelector('#ht-slot6-btn').onclick = () => this._switchSlot('glock_flamengo');
+    overlay.querySelector('#ht-slot7-btn').onclick = () => this._switchSlot('akms_gold');
 
     // ADS button
     const adsBtn = overlay.querySelector('#ht-ads-btn');
@@ -177,10 +206,16 @@ export class ViewmodelTuner {
         vm.startShotgunPumpAnimation();
       }
       if (vm.sound) {
-        if (vm.currentWeapon === 'hk_usp' && typeof vm.sound.play9mmGunshot === 'function') {
+        if ((vm.currentWeapon === 'hk_usp' || vm.currentWeapon === 'hk_mp5') && typeof vm.sound.play9mmGunshot === 'function') {
           vm.sound.play9mmGunshot();
         } else if (vm.currentWeapon === 'shotgun' && typeof vm.sound.playShotgunBlast === 'function') {
           vm.sound.playShotgunBlast();
+        } else if (vm.currentWeapon === 'colt_peacemaker' && typeof vm.sound.playColtGunshot === 'function') {
+          vm.sound.playColtGunshot();
+        } else if (vm.currentWeapon === 'glock_flamengo' && typeof vm.sound.playGlockGunshot === 'function') {
+          vm.sound.playGlockGunshot();
+        } else if (vm.currentWeapon === 'akms_gold' && typeof vm.sound.playAkmsGunshot === 'function') {
+          vm.sound.playAkmsGunshot();
         } else {
           vm.sound.playGunshot();
         }
@@ -245,6 +280,95 @@ export class ViewmodelTuner {
     overlay.addEventListener('mousedown', (e) => e.stopPropagation());
   }
 
+  _getActiveTargets(vm) {
+    switch (vm.currentWeapon) {
+      case 'hk_usp':
+        return {
+          label: 'H&K USP (9MM)',
+          group: vm.uspGroup,
+          handPivot: vm.uspHandPivot,
+          wrist: vm.uspWristBone,
+          elbow: vm.uspElbowBone,
+          hipPos: vm.uspHipPosition,
+          hipRot: vm.uspHipRotation,
+          adsPos: vm.uspAdsPosition,
+          adsRot: vm.uspAdsRotation,
+        };
+      case 'shotgun':
+        return {
+          label: 'REMINGTON 870 (12G)',
+          group: vm.shotgunGroup,
+          handPivot: vm.shotgunHandPivot,
+          wrist: vm.shotgunWristBone,
+          elbow: vm.shotgunElbowBone,
+          hipPos: vm.shotgunHipPosition,
+          hipRot: vm.shotgunHipRotation,
+          adsPos: vm.shotgunAdsPosition,
+          adsRot: vm.shotgunAdsRotation,
+        };
+      case 'hk_mp5':
+        return {
+          label: 'H&K MP5 (9MM)',
+          group: vm.mp5Group,
+          handPivot: vm.mp5HandPivot,
+          wrist: vm.mp5WristBone,
+          elbow: vm.mp5ElbowBone,
+          hipPos: vm.mp5HipPosition,
+          hipRot: vm.mp5HipRotation,
+          adsPos: vm.mp5AdsPosition,
+          adsRot: vm.mp5AdsRotation,
+        };
+      case 'colt_peacemaker':
+        return {
+          label: 'COLT PEACEMAKER (.45) ★',
+          group: vm.coltGroup,
+          handPivot: vm.coltHandPivot,
+          wrist: vm.coltWristBone,
+          elbow: vm.coltElbowBone,
+          hipPos: vm.coltHipPosition,
+          hipRot: vm.coltHipRotation,
+          adsPos: vm.coltAdsPosition,
+          adsRot: vm.coltAdsRotation,
+        };
+      case 'glock_flamengo':
+        return {
+          label: 'GLOCK AUTO (30RD) ★',
+          group: vm.glockGroup,
+          handPivot: vm.glockHandPivot,
+          wrist: vm.glockWristBone,
+          elbow: vm.glockElbowBone,
+          hipPos: vm.glockHipPosition,
+          hipRot: vm.glockHipRotation,
+          adsPos: vm.glockAdsPosition,
+          adsRot: vm.glockAdsRotation,
+        };
+      case 'akms_gold':
+        return {
+          label: 'AKMS GOLD (7.62) ★',
+          group: vm.akmsGroup,
+          handPivot: vm.akmsHandPivot,
+          wrist: vm.akmsWristBone,
+          elbow: vm.akmsElbowBone,
+          hipPos: vm.akmsHipPosition,
+          hipRot: vm.akmsHipRotation,
+          adsPos: vm.akmsAdsPosition,
+          adsRot: vm.akmsAdsRotation,
+        };
+      default:
+        return {
+          label: 'DESERT EAGLE (.50 AE)',
+          group: vm.pistolGroup,
+          handPivot: vm.pistolHandPivot,
+          wrist: vm.pistolWristBone,
+          elbow: vm.pistolElbowBone,
+          hipPos: vm.pistolHipPosition,
+          hipRot: vm.pistolHipRotation,
+          adsPos: vm.pistolAdsPosition,
+          adsRot: vm.pistolAdsRotation,
+        };
+    }
+  }
+
   _copyTransform(copyBtn) {
     const vm = this.viewmodel;
     if (!vm) return;
@@ -298,20 +422,12 @@ export class ViewmodelTuner {
           : null,
       };
     } else {
-      const isUSP = vm.currentWeapon === 'hk_usp';
-      const isShotgun = vm.currentWeapon === 'shotgun';
-      const isMP5 = vm.currentWeapon === 'hk_mp5';
-      const handPivot = isUSP ? vm.uspHandPivot : (isShotgun ? vm.shotgunHandPivot : (isMP5 ? vm.mp5HandPivot : vm.pistolHandPivot));
-      const wrist = isUSP ? vm.uspWristBone : (isShotgun ? vm.shotgunWristBone : (isMP5 ? vm.mp5WristBone : vm.pistolWristBone));
-      const elbow = isUSP ? vm.uspElbowBone : (isShotgun ? vm.shotgunElbowBone : (isMP5 ? vm.mp5ElbowBone : vm.pistolElbowBone));
-      const hipPos = isUSP ? vm.uspHipPosition : (isShotgun ? vm.shotgunHipPosition : (isMP5 ? vm.mp5HipPosition : vm.pistolHipPosition));
-      const hipRot = isUSP ? vm.uspHipRotation : (isShotgun ? vm.shotgunHipRotation : (isMP5 ? vm.mp5HipRotation : vm.pistolHipRotation));
-      const adsPos = isUSP ? vm.uspAdsPosition : (isShotgun ? vm.shotgunAdsPosition : (isMP5 ? vm.mp5AdsPosition : vm.pistolAdsPosition));
-      const adsRot = isUSP ? vm.uspAdsRotation : (isShotgun ? vm.shotgunAdsRotation : (isMP5 ? vm.mp5AdsRotation : vm.pistolAdsRotation));
+      const { group, handPivot, wrist, elbow, hipPos, hipRot, adsPos, adsRot } = this._getActiveTargets(vm);
 
       config = {
         weapon: vm.currentWeapon,
         mode: vm.tunerMode,
+        gunScale: group ? round4(group.scale.x) : 1,
         hand: handPivot
           ? {
               pos: [
@@ -365,17 +481,11 @@ export class ViewmodelTuner {
     if (!this.overlay || !this.viewmodel) return;
 
     const vm = this.viewmodel;
-    const isUSP = vm.currentWeapon === 'hk_usp';
-    const isShotgun = vm.currentWeapon === 'shotgun';
-    const isMP5 = vm.currentWeapon === 'hk_mp5';
+    const activeTargets = this._getActiveTargets(vm);
 
     const badge = this.overlay.querySelector('#ht-weapon-badge');
     if (badge) {
-      if (vm.isUnarmed) badge.textContent = 'UNARMED / BARE HANDS';
-      else if (isUSP) badge.textContent = 'H&K USP (9MM)';
-      else if (isShotgun) badge.textContent = 'REMINGTON 870 (12G)';
-      else if (isMP5) badge.textContent = 'H&K MP5 (9MM)';
-      else badge.textContent = 'DESERT EAGLE (.50 AE)';
+      badge.textContent = vm.isUnarmed ? 'UNARMED / BARE HANDS' : activeTargets.label;
     }
 
     const modeTabsRow = this.overlay.querySelector('#ht-mode-tabs-row');
@@ -468,9 +578,9 @@ export class ViewmodelTuner {
     }
 
     if (vm.tunerMode === 'HAND RIG') {
-      const target = isUSP ? vm.uspHandPivot : (isShotgun ? vm.shotgunHandPivot : (isMP5 ? vm.mp5HandPivot : vm.pistolHandPivot));
-      const wrist = isUSP ? vm.uspWristBone : (isShotgun ? vm.shotgunWristBone : (isMP5 ? vm.mp5WristBone : vm.pistolWristBone));
-      const elbow = isUSP ? vm.uspElbowBone : (isShotgun ? vm.shotgunElbowBone : (isMP5 ? vm.mp5ElbowBone : vm.pistolElbowBone));
+      const target = activeTargets.handPivot;
+      const wrist = activeTargets.wrist;
+      const elbow = activeTargets.elbow;
 
       if (!target) {
         container.innerHTML = '<div style="color:#a0aec0; padding:10px 0;">Loading hands 3D model...</div>';
@@ -544,8 +654,9 @@ export class ViewmodelTuner {
 
       fields.forEach(createSliderRow);
     } else if (vm.tunerMode === 'GUN (HIP)') {
-      const posTarget = isUSP ? vm.uspHipPosition : (isShotgun ? vm.shotgunHipPosition : (isMP5 ? vm.mp5HipPosition : vm.pistolHipPosition));
-      const rotTarget = isUSP ? vm.uspHipRotation : (isShotgun ? vm.shotgunHipRotation : (isMP5 ? vm.mp5HipRotation : vm.pistolHipRotation));
+      const posTarget = activeTargets.hipPos;
+      const rotTarget = activeTargets.hipRot;
+      const groupTarget = activeTargets.group;
 
       const resetPos = () => {
         if (window.isViewmodelTunerOpen) {
@@ -566,10 +677,21 @@ export class ViewmodelTuner {
         { id: 'hipRotY', label: 'Hip Rot Y', min: -1.5, max: 1.5, step: 0.01, get: () => rotTarget.y, set: (v) => { rotTarget.y = v; resetRot(); } },
         { id: 'hipRotZ', label: 'Hip Rot Z', min: -1.5, max: 1.5, step: 0.01, get: () => rotTarget.z, set: (v) => { rotTarget.z = v; resetRot(); } },
       ];
+      if (groupTarget) {
+        fields.push({
+          id: 'gunScale',
+          label: 'Gun Scale',
+          min: 0.3,
+          max: 2.0,
+          step: 0.01,
+          get: () => groupTarget.scale.x,
+          set: (v) => { groupTarget.scale.setScalar(v); },
+        });
+      }
       fields.forEach(createSliderRow);
     } else {
-      const posTarget = isUSP ? vm.uspAdsPosition : (isShotgun ? vm.shotgunAdsPosition : (isMP5 ? vm.mp5AdsPosition : vm.pistolAdsPosition));
-      const rotTarget = isUSP ? vm.uspAdsRotation : (isShotgun ? vm.shotgunAdsRotation : (isMP5 ? vm.mp5AdsRotation : vm.pistolAdsRotation));
+      const posTarget = activeTargets.adsPos;
+      const rotTarget = activeTargets.adsRot;
 
       const resetPos = () => {
         if (window.isViewmodelTunerOpen) {

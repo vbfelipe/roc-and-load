@@ -1796,6 +1796,140 @@
       text-align: center;
       padding-left: 0.18em;
     }
+
+    /* GTA V-Style 8-Wedge Radial Weapon Wheel Overlay */
+    #hud-weapon-wheel {
+      position: fixed;
+      inset: 0;
+      z-index: 950;
+      pointer-events: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle, rgba(8, 12, 18, 0.35) 0%, rgba(4, 6, 10, 0.72) 100%);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 120ms ease-out, visibility 120ms ease-out;
+      user-select: none;
+    }
+
+    #hud-weapon-wheel.is-open {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .ww-wheel-wrapper {
+      position: relative;
+      width: clamp(320px, 46vmin, 480px);
+      height: clamp(320px, 46vmin, 480px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .ww-svg-ring {
+      width: clamp(320px, 46vmin, 480px);
+      height: clamp(320px, 46vmin, 480px);
+      overflow: visible;
+      filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.75));
+    }
+
+    .ww-wedge {
+      transition: fill 80ms ease-out;
+    }
+
+    .ww-arc {
+      transition: fill 80ms ease-out;
+    }
+
+    .ww-icon-group {
+      transition: opacity 90ms ease-out, transform 90ms ease-out;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.85));
+    }
+
+    .ww-center-info {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 32.25%;
+      max-width: 140px;
+      padding: 0 8px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      pointer-events: none;
+      gap: 4px;
+    }
+
+    .ww-rare-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2px 8px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, rgba(250, 204, 21, 0.25) 0%, rgba(202, 138, 4, 0.45) 100%);
+      border: 1px solid rgba(250, 204, 21, 0.85);
+      color: #fef08a;
+      font-family: 'Chakra Petch', 'Inter', sans-serif;
+      font-size: clamp(0.50rem, 0.72vmin, 0.62rem);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+      text-transform: uppercase;
+      text-shadow: 0 0 10px rgba(250, 204, 21, 0.8), 0 1px 3px rgba(0, 0, 0, 0.95);
+      box-shadow: 0 0 14px rgba(250, 204, 21, 0.35);
+      margin-top: -4px;
+      margin-bottom: 7px;
+    }
+
+    .ww-center-name {
+      font-family: 'Chakra Petch', 'Inter', sans-serif;
+      font-size: clamp(0.72rem, 1.05vmin, 0.90rem);
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      line-height: 1.12;
+      color: #f8fafc;
+      text-transform: uppercase;
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+      white-space: normal;
+      word-break: break-word;
+      max-width: 100%;
+    }
+
+    .ww-center-name.is-locked {
+      color: #64748b;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+    }
+
+    .ww-center-ammo {
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.68rem, 0.96vmin, 0.82rem);
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #cbd5e1;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.95);
+      margin-top: 1px;
+    }
+
+    .ww-cursor-dot {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: rgba(248, 250, 252, 0.92);
+      border: 1.5px solid rgba(15, 23, 42, 0.9);
+      box-shadow: 0 0 10px rgba(56, 189, 248, 0.85);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+    }
   </style>
 </head>
 

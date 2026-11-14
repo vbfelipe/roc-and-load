@@ -85,7 +85,7 @@ export class InputManager {
       this.mouseDeltaY += e.movementY || 0;
     });
 
-    // Mouse scroll wheel for weapon switching
+    // Mouse scroll wheel for cycling unlocked weapons
     window.addEventListener('wheel', (e) => {
       if (!this.isLocked) return;
       this.wheelDelta += e.deltaY;

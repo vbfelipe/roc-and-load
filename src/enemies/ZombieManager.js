@@ -13,10 +13,14 @@ const WAVE_1_SPAWN_SPECS = [
 
 /**
  * Normalizes weapon identifiers ('hk_usp'/'usp', 'pistol'/'deagle'/'desert_eagle',
- * 'shotgun'/'remington_870', 'hk_mp5'/'mp5') to canonical damage matrix keys.
+ * 'shotgun'/'remington_870', 'hk_mp5'/'mp5', 'colt_peacemaker', 'glock_flamengo', 'akms_gold')
+ * to canonical damage matrix keys.
  */
 export function normalizeWeaponId(weaponId = 'hk_usp') {
   const id = String(weaponId || 'hk_usp').toLowerCase();
+  if (id === 'colt_peacemaker' || id === 'colt' || id === 'peacemaker') return 'colt_peacemaker';
+  if (id === 'glock_flamengo' || id === 'glock') return 'glock_flamengo';
+  if (id === 'akms_gold' || id === 'akms' || id === 'ak47') return 'akms_gold';
   if (id === 'pistol' || id === 'deagle' || id === 'desert_eagle') return 'deagle';
   if (id === 'shotgun' || id === 'remington_870') return 'shotgun';
   if (id === 'hk_mp5' || id === 'mp5') return 'hk_mp5';
@@ -29,9 +33,25 @@ export function normalizeWeaponId(weaponId = 'hk_usp') {
  */
 export function getWeaponZombieDamage(weaponId = 'hk_usp', archetype = 'woman', zone = 'body', distance = 5.0) {
   const weapon = normalizeWeaponId(weaponId);
-  const isMan = archetype === 'man';
-  const isHead = zone === 'head';
+  const archStr = String(archetype || 'woman').toLowerCase();
+  const isMan = archStr === 'man' || archStr === 'zombieman';
+  const isHead = zone === 'head' || zone === true;
   const dist = typeof distance === 'number' && Number.isFinite(distance) ? distance : 5.0;
+
+  if (weapon === 'colt_peacemaker') {
+    if (isMan) return isHead ? 100 : 55;
+    return isHead ? 100 : 85;
+  }
+
+  if (weapon === 'glock_flamengo') {
+    if (isMan) return isHead ? 36 : 15;
+    return isHead ? 60 : 28;
+  }
+
+  if (weapon === 'akms_gold') {
+    if (isMan) return isHead ? 80 : 35;
+    return isHead ? 100 : 55;
+  }
 
   if (weapon === 'hk_usp') {
     if (isMan) return isHead ? 45 : 18;
@@ -264,6 +284,10 @@ export class ZombieManager {
   setSoundManager(sound) {
     this.sound = sound;
     this._syncSoundToTemplates();
+  }
+
+  getWeaponZombieDamage(weaponKey, zombieType, isHead, distanceMeters = 0) {
+    return getWeaponZombieDamage(weaponKey, zombieType, isHead, distanceMeters);
   }
 
   /**

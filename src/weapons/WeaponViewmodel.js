@@ -311,6 +311,24 @@ export class WeaponViewmodel {
     this.mp5HipRotation = new THREE.Euler(0.08, 0, 0.05);
     this.mp5AdsRotation = new THREE.Euler(0, 0, 0);
 
+    // Slot 5 (Colt Peacemaker .45 Revolver - RARE) Hip & ADS Transforms
+    this.coltHipPosition = new THREE.Vector3(0.10, -0.105, -0.25);
+    this.coltAdsPosition = new THREE.Vector3(0, -0.080, -0.18);
+    this.coltHipRotation = new THREE.Euler(0.10, 0, 0.08);
+    this.coltAdsRotation = new THREE.Euler(0, 0, 0);
+
+    // Slot 6 (Glock Auto 30rd Flamengo - RARE) Hip & ADS Transforms
+    this.glockHipPosition = new THREE.Vector3(0.10, -0.10, -0.23);
+    this.glockAdsPosition = new THREE.Vector3(0, -0.077, -0.165);
+    this.glockHipRotation = new THREE.Euler(0.10, 0, 0.08);
+    this.glockAdsRotation = new THREE.Euler(0, 0, 0);
+
+    // Slot 7 (AKMS Gold 7.62 Rifle - RARE) Hip & ADS Transforms
+    this.akmsHipPosition = new THREE.Vector3(0.095, -0.12, -0.20);
+    this.akmsAdsPosition = new THREE.Vector3(0, -0.087, -0.12);
+    this.akmsHipRotation = new THREE.Euler(0.08, 0, 0.04);
+    this.akmsAdsRotation = new THREE.Euler(0, 0, 0);
+
     // Dynamic targets pointing to current active weapon transforms
     this.hipPosition = this.uspHipPosition;
     this.adsPosition = this.uspAdsPosition;
@@ -334,6 +352,12 @@ export class WeaponViewmodel {
     this.shotgunMuzzleSocket.name = 'ShotgunMuzzleSocket';
     this.mp5MuzzleSocket = new THREE.Object3D();
     this.mp5MuzzleSocket.name = 'MP5MuzzleSocket';
+    this.coltMuzzleSocket = new THREE.Object3D();
+    this.coltMuzzleSocket.name = 'ColtMuzzleSocket';
+    this.glockMuzzleSocket = new THREE.Object3D();
+    this.glockMuzzleSocket.name = 'GlockMuzzleSocket';
+    this.akmsMuzzleSocket = new THREE.Object3D();
+    this.akmsMuzzleSocket.name = 'AKMSMuzzleSocket';
     this.muzzleAnchor = this.uspMuzzleSocket;
 
     this.uspEjectionAnchor = new THREE.Group();
@@ -344,6 +368,12 @@ export class WeaponViewmodel {
     this.shotgunEjectionAnchor.name = 'ShotgunEjectionAnchor';
     this.mp5EjectionAnchor = new THREE.Group();
     this.mp5EjectionAnchor.name = 'MP5EjectionAnchor';
+    this.coltEjectionAnchor = new THREE.Group();
+    this.coltEjectionAnchor.name = 'ColtEjectionAnchor';
+    this.glockEjectionAnchor = new THREE.Group();
+    this.glockEjectionAnchor.name = 'GlockEjectionAnchor';
+    this.akmsEjectionAnchor = new THREE.Group();
+    this.akmsEjectionAnchor.name = 'AKMSEjectionAnchor';
 
     this.muzzleWorldPos = new THREE.Vector3();
     this.ejectionWorldPos = new THREE.Vector3();
@@ -354,6 +384,10 @@ export class WeaponViewmodel {
     this.slideBlowback = 0;
     this.hammerRecoil = 0;
     this.hammerRestAngle = 0;
+    this.coltHammerRecoil = 0;
+    this.coltCylinderSpin = 0;
+    this.glockSlideBlowback = 0;
+    this.akmsBoltBlowback = 0;
     this.isSlideLocked = false;
     this.isReloading = false;
     this.isPumping = false;
@@ -411,6 +445,50 @@ export class WeaponViewmodel {
     this.mp5TriggerMesh = null;
     this.mp5SelectorMesh = null;
 
+    // Colt Peacemaker Sub-assemblies & references
+    this.coltGroup = null;
+    this.coltModelGroup = null;
+    this.coltHandGroup = null;
+    this.coltHandsClone = null;
+    this.coltHandPivot = null;
+    this.coltWristBone = null;
+    this.coltElbowBone = null;
+    this.coltTriggerFingerGroup = null;
+    this.coltCylinderMesh = null;
+    this.coltHammerMesh = null;
+    this.coltTriggerMesh = null;
+
+    // Glock Flamengo Sub-assemblies & references
+    this.glockGroup = null;
+    this.glockModelGroup = null;
+    this.glockHandGroup = null;
+    this.glockHandsClone = null;
+    this.glockHandPivot = null;
+    this.glockWristBone = null;
+    this.glockElbowBone = null;
+    this.glockTriggerFingerGroup = null;
+    this.glockSlideMesh = null;
+    this.glockSlideRestZ = 0;
+    this.glockSelectorMesh = null;
+    this.glockSelectorRestZ = 0;
+    this.glockMagMesh = null;
+    this.glockMagRestY = 0;
+    this.glockMagRestZ = 0;
+
+    // AKMS Gold Sub-assemblies & references
+    this.akmsGroup = null;
+    this.akmsModelGroup = null;
+    this.akmsHandGroup = null;
+    this.akmsHandsClone = null;
+    this.akmsHandPivot = null;
+    this.akmsWristBone = null;
+    this.akmsElbowBone = null;
+    this.akmsTriggerFingerGroup = null;
+    this.akmsMagMesh = null;
+    this.akmsMagRestX = 0;
+    this.akmsMagRestY = 0;
+    this.akmsMagRestZ = 0;
+
     this.shotgunPumpMesh = null;
     this.shotgunPumpRodsMesh = null;
     this.shotgunSlideLRodsMesh = null;
@@ -458,6 +536,9 @@ export class WeaponViewmodel {
     this._buildGunMesh();
     this._buildShotgunMesh();
     this._buildMP5Mesh();
+    this._buildColtMesh();
+    this._buildGlockMesh();
+    this._buildAkmsMesh();
     this._buildUnarmedMesh();
     this._buildMuzzleFlashRig();
 
@@ -650,6 +731,69 @@ export class WeaponViewmodel {
     this.mp5Group.add(this.mp5EjectionAnchor);
   }
 
+  _buildColtMesh() {
+    this.coltGroup = new THREE.Group();
+    this.coltGroup.name = 'Colt_Peacemaker';
+    this.coltGroup.visible = false;
+    this.root.add(this.coltGroup);
+
+    this.coltModelGroup = new THREE.Group();
+    this.coltModelGroup.name = 'ColtModelContainer';
+    this.coltGroup.add(this.coltModelGroup);
+
+    this.coltHandGroup = new THREE.Group();
+    this.coltHandGroup.name = 'ColtHandContainer';
+    this.coltGroup.add(this.coltHandGroup);
+
+    this.coltMuzzleSocket.position.set(0, 0.064, -0.235);
+    this.coltGroup.add(this.coltMuzzleSocket);
+
+    this.coltEjectionAnchor.position.set(0.016, 0.056, 0.015);
+    this.coltGroup.add(this.coltEjectionAnchor);
+  }
+
+  _buildGlockMesh() {
+    this.glockGroup = new THREE.Group();
+    this.glockGroup.name = 'Glock_Flamengo';
+    this.glockGroup.visible = false;
+    this.root.add(this.glockGroup);
+
+    this.glockModelGroup = new THREE.Group();
+    this.glockModelGroup.name = 'GlockModelContainer';
+    this.glockGroup.add(this.glockModelGroup);
+
+    this.glockHandGroup = new THREE.Group();
+    this.glockHandGroup.name = 'GlockHandContainer';
+    this.glockGroup.add(this.glockHandGroup);
+
+    this.glockMuzzleSocket.position.set(0, 0.048, -0.092);
+    this.glockGroup.add(this.glockMuzzleSocket);
+
+    this.glockEjectionAnchor.position.set(0.014, 0.060, 0.022);
+    this.glockGroup.add(this.glockEjectionAnchor);
+  }
+
+  _buildAkmsMesh() {
+    this.akmsGroup = new THREE.Group();
+    this.akmsGroup.name = 'AKMS_Gold';
+    this.akmsGroup.visible = false;
+    this.root.add(this.akmsGroup);
+
+    this.akmsModelGroup = new THREE.Group();
+    this.akmsModelGroup.name = 'AKMSModelContainer';
+    this.akmsGroup.add(this.akmsModelGroup);
+
+    this.akmsHandGroup = new THREE.Group();
+    this.akmsHandGroup.name = 'AKMSHandContainer';
+    this.akmsGroup.add(this.akmsHandGroup);
+
+    this.akmsMuzzleSocket.position.set(0, 0.048, -0.415);
+    this.akmsGroup.add(this.akmsMuzzleSocket);
+
+    this.akmsEjectionAnchor.position.set(0.018, 0.048, -0.020);
+    this.akmsGroup.add(this.akmsEjectionAnchor);
+  }
+
   // ===========================================================================
   // 3D GLTF ASSET PIPELINE LOADER
   // ===========================================================================
@@ -675,6 +819,9 @@ export class WeaponViewmodel {
       { key: 'desert_eagle', url: './models/desert_eagle.glb', bytes: 4298716, setup: (gltf) => this._setupPistolModel(gltf) },
       { key: 'remington_870', url: './models/remington_870.glb', bytes: 2620892, setup: (gltf) => this._setupShotgunModel(gltf) },
       { key: 'hk_mp5', url: './models/hk_mp5.glb', bytes: 3069496, setup: (gltf) => this._setupMP5Model(gltf) },
+      { key: 'colt_peacemaker', url: './models/colt_peacemaker.glb', bytes: 6133400, setup: (gltf) => this._setupColtModel(gltf) },
+      { key: 'glock_flamengo', url: './models/glock_flamengo.glb', bytes: 2263736, setup: (gltf) => this._setupGlockModel(gltf) },
+      { key: 'akms_gold', url: './models/akms_gold.glb', bytes: 2043588, setup: (gltf) => this._setupAkmsModel(gltf) },
       { key: 'fps_hands', url: './models/fps_hands.glb', bytes: 827564, setup: (gltf) => this._setupHandsModel(gltf) },
     ];
 
@@ -1106,6 +1253,114 @@ export class WeaponViewmodel {
     this.mp5ModelGroup.add(mp5Scene);
   }
 
+  _setupColtModel(gltf) {
+    const coltScene = gltf.scene;
+    coltScene.name = 'ColtPeacemakerGLTF';
+
+    coltScene.traverse((child) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        if (child.material && child.material.map) {
+          child.material.map.colorSpace = THREE.SRGBColorSpace;
+        }
+      }
+    });
+
+    coltScene.scale.setScalar(0.85);
+    coltScene.rotation.set(0, 0, 0);
+    coltScene.position.set(0, 0.01, -0.068);
+
+    this.coltCylinderMesh = coltScene.getObjectByName('Cylinder') || coltScene.getObjectByName('Cylinder_Material_0');
+    this.coltHammerMesh = coltScene.getObjectByName('hammer') || coltScene.getObjectByName('hammer_Material_0');
+    this.coltTriggerMesh = coltScene.getObjectByName('trigger') || coltScene.getObjectByName('trigger_Material_0');
+
+    this.coltModelGroup.add(coltScene);
+  }
+
+  _setupGlockModel(gltf) {
+    const glockScene = gltf.scene;
+    glockScene.name = 'GlockFlamengoGLTF';
+
+    glockScene.traverse((child) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
+        for (const m of mats) {
+          if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+          // Fix GLTF roughnessFactor=0 so RoomEnvironment IBL doesn't create a blinding mirror glare over Flamengo colors
+          if (m.isMeshStandardMaterial) {
+            m.roughness = 0.38;
+            m.metalness = 0.18;
+            m.userData.vmEnvIntensity = 0.80;
+            m.needsUpdate = true;
+          }
+        }
+      }
+    });
+
+    const s = 0.118;
+    glockScene.scale.setScalar(s);
+    glockScene.rotation.set(0, 0, 0);
+    glockScene.position.set(-0.2810 * s, -3.3924 * s + 0.077, 0.015);
+
+    this.glockSlideMesh = glockScene.getObjectByName('cima_glock_5') || glockScene.getObjectByName('Object_8');
+    if (this.glockSlideMesh) {
+      this.glockSlideRestZ = this.glockSlideMesh.position.z;
+    }
+    this.glockSelectorMesh = glockScene.getObjectByName('seletor_3') || glockScene.getObjectByName('Object_12');
+    if (this.glockSelectorMesh) {
+      this.glockSelectorRestZ = this.glockSelectorMesh.position.z;
+    }
+    this.glockMagMesh = glockScene.getObjectByName('tambor_2') || glockScene.getObjectByName('Object_14');
+    if (this.glockMagMesh) {
+      this.glockMagRestY = this.glockMagMesh.position.y;
+      this.glockMagRestZ = this.glockMagMesh.position.z;
+    }
+
+    this.glockModelGroup.add(glockScene);
+  }
+
+  _setupAkmsModel(gltf) {
+    const akmsScene = gltf.scene;
+    akmsScene.name = 'AKMSGoldGLTF';
+
+    akmsScene.traverse((child) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = true;
+        const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
+        for (const m of mats) {
+          if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+          // Restore metallicFactor=1.0 where metallicRoughnessTexture is present so 24K Gold PBR reflections shine
+          if (m.isMeshStandardMaterial) {
+            if (m.metalnessMap) m.metalness = 1.0;
+            if (m.roughness === 0 || m.roughness === 1) m.roughness = 0.72;
+            m.userData.vmEnvIntensity = 1.15;
+            m.needsUpdate = true;
+          }
+        }
+      }
+    });
+
+    akmsScene.scale.setScalar(0.76);
+    akmsScene.rotation.set(0, Math.PI / 2, 0);
+    akmsScene.position.set(-0.006, -0.022, 0.072);
+
+    this.akmsMagMesh = akmsScene.getObjectByName('akms_magazine') || akmsScene.getObjectByName('Object_2');
+    if (this.akmsMagMesh) {
+      this.akmsMagRestX = this.akmsMagMesh.position.x;
+      this.akmsMagRestY = this.akmsMagMesh.position.y;
+      this.akmsMagRestZ = this.akmsMagMesh.position.z;
+    }
+
+    this.akmsModelGroup.add(akmsScene);
+  }
+
   _setupHandsModel(gltf) {
     gltf.scene.traverse((child) => {
       if (child.isMesh || child.isSkinnedMesh) {
@@ -1131,6 +1386,9 @@ export class WeaponViewmodel {
     this._buildPistolHand();
     this._buildShotgunHands();
     this._buildMP5Hand();
+    this._buildColtHand();
+    this._buildGlockHand();
+    this._buildAkmsHand();
     this._buildUnarmedHands();
 
     this._syncTuner();
@@ -1175,11 +1433,14 @@ export class WeaponViewmodel {
       }
     });
 
-    // 2. Temporarily make ALL 4 weapons, unarmed hands, rigged hands, shell & FX visible for real GPU draw warmup
+    // 2. Temporarily make ALL 7 weapons, unarmed hands, rigged hands, shell & FX visible for real GPU draw warmup
     const prevUspVis = this.uspGroup ? this.uspGroup.visible : false;
     const prevGunVis = this.gunGroup ? this.gunGroup.visible : false;
     const prevShotgunVis = this.shotgunGroup ? this.shotgunGroup.visible : false;
     const prevMp5Vis = this.mp5Group ? this.mp5Group.visible : false;
+    const prevColtVis = this.coltGroup ? this.coltGroup.visible : false;
+    const prevGlockVis = this.glockGroup ? this.glockGroup.visible : false;
+    const prevAkmsVis = this.akmsGroup ? this.akmsGroup.visible : false;
     const prevUnarmedVis = this.unarmedGroup ? this.unarmedGroup.visible : false;
     const prevMuzzleVis = this.muzzleFlashGroup ? this.muzzleFlashGroup.visible : false;
     const prevShellVis = this.shotgunReloadShell ? this.shotgunReloadShell.visible : false;
@@ -1196,6 +1457,9 @@ export class WeaponViewmodel {
     if (this.gunGroup) this.gunGroup.visible = true;
     if (this.shotgunGroup) this.shotgunGroup.visible = true;
     if (this.mp5Group) this.mp5Group.visible = true;
+    if (this.coltGroup) this.coltGroup.visible = true;
+    if (this.glockGroup) this.glockGroup.visible = true;
+    if (this.akmsGroup) this.akmsGroup.visible = true;
     if (this.unarmedGroup) this.unarmedGroup.visible = true;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = true;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = true;
@@ -1237,6 +1501,9 @@ export class WeaponViewmodel {
     if (this.gunGroup) this.gunGroup.visible = this.isUnarmed ? false : prevGunVis;
     if (this.shotgunGroup) this.shotgunGroup.visible = this.isUnarmed ? false : prevShotgunVis;
     if (this.mp5Group) this.mp5Group.visible = this.isUnarmed ? false : prevMp5Vis;
+    if (this.coltGroup) this.coltGroup.visible = this.isUnarmed ? false : prevColtVis;
+    if (this.glockGroup) this.glockGroup.visible = this.isUnarmed ? false : prevGlockVis;
+    if (this.akmsGroup) this.akmsGroup.visible = this.isUnarmed ? false : prevAkmsVis;
     if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed ? true : prevUnarmedVis;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = prevMuzzleVis;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = prevShellVis;
@@ -1586,6 +1853,131 @@ export class WeaponViewmodel {
     this.mp5HandGroup.add(this.mp5HandPivot);
   }
 
+  _buildColtHand() {
+    if (!this.coltHandGroup) return;
+    while (this.coltHandGroup.children.length > 0) {
+      this.coltHandGroup.remove(this.coltHandGroup.children[0]);
+    }
+
+    const handData = this._createPalmCenteredHandClone('R');
+    if (!handData) return;
+
+    this.coltHandPivot = handData.pivotGroup;
+    this.coltHandsClone = handData.clone;
+    this.coltWristBone = handData.wristBone;
+    this.coltElbowBone = handData.elbowBone;
+
+    this.coltHandPivot.position.set(0.02, -0.018, 0.115);
+    this.coltHandPivot.rotation.set(0.52, -3.0, 0.22);
+    this.coltHandPivot.scale.setScalar(1.0);
+
+    if (this.coltWristBone) {
+      this.coltWristBone.userData.pitch = 0.24;
+      this.coltWristBone.userData.roll = 0.02;
+      this.coltWristBone.quaternion.copy(this.coltWristBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.02, 'XYZ'));
+      this.coltWristBone.quaternion.multiply(qDelta);
+    }
+    if (this.coltElbowBone) {
+      this.coltElbowBone.userData.bend = 0;
+      this.coltElbowBone.quaternion.copy(this.coltElbowBone.userData.restQuat);
+    }
+
+    this.coltHandPivot.userData.defaultPos = this.coltHandPivot.position.clone();
+    this.coltHandPivot.userData.defaultRot = this.coltHandPivot.rotation.clone();
+    this.coltHandPivot.userData.defaultScale = this.coltHandPivot.scale.clone();
+
+    this.coltTriggerFingerGroup =
+      handData.clone.getObjectByName('index0_R_035') ||
+      handData.clone.getObjectByName('index1_R_036');
+
+    this.coltHandGroup.add(this.coltHandPivot);
+  }
+
+  _buildGlockHand() {
+    if (!this.glockHandGroup) return;
+    while (this.glockHandGroup.children.length > 0) {
+      this.glockHandGroup.remove(this.glockHandGroup.children[0]);
+    }
+
+    const handData = this._createPalmCenteredHandClone('R');
+    if (!handData) return;
+
+    this.glockHandPivot = handData.pivotGroup;
+    this.glockHandsClone = handData.clone;
+    this.glockWristBone = handData.wristBone;
+    this.glockElbowBone = handData.elbowBone;
+
+    this.glockHandPivot.position.set(0.02, -0.016, 0.11);
+    this.glockHandPivot.rotation.set(0.52, -3.0, 0.22);
+    this.glockHandPivot.scale.setScalar(1.0);
+
+    if (this.glockWristBone) {
+      this.glockWristBone.userData.pitch = 0.24;
+      this.glockWristBone.userData.roll = 0.02;
+      this.glockWristBone.quaternion.copy(this.glockWristBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.02, 'XYZ'));
+      this.glockWristBone.quaternion.multiply(qDelta);
+    }
+    if (this.glockElbowBone) {
+      this.glockElbowBone.userData.bend = 0;
+      this.glockElbowBone.quaternion.copy(this.glockElbowBone.userData.restQuat);
+    }
+
+    this.glockHandPivot.userData.defaultPos = this.glockHandPivot.position.clone();
+    this.glockHandPivot.userData.defaultRot = this.glockHandPivot.rotation.clone();
+    this.glockHandPivot.userData.defaultScale = this.glockHandPivot.scale.clone();
+
+    this.glockTriggerFingerGroup =
+      handData.clone.getObjectByName('index0_R_035') ||
+      handData.clone.getObjectByName('index1_R_036');
+
+    this.glockHandGroup.add(this.glockHandPivot);
+  }
+
+  _buildAkmsHand() {
+    if (!this.akmsHandGroup) return;
+    while (this.akmsHandGroup.children.length > 0) {
+      this.akmsHandGroup.remove(this.akmsHandGroup.children[0]);
+    }
+
+    const handData = this._createPalmCenteredHandClone('R');
+    if (!handData) return;
+
+    this.akmsHandPivot = handData.pivotGroup;
+    this.akmsHandsClone = handData.clone;
+    this.akmsWristBone = handData.wristBone;
+    this.akmsElbowBone = handData.elbowBone;
+
+    this.akmsHandPivot.position.set(0.022, -0.026, 0.105);
+    this.akmsHandPivot.rotation.set(0.28, -3.14, 0.16);
+    this.akmsHandPivot.scale.setScalar(1.0);
+
+    if (this.akmsWristBone) {
+      this.akmsWristBone.userData.pitch = 0.24;
+      this.akmsWristBone.userData.roll = 0.04;
+      this.akmsWristBone.quaternion.copy(this.akmsWristBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.04, 'XYZ'));
+      this.akmsWristBone.quaternion.multiply(qDelta);
+    }
+    if (this.akmsElbowBone) {
+      this.akmsElbowBone.userData.bend = -0.04;
+      this.akmsElbowBone.quaternion.copy(this.akmsElbowBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.04, 0, 0, 'XYZ'));
+      this.akmsElbowBone.quaternion.multiply(qDelta);
+    }
+
+    this.akmsHandPivot.userData.defaultPos = this.akmsHandPivot.position.clone();
+    this.akmsHandPivot.userData.defaultRot = this.akmsHandPivot.rotation.clone();
+    this.akmsHandPivot.userData.defaultScale = this.akmsHandPivot.scale.clone();
+
+    this.akmsTriggerFingerGroup =
+      handData.clone.getObjectByName('index0_R_035') ||
+      handData.clone.getObjectByName('index1_R_036');
+
+    this.akmsHandGroup.add(this.akmsHandPivot);
+  }
+
   _buildUnarmedMesh() {
     this.unarmedGroup = new THREE.Group();
     this.unarmedGroup.name = 'UnarmedHands';
@@ -1678,6 +2070,9 @@ export class WeaponViewmodel {
       if (this.gunGroup) this.gunGroup.visible = false;
       if (this.shotgunGroup) this.shotgunGroup.visible = false;
       if (this.mp5Group) this.mp5Group.visible = false;
+      if (this.coltGroup) this.coltGroup.visible = false;
+      if (this.glockGroup) this.glockGroup.visible = false;
+      if (this.akmsGroup) this.akmsGroup.visible = false;
       if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
       if (this.unarmedGroup) this.unarmedGroup.visible = true;
 
@@ -1722,12 +2117,23 @@ export class WeaponViewmodel {
       return;
     }
 
-    const isUSP = this.currentWeapon === 'hk_usp';
-    const isShotgun = this.currentWeapon === 'shotgun';
-    const isMP5 = this.currentWeapon === 'hk_mp5';
-    const target = isUSP ? this.uspHandPivot : (isShotgun ? this.shotgunHandPivot : (isMP5 ? this.mp5HandPivot : this.pistolHandPivot));
-    const wrist = isUSP ? this.uspWristBone : (isShotgun ? this.shotgunWristBone : (isMP5 ? this.mp5WristBone : this.pistolWristBone));
-    const elbow = isUSP ? this.uspElbowBone : (isShotgun ? this.shotgunElbowBone : (isMP5 ? this.mp5ElbowBone : this.pistolElbowBone));
+    const w = this.currentWeapon;
+    const isUSP = w === 'hk_usp';
+    const isShotgun = w === 'shotgun';
+    const isMP5 = w === 'hk_mp5';
+    const isColt = w === 'colt_peacemaker';
+    const isGlock = w === 'glock_flamengo';
+    const isAkms = w === 'akms_gold';
+
+    let target = this.pistolHandPivot;
+    let wrist = this.pistolWristBone;
+    let elbow = this.pistolElbowBone;
+    if (isUSP) { target = this.uspHandPivot; wrist = this.uspWristBone; elbow = this.uspElbowBone; }
+    else if (isShotgun) { target = this.shotgunHandPivot; wrist = this.shotgunWristBone; elbow = this.shotgunElbowBone; }
+    else if (isMP5) { target = this.mp5HandPivot; wrist = this.mp5WristBone; elbow = this.mp5ElbowBone; }
+    else if (isColt) { target = this.coltHandPivot; wrist = this.coltWristBone; elbow = this.coltElbowBone; }
+    else if (isGlock) { target = this.glockHandPivot; wrist = this.glockWristBone; elbow = this.glockElbowBone; }
+    else if (isAkms) { target = this.akmsHandPivot; wrist = this.akmsWristBone; elbow = this.akmsElbowBone; }
 
     if (target && target.userData.defaultPos) {
       target.position.copy(target.userData.defaultPos);
@@ -1735,8 +2141,8 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
     if (wrist && wrist.userData.restQuat) {
-      const defaultPitch = isUSP ? 0.24 : (isShotgun ? -0.08 : (isMP5 ? 0.24 : -0.02));
-      const defaultRoll = isUSP ? 0.02 : (isShotgun ? -0.1 : (isMP5 ? 0.04 : -0.02));
+      const defaultPitch = (isUSP || isColt || isGlock || isMP5 || isAkms) ? 0.24 : (isShotgun ? -0.08 : -0.02);
+      const defaultRoll = (isUSP || isColt || isGlock) ? 0.02 : (isShotgun ? -0.1 : ((isMP5 || isAkms) ? 0.04 : -0.02));
       wrist.userData.pitch = defaultPitch;
       wrist.userData.roll = defaultRoll;
       wrist.quaternion.copy(wrist.userData.restQuat);
@@ -1748,7 +2154,7 @@ export class WeaponViewmodel {
       }
     }
     if (elbow && elbow.userData.restQuat) {
-      const defaultBend = isUSP ? 0 : (isShotgun ? -0.22 : (isMP5 ? -0.04 : -0.02));
+      const defaultBend = (isUSP || isColt || isGlock) ? 0 : (isShotgun ? -0.22 : ((isMP5 || isAkms) ? -0.04 : -0.02));
       elbow.userData.bend = defaultBend;
       elbow.quaternion.copy(elbow.userData.restQuat);
       if (defaultBend !== 0) {
@@ -1769,12 +2175,21 @@ export class WeaponViewmodel {
       } else if (isMP5) {
         this.mp5HipPosition.set(0.09, -0.12, -0.16);
         this.mp5HipRotation.set(0.08, 0, 0.05);
+      } else if (isColt) {
+        this.coltHipPosition.set(0.10, -0.105, -0.25);
+        this.coltHipRotation.set(0.10, 0, 0.08);
+      } else if (isGlock) {
+        this.glockHipPosition.set(0.10, -0.10, -0.23);
+        this.glockHipRotation.set(0.10, 0, 0.08);
+      } else if (isAkms) {
+        this.akmsHipPosition.set(0.095, -0.12, -0.20);
+        this.akmsHipRotation.set(0.08, 0, 0.04);
       } else {
         this.pistolHipPosition.set(0.1, -0.1, -0.42);
         this.pistolHipRotation.set(0.15, 0.04, 0.1);
       }
-      const posTarget = isUSP ? this.uspHipPosition : (isShotgun ? this.shotgunHipPosition : (isMP5 ? this.mp5HipPosition : this.pistolHipPosition));
-      const rotTarget = isUSP ? this.uspHipRotation : (isShotgun ? this.shotgunHipRotation : (isMP5 ? this.mp5HipRotation : this.pistolHipRotation));
+      const posTarget = this.hipPosition;
+      const rotTarget = this.hipRotation;
       this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
       this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
     } else if (this.tunerMode === 'GUN (ADS)') {
@@ -1787,12 +2202,21 @@ export class WeaponViewmodel {
       } else if (isMP5) {
         this.mp5AdsPosition.set(0, -0.085, -0.08);
         this.mp5AdsRotation.set(0, 0, 0);
+      } else if (isColt) {
+        this.coltAdsPosition.set(0, -0.080, -0.18);
+        this.coltAdsRotation.set(0, 0, 0);
+      } else if (isGlock) {
+        this.glockAdsPosition.set(0, -0.077, -0.165);
+        this.glockAdsRotation.set(0, 0, 0);
+      } else if (isAkms) {
+        this.akmsAdsPosition.set(0, -0.087, -0.12);
+        this.akmsAdsRotation.set(0, 0, 0);
       } else {
         this.pistolAdsPosition.set(0.000, -0.104, -0.345);
         this.pistolAdsRotation.set(-0.017, 0, 0);
       }
-      const posTarget = isUSP ? this.uspAdsPosition : (isShotgun ? this.shotgunAdsPosition : (isMP5 ? this.mp5AdsPosition : this.pistolAdsPosition));
-      const rotTarget = isUSP ? this.uspAdsRotation : (isShotgun ? this.shotgunAdsRotation : (isMP5 ? this.mp5AdsRotation : this.pistolAdsRotation));
+      const posTarget = this.adsPosition;
+      const rotTarget = this.adsRotation;
       this.posSpring.reset(posTarget.x, posTarget.y + this.reloadTilt.y, posTarget.z);
       this.rotSpring.reset(rotTarget.x + this.reloadTilt.pitch, rotTarget.y + this.reloadTilt.yaw, rotTarget.z + this.reloadTilt.roll);
     }
@@ -1830,6 +2254,9 @@ export class WeaponViewmodel {
     }
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
     if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
+    if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0;
+    if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0;
+    if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0;
     this.mp5BoltBlowback = 0;
     if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
       this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
@@ -1840,6 +2267,22 @@ export class WeaponViewmodel {
     }
     if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
     if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
+    this.glockSlideBlowback = 0;
+    if (this.glockSlideMesh && this.glockSlideRestZ !== undefined) {
+      this.glockSlideMesh.position.z = this.glockSlideRestZ;
+    }
+    if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined) {
+      this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
+    }
+    if (this.glockMagMesh && this.glockMagRestY !== undefined) {
+      this.glockMagMesh.visible = true;
+      this.glockMagMesh.position.y = this.glockMagRestY;
+      this.glockMagMesh.position.z = this.glockMagRestZ;
+    }
+    if (this.akmsMagMesh && this.akmsMagRestY !== undefined) {
+      this.akmsMagMesh.visible = true;
+      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
+    }
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
@@ -1851,6 +2294,9 @@ export class WeaponViewmodel {
     const isShotgun = weaponType === 'shotgun';
     const isMP5 = weaponType === 'hk_mp5';
     const isPistol = weaponType === 'pistol';
+    const isColt = weaponType === 'colt_peacemaker';
+    const isGlock = weaponType === 'glock_flamengo';
+    const isAkms = weaponType === 'akms_gold';
 
     this._syncTuner();
 
@@ -1858,6 +2304,9 @@ export class WeaponViewmodel {
     if (this.gunGroup) this.gunGroup.visible = isPistol;
     if (this.shotgunGroup) this.shotgunGroup.visible = isShotgun;
     if (this.mp5Group) this.mp5Group.visible = isMP5;
+    if (this.coltGroup) this.coltGroup.visible = isColt;
+    if (this.glockGroup) this.glockGroup.visible = isGlock;
+    if (this.akmsGroup) this.akmsGroup.visible = isAkms;
 
     if (isUSP) {
       this.hipPosition = this.uspHipPosition;
@@ -1877,6 +2326,24 @@ export class WeaponViewmodel {
       this.hipRotation = this.shotgunHipRotation;
       this.adsRotation = this.shotgunAdsRotation;
       this.muzzleAnchor = this.shotgunMuzzleSocket;
+    } else if (isColt) {
+      this.hipPosition = this.coltHipPosition;
+      this.adsPosition = this.coltAdsPosition;
+      this.hipRotation = this.coltHipRotation;
+      this.adsRotation = this.coltAdsRotation;
+      this.muzzleAnchor = this.coltMuzzleSocket;
+    } else if (isGlock) {
+      this.hipPosition = this.glockHipPosition;
+      this.adsPosition = this.glockAdsPosition;
+      this.hipRotation = this.glockHipRotation;
+      this.adsRotation = this.glockAdsRotation;
+      this.muzzleAnchor = this.glockMuzzleSocket;
+    } else if (isAkms) {
+      this.hipPosition = this.akmsHipPosition;
+      this.adsPosition = this.akmsAdsPosition;
+      this.hipRotation = this.akmsHipRotation;
+      this.adsRotation = this.akmsAdsRotation;
+      this.muzzleAnchor = this.akmsMuzzleSocket;
     } else {
       this.hipPosition = this.pistolHipPosition;
       this.adsPosition = this.pistolAdsPosition;
@@ -2021,7 +2488,12 @@ export class WeaponViewmodel {
     if (!this.muzzleFlashGroup) return;
     this.muzzleFlashGroup.visible = true;
     this.muzzleFlashGroup.rotation.z = Math.random() * Math.PI * 2;
-    const baseScale = this.currentWeapon === 'shotgun' ? 1.25 : (this.currentWeapon === 'hk_usp' ? 0.65 : (this.currentWeapon === 'hk_mp5' ? 0.70 : 0.88));
+    let baseScale = 0.88;
+    if (this.currentWeapon === 'shotgun') baseScale = 1.25;
+    else if (this.currentWeapon === 'colt_peacemaker') baseScale = 1.05;
+    else if (this.currentWeapon === 'akms_gold') baseScale = 0.95;
+    else if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'glock_flamengo') baseScale = 0.65;
+    else if (this.currentWeapon === 'hk_mp5') baseScale = 0.70;
     const s = baseScale + Math.random() * 0.40;
     this.muzzleFlashGroup.scale.set(s, s, s);
     this.muzzleFlashMaterial.opacity = 1.0;
@@ -2043,6 +2515,60 @@ export class WeaponViewmodel {
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
       if (this.shotgunTriggerMesh) this.shotgunTriggerMesh.rotation.x = 0.16;
+      this.triggerMuzzleFlash();
+      return;
+    }
+
+    if (this.currentWeapon === 'colt_peacemaker') {
+      const recoilKick = this.isADS ? 0.072 : 0.125;
+      const recoilZ = this.isADS ? 0.014 : 0.115;
+      const recoilPitch = this.isADS ? 0.115 : 0.235;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.010 : 0.024);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.020 : 0.045);
+
+      this.posSpring.impulse(0, recoilKick * 0.30, recoilZ);
+      this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
+
+      this.coltHammerRecoil = 0.45;
+      if (this.coltCylinderMesh) {
+        this.coltCylinderSpin = (this.coltCylinderSpin + Math.PI / 3) % (Math.PI * 2);
+        this.coltCylinderMesh.rotation.z = this.coltCylinderSpin;
+      }
+      if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0.22;
+
+      this.triggerMuzzleFlash();
+      return;
+    }
+
+    if (this.currentWeapon === 'glock_flamengo') {
+      const recoilKick = this.isADS ? 0.022 : 0.046;
+      const recoilZ = this.isADS ? 0.006 : 0.044;
+      const recoilPitch = this.isADS ? 0.036 : 0.072;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.006 : 0.014);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.008 : 0.018);
+
+      this.posSpring.impulse(0, recoilKick * 0.22, recoilZ);
+      this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
+
+      this.glockSlideBlowback = 0.22;
+      if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0.18;
+
+      this.triggerMuzzleFlash();
+      return;
+    }
+
+    if (this.currentWeapon === 'akms_gold') {
+      const recoilKick = this.isADS ? 0.034 : 0.068;
+      const recoilZ = this.isADS ? 0.009 : 0.065;
+      const recoilPitch = this.isADS ? 0.055 : 0.115;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.008 : 0.018);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.012 : 0.026);
+
+      this.posSpring.impulse(0, recoilKick * 0.25, recoilZ);
+      this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
+
+      if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0.18;
+
       this.triggerMuzzleFlash();
       return;
     }
@@ -2260,7 +2786,30 @@ export class WeaponViewmodel {
     );
 
     // 2. Slide Blowback & Reciprocation
-    if (this.currentWeapon === 'hk_mp5') {
+    if (this.currentWeapon === 'glock_flamengo') {
+      if (!this.isReloading) {
+        if (this.glockSlideBlowback > 0.001) {
+          this.glockSlideBlowback = THREE.MathUtils.lerp(this.glockSlideBlowback, 0, Math.min(delta * 42.0, 1.0));
+          if (this.glockSlideMesh && this.glockSlideRestZ !== undefined) {
+            this.glockSlideMesh.position.z = this.glockSlideRestZ + this.glockSlideBlowback;
+          }
+          if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined) {
+            this.glockSelectorMesh.position.z = this.glockSelectorRestZ + this.glockSlideBlowback;
+          }
+        } else {
+          if (this.glockSlideMesh && this.glockSlideRestZ !== undefined && this.glockSlideMesh.position.z !== this.glockSlideRestZ) {
+            this.glockSlideMesh.position.z = this.glockSlideRestZ;
+          }
+          if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined && this.glockSelectorMesh.position.z !== this.glockSelectorRestZ) {
+            this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
+          }
+        }
+      }
+    } else if (this.currentWeapon === 'colt_peacemaker') {
+      if (this.coltHammerRecoil > 0.001) {
+        this.coltHammerRecoil = THREE.MathUtils.lerp(this.coltHammerRecoil, 0, Math.min(delta * 20.0, 1.0));
+      }
+    } else if (this.currentWeapon === 'hk_mp5') {
       if (!this.isReloading) {
         if (this.mp5BoltBlowback > 0.0005) {
           this.mp5BoltBlowback = THREE.MathUtils.lerp(this.mp5BoltBlowback, 0, Math.min(delta * 38.0, 1.0));
@@ -2348,6 +2897,15 @@ export class WeaponViewmodel {
     if (this.mp5TriggerFingerGroup && this.mp5TriggerFingerGroup.rotation.x > 0.001) {
       this.mp5TriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerFingerGroup.rotation.x, 0, Math.min(delta * 22.0, 1.0));
     }
+    if (this.coltTriggerFingerGroup && this.coltTriggerFingerGroup.rotation.x > 0.001) {
+      this.coltTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.coltTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
+    }
+    if (this.glockTriggerFingerGroup && this.glockTriggerFingerGroup.rotation.x > 0.001) {
+      this.glockTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.glockTriggerFingerGroup.rotation.x, 0, Math.min(delta * 24.0, 1.0));
+    }
+    if (this.akmsTriggerFingerGroup && this.akmsTriggerFingerGroup.rotation.x > 0.001) {
+      this.akmsTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.akmsTriggerFingerGroup.rotation.x, 0, Math.min(delta * 22.0, 1.0));
+    }
 
     // 4. Muzzle flash fade
     if (this.flashTimer > 0) {
@@ -2381,24 +2939,44 @@ export class WeaponViewmodel {
     this.root.rotation.set(rot.x, rot.y, rot.z);
 
     // 7. Update sockets
-    const activeMuzzle = this.currentWeapon === 'hk_usp' ? this.uspMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
-    const activeEjection = this.currentWeapon === 'hk_usp' ? this.uspEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
+    const activeMuzzle = this._getActiveMuzzleSocket();
+    const activeEjection = this._getActiveEjectionAnchor();
     activeMuzzle.updateWorldMatrix(true, false);
     activeMuzzle.getWorldPosition(this.muzzleWorldPos);
     activeEjection.updateWorldMatrix(true, false);
     activeEjection.getWorldPosition(this.ejectionWorldPos);
   }
 
+  _getActiveMuzzleSocket() {
+    if (this.currentWeapon === 'hk_usp') return this.uspMuzzleSocket;
+    if (this.currentWeapon === 'shotgun') return this.shotgunMuzzleSocket;
+    if (this.currentWeapon === 'hk_mp5') return this.mp5MuzzleSocket;
+    if (this.currentWeapon === 'colt_peacemaker') return this.coltMuzzleSocket;
+    if (this.currentWeapon === 'glock_flamengo') return this.glockMuzzleSocket;
+    if (this.currentWeapon === 'akms_gold') return this.akmsMuzzleSocket;
+    return this.muzzleSocket;
+  }
+
+  _getActiveEjectionAnchor() {
+    if (this.currentWeapon === 'hk_usp') return this.uspEjectionAnchor;
+    if (this.currentWeapon === 'shotgun') return this.shotgunEjectionAnchor;
+    if (this.currentWeapon === 'hk_mp5') return this.mp5EjectionAnchor;
+    if (this.currentWeapon === 'colt_peacemaker') return this.coltEjectionAnchor;
+    if (this.currentWeapon === 'glock_flamengo') return this.glockEjectionAnchor;
+    if (this.currentWeapon === 'akms_gold') return this.akmsEjectionAnchor;
+    return this.ejectionAnchor;
+  }
+
   getMuzzleWorldPosition(targetVec) {
     const out = targetVec || this.muzzleWorldPos;
-    const activeMuzzle = this.currentWeapon === 'hk_usp' ? this.uspMuzzleSocket : (this.currentWeapon === 'shotgun' ? this.shotgunMuzzleSocket : (this.currentWeapon === 'hk_mp5' ? this.mp5MuzzleSocket : this.muzzleSocket));
+    const activeMuzzle = this._getActiveMuzzleSocket();
     activeMuzzle.updateWorldMatrix(true, false);
     return activeMuzzle.getWorldPosition(out);
   }
 
   getEjectionWorldPosition(targetVec) {
     const out = targetVec || this.ejectionWorldPos;
-    const activeEjection = this.currentWeapon === 'hk_usp' ? this.uspEjectionAnchor : (this.currentWeapon === 'shotgun' ? this.shotgunEjectionAnchor : (this.currentWeapon === 'hk_mp5' ? this.mp5EjectionAnchor : this.ejectionAnchor));
+    const activeEjection = this._getActiveEjectionAnchor();
     activeEjection.updateWorldMatrix(true, false);
     return activeEjection.getWorldPosition(out);
   }
@@ -2462,6 +3040,21 @@ export class WeaponViewmodel {
 
     if (this.currentWeapon === 'shotgun') {
       this._startShotgunReloadAnimation(shellsToLoad, onShellInserted, onComplete);
+      return;
+    }
+
+    if (this.currentWeapon === 'colt_peacemaker') {
+      this._startColtReloadAnimation(onComplete);
+      return;
+    }
+
+    if (this.currentWeapon === 'glock_flamengo') {
+      this._startGlockReloadAnimation(onComplete);
+      return;
+    }
+
+    if (this.currentWeapon === 'akms_gold') {
+      this._startAkmsReloadAnimation(onComplete);
       return;
     }
 
@@ -2911,6 +3504,212 @@ export class WeaponViewmodel {
     this.reloadTimers.push(magDropTimer);
   }
 
+  _startColtReloadAnimation(onComplete) {
+    if (this.sound && typeof this.sound.playReloadSound === 'function') {
+      this.sound.playReloadSound('colt_peacemaker');
+    } else if (this.sound) {
+      this.sound.playMagOut();
+    }
+
+    const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: -0.45, pitch: 0.22, yaw: -0.14, y: -0.02 }, 260)
+      .easing(TWEEN.Easing.Cubic.Out);
+    this.reloadTweens.push(tiltIn);
+    tiltIn.start();
+
+    if (this.coltCylinderMesh) {
+      const spinObj = { z: this.coltCylinderSpin };
+      const spinTween = new TWEEN.Tween(spinObj, true)
+        .to({ z: this.coltCylinderSpin + Math.PI * 2 }, 950)
+        .easing(TWEEN.Easing.Cubic.InOut)
+        .onUpdate(() => {
+          if (this.coltCylinderMesh) this.coltCylinderMesh.rotation.z = spinObj.z;
+        })
+        .onComplete(() => {
+          this.coltCylinderSpin = spinObj.z % (Math.PI * 2);
+        });
+      this.reloadTweens.push(spinTween);
+      spinTween.start();
+    }
+
+    const lockTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'colt_peacemaker') return;
+      this.posSpring.impulse(0, 0.04, -0.03);
+      this.rotSpring.impulse(-0.05, 0, 0.04);
+      if (this.sound && typeof this.sound.playSlideRelease === 'function') {
+        this.sound.playSlideRelease();
+      }
+
+      const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+        .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 240)
+        .easing(TWEEN.Easing.Cubic.Out)
+        .onComplete(() => {
+          this.isReloading = false;
+          if (typeof onComplete === 'function') onComplete();
+        });
+      this.reloadTweens.push(tiltOut);
+      tiltOut.start();
+    }, 1050);
+    this.reloadTimers.push(lockTimer);
+  }
+
+  _startGlockReloadAnimation(onComplete) {
+    if (this.sound && typeof this.sound.playReloadSound === 'function') {
+      this.sound.playReloadSound('glock_flamengo');
+    } else if (this.sound) {
+      this.sound.playMagOut();
+    }
+
+    if (this.glockMagMesh) {
+      this.glockMagMesh.visible = true;
+      this.glockMagMesh.position.y = this.glockMagRestY;
+      this.glockMagMesh.position.z = this.glockMagRestZ;
+    }
+
+    const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: 0.34, pitch: 0.14, yaw: 0.08, y: -0.015 }, 220)
+      .easing(TWEEN.Easing.Cubic.Out);
+    this.reloadTweens.push(tiltIn);
+    tiltIn.start();
+
+    const magDropTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
+      if (this.glockMagMesh) {
+        const drop = new TWEEN.Tween(this.glockMagMesh.position, true)
+          .to({ y: this.glockMagRestY - 1.2, z: this.glockMagRestZ + 0.25 }, 200)
+          .easing(TWEEN.Easing.Quadratic.In)
+          .onComplete(() => {
+            if (this.glockMagMesh) this.glockMagMesh.visible = false;
+          });
+        this.reloadTweens.push(drop);
+        drop.start();
+      }
+
+      const magInTimer = setTimeout(() => {
+        if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
+        if (this.glockMagMesh) {
+          this.glockMagMesh.visible = true;
+          this.glockMagMesh.position.y = this.glockMagRestY - 1.2;
+          this.glockMagMesh.position.z = this.glockMagRestZ + 0.25;
+          const insert = new TWEEN.Tween(this.glockMagMesh.position, true)
+            .to({ y: this.glockMagRestY, z: this.glockMagRestZ }, 200)
+            .easing(TWEEN.Easing.Back.Out)
+            .onComplete(() => {
+              this.posSpring.impulse(0, 0.048, 0);
+              this.rotSpring.impulse(0.018, 0, 0.032);
+              if (this.sound) this.sound.playMagIn();
+            });
+          this.reloadTweens.push(insert);
+          insert.start();
+        }
+
+        const rackTimer = setTimeout(() => {
+          if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
+          this.posSpring.impulse(0, -0.012, -0.032);
+          this.rotSpring.impulse(-0.048, 0, -0.022);
+          if (this.sound && typeof this.sound.play9mmSlideRack === 'function') {
+            this.sound.play9mmSlideRack();
+          }
+
+          const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+            .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 190)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .onComplete(() => {
+              this.isReloading = false;
+              if (this.glockMagMesh) {
+                this.glockMagMesh.visible = true;
+                this.glockMagMesh.position.y = this.glockMagRestY;
+                this.glockMagMesh.position.z = this.glockMagRestZ;
+              }
+              if (typeof onComplete === 'function') onComplete();
+            });
+          this.reloadTweens.push(tiltOut);
+          tiltOut.start();
+        }, 300);
+        this.reloadTimers.push(rackTimer);
+      }, 240);
+      this.reloadTimers.push(magInTimer);
+    }, 220);
+    this.reloadTimers.push(magDropTimer);
+  }
+
+  _startAkmsReloadAnimation(onComplete) {
+    if (this.sound && typeof this.sound.playReloadSound === 'function') {
+      this.sound.playReloadSound('akms_gold');
+    } else if (this.sound) {
+      this.sound.playMagOut();
+    }
+
+    if (this.akmsMagMesh) {
+      this.akmsMagMesh.visible = true;
+      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
+    }
+
+    const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: 0.34, pitch: 0.16, yaw: 0.10, y: -0.018 }, 260)
+      .easing(TWEEN.Easing.Cubic.Out);
+    this.reloadTweens.push(tiltIn);
+    tiltIn.start();
+
+    const magDropTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
+      if (this.akmsMagMesh) {
+        const drop = new TWEEN.Tween(this.akmsMagMesh.position, true)
+          .to({ y: this.akmsMagRestY - 0.18, x: this.akmsMagRestX + 0.04 }, 240)
+          .easing(TWEEN.Easing.Quadratic.In)
+          .onComplete(() => {
+            if (this.akmsMagMesh) this.akmsMagMesh.visible = false;
+          });
+        this.reloadTweens.push(drop);
+        drop.start();
+      }
+
+      const magInTimer = setTimeout(() => {
+        if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
+        if (this.akmsMagMesh) {
+          this.akmsMagMesh.visible = true;
+          this.akmsMagMesh.position.set(this.akmsMagRestX + 0.04, this.akmsMagRestY - 0.18, this.akmsMagRestZ);
+          const insert = new TWEEN.Tween(this.akmsMagMesh.position, true)
+            .to({ x: this.akmsMagRestX, y: this.akmsMagRestY, z: this.akmsMagRestZ }, 240)
+            .easing(TWEEN.Easing.Back.Out)
+            .onComplete(() => {
+              this.posSpring.impulse(0, 0.052, 0);
+              this.rotSpring.impulse(0.022, 0, 0.038);
+              if (this.sound) this.sound.playMagIn();
+            });
+          this.reloadTweens.push(insert);
+          insert.start();
+        }
+
+        const chargeTimer = setTimeout(() => {
+          if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
+          this.posSpring.impulse(0, -0.015, -0.042);
+          this.rotSpring.impulse(-0.055, 0, -0.025);
+          if (this.sound && typeof this.sound.playSlideRelease === 'function') {
+            this.sound.playSlideRelease();
+          }
+
+          const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+            .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 220)
+            .easing(TWEEN.Easing.Cubic.Out)
+            .onComplete(() => {
+              this.isReloading = false;
+              if (this.akmsMagMesh) {
+                this.akmsMagMesh.visible = true;
+                this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
+              }
+              if (typeof onComplete === 'function') onComplete();
+            });
+          this.reloadTweens.push(tiltOut);
+          tiltOut.start();
+        }, 420);
+        this.reloadTimers.push(chargeTimer);
+      }, 340);
+      this.reloadTimers.push(magInTimer);
+    }, 260);
+    this.reloadTimers.push(magDropTimer);
+  }
+
   reset() {
     this.reloadTimers.forEach((id) => clearTimeout(id));
     this.reloadTimers.length = 0;
@@ -2931,6 +3730,9 @@ export class WeaponViewmodel {
     this.uspSlideBlowback = 0;
     this.uspHammerRecoil = 0;
     this.mp5BoltBlowback = 0;
+    this.coltHammerRecoil = 0;
+    this.glockSlideBlowback = 0;
+    this.akmsBoltBlowback = 0;
     this.flashTimer = 0;
 
     // Restore 3D weapon group visibilities to Slot 1 (H&K USP 9mm)
@@ -2938,6 +3740,9 @@ export class WeaponViewmodel {
     if (this.gunGroup) this.gunGroup.visible = false;
     if (this.shotgunGroup) this.shotgunGroup.visible = false;
     if (this.mp5Group) this.mp5Group.visible = false;
+    if (this.coltGroup) this.coltGroup.visible = false;
+    if (this.glockGroup) this.glockGroup.visible = false;
+    if (this.akmsGroup) this.akmsGroup.visible = false;
     if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed;
 
     // Restore active hip/ADS transform pointers & muzzle socket
@@ -2988,6 +3793,24 @@ export class WeaponViewmodel {
     if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
     if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
     if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
+    if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0;
+    if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0;
+    if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0;
+    if (this.glockSlideMesh && this.glockSlideRestZ !== undefined) {
+      this.glockSlideMesh.position.z = this.glockSlideRestZ;
+    }
+    if (this.glockSelectorMesh && this.glockSelectorRestZ !== undefined) {
+      this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
+    }
+    if (this.glockMagMesh && this.glockMagRestY !== undefined) {
+      this.glockMagMesh.visible = true;
+      this.glockMagMesh.position.y = this.glockMagRestY;
+      this.glockMagMesh.position.z = this.glockMagRestZ;
+    }
+    if (this.akmsMagMesh && this.akmsMagRestY !== undefined) {
+      this.akmsMagMesh.visible = true;
+      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
+    }
 
     this._syncTuner();
 

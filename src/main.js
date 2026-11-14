@@ -7,6 +7,7 @@ import { PlayerController } from './player/PlayerController.js';
 import { WeaponViewmodel } from './weapons/WeaponViewmodel.js';
 import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
+import { WeaponWheelHUD } from './ui/WeaponWheelHUD.js';
 import { LightingTuner } from './ui/LightingTuner.js';
 import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
 import { ZombieTuner } from './ui/ZombieTuner.js';
@@ -99,6 +100,9 @@ window.addEventListener('DOMContentLoaded', () => {
   weaponSystem.lockAllWeapons();
   weaponSystem.setUnarmed(true);
 
+  const weaponWheel = new WeaponWheelHUD(weaponSystem, sound);
+  window.__rocWeaponWheel = weaponWheel;
+
   const introSequence = new IntroSequence({
     scene: engine.scene,
     camera: engine.camera,
@@ -173,6 +177,9 @@ window.addEventListener('DOMContentLoaded', () => {
     }
     if (hud && typeof hud.setGameplayHudActive === 'function') {
       hud.setGameplayHudActive(state === 'PLAYING');
+    }
+    if (state !== 'PLAYING' && weaponWheel && weaponWheel.isOpen) {
+      weaponWheel.close(false);
     }
 
     if (state === 'PLAYING') {
@@ -544,7 +551,9 @@ window.addEventListener('DOMContentLoaded', () => {
     player.resetHealth();
     hud.resetDamageVignette();
     hud.setGameOverVisible(false);
+    if (weaponWheel && weaponWheel.isOpen) weaponWheel.close(false);
     weaponSystem.reset();
+    if (weaponWheel) weaponWheel.refreshVisuals();
     warehouse.resetMonitors();
     decalManager.clearBloodDecals();
     zombieManager.resetAll();
@@ -703,35 +712,70 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Direct fail-safe KeyR reload and Digit1-4 weapon slot bindings (gates locked slots & unarmed mode cleanly)
+  // GTA V-style 8-Wedge Radial Weapon Wheel (TAB Hold & Release) + KeyR Reload
   window.addEventListener('keydown', (e) => {
-    if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
-    if (weaponSystem.isUnarmed) {
-      if ((e.code === 'Digit1' || e.key === '1') && weaponSystem.isWeaponUnlocked('hk_usp')) {
-        weaponSystem.equipUnlockedWeaponFromUnarmed('hk_usp');
+    if (e.code === 'Tab' || e.key === 'Tab') {
+      e.preventDefault();
+      if (e.repeat) return;
+      if (
+        gameState !== 'PLAYING' ||
+        (introSequence && introSequence.state === 'PHONE_ANSWERED') ||
+        window.isViewmodelTunerOpen ||
+        window.isLightingTunerOpen ||
+        window.isZombieTunerOpen
+      ) {
+        return;
       }
+      weaponWheel.open();
       return;
     }
-    if (e.code === 'Digit1' || e.key === '1') {
-      weaponSystem.switchWeapon('hk_usp');
-      return;
-    }
-    if (e.code === 'Digit2' || e.key === '2') {
-      weaponSystem.switchWeapon('pistol');
-      return;
-    }
-    if (e.code === 'Digit3' || e.key === '3') {
-      weaponSystem.switchWeapon('shotgun');
-      return;
-    }
-    if (e.code === 'Digit4' || e.key === '4') {
-      weaponSystem.switchWeapon('hk_mp5');
-      return;
-    }
+
+    if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
+    if (window.isWeaponWheelOpen) return;
+
     if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
-      if (weaponSystem.currentAmmo < weaponSystem.maxAmmo && !weaponSystem.isReloading) {
+      if (!weaponSystem.isUnarmed && weaponSystem.currentAmmo < weaponSystem.maxAmmo && !weaponSystem.isReloading) {
         weaponSystem.startReload();
       }
+    }
+  });
+
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'Tab' || e.key === 'Tab') {
+      e.preventDefault();
+      if (weaponWheel.isOpen) {
+        weaponWheel.close(true);
+      }
+    }
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (weaponWheel.isOpen) {
+      weaponWheel.handleMouseMove(e.movementX || 0, e.movementY || 0);
+    }
+  });
+
+  window.addEventListener(
+    'wheel',
+    (e) => {
+      if (
+        gameState !== 'PLAYING' ||
+        (introSequence && introSequence.state === 'PHONE_ANSWERED') ||
+        window.isViewmodelTunerOpen ||
+        window.isLightingTunerOpen ||
+        window.isZombieTunerOpen
+      ) {
+        return;
+      }
+      if (!e.deltaY || e.deltaY === 0) return;
+      weaponWheel.handleWheel(e.deltaY);
+    },
+    { passive: true }
+  );
+
+  window.addEventListener('blur', () => {
+    if (weaponWheel.isOpen) {
+      weaponWheel.close(false);
     }
   });
 
@@ -739,6 +783,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.sound = sound;
   window.player = player;
   window.weaponSystem = weaponSystem;
+  window.weaponWheel = weaponWheel;
   window.viewmodel = viewmodel;
   window.hud = hud;
   window.bgmToggleBtn = bgmToggleBtn;

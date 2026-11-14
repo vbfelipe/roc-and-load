@@ -561,6 +561,10 @@ export class IntroSequence {
     this.state = INTRO_STATES.PHONE_ANSWERED;
     this._gameState = 'PLAYING';
 
+    if (typeof window !== 'undefined' && window.__rocWeaponWheel?.isOpen) {
+      window.__rocWeaponWheel.close(false);
+    }
+
     if (this.sound) {
       this.sound.stopPhoneRingtone();
       this.sound.playPhonePickupClick();
@@ -1159,8 +1163,15 @@ export class IntroSequence {
       this._combatEquipDetected = !!(this.weaponSystem && !this.weaponSystem.isUnarmed);
       this._postEquipTutorialTimer = 0;
 
-      if (this.weaponSystem && typeof this.weaponSystem.unlockStartingPistol === 'function') {
-        this.weaponSystem.unlockStartingPistol();
+      if (this.weaponSystem) {
+        if (typeof this.weaponSystem.unlockWeapon === 'function') {
+          this.weaponSystem.unlockWeapon('usp');
+        } else if (typeof this.weaponSystem.unlockStartingPistol === 'function') {
+          this.weaponSystem.unlockStartingPistol();
+        }
+      }
+      if (typeof window !== 'undefined' && window.__rocWeaponWheel) {
+        window.__rocWeaponWheel.refreshVisuals();
       }
       if (this.hud && typeof this.hud.showCombatTutorialBar === 'function') {
         this.hud.showCombatTutorialBar(true);

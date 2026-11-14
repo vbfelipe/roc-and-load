@@ -179,7 +179,12 @@ export class PlayerController {
    * Updates camera orientation based on accumulated raw mouse deltas.
    */
   updateLook() {
-    if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null) {
+    if (
+      this.gameState !== 'PLAYING' ||
+      !this.input.isLocked ||
+      document.pointerLockElement === null ||
+      (typeof window !== 'undefined' && window.isWeaponWheelOpen)
+    ) {
       this.input.consumeMouseDelta();
       return null;
     }
