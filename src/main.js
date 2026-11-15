@@ -8,6 +8,7 @@ import { WeaponViewmodel } from './weapons/WeaponViewmodel.js';
 import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
 import { WeaponWheelHUD } from './ui/WeaponWheelHUD.js';
+import { GunShopHUD } from './ui/GunShopHUD.js';
 import { LightingTuner } from './ui/LightingTuner.js';
 import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
 import { ZombieTuner } from './ui/ZombieTuner.js';
@@ -69,7 +70,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
   const player = new PlayerController(engine.camera, input, sound);
   player.setCollider(warehouse.playerColliderMesh || colliderMesh);
-  if (Array.isArray(warehouse.elevatorDoorBlockers) && warehouse.elevatorDoorBlockers.length > 0) {
+  if (Array.isArray(warehouse.dynamicBlockers) && warehouse.dynamicBlockers.length > 0) {
+    player.setDynamicBlockers(warehouse.dynamicBlockers);
+  } else if (Array.isArray(warehouse.elevatorDoorBlockers) && warehouse.elevatorDoorBlockers.length > 0) {
     player.setDynamicBlockers(warehouse.elevatorDoorBlockers);
   } else if (warehouse.elevatorDoorBlocker) {
     player.setDynamicBlockers([warehouse.elevatorDoorBlocker]);
@@ -94,6 +97,9 @@ window.addEventListener('DOMContentLoaded', () => {
     player
   );
   weaponSystem.setCollider(warehouse.weaponColliderMesh || colliderMesh);
+  if (warehouse.maintenanceDoorHitMesh) {
+    weaponSystem.setExtraColliderMeshes([warehouse.maintenanceDoorHitMesh]);
+  }
   weaponSystem.setMonitorScreens(warehouse.monitorScreens);
   weaponSystem.setPlayer(player);
   weaponSystem.setHUD(hud);
@@ -133,6 +139,75 @@ window.addEventListener('DOMContentLoaded', () => {
   introSequence.setZombieManager(zombieManager);
   player.setZombieColliders(() => zombieManager.getSolidColliders());
 
+  let playerMoney = 0;
+
+  function addMoney(amount, { playSound = false } = {}) {
+    const delta = Math.round(amount || 0);
+    if (delta === 0) return playerMoney;
+    playerMoney = Math.max(0, playerMoney + delta);
+    if (typeof hud.setMoney === 'function') {
+      hud.setMoney(playerMoney, delta);
+    }
+    if (playSound && typeof sound.playRewardTick === 'function') {
+      sound.playRewardTick(false);
+    }
+    if (gunShop && gunShop.isOpen) {
+      gunShop.refreshUI();
+    }
+    return playerMoney;
+  }
+
+  function spendMoney(cost) {
+    const amount = Math.round(cost || 0);
+    if (amount <= 0) return true;
+    if (playerMoney < amount) return false;
+    playerMoney -= amount;
+    if (typeof hud.setMoney === 'function') {
+      hud.setMoney(playerMoney, -amount);
+    }
+    return true;
+  }
+
+  window.__rocAddTestMoney = (amount = 50000) => addMoney(amount, { playSound: true });
+
+  const gunShop = new GunShopHUD({
+    weaponSystem,
+    sound,
+    getMoney: () => playerMoney,
+    spendMoney,
+    onWeaponUnlocked: () => {
+      if (weaponWheel) weaponWheel.refreshVisuals();
+    },
+    onClose: () => {
+      input.clearInputs();
+      if (gameState === 'PLAYING') {
+        input.requestLock();
+      }
+      sound.playCrateClose();
+      warehouse.startMilitaryCrateClose();
+    },
+  });
+  window.__rocGunShop = gunShop;
+
+  window.addEventListener('resize', () => {
+    if (typeof hud.onResize === 'function') {
+      hud.onResize();
+    }
+    if (gunShop && gunShop.isOpen && typeof gunShop._syncCanvasSize === 'function') {
+      gunShop._syncCanvasSize();
+    }
+  });
+
+  if (typeof hud.setHealth === 'function') hud.setHealth(player.hp, player.maxHp);
+  if (typeof hud.setMoney === 'function') hud.setMoney(0, 0);
+  if (typeof hud.setKills === 'function') hud.setKills(0);
+
+  introSequence.onOpenGunShop = () => {
+    input.clearInputs();
+    if (weaponWheel && weaponWheel.isOpen) weaponWheel.close(false);
+    gunShop.open();
+  };
+
   const zombieTuner = new ZombieTuner(engine, zombieManager, weaponSystem);
 
   window.__rocWarehouse = warehouse;
@@ -148,9 +223,26 @@ window.addEventListener('DOMContentLoaded', () => {
   let gameOverShown = false;
   window.getGameState = () => gameState;
 
+  zombieManager.onZombieKilled = ({ kills, reward, isHeadshot }) => {
+    if (typeof hud.setKills === 'function') {
+      hud.setKills(kills);
+    }
+    addMoney(reward, { playSound: false });
+    if (typeof sound.playRewardTick === 'function') {
+      sound.playRewardTick(Boolean(isHeadshot));
+    }
+  };
+
+  zombieManager.onWave1Cleared = () => {
+    introSequence.triggerSecondPhoneCall();
+  };
+
   zombieManager.onPlayerHit = () => {
     if (gameState !== 'PLAYING') return;
     const remainingHp = player.takeDamage(1);
+    if (typeof hud.setHealth === 'function') {
+      hud.setHealth(remainingHp, player.maxHp);
+    }
     if (typeof sound.playPlayerHit === 'function') {
       sound.playPlayerHit(remainingHp <= 0);
     }
@@ -181,6 +273,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (state !== 'PLAYING' && weaponWheel && weaponWheel.isOpen) {
       weaponWheel.close(false);
     }
+    if (state !== 'PLAYING' && gunShop && gunShop.isOpen) {
+      gunShop.close(false);
+    }
 
     if (state === 'PLAYING') {
       startModal.classList.add('hidden');
@@ -194,6 +289,7 @@ window.addEventListener('DOMContentLoaded', () => {
       if (uiLayer) uiLayer.classList.add('menu-hidden');
       viewmodel.root.visible = false;
       input.clearInputs();
+      if (window.isGunShopOpen) gunShop.close(false);
       if (window.isZombieTunerOpen) zombieTuner.close();
       if (window.isViewmodelTunerOpen) viewmodelTuner.close();
       if (window.isLightingTunerOpen) lightingTuner.close();
@@ -255,9 +351,10 @@ window.addEventListener('DOMContentLoaded', () => {
     let audioFrac = 0;
     let modelFrac = 0;
     let zombieFrac = 0;
+    let crateFrac = 0;
     let heroFrac = 0;
     const syncAssetProgress = (statusMsg) => {
-      const weighted = 10 + (0.08 * audioFrac + 0.45 * modelFrac + 0.43 * zombieFrac + 0.04 * heroFrac) * 76;
+      const weighted = 10 + (0.08 * audioFrac + 0.43 * modelFrac + 0.41 * zombieFrac + 0.04 * crateFrac + 0.04 * heroFrac) * 76;
       updateBootProgress(weighted, statusMsg);
     };
 
@@ -281,6 +378,12 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress(label);
     });
 
+    // 3b. Parallel loading: Animated Military Supply Crate GLB (downscales 4K maps -> 1024px)
+    const cratePromise = warehouse.loadMilitaryCrate((fraction) => {
+      crateFrac = fraction;
+      syncAssetProgress('LOADING SUPPLY CRATE...');
+    });
+
     // 4. Parallel loading: WebP UI hero portraits
     const heroImagePromise = Promise.all(
       ['./roc_hero.webp', './jorio_hero.webp'].map((src) => new Promise((resolve) => {
@@ -298,7 +401,7 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress();
     });
 
-    await Promise.all([audioPromise, modelsPromise, zombiePromise, heroImagePromise]);
+    await Promise.all([audioPromise, modelsPromise, zombiePromise, cratePromise, heroImagePromise]);
     const assetsMs = Math.round(performance.now() - bootStart);
 
     // 5. Unified WebGL2 & EffectComposer Warm-Up (textures, VBOs, Skeleton.boneTextures, MSAA HalfFloat PSOs)
@@ -325,6 +428,9 @@ window.addEventListener('DOMContentLoaded', () => {
       const zmWarmState = zombieManager.prepareWarmUp();
       const dmWarmState = decalManager.prepareWarmUp(engine.renderer);
       await viewmodel.warmUpGPU(engine.renderer, engine.scene, engine.camera, engine.composer, weaponSystem);
+      if (gunShop && typeof gunShop.prewarm === 'function') {
+        gunShop.prewarm();
+      }
       decalManager.finishWarmUp(dmWarmState);
       zombieManager.finishWarmUp(zmWarmState);
       engine.setTestZombiesVisible(false);
@@ -494,6 +600,12 @@ window.addEventListener('DOMContentLoaded', () => {
       zombieManager.update(delta, gameState);
       decalManager.update(delta);
       hud.updateDamageVignette(delta, player.hp);
+      if (typeof hud.updateStatusTicker === 'function') {
+        hud.updateStatusTicker(delta);
+      }
+      if (gunShop && gunShop.isOpen) {
+        gunShop.update(delta);
+      }
 
       // 5. Update position diagnostics (throttled to 4Hz to eliminate per-frame DOM updates)
       const now = performance.now();
@@ -548,11 +660,16 @@ window.addEventListener('DOMContentLoaded', () => {
     sound.playExitClick();
     deathCollapseElapsed = 0;
     gameOverShown = false;
+    playerMoney = 0;
     player.resetHealth();
     hud.resetDamageVignette();
     hud.setGameOverVisible(false);
+    if (gunShop && gunShop.isOpen) gunShop.close(false);
     if (weaponWheel && weaponWheel.isOpen) weaponWheel.close(false);
     weaponSystem.reset();
+    if (typeof hud.setHealth === 'function') hud.setHealth(player.hp, player.maxHp);
+    if (typeof hud.setMoney === 'function') hud.setMoney(0, 0);
+    if (typeof hud.setKills === 'function') hud.setKills(0);
     if (weaponWheel) weaponWheel.refreshVisuals();
     warehouse.resetMonitors();
     decalManager.clearBloodDecals();
@@ -673,12 +790,13 @@ window.addEventListener('DOMContentLoaded', () => {
 
   input.onUnlock(() => {
     if (
+      window.isGunShopOpen ||
       window.isViewmodelTunerOpen ||
       window.isLightingTunerOpen ||
       window.isZombieTunerOpen ||
       gameState === 'GAME_OVER'
     ) {
-      // Tuner open or Game Over collapse active: DO NOT open pause menu!
+      // Shop/Tuner open or Game Over collapse active: DO NOT open pause menu!
       return;
     }
     if (gameState === 'PLAYING') {
@@ -686,8 +804,15 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Handle ESC to close open tuners or pause cleanly
+  // Handle ESC (and F while shop open) to close open shop/tuners or pause cleanly
   window.addEventListener('keydown', (e) => {
+    if (window.isGunShopOpen && !e.repeat) {
+      if (e.code === 'Escape' || e.key === 'Escape' || e.code === 'KeyF' || e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        gunShop.close(true);
+        return;
+      }
+    }
     if (e.code === 'Escape' || e.key === 'Escape') {
       if (window.isZombieTunerOpen) {
         zombieTuner.close();
@@ -712,18 +837,29 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // Suppress outside weapon switching (wheel & TAB) whenever pointer lock is inactive,
+  // gun shop / military crate is open or animating, or a dialogue/tuner modal is active.
+  const isOutsideWeaponSwitchBlocked = () =>
+    gameState !== 'PLAYING' ||
+    document.pointerLockElement === null ||
+    (gunShop && gunShop.isOpen) ||
+    Boolean(window.isGunShopOpen) ||
+    Boolean(document.getElementById('hud-gun-shop')?.classList.contains('is-open')) ||
+    Boolean(warehouse && warehouse.crateState && warehouse.crateState !== 'CLOSED') ||
+    Boolean(
+      introSequence &&
+      (introSequence.state === 'PHONE_ANSWERED' || introSequence.state === 'SECOND_PHONE_ANSWERED')
+    ) ||
+    Boolean(window.isViewmodelTunerOpen) ||
+    Boolean(window.isLightingTunerOpen) ||
+    Boolean(window.isZombieTunerOpen);
+
   // GTA V-style 8-Wedge Radial Weapon Wheel (TAB Hold & Release) + KeyR Reload
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Tab' || e.key === 'Tab') {
       e.preventDefault();
       if (e.repeat) return;
-      if (
-        gameState !== 'PLAYING' ||
-        (introSequence && introSequence.state === 'PHONE_ANSWERED') ||
-        window.isViewmodelTunerOpen ||
-        window.isLightingTunerOpen ||
-        window.isZombieTunerOpen
-      ) {
+      if (isOutsideWeaponSwitchBlocked()) {
         return;
       }
       weaponWheel.open();
@@ -731,7 +867,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
-    if (window.isWeaponWheelOpen) return;
+    if (window.isWeaponWheelOpen || window.isGunShopOpen) return;
 
     if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
       if (!weaponSystem.isUnarmed && weaponSystem.currentAmmo < weaponSystem.maxAmmo && !weaponSystem.isReloading) {
@@ -758,13 +894,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener(
     'wheel',
     (e) => {
-      if (
-        gameState !== 'PLAYING' ||
-        (introSequence && introSequence.state === 'PHONE_ANSWERED') ||
-        window.isViewmodelTunerOpen ||
-        window.isLightingTunerOpen ||
-        window.isZombieTunerOpen
-      ) {
+      if (isOutsideWeaponSwitchBlocked()) {
         return;
       }
       if (!e.deltaY || e.deltaY === 0) return;

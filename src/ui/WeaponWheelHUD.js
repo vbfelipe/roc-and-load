@@ -46,13 +46,13 @@ export const WHEEL_SLOTS = [
     id: 'colt_peacemaker',
     name: 'COLT PEACEMAKER',
     angleDeg: 135, // 7:30 Bottom-Left
-    isRare: true,
+    isRare: false,
     alwaysUnlocked: false,
   },
   {
     index: 6,
     id: 'glock_flamengo',
-    name: 'GLOCK P. 30 FLAMENGO',
+    name: 'GLOCK 18 CUSTOM',
     angleDeg: 180, // 9:00 Left
     isRare: true,
     alwaysUnlocked: false,
@@ -579,7 +579,16 @@ export class WeaponWheelHUD {
    * - deltaY > 0 (Scroll Backward): Next unlocked slot to the left / counter-clockwise (-1)
    * Includes a 70ms debounce so fast scroll wheels step cleanly one weapon at a time.
    */
+  _isBlockedByShopOrUnlock() {
+    return Boolean(
+      window.isGunShopOpen ||
+      document.pointerLockElement === null ||
+      document.getElementById('hud-gun-shop')?.classList.contains('is-open')
+    );
+  }
+
   handleWheel(deltaY) {
+    if (this._isBlockedByShopOrUnlock()) return false;
     if (!deltaY || deltaY === 0) return false;
     const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
     if (now - this._lastWheelTime < 70) return false;
@@ -626,7 +635,7 @@ export class WeaponWheelHUD {
    * Opens the GTA V Radial Weapon Wheel when TAB is pressed down.
    */
   open() {
-    if (this.isOpen) return;
+    if (this.isOpen || this._isBlockedByShopOrUnlock()) return;
     this.isOpen = true;
     window.isWeaponWheelOpen = true;
 

@@ -110,8 +110,9 @@ export class ZombieTuner {
         <span id="zt-status-badge" style="color:#f6ad55; font-weight:bold; font-size:10px; text-transform:uppercase;">TEST: OFF</span>
       </div>
 
-      <div style="margin-bottom:6px;">
-        <button id="zt-unlock-all-btn" style="width:100%; padding:6px 4px; background:linear-gradient(90deg, #d69e2e, #b7791f); color:#fff; border:1px solid #f6e05e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.4px;">[Unlock All 7 Weapons in TAB Wheel]</button>
+      <div style="display:flex; gap:6px; margin-bottom:6px;">
+        <button id="zt-unlock-all-btn" style="flex:1; padding:6px 4px; background:linear-gradient(90deg, #d69e2e, #b7791f); color:#fff; border:1px solid #f6e05e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.4px;">[Unlock All 7 Weapons]</button>
+        <button id="zt-add-money-btn" style="padding:6px 8px; background:linear-gradient(90deg, #16a34a, #15803d); color:#fff; border:1px solid #4ade80; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.3px;">[+$50,000 Test Money]</button>
       </div>
 
       <div style="display:flex; gap:6px; margin-bottom:8px;">
@@ -182,12 +183,24 @@ export class ZombieTuner {
         if (window.__rocWeaponWheel && typeof window.__rocWeaponWheel.refreshVisuals === 'function') {
           window.__rocWeaponWheel.refreshVisuals();
         }
-        unlockAllBtn.textContent = '✓ All 7 Weapons Unlocked in TAB!';
+        unlockAllBtn.textContent = '✓ All 7 Weapons Unlocked!';
         unlockAllBtn.style.background = '#2f855a';
         setTimeout(() => {
-          unlockAllBtn.textContent = '[Unlock All 7 Weapons in TAB Wheel]';
+          unlockAllBtn.textContent = '[Unlock All 7 Weapons]';
           unlockAllBtn.style.background = 'linear-gradient(90deg, #d69e2e, #b7791f)';
         }, 1600);
+      };
+    }
+    const addMoneyBtn = overlay.querySelector('#zt-add-money-btn');
+    if (addMoneyBtn) {
+      addMoneyBtn.onclick = () => {
+        if (typeof window.__rocAddTestMoney === 'function') {
+          window.__rocAddTestMoney(50000);
+        }
+        addMoneyBtn.textContent = '✓ +$50,000 Added!';
+        setTimeout(() => {
+          addMoneyBtn.textContent = '[+$50,000 Test Money]';
+        }, 1400);
       };
     }
 

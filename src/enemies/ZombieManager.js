@@ -1,14 +1,11 @@
 import * as THREE from 'three';
 import { ZombieEnemy, getZombieHitboxMeta } from './ZombieEnemy.js';
 
-// Interleaved Wave 1 schedule: 4 ZombieWoman (100% HP, pitch 1.51-1.61) + 2 ZombieMan (100% HP, untouched 0.82-0.84)
+// Wave 1 schedule: 2 ZombieWoman (100% HP, pitch 1.51-1.54) + 1 ZombieMan (100% HP, untouched 0.84)
 const WAVE_1_SPAWN_SPECS = [
   { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Wave1_ZombieWoman_1', logTag: 'Wave1_ZW_1' },
   { archetype: 'woman', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 1.65, rootName: 'Wave1_ZombieWoman_2', logTag: 'Wave1_ZW_2' },
   { archetype: 'man', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 2.35, rootName: 'Wave1_ZombieMan_1', logTag: 'Wave1_ZM_1' },
-  { archetype: 'woman', delay: 5.4, laneX: -0.35, maxHp: 100, pitchBase: 1.58, walkVocalDelay: 3.15, rootName: 'Wave1_ZombieWoman_3', logTag: 'Wave1_ZW_3' },
-  { archetype: 'man', delay: 7.2, laneX: 0.35, maxHp: 100, pitchBase: 0.82, walkVocalDelay: 3.95, rootName: 'Wave1_ZombieMan_2', logTag: 'Wave1_ZM_2' },
-  { archetype: 'woman', delay: 9.0, laneX: 0.00, maxHp: 100, pitchBase: 1.61, walkVocalDelay: 4.75, rootName: 'Wave1_ZombieWoman_4', logTag: 'Wave1_ZW_4' },
 ];
 
 /**
@@ -125,6 +122,8 @@ const FLOOR_OBSTACLES = [
   // Partition wall separating Main Office & Vestibule (open doorway Z = 9.752..10.848)
   { minX: -10.24, maxX: -9.97, minZ: -9.60, maxZ: 9.752, isDesk: false, isDoorJamb: true },
   { minX: -10.24, maxX: -9.97, minZ: 10.848, maxZ: 13.10, isDesk: false, isDoorJamb: true },
+  // Permanent zombie-only threshold blocker across Maintenance Doorway & expanded Safe-Zone Closet
+  { minX: -14.90, maxX: -9.85, minZ: -5.60, maxZ: -2.40, isDesk: false, isDoorJamb: true },
   // Open vestibule glass door leaf swung into main room
   { minX: -10.02, maxX: -9.04, minZ: 10.82, maxZ: 11.12, isDesk: false, isDoorJamb: true },
   // Server Containment Pod (Z = -9.50..-6.50, X = -7.00..7.00)
@@ -235,11 +234,18 @@ export class ZombieManager {
     this.colliderMesh = null;
     this.player = null;
     this.onPlayerHit = null;
+    this.onZombieKilled = null;
+    this.onWave1Cleared = null;
 
     this.waveZombies = [];
     this.waveEntries = [];
     this.waveActive = false;
     this._waveElapsed = 0;
+    this.playerKills = 0;
+    this.wave1Cleared = false;
+    this._wave1ClearedTimer = 0;
+    this._wave1ClearedNotified = false;
+    this.isWorldPaused = false;
 
     this._hitboxesCache = [];
     this._solidCollidersCache = [];
@@ -361,7 +367,7 @@ export class ZombieManager {
   }
 
   /**
-   * Starts the staggered 6-zombie stairwell Wave 1 immediately (0.0s .. 9.0s, every 1.8s).
+   * Starts the staggered 3-zombie stairwell Wave 1 immediately (0.0s .. 3.6s, every 1.8s).
    */
   triggerWave1() {
     this.initWavePool();
@@ -445,6 +451,10 @@ export class ZombieManager {
   resetWave1() {
     this.waveActive = false;
     this._waveElapsed = 0;
+    this.wave1Cleared = false;
+    this._wave1ClearedTimer = 0;
+    this._wave1ClearedNotified = false;
+    this.isWorldPaused = false;
     this.sound?.stopAllZombieVocals?.();
     for (const entry of this.waveEntries) {
       entry.spawned = false;
@@ -468,9 +478,22 @@ export class ZombieManager {
    */
   resetAll() {
     this.resetWave1();
+    this.playerKills = 0;
     if (this.womanTemplate) this.womanTemplate.reset();
     if (this.manTemplate) this.manTemplate.reset();
     this.sound?.stopAllZombieVocals?.();
+  }
+
+  /**
+   * Freezes/resumes outside zombie AI, animations, wave timers & vocals (Safe-Zone Closet / Gun Shop).
+   */
+  setWorldPaused(paused) {
+    const next = !!paused;
+    if (this.isWorldPaused === next) return;
+    this.isWorldPaused = next;
+    if (next) {
+      this.sound?.stopAllZombieVocals?.();
+    }
   }
 
   applyWalkCalibration() {
@@ -617,7 +640,8 @@ export class ZombieManager {
         ? options.damageOverride
         : getWeaponZombieDamage(weaponId, zombie.archetype, part, distance);
 
-    return zombie.applyBulletHit({
+    const wasDead = !!zombie.isDead;
+    const result = zombie.applyBulletHit({
       part,
       hitBone: meta?.bone || null,
       hitPoint,
@@ -630,6 +654,26 @@ export class ZombieManager {
       playHitAudio: options.playHitAudio !== undefined ? options.playHitAudio : true,
       playHurtVocal: options.playHurtVocal !== undefined ? options.playHurtVocal : true,
     });
+
+    if (!wasDead && (result?.killed || zombie.isDead)) {
+      this.playerKills += 1;
+      const isMan = zombie.archetype === 'man';
+      const isHead = !!result?.headshot || part === 'head';
+      const baseReward = isMan ? 200 : 100;
+      const bonusReward = isHead ? (isMan ? 50 : 25) : 0;
+      const reward = baseReward + bonusReward;
+      this.sound?.playRewardTick?.(isHead);
+      if (typeof this.onZombieKilled === 'function') {
+        this.onZombieKilled({
+          zombie,
+          isHeadshot: isHead,
+          reward,
+          kills: this.playerKills,
+        });
+      }
+    }
+
+    return result;
   }
 
   _hasLineOfSightToPlayer(zom, playerPos) {
@@ -1570,6 +1614,11 @@ export class ZombieManager {
   update(delta, gameState = 'PLAYING') {
     if (gameState !== 'PLAYING' && gameState !== 'GAME_OVER') return;
 
+    // Safe-Zone Pause Rule: Freeze outside zombies, AI timers, wave timers & vocals while player is in Closet / Shop
+    if (this.isWorldPaused && gameState === 'PLAYING') {
+      return;
+    }
+
     const cam = this.player?.camera || null;
     const pPos = this.player?.position || null;
 
@@ -1617,6 +1666,33 @@ export class ZombieManager {
 
     if (gameState === 'PLAYING') {
       this._resolveDynamicSeparations();
+
+      // Track Wave 1 cleared (all Wave-1 zombies spawned and dead) -> trigger Jório's 2nd phone call after 3.0s
+      if (!this._wave1ClearedNotified && this.waveEntries.length >= WAVE_1_SPAWN_SPECS.length) {
+        let allSpawned = true;
+        let allDead = true;
+        for (let i = 0; i < this.waveEntries.length; i++) {
+          const e = this.waveEntries[i];
+          if (!e.spawned) {
+            allSpawned = false;
+            break;
+          }
+          if (!e.zombie || !e.zombie.isDead) {
+            allDead = false;
+            break;
+          }
+        }
+        if (allSpawned && allDead) {
+          this.wave1Cleared = true;
+          this._wave1ClearedTimer += delta;
+          if (this._wave1ClearedTimer >= 3.0) {
+            this._wave1ClearedNotified = true;
+            if (typeof this.onWave1Cleared === 'function') {
+              this.onWave1Cleared();
+            }
+          }
+        }
+      }
     }
   }
 }

@@ -3479,4 +3479,278 @@ export class SoundManager {
       fall.stop(dropAt + 0.30);
     }
   }
+
+  /**
+   * Subtle crisp cash/kill reward chime when eliminating a zombie.
+   */
+  playRewardTick(isHeadshot = false) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    const f1 = isHeadshot ? 1180 : 960;
+    const f2 = isHeadshot ? 1760 : 1380;
+
+    const osc1 = this.ctx.createOscillator();
+    const g1 = this.ctx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(f1, now);
+    osc1.frequency.exponentialRampToValueAtTime(f2, now + 0.045);
+    g1.gain.setValueAtTime(0.001, now);
+    g1.gain.linearRampToValueAtTime(0.11, now + 0.004);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+    osc1.connect(g1);
+    g1.connect(this.masterGain);
+    osc1.start(now);
+    osc1.stop(now + 0.095);
+
+    const osc2 = this.ctx.createOscillator();
+    const g2 = this.ctx.createGain();
+    osc2.type = 'sine';
+    osc2.frequency.setValueAtTime(f2, now + 0.04);
+    g2.gain.setValueAtTime(0.001, now + 0.04);
+    g2.gain.linearRampToValueAtTime(isHeadshot ? 0.13 : 0.09, now + 0.046);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc2.connect(g2);
+    g2.connect(this.masterGain);
+    osc2.start(now + 0.04);
+    osc2.stop(now + 0.16);
+  }
+
+  /**
+   * Mechanical electric strike-plate buzz + heavy door-swing sound for the Maintenance Door.
+   */
+  playDoorUnlockAndOpen() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    // 1. Electric strike-plate solenoid buzz (0.00s - 0.19s)
+    const buzz = this.ctx.createOscillator();
+    const buzzFilt = this.ctx.createBiquadFilter();
+    const buzzGain = this.ctx.createGain();
+    buzz.type = 'sawtooth';
+    buzz.frequency.setValueAtTime(118, now);
+    buzzFilt.type = 'bandpass';
+    buzzFilt.frequency.setValueAtTime(420, now);
+    buzzFilt.Q.setValueAtTime(2.2, now);
+    buzzGain.gain.setValueAtTime(0.001, now);
+    buzzGain.gain.linearRampToValueAtTime(0.24, now + 0.012);
+    buzzGain.gain.setValueAtTime(0.22, now + 0.16);
+    buzzGain.gain.exponentialRampToValueAtTime(0.001, now + 0.21);
+    buzz.connect(buzzFilt);
+    buzzFilt.connect(buzzGain);
+    buzzGain.connect(this.masterGain);
+    buzz.start(now);
+    buzz.stop(now + 0.22);
+
+    // 2. Heavy steel latch release clunk (t + 0.12s)
+    const clunkAt = now + 0.12;
+    const clunk = this.ctx.createOscillator();
+    const clunkG = this.ctx.createGain();
+    clunk.type = 'triangle';
+    clunk.frequency.setValueAtTime(310, clunkAt);
+    clunk.frequency.exponentialRampToValueAtTime(68, clunkAt + 0.08);
+    clunkG.gain.setValueAtTime(0.001, clunkAt);
+    clunkG.gain.linearRampToValueAtTime(0.42, clunkAt + 0.005);
+    clunkG.gain.exponentialRampToValueAtTime(0.001, clunkAt + 0.10);
+    clunk.connect(clunkG);
+    clunkG.connect(this.masterGain);
+    clunk.start(clunkAt);
+    clunk.stop(clunkAt + 0.11);
+
+    // 3. Heavy door swing air-sweep & subtle hinge resonance (t + 0.18s - 0.78s)
+    const nBuf = this._noiseBufferCache.get(0.5) || this._createNoiseBuffer(0.5);
+    if (nBuf) {
+      const sw = this.ctx.createBufferSource();
+      sw.buffer = nBuf;
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'bandpass';
+      lp.frequency.setValueAtTime(240, now + 0.18);
+      lp.frequency.exponentialRampToValueAtTime(110, now + 0.72);
+      lp.Q.setValueAtTime(1.2, now + 0.18);
+      const swG = this.ctx.createGain();
+      swG.gain.setValueAtTime(0.001, now + 0.18);
+      swG.gain.linearRampToValueAtTime(0.24, now + 0.30);
+      swG.gain.exponentialRampToValueAtTime(0.001, now + 0.75);
+      sw.connect(lp);
+      lp.connect(swG);
+      swG.connect(this.masterGain);
+      sw.start(now + 0.18);
+      sw.stop(now + 0.78);
+    }
+  }
+
+  /**
+   * Heavy military polymer hard-case butterfly latch pop + hinged lid swing.
+   */
+  playCrateOpen() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    for (let i = 0; i < 2; i++) {
+      const t = now + i * 0.085;
+      const snap = this.ctx.createOscillator();
+      const snapG = this.ctx.createGain();
+      snap.type = 'triangle';
+      snap.frequency.setValueAtTime(920 - i * 110, t);
+      snap.frequency.exponentialRampToValueAtTime(190, t + 0.045);
+      snapG.gain.setValueAtTime(0.001, t);
+      snapG.gain.linearRampToValueAtTime(0.32, t + 0.003);
+      snapG.gain.exponentialRampToValueAtTime(0.001, t + 0.055);
+      snap.connect(snapG);
+      snapG.connect(this.masterGain);
+      snap.start(t);
+      snap.stop(t + 0.06);
+    }
+
+    const thudAt = now + 0.14;
+    const thud = this.ctx.createOscillator();
+    const thudG = this.ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(135, thudAt);
+    thud.frequency.exponentialRampToValueAtTime(48, thudAt + 0.14);
+    thudG.gain.setValueAtTime(0.001, thudAt);
+    thudG.gain.linearRampToValueAtTime(0.30, thudAt + 0.008);
+    thudG.gain.exponentialRampToValueAtTime(0.001, thudAt + 0.16);
+    thud.connect(thudG);
+    thudG.connect(this.masterGain);
+    thud.start(thudAt);
+    thud.stop(thudAt + 0.17);
+
+    // Subtle polymer hinge air whoosh synced with ~0.78s lid swing
+    const nBuf = this._noiseBufferCache.get(0.5) || this._createNoiseBuffer(0.5);
+    if (nBuf) {
+      const sw = this.ctx.createBufferSource();
+      sw.buffer = nBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(220, now + 0.16);
+      bp.frequency.exponentialRampToValueAtTime(420, now + 0.65);
+      bp.Q.setValueAtTime(1.6, now + 0.16);
+      const swG = this.ctx.createGain();
+      swG.gain.setValueAtTime(0.001, now + 0.16);
+      swG.gain.linearRampToValueAtTime(0.14, now + 0.30);
+      swG.gain.exponentialRampToValueAtTime(0.001, now + 0.68);
+      sw.connect(bp);
+      bp.connect(swG);
+      swG.connect(this.masterGain);
+      sw.start(now + 0.16);
+      sw.stop(now + 0.70);
+    }
+  }
+
+  playCrateOpenSound() {
+    this.playCrateOpen();
+  }
+
+  /**
+   * Solid military hard-case lid-shut compression thud + butterfly latch clamp snap.
+   */
+  playCrateClose() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    // Lid downward air-whoosh
+    const nBuf = this._noiseBufferCache.get(0.5) || this._createNoiseBuffer(0.5);
+    if (nBuf) {
+      const sw = this.ctx.createBufferSource();
+      sw.buffer = nBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(460, now + 0.04);
+      bp.frequency.exponentialRampToValueAtTime(140, now + 0.50);
+      bp.Q.setValueAtTime(1.5, now + 0.04);
+      const swG = this.ctx.createGain();
+      swG.gain.setValueAtTime(0.001, now + 0.04);
+      swG.gain.linearRampToValueAtTime(0.16, now + 0.24);
+      swG.gain.exponentialRampToValueAtTime(0.001, now + 0.52);
+      sw.connect(bp);
+      bp.connect(swG);
+      swG.connect(this.masterGain);
+      sw.start(now + 0.04);
+      sw.stop(now + 0.54);
+    }
+
+    // Heavy rubber-gasket lid slam at ~0.52s
+    const slamAt = now + 0.50;
+    const slam = this.ctx.createOscillator();
+    const slamG = this.ctx.createGain();
+    slam.type = 'sine';
+    slam.frequency.setValueAtTime(148, slamAt);
+    slam.frequency.exponentialRampToValueAtTime(42, slamAt + 0.14);
+    slamG.gain.setValueAtTime(0.001, slamAt);
+    slamG.gain.linearRampToValueAtTime(0.42, slamAt + 0.006);
+    slamG.gain.exponentialRampToValueAtTime(0.001, slamAt + 0.16);
+    slam.connect(slamG);
+    slamG.connect(this.masterGain);
+    slam.start(slamAt);
+    slam.stop(slamAt + 0.17);
+
+    // Dual steel latch clamp snap at ~0.60s
+    for (let i = 0; i < 2; i++) {
+      const t = slamAt + 0.08 + i * 0.055;
+      const snap = this.ctx.createOscillator();
+      const snapG = this.ctx.createGain();
+      snap.type = 'triangle';
+      snap.frequency.setValueAtTime(760 + i * 110, t);
+      snap.frequency.exponentialRampToValueAtTime(210, t + 0.038);
+      snapG.gain.setValueAtTime(0.001, t);
+      snapG.gain.linearRampToValueAtTime(0.28, t + 0.003);
+      snapG.gain.exponentialRampToValueAtTime(0.001, t + 0.045);
+      snap.connect(snapG);
+      snapG.connect(this.masterGain);
+      snap.start(t);
+      snap.stop(t + 0.05);
+    }
+  }
+
+  /**
+   * Clean weapon/ammo purchase confirmation chime + metallic bolt/rack click.
+   */
+  playPurchaseSuccessSound() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    const tones = [660, 880, 1320];
+    tones.forEach((freq, idx) => {
+      const t = now + idx * 0.055;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = idx === 2 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.linearRampToValueAtTime(idx === 2 ? 0.18 : 0.13, t + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + 0.17);
+    });
+  }
+
+  /**
+   * Subtle crisp UI interaction click for Gun Shop controls.
+   */
+  playUiClick(isAccent = false) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(isAccent ? 1050 : 760, now);
+    osc.frequency.exponentialRampToValueAtTime(isAccent ? 620 : 410, now + 0.025);
+    g.gain.setValueAtTime(0.001, now);
+    g.gain.linearRampToValueAtTime(0.09, now + 0.002);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.030);
+    osc.connect(g);
+    g.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.034);
+  }
 }

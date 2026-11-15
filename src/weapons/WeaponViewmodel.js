@@ -5,6 +5,59 @@ import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { Spring3D, Spring1D } from '../player/Spring.js';
 
 // Pre-allocated scratch vector for zero-GC calculations
+const WEAPON_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+const MAX_WEAPON_TEXTURE_SIZE = 1024;
+
+function downscaleWeaponTextureIfNeeded(tex, maxSize = MAX_WEAPON_TEXTURE_SIZE) {
+  if (!tex || !tex.isTexture || !tex.image) return;
+  const origImage = tex.image;
+  const width = origImage.width || origImage.naturalWidth || 0;
+  const height = origImage.height || origImage.naturalHeight || 0;
+  if (width <= maxSize && height <= maxSize) return;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = maxSize;
+  canvas.height = maxSize;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(origImage, 0, 0, maxSize, maxSize);
+
+  tex.image = canvas;
+  tex.mipmaps = [];
+  tex.needsUpdate = true;
+
+  if (typeof origImage.close === 'function') {
+    origImage.close();
+  } else if (
+    typeof HTMLImageElement !== 'undefined' &&
+    origImage instanceof HTMLImageElement &&
+    origImage.src?.startsWith('blob:')
+  ) {
+    URL.revokeObjectURL(origImage.src);
+  }
+}
+
+function downscaleModelTextures(root, maxSize = MAX_WEAPON_TEXTURE_SIZE) {
+  if (!root) return;
+  const seen = new Set();
+  root.traverse((child) => {
+    if (!child.material) return;
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of mats) {
+      if (!mat) continue;
+      for (const slot of WEAPON_TEXTURE_SLOTS) {
+        const tex = mat[slot];
+        if (tex && tex.isTexture && !seen.has(tex)) {
+          seen.add(tex);
+          downscaleWeaponTextureIfNeeded(tex, maxSize);
+        }
+      }
+    }
+  });
+}
 const _scratchVec = new THREE.Vector3();
 
 // Baseline 12-gauge left support hand/arm rig pose and heavy-weapon overrides (single left arm only).
@@ -885,6 +938,7 @@ export class WeaponViewmodel {
           (gltf) => {
             try {
               def.setup(gltf);
+              downscaleModelTextures(gltf.scene, MAX_WEAPON_TEXTURE_SIZE);
             } catch (err) {
               console.error(`Error configuring model ${def.key}:`, err);
             }
@@ -4496,5 +4550,108 @@ export class WeaponViewmodel {
     this.reloadTilt.pitch = 0;
     this.reloadTilt.yaw = 0;
     this.reloadTilt.roll = 0;
+  }
+
+  /**
+   * Returns a cloned 3D weapon pivotGroup normalized & centered via exact visible-mesh Box3
+   * for Gun Shop previews. Strips shared cross-context RenderTarget envMaps so GunShopHUD's
+   * bright RoomEnvironment cubemap illuminates metals cleanly.
+   */
+  getShowcaseModelClone(weaponId) {
+    const sourceMap = {
+      hk_usp: this.uspModelGroup,
+      shotgun: this.shotgunModelGroup,
+      remington_870: this.shotgunModelGroup,
+      desert_eagle: this.pistolModelGroup,
+      colt_peacemaker: this.coltModelGroup,
+      hk_mp5: this.mp5ModelGroup,
+      glock_flamengo: this.glockModelGroup,
+      akms_gold: this.akmsModelGroup,
+    };
+    const src = sourceMap[weaponId];
+    if (!src) return null;
+
+    const clone = src.clone(true);
+    clone.visible = true;
+    clone.position.set(0, 0, 0);
+    clone.rotation.set(0, 0, 0);
+    clone.scale.set(1, 1, 1);
+
+    const matClones = new Map();
+    clone.traverse((child) => {
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        if (child.material) {
+          const cloneMat = (m) => {
+            if (!m) return m;
+            if (matClones.has(m)) return matClones.get(m);
+            const c = m.clone();
+            if (c.isMeshStandardMaterial) {
+              // Detach Engine WebGL context's dark RenderTarget envMap so showcaseScene.environment applies cleanly
+              c.envMap = null;
+              c.envMapIntensity = 0.45;
+              c.needsUpdate = true;
+            }
+            matClones.set(m, c);
+            return c;
+          };
+          child.material = Array.isArray(child.material)
+            ? child.material.map(cloneMat)
+            : cloneMat(child.material);
+        }
+      }
+    });
+
+    // Side profile orientation (-Z muzzle points cleanly right along +X, +X right side faces +Z camera)
+    clone.rotation.y = -Math.PI * 0.5;
+    clone.updateMatrixWorld(true);
+
+    // Compute exact bounding box over visible meshes only
+    const box = new THREE.Box3();
+    const meshBox = new THREE.Box3();
+    clone.traverse((child) => {
+      if (child.isMesh && child.visible && child.geometry) {
+        child.geometry.computeBoundingBox();
+        if (child.geometry.boundingBox) {
+          meshBox.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld);
+          box.union(meshBox);
+        }
+      }
+    });
+
+    const size = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    if (!box.isEmpty()) {
+      box.getSize(size);
+      box.getCenter(center);
+    } else {
+      size.set(1, 1, 1);
+    }
+
+    // Center model at origin inside pivotGroup and normalize largest dimension to 1.0 unit
+    const pivotGroup = new THREE.Group();
+    pivotGroup.name = `ShopShowcase_${weaponId}`;
+    clone.position.sub(center);
+    pivotGroup.add(clone);
+
+    const maxDim = Math.max(size.x, size.y, size.z, 0.001);
+    const normScale = 1.0 / maxDim;
+    pivotGroup.scale.setScalar(normScale);
+    pivotGroup.updateMatrixWorld(true);
+
+    pivotGroup.userData.showcaseSize = {
+      width: size.x * normScale,
+      height: size.y * normScale,
+      depth: size.z * normScale,
+    };
+
+    const wrapper = new THREE.Group();
+    wrapper.name = `ShopShowcaseNorm_${weaponId}`;
+    wrapper.add(pivotGroup);
+    wrapper.userData.showcaseSize = pivotGroup.userData.showcaseSize;
+    wrapper.updateMatrixWorld(true);
+    return wrapper;
   }
 }

@@ -28,6 +28,18 @@ export class HUD {
     this._damagePulsePhase = 0;
     this._lastVignetteOpacity = -1;
 
+    // Top-right status HUD state (HP, rolling Money, Kills) + Safe-zone indicator
+    this._statusHp = 3;
+    this._statusMaxHp = 3;
+    this._displayMoney = 0;
+    this._targetMoney = 0;
+    this._lastRenderedMoneyText = '$ 0';
+    this._killsCount = 0;
+    this._statusHudVisible = false;
+    this._lastStatusHudShown = null;
+    this._safeZoneActive = false;
+    this._lastSafeZoneVisible = null;
+
     this._createDOM();
   }
 
@@ -54,6 +66,7 @@ export class HUD {
     this._lastObjectiveVisible = null;
     this._lastPhoneDialogueVisible = null;
     this._lastDialogueSnapshot = {
+      showCallerRow: null,
       showPlayerRow: null,
       activeSpeaker: null,
       callerText: null,
@@ -112,6 +125,50 @@ export class HUD {
 
     // Build initial cartridge pips
     this._buildBulletPips();
+    this._initStatusHudElements(uiLayer);
+  }
+
+  _initStatusHudElements(uiLayer) {
+    this.topRightStatusEl = document.createElement('div');
+    this.topRightStatusEl.id = 'hud-top-right-status';
+    this.topRightStatusEl.innerHTML = `
+      <div class="status-pill status-pill-wide" aria-label="Health">
+        <div class="status-badge-icon"><span class="hp-cross-icon">+</span></div>
+        <div class="hp-bar-track">
+          <div id="hud-hp-bar-fill" class="hp-bar-fill" style="width: 100%;"></div>
+          <div class="hp-bar-segments"><span></span><span></span><span></span></div>
+        </div>
+      </div>
+      <div class="status-pill status-pill-wide" aria-label="Cash">
+        <div class="status-badge-icon"><span class="money-dollar-icon">$</span></div>
+        <span id="hud-money-value" class="money-value-text">$ 0</span>
+        <span id="hud-money-float" class="money-float-delta">+$100</span>
+      </div>
+      <div class="status-pill status-pill-compact" aria-label="Kills">
+        <div class="status-badge-icon">
+          <span class="kills-skull-icon" aria-hidden="true">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2C7.03 2 3 5.82 3 10.5c0 2.86 1.48 5.39 3.74 6.95V20c0 .55.45 1 1 1h8.52c.55 0 1-.45 1-1v-2.55C19.52 15.89 21 13.36 21 10.5 21 5.82 16.97 2 12 2zm-3.2 10.5a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm6.4 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm-2.2 6h-2v-2.2h2v2.2z"/>
+            </svg>
+          </span>
+        </div>
+        <span id="hud-kills-value" class="kills-value-text">0</span>
+      </div>
+    `;
+    uiLayer.appendChild(this.topRightStatusEl);
+
+    this.hpBarFillEl = this.topRightStatusEl.querySelector('#hud-hp-bar-fill');
+    this.moneyValueEl = this.topRightStatusEl.querySelector('#hud-money-value');
+    this.moneyFloatEl = this.topRightStatusEl.querySelector('#hud-money-float');
+    this.killsValueEl = this.topRightStatusEl.querySelector('#hud-kills-value');
+
+    // Safe-zone badge shown while player is inside the Maintenance Closet / Gun Shop
+    this.safeZoneBannerEl = document.createElement('div');
+    this.safeZoneBannerEl.id = 'hud-safe-zone-banner';
+    this.safeZoneBannerEl.className = 'hud-safe-zone-banner hidden';
+    this.safeZoneBannerEl.style.display = 'none';
+    this.safeZoneBannerEl.innerHTML = `<span class="safe-dot"></span><span>ZONA SEGURA — JOGO PAUSADO LÁ FORA</span>`;
+    uiLayer.appendChild(this.safeZoneBannerEl);
   }
 
   /**
@@ -138,7 +195,7 @@ export class HUD {
       } else if (weaponType === 'colt_peacemaker') {
         this.caliberTextEl.textContent = 'COLT PEACEMAKER';
       } else if (weaponType === 'glock_flamengo') {
-        this.caliberTextEl.textContent = 'GLOCK P. 30 FLAMENGO';
+        this.caliberTextEl.textContent = 'GLOCK 18 CUSTOM';
       } else if (weaponType === 'akms_gold') {
         this.caliberTextEl.textContent = 'AKMS GOLD';
       } else {
@@ -633,6 +690,116 @@ export class HUD {
       this._lastPhoneDialogueVisible = showDialogue;
       this._applyOverlayVisibility(this.phoneDialogueEl, showDialogue, { instant, fadeMs: 280, hiddenOffsetY: -6, centerX: false });
     }
+
+    const showSafeZone = this._safeZoneActive && this._gameplayActive;
+    if (this._lastSafeZoneVisible !== showSafeZone) {
+      this._lastSafeZoneVisible = showSafeZone;
+      this._applyOverlayVisibility(this.safeZoneBannerEl, showSafeZone, { instant: true, centerX: true });
+    }
+
+    const showStatusHud = this._statusHudVisible && this._gameplayActive;
+    if (this._lastStatusHudShown !== showStatusHud && this.topRightStatusEl) {
+      this._lastStatusHudShown = showStatusHud;
+      if (instant) {
+        this.topRightStatusEl.classList.add('no-anim');
+        this.topRightStatusEl.classList.toggle('is-revealed', showStatusHud);
+        void this.topRightStatusEl.offsetWidth;
+        this.topRightStatusEl.classList.remove('no-anim');
+      } else {
+        if (showStatusHud) {
+          this.topRightStatusEl.classList.remove('no-anim');
+          void this.topRightStatusEl.offsetWidth;
+        }
+        this.topRightStatusEl.classList.toggle('is-revealed', showStatusHud);
+      }
+    }
+  }
+
+  setStatusHudVisible(visible, instant = false) {
+    this._statusHudVisible = !!visible;
+    this._syncIntroOverlays(instant);
+  }
+
+  onResize() {
+    // Re-clamp dynamic HUD overlays if viewport narrows dramatically
+    if (this.topRightStatusEl) {
+      const maxW = Math.max(120, window.innerWidth - 24);
+      this.topRightStatusEl.style.maxWidth = `${maxW}px`;
+    }
+    if (this.safeZoneBannerEl) {
+      this.safeZoneBannerEl.style.maxWidth = `${Math.max(160, window.innerWidth - 24)}px`;
+    }
+  }
+
+  setSafeZoneVisible(visible) {
+    this._safeZoneActive = !!visible;
+    this._syncIntroOverlays();
+  }
+
+  setHealth(hp, maxHp = 3) {
+    const safeMax = Math.max(1, Number(maxHp) || 3);
+    const safeHp = Math.max(0, Math.min(safeMax, Number(hp) || 0));
+    this._statusHp = safeHp;
+    this._statusMaxHp = safeMax;
+
+    if (!this.hpBarFillEl) return;
+    let pct = (safeHp / safeMax) * 100;
+    if (safeMax === 3) {
+      if (safeHp === 3) pct = 100;
+      else if (safeHp === 2) pct = 66.67;
+      else if (safeHp === 1) pct = 33.33;
+      else pct = 0;
+    }
+    this.hpBarFillEl.style.width = `${pct.toFixed(2)}%`;
+    this.hpBarFillEl.classList.toggle('is-critical', safeHp === 1);
+  }
+
+  setMoney(money, deltaAmount = 0) {
+    const next = Math.max(0, Math.floor(Number(money) || 0));
+    this._targetMoney = next;
+
+    if (deltaAmount > 0 && this.moneyFloatEl) {
+      this.moneyFloatEl.textContent = `+$${Math.floor(deltaAmount).toLocaleString('en-US')}`;
+      this.moneyFloatEl.classList.remove('is-animating');
+      void this.moneyFloatEl.offsetWidth;
+      this.moneyFloatEl.classList.add('is-animating');
+    } else if (deltaAmount < 0 || next === 0) {
+      // Snap down smoothly/quickly on spend or reset
+      if (next === 0) {
+        this._displayMoney = 0;
+        this._renderMoneyText(0);
+      }
+    }
+  }
+
+  _renderMoneyText(value) {
+    if (!this.moneyValueEl) return;
+    const formatted = `$ ${Math.max(0, Math.round(value)).toLocaleString('en-US')}`;
+    if (this._lastRenderedMoneyText !== formatted) {
+      this._lastRenderedMoneyText = formatted;
+      this.moneyValueEl.textContent = formatted;
+    }
+  }
+
+  setKills(kills) {
+    const k = Math.max(0, Math.floor(Number(kills) || 0));
+    this._killsCount = k;
+    if (this.killsValueEl) {
+      this.killsValueEl.textContent = String(k);
+    }
+  }
+
+  updateStatusTicker(delta) {
+    if (Math.abs(this._targetMoney - this._displayMoney) < 0.5) {
+      if (this._displayMoney !== this._targetMoney) {
+        this._displayMoney = this._targetMoney;
+        this._renderMoneyText(this._displayMoney);
+      }
+      return;
+    }
+    const step = (this._targetMoney - this._displayMoney) * Math.min(1, delta * 14);
+    this._displayMoney += Math.abs(step) < 1 ? Math.sign(this._targetMoney - this._displayMoney) : step;
+    this._renderMoneyText(this._displayMoney);
   }
 
   setGameplayHudActive(active) {
@@ -703,7 +870,7 @@ export class HUD {
     this._syncIntroOverlays(instant);
   }
 
-  setPhoneDialogueState({ showPlayerRow, activeSpeaker, callerText, playerText, skipHintText }) {
+  setPhoneDialogueState({ showCallerRow = true, showPlayerRow, activeSpeaker, callerText, playerText, skipHintText }) {
     const snap = this._lastDialogueSnapshot;
     const isJorioActive = activeSpeaker === 'jorio';
 
@@ -716,6 +883,13 @@ export class HUD {
       if (this._dialoguePlayerRow) {
         this._dialoguePlayerRow.classList.toggle('is-active', !isJorioActive);
         this._dialoguePlayerRow.classList.toggle('is-inactive', isJorioActive);
+      }
+    }
+
+    if (snap.showCallerRow !== !!showCallerRow) {
+      snap.showCallerRow = !!showCallerRow;
+      if (this._dialogueCallerRow) {
+        this._dialogueCallerRow.classList.toggle('row-hidden', !snap.showCallerRow);
       }
     }
 
@@ -801,6 +975,16 @@ export class HUD {
     this.setTutorialVisible(false, true);
     this.setObjectiveVisible(false);
     this.setInteractVisible(false);
+    this.setSafeZoneVisible(false);
+    this.setStatusHudVisible(false, true);
+    this.setHealth(3, 3);
+    this._displayMoney = 0;
+    this._targetMoney = 0;
+    this._renderMoneyText(0);
+    this.setKills(0);
+    if (this.moneyFloatEl) {
+      this.moneyFloatEl.classList.remove('is-animating');
+    }
     this.setPhoneDialogueVisible(false, true);
     this.setPhoneDialogueState({
       showPlayerRow: false,

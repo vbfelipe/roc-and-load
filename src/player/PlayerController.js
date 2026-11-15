@@ -183,7 +183,7 @@ export class PlayerController {
       this.gameState !== 'PLAYING' ||
       !this.input.isLocked ||
       document.pointerLockElement === null ||
-      (typeof window !== 'undefined' && window.isWeaponWheelOpen)
+      (typeof window !== 'undefined' && (window.isWeaponWheelOpen || window.isGunShopOpen))
     ) {
       this.input.consumeMouseDelta();
       return null;
@@ -206,7 +206,12 @@ export class PlayerController {
    * Called STEPS_PER_FRAME times per render frame.
    */
   fixedUpdate(subDelta) {
-    if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null) {
+    if (
+      this.gameState !== 'PLAYING' ||
+      !this.input.isLocked ||
+      document.pointerLockElement === null ||
+      (typeof window !== 'undefined' && window.isGunShopOpen)
+    ) {
       this.velocity.x = 0;
       this.velocity.z = 0;
       return;

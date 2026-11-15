@@ -608,11 +608,11 @@ export class WeaponSystem {
         fireRate: 0.42,
         reloadTime: 3.344,
         isAutomatic: false,
-        isRare: true,
+        isRare: false,
         isSlideLocked: false,
       },
       glock_flamengo: {
-        name: 'GLOCK P. 30 FLAMENGO',
+        name: 'GLOCK 18 CUSTOM',
         currentAmmo: 30,
         maxAmmo: 30,
         reserveAmmo: 150,
@@ -786,7 +786,38 @@ export class WeaponSystem {
   unlockWeapon(weaponType) {
     const key = this._normalizeWeaponSlotKey(weaponType);
     if (!key || key === 'unarmed') return;
+    const wasUnlocked = this.unlockedWeapons.has(key);
     this.unlockedWeapons.add(key);
+    if (!wasUnlocked && this.weapons[key]) {
+      // Freshly purchased weapon comes loaded + default starting reserve
+      this.weapons[key].currentAmmo = this.weapons[key].maxAmmo;
+      this.weapons[key].reserveAmmo = this.weapons[key].defaultReserveAmmo;
+      this.weapons[key].isSlideLocked = false;
+    }
+  }
+
+  /**
+   * Adds reserve ammo to an owned, finite-reserve weapon and updates HUD if equipped.
+   */
+  addAmmo(weaponType, amount) {
+    const key = this._normalizeWeaponSlotKey(weaponType);
+    if (!key || key === 'unarmed') return false;
+    const wState = this.weapons[key];
+    if (!wState || wState.infiniteReserve) return false;
+    const addAmt = Math.max(0, Math.floor(Number(amount) || 0));
+    if (addAmt <= 0) return false;
+    wState.reserveAmmo = (wState.reserveAmmo || 0) + addAmt;
+    if (key === this.currentWeapon) {
+      this.reserveAmmo = wState.reserveAmmo;
+      if (this.hud) {
+        this.hud.setWeapon(this.currentWeapon, this.currentAmmo, this.maxAmmo, this.reserveAmmo, this.isUnarmed);
+      }
+    }
+    return true;
+  }
+
+  setExtraColliderMeshes(meshes = []) {
+    this.extraColliderMeshes = Array.isArray(meshes) ? meshes.filter(Boolean) : [];
   }
 
   unlockStartingPistol() {
@@ -821,6 +852,14 @@ export class WeaponSystem {
    * Equips the weapon or unarmed state selected from the TAB Radial Weapon Wheel.
    */
   selectWheelSlot(slotId) {
+    if (
+      typeof window !== 'undefined' &&
+      (window.isGunShopOpen ||
+        document.pointerLockElement === null ||
+        document.getElementById('hud-gun-shop')?.classList.contains('is-open'))
+    ) {
+      return false;
+    }
     const key = this._normalizeWeaponSlotKey(slotId);
     if (!key) return false;
     if (key === 'unarmed') {
@@ -1234,13 +1273,14 @@ export class WeaponSystem {
       return;
     }
 
-    // 2. Strict Game State Gate & Weapon Wheel Suppression:
-    // Block weapon firing/ADS while in MENU, unlocked, during 150ms arming cooldown, or while TAB Weapon Wheel is open!
+    // 2. Strict Game State Gate & Weapon Wheel / Shop Suppression:
+    // Block weapon firing/ADS while in MENU, unlocked, during 150ms arming cooldown, or while TAB Weapon Wheel or Gun Shop is open!
     const isArmed = this.gameState === 'PLAYING' &&
       this.input.isLocked &&
       document.pointerLockElement !== null &&
       performance.now() >= this.armedAt &&
-      !window.isWeaponWheelOpen;
+      !window.isWeaponWheelOpen &&
+      !window.isGunShopOpen;
 
     if (!isArmed) {
       this.wasMouseDown0 = true; // Prevents click-bleed
@@ -1701,6 +1741,15 @@ export class WeaponSystem {
         }
       }
 
+      if (this.extraColliderMeshes && this.extraColliderMeshes.length > 0) {
+        const extraHits = _raycaster.intersectObjects(this.extraColliderMeshes, false);
+        if (extraHits.length > 0 && (!closestHit || extraHits[0].distance < closestHit.distance)) {
+          closestHit = extraHits[0];
+          hitObject = 'arena';
+          hitScreenMesh = null;
+        }
+      }
+
       const zHit = this._raycastZombies(_raycaster);
       if (zHit && (!closestHit || zHit.distance < closestHit.distance)) {
         closestHit = zHit;
@@ -1913,6 +1962,15 @@ export class WeaponSystem {
           hitObject = 'arena';
           hitScreenMesh = null;
         }
+      }
+    }
+
+    if (this.extraColliderMeshes && this.extraColliderMeshes.length > 0) {
+      const extraHits = _raycaster.intersectObjects(this.extraColliderMeshes, false);
+      if (extraHits.length > 0 && (!closestHit || extraHits[0].distance < closestHit.distance)) {
+        closestHit = extraHits[0];
+        hitObject = 'arena';
+        hitScreenMesh = null;
       }
     }
 

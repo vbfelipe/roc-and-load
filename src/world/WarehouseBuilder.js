@@ -1,11 +1,50 @@
 import * as THREE from 'three';
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
 
 // Attach BVH extensions to Three.js prototypes
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
 THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
+const CRATE_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+
+function downscaleCrateTextureIfNeeded(tex, maxSize = 1024) {
+  if (!tex || !tex.isTexture || !tex.image) return;
+  const origImage = tex.image;
+  const width = origImage.width || origImage.naturalWidth || 0;
+  const height = origImage.height || origImage.naturalHeight || 0;
+  tex.anisotropy = 4;
+  if (width <= maxSize && height <= maxSize) {
+    tex.needsUpdate = true;
+    return;
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = maxSize;
+  canvas.height = maxSize;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(origImage, 0, 0, maxSize, maxSize);
+
+  tex.image = canvas;
+  tex.mipmaps = [];
+  tex.needsUpdate = true;
+
+  if (typeof origImage.close === 'function') {
+    origImage.close();
+  } else if (
+    typeof HTMLImageElement !== 'undefined' &&
+    origImage instanceof HTMLImageElement &&
+    origImage.src?.startsWith('blob:')
+  ) {
+    URL.revokeObjectURL(origImage.src);
+  }
+}
 
 /**
  * Creates a custom PlaneGeometry whose front face points towards -Z (the player),
@@ -13466,6 +13505,197 @@ function createTelestreamGXP2170Geometries() {
   };
 }
 
+/**
+ * Procedural scuffed concrete utility floor texture for the Maintenance Closet (512x512).
+ */
+function createClosetConcreteFloorTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  // Base muted industrial concrete gray-olive undertone
+  ctx.fillStyle = '#5c5e5a';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Broad damp/worn patches
+  for (let i = 0; i < 28; i++) {
+    const x = (i * 173 + 41) % 512;
+    const y = (i * 227 + 89) % 512;
+    const r = 36 + (i % 5) * 18;
+    const g = ctx.createRadialGradient(x, y, 4, x, y, r);
+    const tone = i % 2 === 0 ? 'rgba(42, 44, 41, 0.24)' : 'rgba(130, 132, 126, 0.16)';
+    g.addColorStop(0, tone);
+    g.addColorStop(1, 'rgba(92, 94, 90, 0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Fine mineral aggregate speckle & boot scuffs
+  for (let i = 0; i < 1600; i++) {
+    const x = (i * 7919) % 512;
+    const y = (i * 6271) % 512;
+    ctx.fillStyle = (i % 3 === 0) ? 'rgba(30, 32, 30, 0.18)' : 'rgba(175, 178, 170, 0.14)';
+    ctx.fillRect(x, y, 2, 2);
+  }
+
+  // Hairline concrete expansion seam + faint scuffs
+  ctx.strokeStyle = 'rgba(36, 38, 36, 0.35)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, 256);
+  ctx.lineTo(512, 256);
+  ctx.moveTo(256, 0);
+  ctx.lineTo(256, 512);
+  ctx.stroke();
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * Procedural subtle 2x2 acoustic drop-ceiling tile grid texture for the Maintenance Closet (512x512).
+ */
+function createClosetCeilingTileTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#e7eaee';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Subtle acoustic mineral-fiber pinholes
+  for (let i = 0; i < 1800; i++) {
+    const x = (i * 5381) % 512;
+    const y = (i * 3917) % 512;
+    ctx.fillStyle = i % 3 === 0 ? 'rgba(135, 144, 156, 0.28)' : 'rgba(170, 178, 190, 0.22)';
+    ctx.fillRect(x, y, 1 + (i % 2), 1 + (i % 2));
+  }
+
+  // Crisp T-bar acoustic grid lines (2x2 panels per repeat)
+  ctx.fillStyle = '#c4cbd4';
+  ctx.fillRect(0, 0, 512, 6);
+  ctx.fillRect(0, 253, 512, 6);
+  ctx.fillRect(0, 0, 6, 512);
+  ctx.fillRect(253, 0, 6, 512);
+
+  ctx.fillStyle = '#aeb6c1';
+  ctx.fillRect(0, 2, 512, 2);
+  ctx.fillRect(0, 255, 512, 2);
+  ctx.fillRect(2, 0, 2, 512);
+  ctx.fillRect(255, 0, 2, 512);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * Procedural corrugated cardboard box texture with packing tape band and shipping barcode label (512x512).
+ */
+function createCardboardBoxTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#b68959';
+  ctx.fillRect(0, 0, 512, 512);
+
+  // Subtle corrugated kraft fiber ribs
+  for (let y = 0; y < 512; y += 6) {
+    ctx.fillStyle = y % 12 === 0 ? 'rgba(92, 62, 34, 0.08)' : 'rgba(220, 185, 140, 0.06)';
+    ctx.fillRect(0, y, 512, 3);
+  }
+
+  // Center packing tape seam across top/side
+  ctx.fillStyle = '#d4b487';
+  ctx.fillRect(0, 224, 512, 56);
+  ctx.fillStyle = 'rgba(110, 78, 42, 0.25)';
+  ctx.fillRect(0, 250, 512, 2);
+
+  // Crisp white barcode shipping label
+  ctx.fillStyle = '#f3f4f6';
+  ctx.fillRect(36, 72, 168, 96);
+  ctx.strokeStyle = '#d1d5db';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(36, 72, 168, 96);
+
+  ctx.fillStyle = '#1f2937';
+  ctx.fillRect(48, 86, 92, 8);
+  ctx.fillRect(48, 100, 62, 5);
+  // Barcode vertical stripes
+  for (let bx = 48; bx < 188; bx += 6) {
+    const bw = (bx * 7) % 3 === 0 ? 3 : 2;
+    ctx.fillRect(bx, 118, bw, 36);
+  }
+
+  // Subtle handling icon marks bottom-right
+  ctx.strokeStyle = 'rgba(65, 42, 20, 0.55)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(410, 410, 56, 56);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+/**
+ * Brushed-steel military specification nameplate texture for the Hard Case center front face (256x128).
+ */
+function createMilitaryCaseNameplateTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#adb6c2';
+  ctx.fillRect(0, 0, 256, 128);
+
+  // Outer bezel frame & corner rivets
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(6, 6, 244, 116);
+
+  ctx.fillStyle = '#334155';
+  for (const [rx, ry] of [[18, 18], [238, 18], [18, 110], [238, 110]]) {
+    ctx.beginPath();
+    ctx.arc(rx, ry, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Dark header bar
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(28, 20, 200, 24);
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 13px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('ARMORY CASE // MIL-STD', 128, 37);
+
+  ctx.fillStyle = '#0f172a';
+  ctx.font = 'bold 12px monospace';
+  ctx.fillText('NSN: 8145-01-492-7740', 128, 68);
+  ctx.font = '11px monospace';
+  ctx.fillText('TACTICAL SUPPLY UNIT', 128, 88);
+  ctx.fillText('SEALED - PRESSURIZED', 128, 105);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
 export class WarehouseBuilder {
   constructor(scene) {
     this.scene = scene;
@@ -14530,6 +14760,57 @@ export class WarehouseBuilder {
       fog: false,
     });
 
+    // Maintenance Utility Closet Materials (ZERO PointLights, <= 5 draw calls!)
+    this.closetConcreteFloorTex = createClosetConcreteFloorTexture();
+    this.closetCeilingTileTex = createClosetCeilingTileTexture();
+    this.closetCardboardTex = createCardboardBoxTexture();
+
+    this.closetPropsMaterial = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      vertexColors: true,
+      roughness: 0.65,
+      metalness: 0.14,
+      emissive: new THREE.Color(0x28303b),
+      emissiveIntensity: 0.14,
+      envMapIntensity: 0.95,
+    });
+    this.closetFloorMaterial = new THREE.MeshStandardMaterial({
+      map: this.closetConcreteFloorTex,
+      roughness: 0.88,
+      metalness: 0.04,
+      emissive: new THREE.Color(0x3f434a),
+      emissiveIntensity: 0.12,
+      envMapIntensity: 0.90,
+    });
+    this.closetCeilingMaterial = new THREE.MeshStandardMaterial({
+      map: this.closetCeilingTileTex,
+      roughness: 0.86,
+      metalness: 0.02,
+      emissive: new THREE.Color(0xd6dee8),
+      emissiveIntensity: 0.16,
+      envMapIntensity: 1.10,
+    });
+    this.closetCeilingLightMaterial = new THREE.MeshBasicMaterial({
+      color: 0xf8fafc,
+      toneMapped: false,
+    });
+    this.closetCardboardMaterial = new THREE.MeshStandardMaterial({
+      map: this.closetCardboardTex,
+      roughness: 0.88,
+      metalness: 0.02,
+      emissive: new THREE.Color(0x261b10),
+      emissiveIntensity: 0.12,
+    });
+
+    this.militaryCrateGroup = null;
+    this.militaryCrateMixer = null;
+    this.militaryCrateAction = null;
+    this.militaryCrateClipDuration = 0.9;
+    this.crateState = 'CLOSED';
+    this._crateOpenedCallback = null;
+    this._crateClosedCallback = null;
+    this.militaryCrateTextures = [];
+
     this.skylineRoofTrimMaterial = new THREE.MeshBasicMaterial({
       color: 0xffdfa0,
       fog: false,
@@ -14729,6 +15010,11 @@ export class WarehouseBuilder {
       janitorGreenPlastic: [],
       janitorTowelTan: [],
       janitorBroomBristle: [],
+      closetProps: [],
+      closetFloor: [],
+      closetCeiling: [],
+      closetCeilingLight: [],
+      closetCardboard: [],
     };
 
     const registerCollider = (geo, posX, posY, posZ, rotX = 0, rotY = 0, rotZ = 0) => {
@@ -14956,9 +15242,19 @@ export class WarehouseBuilder {
         w: 0.18, h: 1.15, d: 23.50, x: -10.09, yBottom: 2.65, z: 1.75, horizStart: 0.00,
         hide: { nx: true, py: true, ny: true, pz: true, nz: true }
       },
-      // 2. Lower solid front-left wall up to right window jamb (Z = -10.00 to +1.703, Y = 0.00 to 2.65m)
+      // 2A. Lower solid front-left wall from front corner up to Maintenance Door casing clearance (Z = -10.00 to -4.579, Y = 0.00 to 2.65m)
       {
-        w: 0.18, h: 2.65, d: 11.703, x: -10.09, yBottom: 0.00, z: -4.1485, horizStart: 0.00,
+        w: 0.18, h: 2.65, d: 5.421, x: -10.09, yBottom: 0.00, z: -7.2895, horizStart: 0.00,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+      // 2Header. Header filler above Maintenance Door casing (Z = -4.579 to -3.421, Y = 2.570 to 2.650m)
+      {
+        w: 0.18, h: 0.080, d: 1.158, x: -10.09, yBottom: 2.570, z: -4.000, horizStart: 5.421,
+        hide: { nx: true, py: true, ny: true, pz: true, nz: true }
+      },
+      // 2B. Lower solid mid-left wall from Maintenance Door casing clearance to glass partition jamb (Z = -3.421 to +1.703, Y = 0.00 to 2.65m)
+      {
+        w: 0.18, h: 2.65, d: 5.124, x: -10.09, yBottom: 0.00, z: -0.859, horizStart: 6.579,
         hide: { nx: true, py: true, ny: true, pz: true, nz: true }
       },
       // 3. Lower half-wall below glass partition (Z = +1.703 to +9.497, Y = 0.00 to 1.08m)
@@ -15109,9 +15405,9 @@ export class WarehouseBuilder {
     // B. Potted Areca Palm Plant (Compact indoor office scale ~58%, placed neatly beside the coffee cabinet)
     this._buildArecaPalm(addVisual, registerCollider, visualBuckets, -9.45, 0.0, -0.62, 0.58, 0.50);
 
-    // C. Closed Matte-White Staff Door ("NO ENTRY / STAFF ONLY")
-    // Mounted flush against Left Wall at X = -10.0m, Z = -4.0m, cleanly centered between wall outlets at Z = -2.0m & -6.0m
-    this._buildStaffDoor(addPart, addVisual, registerCollider, visualBuckets, -10.0, 0.0, -4.0);
+    // C. Hinged Matte-White Staff / Maintenance Door ("AVISO / ACESSO RESTRITO") + Small Utility Closet behind it
+    this._buildStaffDoor(addPart, addVisual, registerCollider, visualBuckets, group, -10.0, 0.0, -4.0);
+    this._buildMaintenanceCloset(addPart, addVisual, registerCollider, visualBuckets);
 
     // D. Enterprise Wall-Mounted Split AC Units (LG Artcool Mirror Style - +40% FPS Hero Scale)
     // 3 units mounted high on the East wall (X = 10.0m) near ceiling (Y = 3.42m) facing into room (-X).
@@ -15339,11 +15635,16 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.janitorGreenPlastic, material: this.janitorGreenPlasticMaterial, name: 'DC_JanitorGreenPlastic' },
       { bucket: visualBuckets.janitorTowelTan, material: this.janitorTowelTanMaterial, name: 'DC_JanitorTowelTan' },
       { bucket: visualBuckets.janitorBroomBristle, material: this.janitorBroomBristleMaterial, name: 'DC_JanitorBroomBristle' },
+      { bucket: visualBuckets.closetProps, material: this.closetPropsMaterial, name: 'DC_ClosetProps', useVertexColors: true },
+      { bucket: visualBuckets.closetFloor, material: this.closetFloorMaterial, name: 'DC_ClosetFloor' },
+      { bucket: visualBuckets.closetCeiling, material: this.closetCeilingMaterial, name: 'DC_ClosetCeiling' },
+      { bucket: visualBuckets.closetCeilingLight, material: this.closetCeilingLightMaterial, name: 'DC_ClosetCeilingLight' },
+      { bucket: visualBuckets.closetCardboard, material: this.closetCardboardMaterial, name: 'DC_ClosetCardboard' },
     ];
 
     for (const def of bucketDefs) {
       if (def.bucket.length > 0) {
-        // Ensure all geometries are non-indexed with compatible attributes (position, normal, uv)
+        // Ensure all geometries are non-indexed with compatible attributes (position, normal, uv[, color])
         const normalized = def.bucket.map(g => {
           const res = g.index ? g.toNonIndexed() : g.clone();
           if (!res.getAttribute('normal')) {
@@ -15353,9 +15654,15 @@ export class WarehouseBuilder {
             const count = res.getAttribute('position').count;
             res.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
           }
+          if (def.useVertexColors && !res.getAttribute('color')) {
+            const count = res.getAttribute('position').count;
+            const colArr = new Float32Array(count * 3);
+            colArr.fill(1);
+            res.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+          }
           const attrNames = Object.keys(res.attributes);
           for (const name of attrNames) {
-            if (name !== 'position' && name !== 'normal' && name !== 'uv') {
+            if (name !== 'position' && name !== 'normal' && name !== 'uv' && !(def.useVertexColors && name === 'color')) {
               res.deleteAttribute(name);
             }
           }
@@ -15405,6 +15712,10 @@ export class WarehouseBuilder {
             mesh.receiveShadow = false;
             this.exteriorVistaGroup.add(mesh);
           } else {
+            if (def.name.startsWith('DC_Closet')) {
+              mesh.castShadow = false;
+              mesh.receiveShadow = false;
+            }
             group.add(mesh);
           }
         } else {
@@ -17274,26 +17585,7 @@ export class WarehouseBuilder {
     colTab.dispose();
   }
 
-  _buildStaffDoor(addPart, addVisual, arg3, arg4, arg5 = -10.0, arg6 = 0.0, arg7 = -4.0) {
-    let registerCollider = null;
-    let visualBuckets;
-    let posX = -10.0;
-    let posY = 0.0;
-    let posZ = -4.0;
-
-    if (typeof arg3 === 'function') {
-      registerCollider = arg3;
-      visualBuckets = arg4;
-      if (arg5 !== undefined) posX = arg5;
-      if (arg6 !== undefined) posY = arg6;
-      if (arg7 !== undefined) posZ = arg7;
-    } else {
-      visualBuckets = arg3;
-      if (arg4 !== undefined) posX = arg4;
-      if (arg5 !== undefined) posY = arg5;
-      if (arg6 !== undefined) posZ = arg6;
-    }
-
+  _buildStaffDoor(addPart, addVisual, registerCollider, visualBuckets, parentGroup, posX = -10.0, posY = 0.0, posZ = -4.0) {
     // Hero-Scale Dimensions:
     // Aligns with the 2.649m top header line of the glass partition window & vestibule doorway on the same wall!
     const frameH = 2.650; // Total outer casing height (matching 2.649m header line)
@@ -17302,123 +17594,582 @@ export class WarehouseBuilder {
     const openH = frameH - trimW; // 2.570m clear height inside casing
     const openW = 1.150;  // 1.150m clear width inside casing
     const frameW = openW + trimW * 2.0; // 1.310m total outer frame width
-    const frameCenterX = posX + trimD * 0.5; // -9.985m
+    // Offset casing 2mm proud of X = -10.000 so it NEVER Z-fights with the wall/baseboard plane
+    const frameCenterX = posX + trimD * 0.5 + 0.002; // -9.983m
 
     // 1. Outer Frame / Architrave (0xf0f2f5, roughness: 0.55)
-    // Left Jamb (at +Z side) — height openH (jambs meet bottom of header casing seamlessly)
-    const jambGeo = new THREE.BoxGeometry(trimD, openH, trimW);
+    // Left Jamb (+Z) & Right Jamb (-Z), starting 2mm above floor (zero floor-seam Z-fighting)
+    const jambGeo = new THREE.BoxGeometry(trimD, openH - 0.002, trimW);
     const leftJambZ = posZ + openW * 0.5 + trimW * 0.5; // -3.385m
-    const jambY = posY + openH * 0.5; // 1.285m
-    addPart(visualBuckets.staffDoorFrame, jambGeo, frameCenterX, jambY, leftJambZ, 0, 0, 0, true);
-
-    // Right Jamb (at -Z side)
     const rightJambZ = posZ - openW * 0.5 - trimW * 0.5; // -4.615m
+    const jambY = posY + 0.002 + (openH - 0.002) * 0.5;
+    addPart(visualBuckets.staffDoorFrame, jambGeo, frameCenterX, jambY, leftJambZ, 0, 0, 0, true);
     addPart(visualBuckets.staffDoorFrame, jambGeo, frameCenterX, jambY, rightJambZ, 0, 0, 0, true);
     jambGeo.dispose();
 
-    // Top Header Casing (spans entire width: frameW = 1.310m, seated directly atop the jambs)
+    // Inner doorway reveal jamb liner (X = -10.002 to -10.214) strictly clear of exterior/closet faces
+    const innerRevealDepth = 0.212;
+    const innerRevealX = posX - 0.002 - innerRevealDepth * 0.5;
+    const innerJambGeo = new THREE.BoxGeometry(innerRevealDepth, openH - 0.002, 0.014);
+    addPart(visualBuckets.staffDoorFrame, innerJambGeo, innerRevealX, jambY, posZ + openW * 0.5 - 0.007, 0, 0, 0, true);
+    addPart(visualBuckets.staffDoorFrame, innerJambGeo, innerRevealX, jambY, posZ - openW * 0.5 + 0.007, 0, 0, 0, true);
+    innerJambGeo.dispose();
+
+    const innerHeaderGeo = new THREE.BoxGeometry(innerRevealDepth, 0.014, openW);
+    addPart(visualBuckets.staffDoorFrame, innerHeaderGeo, innerRevealX, posY + openH - 0.007, posZ, 0, 0, 0, true);
+    innerHeaderGeo.dispose();
+
+    // Top Header Casing
     const headerGeo = new THREE.BoxGeometry(trimD, trimW, frameW);
-    const headerY = posY + openH + trimW * 0.5; // 2.610m (bottom at 2.570m, top reaches 2.650m)
+    const headerY = posY + openH + trimW * 0.5; // 2.610m
     addPart(visualBuckets.staffDoorFrame, headerGeo, frameCenterX, headerY, posZ, 0, 0, 0, true);
     headerGeo.dispose();
 
-    // 2. Dark Perimeter Shadow Gap Seam (0x1e2228, roughness: 0.90)
-    // Backing reveal layer inside opening behind the door leaf
-    const seamD = 0.012;
-    const seamGeo = new THREE.BoxGeometry(seamD, openH, openW);
-    addVisual(visualBuckets.staffDoorSeam, seamGeo, posX + seamD * 0.5, posY + openH * 0.5, posZ);
-    seamGeo.dispose();
+    // Doorstop seam strips along left/right/top inside frame (leaves center opening open for closet walk-in!)
+    const stopSideGeo = new THREE.BoxGeometry(0.016, openH, 0.010);
+    addVisual(visualBuckets.staffDoorSeam, stopSideGeo, posX + 0.008, posY + openH * 0.5, posZ + openW * 0.5 - 0.018);
+    addVisual(visualBuckets.staffDoorSeam, stopSideGeo, posX + 0.008, posY + openH * 0.5, posZ - openW * 0.5 + 0.018);
+    stopSideGeo.dispose();
 
-    // 3. Recessed Matte-White Door Leaf (0xf7f8fa, roughness: 0.50)
-    // Borders perfectly aligned with the door frame opening with exact 2.5mm uniform reveal on top, left & right!
-    const revealGap = 0.0025; // 2.5mm exact uniform architectural reveal gap
-    const floorGap = 0.008;   // 8mm floor clearance gap
-    const leafW = openW - revealGap * 2.0; // 1.145m (exactly 2.5mm from left & right jambs)
-    const leafTopY = openH - revealGap;    // 2.5675m (exactly 2.5mm from top header soffit)
+    // 2. Dynamic Hinged Matte-White Door Leaf Group (hinged at +Z side = -3.4275m, swings +90° inward into closet)
+    const revealGap = 0.0025;
+    const floorGap = 0.008;
+    const leafW = openW - revealGap * 2.0; // 1.145m
+    const leafTopY = openH - revealGap;    // 2.5675m
     const leafBottomY = posY + floorGap;   // 0.008m
     const leafH = leafTopY - leafBottomY;  // 2.5595m
     const leafCenterY = (leafTopY + leafBottomY) * 0.5; // 1.28775m
-    const leafD = 0.024; // 24mm thick solid flush door leaf
-    const leafFrontX = posX + 0.002 + leafD; // -9.974m (subtle 4mm architectural recess inside casing at -9.970m)
-    const leafCenterX = posX + 0.002 + leafD * 0.5; // -9.986m
+    const leafD = 0.024;
+    const hingeX = posX - 0.010; // -10.010m pivot along hinge barrel
+    const hingeZ = posZ + leafW * 0.5; // -3.4275m
 
-    const leafGeo = new THREE.BoxGeometry(leafD, leafH, leafW);
-    addPart(visualBuckets.staffDoorLeaf, leafGeo, leafCenterX, leafCenterY, posZ, 0, 0, 0, true);
-    leafGeo.dispose();
+    this.maintenanceDoorPivot = new THREE.Group();
+    this.maintenanceDoorPivot.name = 'MaintenanceDoorPivot';
+    this.maintenanceDoorPivot.position.set(hingeX, posY, hingeZ);
+    parentGroup.add(this.maintenanceDoorPivot);
 
-    // 4. Procedural Brazilian Portuguese "AVISO / ACESSO RESTRITO" Sign Plaque (0.38m wide x 0.266m tall x 0.004m thick)
-    // Mounted flush on door leaf at eye level (Y ≈ 1.78m), horizontally centered on the door leaf (Z = posZ)
-    const signW = 0.380; // width along Z
-    const signH = 0.266; // height along Y (~0.38m x 0.266m matches 600x420 aspect ratio)
-    const signD = 0.004; // 4mm thickness
-    const signGeo = new THREE.BoxGeometry(signD, signH, signW);
-    const signX = leafFrontX + signD * 0.5; // -9.972m
-    const signY = 1.78;
-    addPart(visualBuckets.staffDoorSign, signGeo, signX, signY, posZ, 0, 0, 0, true);
-    signGeo.dispose();
+    const localLeafCenterX = 0.012 + leafD * 0.5; // offsets back to closed world X ≈ -9.986m
+    const localLeafFrontX = 0.012 + leafD;        // closed world X ≈ -9.974m
+    const localLeafCenterZ = -leafW * 0.5;        // extends from 0 down to -leafW
 
-    // 5. Hero-Scale Brushed Chrome Lever Handle (0xd8dde4, metalness: 0.88, roughness: 0.18)
-    // Mounted on right side of leaf at natural ergonomic hand height (Y ≈ 1.30m on 2.65m hero door)
-    const handleBackset = 0.085; // 85mm from right leaf edge
-    const handleZ = posZ - leafW * 0.5 + handleBackset; // -4.4875m
+    const leafMesh = new THREE.Mesh(new THREE.BoxGeometry(leafD, leafH, leafW), this.staffDoorLeafMaterial);
+    leafMesh.name = 'MaintenanceDoorLeaf';
+    leafMesh.position.set(localLeafCenterX, leafCenterY, localLeafCenterZ);
+    leafMesh.castShadow = false;
+    leafMesh.receiveShadow = false;
+    this.maintenanceDoorPivot.add(leafMesh);
+    this.maintenanceDoorHitMesh = leafMesh;
+
+    // 3. Procedural Brazilian Portuguese "AVISO / ACESSO RESTRITO" Sign Plaque (mounted on door leaf)
+    const signW = 0.380;
+    const signH = 0.266;
+    const signD = 0.004;
+    const signMesh = new THREE.Mesh(new THREE.BoxGeometry(signD, signH, signW), this.staffDoorSignMaterial);
+    signMesh.position.set(localLeafFrontX + signD * 0.5, 1.78, localLeafCenterZ);
+    this.maintenanceDoorPivot.add(signMesh);
+
+    // 4. Brushed Chrome Lever Handle (front face + matching lever on interior closet face!)
+    const handleBackset = 0.085;
+    const localHandleZ = -leafW + handleBackset;
     const handleY = 1.30;
-
-    // A. Circular Rosette Backplate (diameter 68mm, thickness 7mm)
-    const rosetteGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.007, 24);
-    rosetteGeo.rotateZ(Math.PI * 0.5);
-    addVisual(visualBuckets.staffDoorHandle, rosetteGeo, leafFrontX + 0.0035, handleY, handleZ);
-    rosetteGeo.dispose();
-
-    // Rosette beveled base collar (diameter 76mm, thickness 2.5mm)
-    const collarGeo = new THREE.CylinderGeometry(0.038, 0.038, 0.0025, 24);
-    collarGeo.rotateZ(Math.PI * 0.5);
-    addVisual(visualBuckets.staffDoorHandle, collarGeo, leafFrontX + 0.0012, handleY, handleZ);
-    collarGeo.dispose();
-
-    // B. Cylindrical Spindle Neck (diameter 24mm, length 26mm)
-    const spindleGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.026, 18);
-    spindleGeo.rotateZ(Math.PI * 0.5);
-    const spindleX = leafFrontX + 0.007 + 0.013; // -9.958m
-    addVisual(visualBuckets.staffDoorHandle, spindleGeo, spindleX, handleY, handleZ);
-    spindleGeo.dispose();
-
-    // C. Elbow Hub (connecting spindle to lever)
-    const hubGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.024, 18);
-    hubGeo.rotateX(Math.PI * 0.5);
-    const hubX = leafFrontX + 0.033; // -9.945m
-    addVisual(visualBuckets.staffDoorHandle, hubGeo, hubX, handleY, handleZ);
-    hubGeo.dispose();
-
-    // D. Horizontal Contoured Lever Bar (~0.145m long, pointing inward to the left (+Z))
-    const leverLen = 0.145;
-    const leverGeo = new THREE.CylinderGeometry(0.0105, 0.0095, leverLen, 18);
-    leverGeo.rotateX(Math.PI * 0.5);
-    const leverZ = handleZ + leverLen * 0.5; // -4.4125m
-    addVisual(visualBuckets.staffDoorHandle, leverGeo, hubX, handleY, leverZ);
-    leverGeo.dispose();
-
-    // E. Rounded Lever Tip (sphere at end of lever)
-    const tipGeo = new THREE.SphereGeometry(0.010, 14, 14);
-    addVisual(visualBuckets.staffDoorHandle, tipGeo, hubX, handleY, handleZ + leverLen);
-    tipGeo.dispose();
-
-    // F. Keyhole / Escutcheon Plate (115mm below handle at Y ≈ 1.065m)
-    const keyplateGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.006, 20);
-    keyplateGeo.rotateZ(Math.PI * 0.5);
     const keyplateY = handleY - 0.115;
-    addVisual(visualBuckets.staffDoorHandle, keyplateGeo, leafFrontX + 0.003, keyplateY, handleZ);
-    keyplateGeo.dispose();
+    const leverLen = 0.145;
 
-    const keyholeGeo = new THREE.BoxGeometry(0.004, 0.015, 0.005);
-    addVisual(visualBuckets.staffDoorSeam, keyholeGeo, leafFrontX + 0.006, keyplateY, handleZ);
-    keyholeGeo.dispose();
+    for (const side of [1, -1]) {
+      const faceX = side === 1 ? localLeafFrontX : (localLeafCenterX - leafD * 0.5);
+      const rosetteGeo = new THREE.CylinderGeometry(0.034, 0.034, 0.007, 18);
+      rosetteGeo.rotateZ(Math.PI * 0.5);
+      const rosette = new THREE.Mesh(rosetteGeo, this.staffDoorHandleMaterial);
+      rosette.position.set(faceX + side * 0.0035, handleY, localHandleZ);
+      this.maintenanceDoorPivot.add(rosette);
 
-    // G. Handle Collider (for weapon hitscan raycasting)
-    if (typeof registerCollider === 'function') {
-      const handleColliderGeo = new THREE.BoxGeometry(0.08, 0.26, 0.24);
-      registerCollider(handleColliderGeo, leafFrontX + 0.030, handleY - 0.055, handleZ + leverLen * 0.40);
-      handleColliderGeo.dispose();
+      const spindleGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.026, 14);
+      spindleGeo.rotateZ(Math.PI * 0.5);
+      const spindle = new THREE.Mesh(spindleGeo, this.staffDoorHandleMaterial);
+      spindle.position.set(faceX + side * 0.020, handleY, localHandleZ);
+      this.maintenanceDoorPivot.add(spindle);
+
+      const hubGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.024, 14);
+      hubGeo.rotateX(Math.PI * 0.5);
+      const hubX = faceX + side * 0.033;
+      const hub = new THREE.Mesh(hubGeo, this.staffDoorHandleMaterial);
+      hub.position.set(hubX, handleY, localHandleZ);
+      this.maintenanceDoorPivot.add(hub);
+
+      const leverGeo = new THREE.CylinderGeometry(0.0105, 0.0095, leverLen, 14);
+      leverGeo.rotateX(Math.PI * 0.5);
+      const lever = new THREE.Mesh(leverGeo, this.staffDoorHandleMaterial);
+      lever.position.set(hubX, handleY, localHandleZ + leverLen * 0.5);
+      this.maintenanceDoorPivot.add(lever);
+
+      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.010, 12, 12), this.staffDoorHandleMaterial);
+      tip.position.set(hubX, handleY, localHandleZ + leverLen);
+      this.maintenanceDoorPivot.add(tip);
+
+      const keyplateGeo = new THREE.CylinderGeometry(0.024, 0.024, 0.006, 16);
+      keyplateGeo.rotateZ(Math.PI * 0.5);
+      const keyplate = new THREE.Mesh(keyplateGeo, this.staffDoorHandleMaterial);
+      keyplate.position.set(faceX + side * 0.003, keyplateY, localHandleZ);
+      this.maintenanceDoorPivot.add(keyplate);
+
+      const keyhole = new THREE.Mesh(new THREE.BoxGeometry(0.004, 0.015, 0.005), this.staffDoorSeamMaterial);
+      keyhole.position.set(faceX + side * 0.006, keyplateY, localHandleZ);
+      this.maintenanceDoorPivot.add(keyhole);
     }
+
+    // Dynamic player-capsule blocker while Maintenance Door is closed
+    this.maintenanceDoorBlocker = {
+      minX: posX - 0.18,
+      maxX: posX + 0.06,
+      minY: 0.0,
+      maxY: frameH,
+      minZ: posZ - openW * 0.5,
+      maxZ: posZ + openW * 0.5,
+      active: true,
+    };
+
+    // Dynamic player-capsule blocker matching the 90-degree opened door leaf along left closet wall
+    this.maintenanceDoorOpenBlocker = {
+      minX: hingeX - leafW - 0.02,
+      maxX: hingeX + 0.02,
+      minY: 0.0,
+      maxY: frameH,
+      minZ: hingeZ - localLeafCenterX - 0.06,
+      maxZ: hingeZ - localLeafCenterX + 0.06,
+      active: false,
+    };
+
+    // Export doorway & safe-zone bounds
+    this.maintenanceDoorWorldPos = new THREE.Vector3(posX + 0.04, 1.30, posZ);
+    this.maintenanceDoorOpenProgress = 0;
+  }
+
+  /**
+   * Smoothly animates the hinged Maintenance Door between closed (0) and 90-degree open (1).
+   */
+  setMaintenanceDoorOpenAmount(amount) {
+    const t = Math.max(0, Math.min(1, Number(amount) || 0));
+    this.maintenanceDoorOpenProgress = t;
+    if (this.maintenanceDoorPivot) {
+      this.maintenanceDoorPivot.rotation.y = t * (Math.PI * 0.5);
+      this.maintenanceDoorPivot.updateMatrixWorld(true);
+    }
+    if (this.maintenanceDoorBlocker) {
+      this.maintenanceDoorBlocker.active = t < 0.85;
+    }
+    if (this.maintenanceDoorOpenBlocker) {
+      this.maintenanceDoorOpenBlocker.active = t >= 0.85;
+    }
+  }
+
+  /**
+   * Restores the Maintenance Door back to closed state (on EXIT to Main Menu).
+   */
+  resetMaintenanceDoor() {
+    this.setMaintenanceDoorOpenAmount(0);
+  }
+
+  /**
+   * Returns true when world position (x, y, z) is inside the Maintenance Closet Safe-Zone.
+   */
+  isPlayerInMaintenanceCloset(pos) {
+    if (!pos) return false;
+    return (
+      pos.x <= -10.05 &&
+      pos.x >= -14.80 &&
+      pos.z >= -5.60 &&
+      pos.z <= -2.40 &&
+      pos.y >= -0.20 &&
+      pos.y <= 3.00
+    );
+  }
+
+  /**
+   * Builds the expanded Maintenance Utility Closet (4.40m D x 2.90m W x 2.75m H) behind X = -10.22, Z = -4.0
+   * with ZERO PointLights (2 recessed unlit emissive troffers + acoustic tile grid ceiling, static geometries
+   * consolidated into <= 5 total draw calls with castShadow/receiveShadow = false, slotted wall-track shelving
+   * with zero L-corner overlap, zero Z-fighting threshold seam, and clean collision matching /models/military_crate.glb).
+   */
+  _buildMaintenanceCloset(addPart, addVisual, registerCollider, visualBuckets) {
+    const cXMax = -10.22; // Front interior wall face
+    const cXMin = -14.62; // Back interior wall face (4.40m deep)
+    const cZMin = -5.45;  // Right interior wall face
+    const cZMax = -2.55;  // Left interior wall face (2.90m wide)
+    const cH = 2.75;      // Interior height
+    const cMidX = (cXMax + cXMin) * 0.5; // -12.42m
+    const cMidZ = (cZMin + cZMax) * 0.5; // -4.00m
+    const cW = cZMax - cZMin; // 2.90m
+    const cD = cXMax - cXMin; // 4.40m
+    const wallT = 0.14;
+
+    const tmpColor = new THREE.Color();
+    const addClosetColor = (geo, hex, px, py, pz, rx = 0, ry = 0, rz = 0, collidable = false) => {
+      addPart(visualBuckets.closetProps, geo, px, py, pz, rx, ry, rz, collidable);
+      const pushed = visualBuckets.closetProps[visualBuckets.closetProps.length - 1];
+      const posAttr = pushed?.getAttribute('position');
+      if (!posAttr) return;
+      tmpColor.setHex(hex);
+      const count = posAttr.count;
+      const colors = new Float32Array(count * 3);
+      for (let i = 0; i < count; i++) {
+        colors[i * 3] = tmpColor.r;
+        colors[i * 3 + 1] = tmpColor.g;
+        colors[i * 3 + 2] = tmpColor.b;
+      }
+      pushed.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    };
+
+    const COL_WALL = 0xe5e7eb;
+    const COL_BASEBOARD = 0x1e242c;
+    const COL_AO = 0x16191f;
+    const COL_SHELF_METAL = 0x363d47;
+    const COL_RACK_STEEL = 0x9aa4b2;
+    const COL_WHITE_PAPER = 0xf4f5f7;
+    const COL_ORANGE = 0xea580c;
+    const COL_YELLOW = 0xeab308;
+    const COL_RED = 0xdc2626;
+    const COL_BLUE = 0x1d4ed8;
+    const COL_DARK_PLASTIC = 0x2d333b;
+
+    // 1. Concrete Utility Floor (strictly behind X = -10.21 so zero main-office baseboard Z-fighting!)
+    //    plus Metallic Doorway Threshold Saddle Strip bridging X = -10.21..-9.99 across Z = -4.575..-3.425
+    const floorVisGeo = new THREE.BoxGeometry(cD + 0.01, 0.12, cW + 0.02);
+    addVisual(visualBuckets.closetFloor, floorVisGeo, cMidX, -0.060, cMidZ);
+    floorVisGeo.dispose();
+
+    const floorColGeo = new THREE.BoxGeometry(cD + 0.30, 0.24, cW + 0.20);
+    registerCollider(floorColGeo, cMidX + 0.10, -0.12, cMidZ);
+    floorColGeo.dispose();
+
+    const thresholdGeo = new THREE.BoxGeometry(0.224, 0.006, 1.148);
+    addClosetColor(thresholdGeo, COL_RACK_STEEL, -10.102, 0.003, -4.000);
+    thresholdGeo.dispose();
+
+    // 2. Acoustic Drop-Ceiling Tile Grid (Y = 2.75m) & 2 Centered Recessed Fluorescent Light Troffers (0 PointLights!)
+    const ceilPlaneGeo = new THREE.PlaneGeometry(cD, cW);
+    ceilPlaneGeo.rotateX(Math.PI * 0.5); // Face -Y downward into closet
+    const ceilUv = ceilPlaneGeo.attributes.uv;
+    if (ceilUv) {
+      for (let i = 0; i < ceilUv.count; i++) {
+        ceilUv.setXY(i, ceilUv.getX(i) * (cD / 1.2), ceilUv.getY(i) * (cW / 1.2));
+      }
+    }
+    addVisual(visualBuckets.closetCeiling, ceilPlaneGeo, cMidX, cH, cMidZ);
+    ceilPlaneGeo.dispose();
+
+    const ceilColGeo = new THREE.BoxGeometry(cD + 0.24, 0.14, cW + 0.24);
+    registerCollider(ceilColGeo, cMidX, cH + 0.07, cMidZ);
+    ceilColGeo.dispose();
+
+    const trofferFrameGeo = new THREE.BoxGeometry(1.02, 0.020, 0.38);
+    const trofferDiffGeo = new THREE.BoxGeometry(0.94, 0.012, 0.30);
+    for (const tx of [-11.42, -13.42]) {
+      addClosetColor(trofferFrameGeo, COL_SHELF_METAL, tx, cH - 0.008, cMidZ);
+      addVisual(visualBuckets.closetCeilingLight, trofferDiffGeo, tx, cH - 0.015, cMidZ);
+    }
+    trofferFrameGeo.dispose();
+    trofferDiffGeo.dispose();
+
+    // 3. Matte Off-White Drywall Perimeter Walls, Dark Baseboard Trim (5mm inward) & AO Shadow Strips
+    const backWallGeo = new THREE.BoxGeometry(wallT, cH, cW + wallT * 2);
+    addClosetColor(backWallGeo, COL_WALL, cXMin - wallT * 0.5, cH * 0.5, cMidZ, 0, 0, 0, true);
+    backWallGeo.dispose();
+
+    const sideWallGeo = new THREE.BoxGeometry(cD + wallT, cH, wallT);
+    addClosetColor(sideWallGeo, COL_WALL, cMidX - wallT * 0.5, cH * 0.5, cZMax + wallT * 0.5, 0, 0, 0, true);
+    addClosetColor(sideWallGeo, COL_WALL, cMidX - wallT * 0.5, cH * 0.5, cZMin - wallT * 0.5, 0, 0, 0, true);
+    sideWallGeo.dispose();
+
+    // Front interior drywall wings cleanly separated 4mm behind the main-office partition back plane (-10.180)
+    const fRightW = (-4.575) - cZMin; // 0.875m
+    const fRightGeo = new THREE.BoxGeometry(0.036, cH, fRightW);
+    addClosetColor(fRightGeo, COL_WALL, cXMax + 0.018, cH * 0.5, cZMin + fRightW * 0.5, 0, 0, 0, true);
+    fRightGeo.dispose();
+
+    const fLeftW = cZMax - (-3.425); // 0.875m
+    const fLeftGeo = new THREE.BoxGeometry(0.036, cH, fLeftW);
+    addClosetColor(fLeftGeo, COL_WALL, cXMax + 0.018, cH * 0.5, -3.425 + fLeftW * 0.5, 0, 0, 0, true);
+    fLeftGeo.dispose();
+
+    const fHeaderH = cH - 2.57;
+    const fHeaderGeo = new THREE.BoxGeometry(0.036, fHeaderH, 1.15);
+    addClosetColor(fHeaderGeo, COL_WALL, cXMax + 0.018, 2.57 + fHeaderH * 0.5, -4.00, 0, 0, 0, true);
+    fHeaderGeo.dispose();
+
+    // Dark charcoal rubber baseboard trim (offset 5mm inward & 2mm clear of floor, corner-trimmed to avoid overlap)
+    const bbH = 0.100;
+    const bbT = 0.014;
+    const bbY = 0.002 + bbH * 0.5;
+    const bbInset = 0.005 + bbT * 0.5;
+    const aoH = 0.003;
+    const aoW = 0.022;
+    const aoY = 0.0015;
+
+    const backBbGeo = new THREE.BoxGeometry(bbT, bbH, cW - 0.04);
+    addClosetColor(backBbGeo, COL_BASEBOARD, cXMin + bbInset, bbY, cMidZ);
+    backBbGeo.dispose();
+
+    const sideBbGeo = new THREE.BoxGeometry(cD - 0.04, bbH, bbT);
+    addClosetColor(sideBbGeo, COL_BASEBOARD, cMidX, bbY, cZMax - bbInset);
+    addClosetColor(sideBbGeo, COL_BASEBOARD, cMidX, bbY, cZMin + bbInset);
+    sideBbGeo.dispose();
+
+    // Front interior baseboards flanking doorway (clear of door jambs & side walls)
+    const fBbRightLen = fRightW - 0.03;
+    const fBbRightGeo = new THREE.BoxGeometry(bbT, bbH, fBbRightLen);
+    addClosetColor(fBbRightGeo, COL_BASEBOARD, cXMax - bbInset, bbY, cZMin + 0.015 + fBbRightLen * 0.5);
+    fBbRightGeo.dispose();
+
+    const fBbLeftLen = fLeftW - 0.03;
+    const fBbLeftGeo = new THREE.BoxGeometry(bbT, bbH, fBbLeftLen);
+    addClosetColor(fBbLeftGeo, COL_BASEBOARD, cXMax - bbInset, bbY, cZMax - 0.015 - fBbLeftLen * 0.5);
+    fBbLeftGeo.dispose();
+
+    // Subtle perimeter AO shadow strips along floor-wall seams & ceiling cove
+    const aoBackGeo = new THREE.BoxGeometry(aoW, aoH, cW - 0.02);
+    addClosetColor(aoBackGeo, COL_AO, cXMin + 0.019 + aoW * 0.5, aoY, cMidZ);
+    aoBackGeo.dispose();
+
+    const aoSideGeo = new THREE.BoxGeometry(cD - 0.04, aoH, aoW);
+    addClosetColor(aoSideGeo, COL_AO, cMidX, aoY, cZMax - 0.019 - aoW * 0.5);
+    addClosetColor(aoSideGeo, COL_AO, cMidX, aoY, cZMin + 0.019 + aoW * 0.5);
+    aoSideGeo.dispose();
+
+    const ceilAoBackGeo = new THREE.BoxGeometry(0.012, 0.012, cW - 0.02);
+    addClosetColor(ceilAoBackGeo, COL_AO, cXMin + 0.008, cH - 0.006, cMidZ);
+    ceilAoBackGeo.dispose();
+
+    const ceilAoSideGeo = new THREE.BoxGeometry(cD - 0.02, 0.012, 0.012);
+    addClosetColor(ceilAoSideGeo, COL_AO, cMidX, cH - 0.006, cZMax - 0.008);
+    addClosetColor(ceilAoSideGeo, COL_AO, cMidX, cH - 0.006, cZMin + 0.008);
+    ceilAoSideGeo.dispose();
+
+    // 4. Wall-Mounted Slotted Track Shelving (Tiers at Y = 0.85m, 1.38m, 1.90m, NO thick intersecting corner posts!)
+    const shelfTiers = [0.85, 1.38, 1.90];
+    const shelfBoardH = 0.024;
+    const shelfDepth = 0.39;
+
+    // 4A. Back Wall Shelving (X = -14.62.. -14.23, Z = -5.35..-2.65 = 2.70m span)
+    const backBoardCenterX = cXMin + shelfDepth * 0.5 + 0.01; // -14.415m
+    const backBoardSpanZ = 2.68;
+    const backBoardGeo = new THREE.BoxGeometry(shelfDepth, shelfBoardH, backBoardSpanZ);
+    const backTrackGeo = new THREE.BoxGeometry(0.012, 2.08, 0.028);
+    const backBracketArmGeo = new THREE.BoxGeometry(shelfDepth - 0.02, 0.018, 0.020);
+    const backBracketStrutGeo = new THREE.BoxGeometry(0.32, 0.014, 0.016);
+
+    for (const sy of shelfTiers) {
+      addClosetColor(backBoardGeo, COL_SHELF_METAL, backBoardCenterX, sy, cMidZ);
+    }
+    backBoardGeo.dispose();
+
+    for (const tz of [-5.24, -4.42, -3.60, -2.78]) {
+      addClosetColor(backTrackGeo, COL_RACK_STEEL, cXMin + 0.006, 1.18, tz);
+      for (const sy of shelfTiers) {
+        addClosetColor(backBracketArmGeo, COL_RACK_STEEL, cXMin + shelfDepth * 0.5, sy - 0.021, tz);
+        addClosetColor(backBracketStrutGeo, COL_RACK_STEEL, cXMin + 0.16, sy - 0.11, tz, 0, 0, 0.54);
+      }
+    }
+    backTrackGeo.dispose();
+    backBracketArmGeo.dispose();
+    backBracketStrutGeo.dispose();
+
+    // 4B. Right Wall Shelving (Z = -5.45..-5.07, STOPS 0.50m clear of Back Wall -> X = -14.12 to -11.72 = 2.40m span!)
+    const rightBoardCenterZ = cZMin + shelfDepth * 0.5 + 0.01; // -5.245m
+    const rightBoardXMin = cXMin + 0.50; // -14.12m (clean L-corner gap!)
+    const rightBoardLen = 2.40;
+    const rightBoardCenterX = rightBoardXMin + rightBoardLen * 0.5; // -12.92m
+    const rightBoardGeo = new THREE.BoxGeometry(rightBoardLen, shelfBoardH, shelfDepth);
+    const rightTrackGeo = new THREE.BoxGeometry(0.028, 2.08, 0.012);
+    const rightBracketArmGeo = new THREE.BoxGeometry(0.020, 0.018, shelfDepth - 0.02);
+    const rightBracketStrutGeo = new THREE.BoxGeometry(0.016, 0.014, 0.32);
+
+    for (const sy of shelfTiers) {
+      addClosetColor(rightBoardGeo, COL_SHELF_METAL, rightBoardCenterX, sy, rightBoardCenterZ);
+    }
+    rightBoardGeo.dispose();
+
+    for (const tx of [-13.94, -12.92, -11.90]) {
+      addClosetColor(rightTrackGeo, COL_RACK_STEEL, tx, 1.18, cZMin + 0.006);
+      for (const sy of shelfTiers) {
+        addClosetColor(rightBracketArmGeo, COL_RACK_STEEL, tx, sy - 0.021, cZMin + shelfDepth * 0.5);
+        addClosetColor(rightBracketStrutGeo, COL_RACK_STEEL, tx, sy - 0.11, cZMin + 0.16, -0.54, 0, 0);
+      }
+    }
+    rightTrackGeo.dispose();
+    rightBracketArmGeo.dispose();
+    rightBracketStrutGeo.dispose();
+
+    // Shelving colliders (trimmed cleanly around each unit)
+    const backShelfColGeo = new THREE.BoxGeometry(shelfDepth + 0.04, 1.95, backBoardSpanZ);
+    registerCollider(backShelfColGeo, backBoardCenterX, 1.00, cMidZ);
+    backShelfColGeo.dispose();
+
+    const rightShelfColGeo = new THREE.BoxGeometry(rightBoardLen, 1.95, shelfDepth + 0.04);
+    registerCollider(rightShelfColGeo, rightBoardCenterX, 1.00, rightBoardCenterZ);
+    rightShelfColGeo.dispose();
+
+    // 5. Corrugated Cardboard Supply Boxes (Strictly clear of Left-Back Stepladder zone Z = -3.75..-2.75!)
+    const addShippingBox = (bx, byBottom, bz, w, h, d) => {
+      const bGeo = new THREE.BoxGeometry(w, h, d);
+      addVisual(visualBuckets.closetCardboard, bGeo, bx, byBottom + h * 0.5, bz);
+      bGeo.dispose();
+    };
+
+    // Back wall shelving cartons
+    addShippingBox(backBoardCenterX + 0.01, 1.392, -4.62, 0.34, 0.23, 0.92);
+    addShippingBox(backBoardCenterX + 0.01, 0.862, -4.96, 0.33, 0.24, 0.44);
+    addShippingBox(backBoardCenterX + 0.01, 0.862, -4.40, 0.33, 0.18, 0.42);
+    addShippingBox(backBoardCenterX + 0.01, 1.912, -4.88, 0.32, 0.20, 0.54);
+
+    // Lower Right Floor: 3 stacked corrugated cardboard shipping boxes under right wall shelf
+    addShippingBox(-13.48, 0.000, rightBoardCenterZ + 0.03, 0.54, 0.28, 0.36);
+    addShippingBox(-13.46, 0.280, rightBoardCenterZ + 0.03, 0.48, 0.24, 0.34);
+    addShippingBox(-12.78, 0.000, rightBoardCenterZ + 0.03, 0.50, 0.30, 0.35);
+
+    // Bottom Right Shelf (Y = 0.862m): neat pair of medium supply cartons
+    addShippingBox(-13.52, 0.862, rightBoardCenterZ + 0.01, 0.46, 0.22, 0.33);
+    addShippingBox(-12.92, 0.862, rightBoardCenterZ + 0.01, 0.42, 0.20, 0.32);
+
+    // 6. Upper Right Shelf (Y = 1.912m): Double-row stack of 14 Toilet Paper Rolls + 2 white ream boxes
+    const tpOuterGeo = new THREE.CylinderGeometry(0.058, 0.058, 0.112, 14);
+    const tpCoreGeo = new THREE.CylinderGeometry(0.020, 0.020, 0.114, 10);
+    for (let i = 0; i < 8; i++) {
+      const tx = -13.94 + i * 0.132;
+      const ty0 = 1.912 + 0.056;
+      addClosetColor(tpOuterGeo, COL_WHITE_PAPER, tx, ty0, rightBoardCenterZ + 0.04);
+      addVisual(visualBuckets.closetCardboard, tpCoreGeo, tx, ty0, rightBoardCenterZ + 0.04);
+      if (i < 6) {
+        const ty1 = 1.912 + 0.112 + 0.056;
+        addClosetColor(tpOuterGeo, COL_WHITE_PAPER, tx + 0.066, ty1, rightBoardCenterZ + 0.02);
+        addVisual(visualBuckets.closetCardboard, tpCoreGeo, tx + 0.066, ty1, rightBoardCenterZ + 0.02);
+      }
+    }
+    tpOuterGeo.dispose();
+    tpCoreGeo.dispose();
+
+    const reamBoxGeo = new THREE.BoxGeometry(0.30, 0.075, 0.24);
+    addClosetColor(reamBoxGeo, COL_WHITE_PAPER, -12.38, 1.912 + 0.0375, rightBoardCenterZ);
+    addClosetColor(reamBoxGeo, COL_WHITE_PAPER, -12.38, 1.912 + 0.1125, rightBoardCenterZ);
+    reamBoxGeo.dispose();
+
+    // 7. Middle Right Shelf (Y = 1.392m): 6 Cleaning Spray Bottles + Blue Microfiber Cloth Stack
+    const bBodyGeo = new THREE.CylinderGeometry(0.036, 0.042, 0.165, 12);
+    const bNeckGeo = new THREE.CylinderGeometry(0.015, 0.034, 0.055, 10);
+    const bCollarGeo = new THREE.CylinderGeometry(0.019, 0.019, 0.020, 8);
+    const bNozzleGeo = new THREE.BoxGeometry(0.024, 0.024, 0.074);
+    const bTriggerGeo = new THREE.BoxGeometry(0.010, 0.034, 0.014);
+
+    const spraySpecs = [
+      { x: -13.88, z: -5.20, body: COL_WHITE_PAPER, head: COL_RED },
+      { x: -13.68, z: -5.24, body: COL_WHITE_PAPER, head: COL_BLUE },
+      { x: -13.48, z: -5.19, body: COL_BLUE, head: COL_WHITE_PAPER },
+      { x: -13.28, z: -5.23, body: COL_WHITE_PAPER, head: COL_ORANGE },
+      { x: -13.08, z: -5.20, body: COL_RED, head: COL_WHITE_PAPER },
+      { x: -12.88, z: -5.22, body: COL_YELLOW, head: COL_DARK_PLASTIC },
+    ];
+    for (const sp of spraySpecs) {
+      addClosetColor(bBodyGeo, sp.body, sp.x, 1.392 + 0.0825, sp.z);
+      addClosetColor(bNeckGeo, sp.body, sp.x, 1.392 + 0.192, sp.z);
+      addClosetColor(bCollarGeo, sp.head, sp.x, 1.392 + 0.228, sp.z);
+      addClosetColor(bNozzleGeo, sp.head, sp.x, 1.392 + 0.244, sp.z + 0.014);
+      addClosetColor(bTriggerGeo, sp.head, sp.x, 1.392 + 0.222, sp.z + 0.028, 0.35, 0, 0);
+    }
+    bBodyGeo.dispose();
+    bNeckGeo.dispose();
+    bCollarGeo.dispose();
+    bNozzleGeo.dispose();
+    bTriggerGeo.dispose();
+
+    const clothGeo = new THREE.BoxGeometry(0.24, 0.022, 0.22);
+    for (let c = 0; c < 3; c++) {
+      addClosetColor(clothGeo, COL_BLUE, -12.36, 1.392 + 0.011 + c * 0.023, rightBoardCenterZ + 0.02, 0, c * 0.08, 0);
+    }
+    clothGeo.dispose();
+
+    // 8. Orange Fiberglass A-Frame Stepladder (Clean back-left placement, ZERO box/shelf clipping!)
+    const ladZ = -3.30;
+    const ladFrontFootX = -13.56;
+    const ladRearFootX = -14.12;
+    const ladTopX = -13.86;
+    const ladTopY = 1.76;
+
+    const frontTilt = Math.atan2(ladFrontFootX - ladTopX, ladTopY);
+    const rearTilt = Math.atan2(ladRearFootX - ladTopX, ladTopY);
+    const frontLen = Math.hypot(ladFrontFootX - ladTopX, ladTopY);
+    const rearLen = Math.hypot(ladRearFootX - ladTopX, ladTopY);
+
+    const fRailGeo = new THREE.BoxGeometry(0.036, frontLen, 0.058);
+    const rRailGeo = new THREE.BoxGeometry(0.032, rearLen, 0.048);
+    const rungGeo = new THREE.BoxGeometry(0.082, 0.022, 0.35);
+    const footPadGeo = new THREE.BoxGeometry(0.055, 0.024, 0.064);
+
+    for (const zOff of [-0.185, 0.185]) {
+      addClosetColor(fRailGeo, COL_ORANGE, (ladFrontFootX + ladTopX) * 0.5, ladTopY * 0.5, ladZ + zOff, 0, 0, frontTilt);
+      addClosetColor(rRailGeo, COL_RACK_STEEL, (ladRearFootX + ladTopX) * 0.5, ladTopY * 0.5, ladZ + zOff * 0.94, 0, 0, rearTilt);
+      addClosetColor(footPadGeo, COL_DARK_PLASTIC, ladFrontFootX, 0.012, ladZ + zOff);
+      addClosetColor(footPadGeo, COL_DARK_PLASTIC, ladRearFootX, 0.012, ladZ + zOff * 0.94);
+    }
+    fRailGeo.dispose();
+    rRailGeo.dispose();
+    footPadGeo.dispose();
+
+    for (let s = 0; s < 6; s++) {
+      const sy = 0.28 + s * 0.255;
+      const t = sy / ladTopY;
+      const sx = ladFrontFootX + (ladTopX - ladFrontFootX) * t;
+      addClosetColor(rungGeo, COL_RACK_STEEL, sx, sy, ladZ);
+    }
+    rungGeo.dispose();
+
+    const ladTopCapGeo = new THREE.BoxGeometry(0.24, 0.044, 0.43);
+    addClosetColor(ladTopCapGeo, COL_DARK_PLASTIC, ladTopX, ladTopY + 0.01, ladZ);
+    ladTopCapGeo.dispose();
+    const spreaderGeo = new THREE.BoxGeometry(0.36, 0.016, 0.016);
+    addClosetColor(spreaderGeo, COL_RACK_STEEL, (ladFrontFootX + ladRearFootX) * 0.5, 0.86, ladZ - 0.175);
+    addClosetColor(spreaderGeo, COL_RACK_STEEL, (ladFrontFootX + ladRearFootX) * 0.5, 0.86, ladZ + 0.175);
+    spreaderGeo.dispose();
+
+    const ladColGeo = new THREE.BoxGeometry(0.62, 1.82, 0.48);
+    registerCollider(ladColGeo, (ladFrontFootX + ladRearFootX) * 0.5, 0.91, ladZ);
+    ladColGeo.dispose();
+
+    // 9. Cylindrical Gray Utility Trash Barrels along Left Wall (X = -12.18, -12.84, Z = -2.90)
+    const barrelBodyGeo = new THREE.CylinderGeometry(0.245, 0.212, 0.76, 16);
+    const barrelRimGeo = new THREE.TorusGeometry(0.248, 0.022, 6, 18);
+    barrelRimGeo.rotateX(Math.PI * 0.5);
+    const barrelBaseRimGeo = new THREE.TorusGeometry(0.214, 0.015, 6, 16);
+    barrelBaseRimGeo.rotateX(Math.PI * 0.5);
+    const barrelHandleGeo = new THREE.BoxGeometry(0.052, 0.072, 0.11);
+
+    for (const bx of [-12.18, -12.84]) {
+      const bz = -2.90;
+      addClosetColor(barrelBodyGeo, COL_DARK_PLASTIC, bx, 0.38, bz);
+      addClosetColor(barrelRimGeo, COL_DARK_PLASTIC, bx, 0.755, bz);
+      addClosetColor(barrelBaseRimGeo, COL_DARK_PLASTIC, bx, 0.02, bz);
+      addClosetColor(barrelHandleGeo, COL_DARK_PLASTIC, bx - 0.25, 0.65, bz);
+      addClosetColor(barrelHandleGeo, COL_DARK_PLASTIC, bx + 0.25, 0.65, bz);
+
+      const barCol = new THREE.BoxGeometry(0.50, 0.80, 0.50);
+      registerCollider(barCol, bx, 0.40, bz);
+      barCol.dispose();
+    }
+    barrelBodyGeo.dispose();
+    barrelRimGeo.dispose();
+    barrelBaseRimGeo.dispose();
+    barrelHandleGeo.dispose();
+
+    // 10. Center Showcase Position & Snug Static AABB Collider for /models/military_crate.glb (~1.10m W x 0.62m D x 0.50m H)
+    const crateX = -12.47;
+    const crateZ = -4.00;
+    this.militaryCrateWorldPos = new THREE.Vector3(crateX, 0.26, crateZ);
+    this.militaryCrateInteractBox = new THREE.Box3(
+      new THREE.Vector3(crateX - 0.31 - 0.10, -0.10, crateZ - 0.55 - 0.10),
+      new THREE.Vector3(crateX + 0.31 + 0.10, 0.50 + 0.10, crateZ + 0.55 + 0.10)
+    );
+
+    const crateColGeo = new THREE.BoxGeometry(0.66, 0.54, 1.14);
+    registerCollider(crateColGeo, crateX, 0.27, crateZ);
+    crateColGeo.dispose();
   }
 
   /**
@@ -18486,6 +19237,11 @@ export class WarehouseBuilder {
       active: true,
     };
     this.elevatorDoorBlockers = [this.elevatorLeftDoorBlocker, this.elevatorRightDoorBlocker];
+    this.dynamicBlockers = [
+      ...this.elevatorDoorBlockers,
+      ...(this.maintenanceDoorBlocker ? [this.maintenanceDoorBlocker] : []),
+      ...(this.maintenanceDoorOpenBlocker ? [this.maintenanceDoorOpenBlocker] : []),
+    ];
 
     // Build Stainless-Steel Elevator Cab Interior, Ceiling LED Diffuser, "R&C SERVICE" Banner,
     // Control Panel (COP) with 3D Dangling Key, and Laminated Brazilian Safety Notices
@@ -22297,7 +23053,224 @@ export class WarehouseBuilder {
       this.elevatorBannerTexture,
       this.elevatorCopDiffuseTexture,
       this.elevatorCopEmissiveTexture,
+      ...(this.militaryCrateTextures || []),
     ].filter(Boolean);
+  }
+
+  /**
+   * Loads /models/military_crate.glb asynchronously during boot, removes the Sketchfab pedestal circle,
+   * downscales any >1024px PBR texture maps onto 1024x1024 offscreen canvases to protect 60 FPS,
+   * normalizes dimensions to ~1.10m wide x 0.62m deep x 0.50m tall flush at Y=0 facing +X,
+   * and sets up closed-pose THREE.AnimationMixer playback.
+   */
+  loadMilitaryCrate(onProgress = null) {
+    if (this._crateLoadPromise) return this._crateLoadPromise;
+
+    this._crateLoadPromise = new Promise((resolve) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        './models/military_crate.glb',
+        (gltf) => {
+          const crateScene = gltf.scene;
+          const discardNodes = [];
+          crateScene.traverse((child) => {
+            const name = (child.name || '').toLowerCase();
+            if (name === 'circle' || name.startsWith('circle_')) {
+              discardNodes.push(child);
+            }
+          });
+          for (const node of discardNodes) {
+            if (node.parent) node.parent.remove(node);
+            if (node.geometry) node.geometry.dispose();
+            const mats = Array.isArray(node.material) ? node.material : [node.material];
+            for (const m of mats) {
+              if (!m) continue;
+              for (const slot of CRATE_TEXTURE_SLOTS) {
+                if (m[slot]?.isTexture) m[slot].dispose();
+              }
+              m.dispose();
+            }
+          }
+
+          const seenTextures = new Set();
+          crateScene.traverse((child) => {
+            if (!child.isMesh) return;
+            child.castShadow = false;
+            child.receiveShadow = false;
+            child.frustumCulled = true;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            for (const m of mats) {
+              if (!m) continue;
+              for (const slot of CRATE_TEXTURE_SLOTS) {
+                const tex = m[slot];
+                if (tex?.isTexture && !seenTextures.has(tex)) {
+                  seenTextures.add(tex);
+                  downscaleCrateTextureIfNeeded(tex, 1024);
+                  this.militaryCrateTextures.push(tex);
+                }
+              }
+            }
+          });
+
+          // Configure AnimationMixer initialized at closed pose (time = 0, paused)
+          this.militaryCrateMixer = new THREE.AnimationMixer(crateScene);
+          const animClips = gltf.animations || [];
+          const lidClip =
+            animClips.find((c) => c.name === 'Armature|ArmatureAction') ||
+            animClips.find((c) => !c.name.toLowerCase().includes('circle')) ||
+            animClips[0];
+          if (lidClip) {
+            this.militaryCrateClipDuration = Math.max(0.1, lidClip.duration || 0.9);
+            const action = this.militaryCrateMixer.clipAction(lidClip);
+            action.setLoop(THREE.LoopOnce, 1);
+            action.clampWhenFinished = true;
+            action.enabled = true;
+            action.play();
+            action.time = 0;
+            action.paused = true;
+            this.militaryCrateAction = action;
+            this.militaryCrateMixer.update(0);
+          }
+
+          // Compute exact closed bounding box and normalize into showcase group facing +X
+          crateScene.updateMatrixWorld(true);
+          const rawBox = new THREE.Box3().setFromObject(crateScene);
+          const rawSize = rawBox.getSize(new THREE.Vector3());
+
+          const anchor = new THREE.Group();
+          anchor.name = 'MilitaryCrateAnchor';
+          anchor.add(crateScene);
+
+          if (rawSize.x > 0.001 && rawSize.y > 0.001 && rawSize.z > 0.001) {
+            // Default front latches face +Z and width along X; rotated +90deg puts width along Z and latches facing +X
+            crateScene.scale.set(
+              1.10 / rawSize.x,
+              0.50 / rawSize.y,
+              0.62 / rawSize.z
+            );
+          }
+          anchor.rotation.y = Math.PI * 0.5;
+          anchor.updateMatrixWorld(true);
+
+          const scaledBox = new THREE.Box3().setFromObject(anchor);
+          const center = scaledBox.getCenter(new THREE.Vector3());
+          anchor.position.set(
+            -12.47 - center.x,
+            0.0 - scaledBox.min.y,
+            -4.00 - center.z
+          );
+          anchor.updateMatrixWorld(true);
+
+          this.militaryCrateGroup = anchor;
+          this.militaryCrateWorldPos = new THREE.Vector3(-12.47, 0.26, -4.00);
+          this.militaryCrateInteractBox = new THREE.Box3().setFromObject(anchor).expandByScalar(0.10);
+          this.crateState = 'CLOSED';
+          this.scene.add(anchor);
+
+          if (typeof onProgress === 'function') onProgress(1);
+          resolve(anchor);
+        },
+        (xhr) => {
+          if (typeof onProgress === 'function' && xhr && xhr.total > 0) {
+            onProgress(Math.min(0.95, xhr.loaded / xhr.total));
+          }
+        },
+        (err) => {
+          console.error('[WarehouseBuilder] Failed to load /models/military_crate.glb:', err);
+          if (typeof onProgress === 'function') onProgress(1);
+          resolve(null);
+        }
+      );
+    });
+
+    return this._crateLoadPromise;
+  }
+
+  startMilitaryCrateOpen(onOpened = null) {
+    if (this.crateState !== 'CLOSED') return false;
+    this._crateOpenedCallback = onOpened;
+    this._crateClosedCallback = null;
+
+    if (!this.militaryCrateAction) {
+      this.crateState = 'OPEN';
+      if (typeof onOpened === 'function') onOpened();
+      return true;
+    }
+
+    this.crateState = 'OPENING';
+    const act = this.militaryCrateAction;
+    act.enabled = true;
+    act.paused = false;
+    act.timeScale = 1.15;
+    act.time = 0;
+    act.play();
+    return true;
+  }
+
+  startMilitaryCrateClose(onClosed = null) {
+    this._crateClosedCallback = onClosed;
+    this._crateOpenedCallback = null;
+
+    if (!this.militaryCrateAction) {
+      this.crateState = 'CLOSED';
+      if (typeof onClosed === 'function') onClosed();
+      return true;
+    }
+
+    this.crateState = 'CLOSING';
+    const act = this.militaryCrateAction;
+    const dur = this.militaryCrateClipDuration || 0.9;
+    act.enabled = true;
+    act.paused = false;
+    act.timeScale = -1.25;
+    if (act.time <= 0 || act.time > dur) {
+      act.time = dur;
+    }
+    act.play();
+    return true;
+  }
+
+  updateMilitaryCrate(delta) {
+    if (!this.militaryCrateMixer || !this.militaryCrateAction) return;
+    if (this.crateState !== 'OPENING' && this.crateState !== 'CLOSING') return;
+
+    const dt = Math.min(0.05, Math.max(0, delta || 0));
+    this.militaryCrateMixer.update(dt);
+
+    const act = this.militaryCrateAction;
+    const dur = this.militaryCrateClipDuration || 0.9;
+
+    if (this.crateState === 'OPENING' && (act.time >= dur - 0.002 || act.paused)) {
+      act.time = dur;
+      act.paused = true;
+      this.militaryCrateMixer.update(0);
+      this.crateState = 'OPEN';
+      const cb = this._crateOpenedCallback;
+      this._crateOpenedCallback = null;
+      if (typeof cb === 'function') cb();
+    } else if (this.crateState === 'CLOSING' && (act.time <= 0.002 || act.paused)) {
+      act.time = 0;
+      act.paused = true;
+      this.militaryCrateMixer.update(0);
+      this.crateState = 'CLOSED';
+      const cb = this._crateClosedCallback;
+      this._crateClosedCallback = null;
+      if (typeof cb === 'function') cb();
+    }
+  }
+
+  resetMilitaryCrate() {
+    this._crateOpenedCallback = null;
+    this._crateClosedCallback = null;
+    this.crateState = 'CLOSED';
+    if (this.militaryCrateAction && this.militaryCrateMixer) {
+      this.militaryCrateAction.enabled = true;
+      this.militaryCrateAction.time = 0;
+      this.militaryCrateAction.paused = true;
+      this.militaryCrateAction.timeScale = 1.0;
+      this.militaryCrateAction.play();
+      this.militaryCrateMixer.update(0);
+    }
   }
 }
 

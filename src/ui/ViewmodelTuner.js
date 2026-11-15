@@ -122,8 +122,9 @@ export class ViewmodelTuner {
         <strong style="color:#63b3ed; font-size:12px;">Viewmodel Tuner (F8)</strong>
         <span id="ht-weapon-badge" style="color:#f6ad55; font-weight:bold; font-size:11px; text-transform:uppercase;">H&K USP (9MM)</span>
       </div>
-      <div style="margin-bottom:6px;">
-        <button id="ht-unlock-all-btn" style="width:100%; padding:6px 4px; background:linear-gradient(90deg, #d69e2e, #b7791f); color:#fff; border:1px solid #f6e05e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.4px;">[Unlock All 7 Weapons in TAB Wheel]</button>
+      <div style="display:flex; gap:6px; margin-bottom:6px;">
+        <button id="ht-unlock-all-btn" style="flex:1; padding:6px 4px; background:linear-gradient(90deg, #d69e2e, #b7791f); color:#fff; border:1px solid #f6e05e; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.4px;">[Unlock All 7 Weapons]</button>
+        <button id="ht-add-money-btn" style="padding:6px 8px; background:linear-gradient(90deg, #16a34a, #15803d); color:#fff; border:1px solid #4ade80; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold; letter-spacing:0.3px;">[+$50,000 Test Money]</button>
       </div>
       <div style="display:flex; gap:4px; margin-bottom:4px;">
         <button id="ht-slot0-btn" style="flex:1; padding:4px 2px; background:#b7791f; color:#fff; border:none; border-radius:4px; cursor:pointer; font-size:10px; font-weight:bold;">0: Hands</button>
@@ -172,9 +173,21 @@ export class ViewmodelTuner {
         unlockAllBtn.textContent = '✓ All 7 Weapons Unlocked in TAB!';
         unlockAllBtn.style.background = '#2f855a';
         setTimeout(() => {
-          unlockAllBtn.textContent = '[Unlock All 7 Weapons in TAB Wheel]';
+          unlockAllBtn.textContent = '[Unlock All 7 Weapons]';
           unlockAllBtn.style.background = 'linear-gradient(90deg, #d69e2e, #b7791f)';
         }, 1600);
+      };
+    }
+    const addMoneyBtn = overlay.querySelector('#ht-add-money-btn');
+    if (addMoneyBtn) {
+      addMoneyBtn.onclick = () => {
+        if (typeof window.__rocAddTestMoney === 'function') {
+          window.__rocAddTestMoney(50000);
+        }
+        addMoneyBtn.textContent = '✓ +$50,000 Added!';
+        setTimeout(() => {
+          addMoneyBtn.textContent = '[+$50,000 Test Money]';
+        }, 1400);
       };
     }
     overlay.querySelector('#ht-slot0-btn').onclick = () => this._switchToUnarmed();
