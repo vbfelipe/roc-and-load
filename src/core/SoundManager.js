@@ -287,17 +287,9 @@ export class SoundManager {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
 
-    const hasDeagle = this.audioBuffers.has('desert_eagle_fire');
-    const has9mm = this.audioBuffers.has('9mm_fire');
-    if (hasDeagle || has9mm) {
-      if (hasDeagle) {
-        const rate = 1.18 + (Math.random() - 0.5) * 0.07;
-        this._playSoundBuffer('desert_eagle_fire', { volume: 0.96, playbackRate: rate });
-      }
-      if (has9mm) {
-        const rate = 0.84 + (Math.random() - 0.5) * 0.06;
-        this._playSoundBuffer('9mm_fire', { volume: 0.78, playbackRate: rate });
-      }
+    if (this.audioBuffers.has('desert_eagle_fire')) {
+      const rate = 1.15 + (Math.random() - 0.5) * 0.07;
+      this._playSoundBuffer('desert_eagle_fire', { volume: 1.0, playbackRate: rate });
       return;
     }
 
@@ -464,7 +456,7 @@ export class SoundManager {
     if (this.audioBuffers.has('9mm_reload')) {
       let playbackRate = 2.13;
       let volume = 0.95;
-      if (weaponType === 'pistol') {
+      if (weaponType === 'desert_eagle' || weaponType === 'pistol') {
         playbackRate = 0.90;
         volume = 1.05;
       } else if (weaponType === 'colt_peacemaker') {
@@ -858,7 +850,7 @@ export class SoundManager {
       let playbackRate = 1.0;
       if (weaponType === 'shotgun') {
         playbackRate = 0.85;
-      } else if (weaponType === 'pistol') {
+      } else if (weaponType === 'desert_eagle' || weaponType === 'pistol') {
         playbackRate = 0.90;
       } else if (weaponType === 'hk_mp5') {
         playbackRate = 1.05;

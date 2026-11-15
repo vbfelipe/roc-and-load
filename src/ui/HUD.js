@@ -117,7 +117,7 @@ export class HUD {
   /**
    * Switches the HUD between:
    * - Slot 1: 'hk_usp' (9MM - 12 compact cartridges)
-   * - Slot 2: 'pistol' (.50 AE - 7 heavy brass cartridges)
+   * - Slot 2: 'desert_eagle' (.50 AE - 7 heavy brass cartridges)
    * - Slot 3: 'shotgun' (12 GAUGE - 6 red shotshells)
    * - Slot 4: 'hk_mp5' (9MM - 30 submachine gun cartridges)
    */

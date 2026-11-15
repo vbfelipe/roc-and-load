@@ -179,7 +179,7 @@ export class ViewmodelTuner {
     }
     overlay.querySelector('#ht-slot0-btn').onclick = () => this._switchToUnarmed();
     overlay.querySelector('#ht-slot1-btn').onclick = () => this._switchSlot('hk_usp');
-    overlay.querySelector('#ht-slot2-btn').onclick = () => this._switchSlot('pistol');
+    overlay.querySelector('#ht-slot2-btn').onclick = () => this._switchSlot('desert_eagle');
     overlay.querySelector('#ht-slot3-btn').onclick = () => this._switchSlot('shotgun');
     overlay.querySelector('#ht-slot4-btn').onclick = () => this._switchSlot('hk_mp5');
     overlay.querySelector('#ht-slot5-btn').onclick = () => this._switchSlot('colt_peacemaker');
@@ -289,6 +289,7 @@ export class ViewmodelTuner {
           handPivot: vm.uspHandPivot,
           wrist: vm.uspWristBone,
           elbow: vm.uspElbowBone,
+          triggerFinger: vm.uspTriggerFinger,
           hipPos: vm.uspHipPosition,
           hipRot: vm.uspHipRotation,
           adsPos: vm.uspAdsPosition,
@@ -301,6 +302,7 @@ export class ViewmodelTuner {
           handPivot: vm.shotgunHandPivot,
           wrist: vm.shotgunWristBone,
           elbow: vm.shotgunElbowBone,
+          triggerFinger: null,
           hipPos: vm.shotgunHipPosition,
           hipRot: vm.shotgunHipRotation,
           adsPos: vm.shotgunAdsPosition,
@@ -313,6 +315,7 @@ export class ViewmodelTuner {
           handPivot: vm.mp5HandPivot,
           wrist: vm.mp5WristBone,
           elbow: vm.mp5ElbowBone,
+          triggerFinger: null,
           hipPos: vm.mp5HipPosition,
           hipRot: vm.mp5HipRotation,
           adsPos: vm.mp5AdsPosition,
@@ -325,6 +328,7 @@ export class ViewmodelTuner {
           handPivot: vm.coltHandPivot,
           wrist: vm.coltWristBone,
           elbow: vm.coltElbowBone,
+          triggerFinger: vm.coltTriggerFinger,
           hipPos: vm.coltHipPosition,
           hipRot: vm.coltHipRotation,
           adsPos: vm.coltAdsPosition,
@@ -337,6 +341,7 @@ export class ViewmodelTuner {
           handPivot: vm.glockHandPivot,
           wrist: vm.glockWristBone,
           elbow: vm.glockElbowBone,
+          triggerFinger: vm.glockTriggerFinger,
           hipPos: vm.glockHipPosition,
           hipRot: vm.glockHipRotation,
           adsPos: vm.glockAdsPosition,
@@ -349,11 +354,14 @@ export class ViewmodelTuner {
           handPivot: vm.akmsHandPivot,
           wrist: vm.akmsWristBone,
           elbow: vm.akmsElbowBone,
+          triggerFinger: null,
           hipPos: vm.akmsHipPosition,
           hipRot: vm.akmsHipRotation,
           adsPos: vm.akmsAdsPosition,
           adsRot: vm.akmsAdsRotation,
         };
+      case 'desert_eagle':
+      case 'pistol':
       default:
         return {
           label: 'DESERT EAGLE (.50 AE)',
@@ -361,6 +369,7 @@ export class ViewmodelTuner {
           handPivot: vm.pistolHandPivot,
           wrist: vm.pistolWristBone,
           elbow: vm.pistolElbowBone,
+          triggerFinger: vm.pistolTriggerFinger,
           hipPos: vm.pistolHipPosition,
           hipRot: vm.pistolHipRotation,
           adsPos: vm.pistolAdsPosition,
@@ -374,7 +383,39 @@ export class ViewmodelTuner {
     if (!vm) return;
 
     const round4 = (n) => Number(n.toFixed(4));
+    const serializeHand = (handPivot, wrist, elbow, triggerFinger) => {
+      if (!handPivot) return null;
+      const out = {
+        pos: [round4(handPivot.position.x), round4(handPivot.position.y), round4(handPivot.position.z)],
+        rot: [round4(handPivot.rotation.x), round4(handPivot.rotation.y), round4(handPivot.rotation.z)],
+        scale: round4(handPivot.scale.x),
+        wristPitch: wrist && wrist.userData.pitch !== undefined ? round4(wrist.userData.pitch) : 0,
+        wristRoll: wrist && wrist.userData.roll !== undefined ? round4(wrist.userData.roll) : 0,
+        elbowBend: elbow && elbow.userData.bend !== undefined ? round4(elbow.userData.bend) : 0,
+      };
+      if (triggerFinger) {
+        out.triggerReach = round4(triggerFinger.pitch || 0);
+        out.triggerCurl = round4(triggerFinger.curl || 0);
+        out.triggerSide = round4(triggerFinger.yaw || 0);
+      }
+      return out;
+    };
+
     let config;
+
+    const serializeUnarmedHand = (pivot, indexFinger) => {
+      if (!pivot) return null;
+      const out = {
+        pos: [round4(pivot.position.x), round4(pivot.position.y), round4(pivot.position.z)],
+        rot: [round4(pivot.rotation.x), round4(pivot.rotation.y), round4(pivot.rotation.z)],
+      };
+      if (indexFinger) {
+        out.indexReach = round4(indexFinger.pitch || 0);
+        out.indexCurl = round4(indexFinger.curl || 0);
+        out.indexSide = round4(indexFinger.yaw || 0);
+      }
+      return out;
+    };
 
     if (vm.isUnarmed) {
       config = {
@@ -392,60 +433,17 @@ export class ViewmodelTuner {
           ],
           scale: vm.unarmedGroup ? round4(vm.unarmedGroup.scale.x) : 1,
         },
-        leftHand: vm.unarmedLeftPivot
-          ? {
-              pos: [
-                round4(vm.unarmedLeftPivot.position.x),
-                round4(vm.unarmedLeftPivot.position.y),
-                round4(vm.unarmedLeftPivot.position.z),
-              ],
-              rot: [
-                round4(vm.unarmedLeftPivot.rotation.x),
-                round4(vm.unarmedLeftPivot.rotation.y),
-                round4(vm.unarmedLeftPivot.rotation.z),
-              ],
-            }
-          : null,
-        rightHand: vm.unarmedRightPivot
-          ? {
-              pos: [
-                round4(vm.unarmedRightPivot.position.x),
-                round4(vm.unarmedRightPivot.position.y),
-                round4(vm.unarmedRightPivot.position.z),
-              ],
-              rot: [
-                round4(vm.unarmedRightPivot.rotation.x),
-                round4(vm.unarmedRightPivot.rotation.y),
-                round4(vm.unarmedRightPivot.rotation.z),
-              ],
-            }
-          : null,
+        leftHand: serializeUnarmedHand(vm.unarmedLeftPivot, vm.unarmedLeftFinger),
+        rightHand: serializeUnarmedHand(vm.unarmedRightPivot, vm.unarmedRightFinger),
       };
     } else {
-      const { group, handPivot, wrist, elbow, hipPos, hipRot, adsPos, adsRot } = this._getActiveTargets(vm);
+      const { group, handPivot, wrist, elbow, triggerFinger, hipPos, hipRot, adsPos, adsRot } = this._getActiveTargets(vm);
 
       config = {
         weapon: vm.currentWeapon,
         mode: vm.tunerMode,
         gunScale: group ? round4(group.scale.x) : 1,
-        hand: handPivot
-          ? {
-              pos: [
-                round4(handPivot.position.x),
-                round4(handPivot.position.y),
-                round4(handPivot.position.z),
-              ],
-              rot: [
-                round4(handPivot.rotation.x),
-                round4(handPivot.rotation.y),
-                round4(handPivot.rotation.z),
-              ],
-              scale: round4(handPivot.scale.x),
-              wristPitch: wrist && wrist.userData.pitch !== undefined ? round4(wrist.userData.pitch) : 0,
-              wristRoll: wrist && wrist.userData.roll !== undefined ? round4(wrist.userData.roll) : 0,
-              elbowBend: elbow && elbow.userData.bend !== undefined ? round4(elbow.userData.bend) : 0,
-            }
-          : null,
+        hand: serializeHand(handPivot, wrist, elbow, triggerFinger),
         hip: {
           pos: hipPos.toArray().map(round4),
           rot: [round4(hipRot.x), round4(hipRot.y), round4(hipRot.z)],
@@ -529,6 +527,49 @@ export class ViewmodelTuner {
       container.appendChild(row);
     };
 
+    const appendIndexFingerSliders = (sectionTitle, fingerData, idPrefix, labelPrefix, min = -0.6, maxSide = 0.6, maxCurl = 0.8) => {
+      if (!fingerData) return;
+      createSectionHeader(sectionTitle);
+      [
+        {
+          id: `${idPrefix}Reach`,
+          label: `${labelPrefix} Reach`,
+          min,
+          max: maxSide,
+          step: 0.02,
+          get: () => (fingerData.pitch !== undefined ? fingerData.pitch : 0),
+          set: (v) => {
+            fingerData.pitch = v;
+            vm._applyTriggerFingerPose(fingerData);
+          },
+        },
+        {
+          id: `${idPrefix}Curl`,
+          label: `${labelPrefix} Curl`,
+          min,
+          max: maxCurl,
+          step: 0.02,
+          get: () => (fingerData.curl !== undefined ? fingerData.curl : 0),
+          set: (v) => {
+            fingerData.curl = v;
+            vm._applyTriggerFingerPose(fingerData);
+          },
+        },
+        {
+          id: `${idPrefix}Side`,
+          label: `${labelPrefix} Side`,
+          min,
+          max: maxSide,
+          step: 0.02,
+          get: () => (fingerData.yaw !== undefined ? fingerData.yaw : 0),
+          set: (v) => {
+            fingerData.yaw = v;
+            vm._applyTriggerFingerPose(fingerData);
+          },
+        },
+      ].forEach(createSliderRow);
+    };
+
     if (vm.isUnarmed) {
       if (!vm.unarmedLeftPivot || !vm.unarmedRightPivot || !vm.unarmedGroup) {
         container.innerHTML = '<div style="color:#a0aec0; padding:10px 0;">Loading hands 3D model...</div>';
@@ -563,6 +604,7 @@ export class ViewmodelTuner {
         { id: 'lRotY', label: 'L Rot Y', min: -3.14, max: 3.14, step: 0.02, get: () => lp.rotation.y, set: (v) => { lp.rotation.y = v; } },
         { id: 'lRotZ', label: 'L Rot Z', min: -3.14, max: 3.14, step: 0.02, get: () => lp.rotation.z, set: (v) => { lp.rotation.z = v; } },
       ].forEach(createSliderRow);
+      appendIndexFingerSliders('LEFT INDEX FINGER', vm.unarmedLeftFinger, 'lIdx', 'L Idx', -0.8, 0.8, 1.0);
 
       createSectionHeader('RIGHT HAND OFFSET');
       const rp = vm.unarmedRightPivot;
@@ -574,6 +616,7 @@ export class ViewmodelTuner {
         { id: 'rRotY', label: 'R Rot Y', min: -3.14, max: 3.14, step: 0.02, get: () => rp.rotation.y, set: (v) => { rp.rotation.y = v; } },
         { id: 'rRotZ', label: 'R Rot Z', min: -3.14, max: 3.14, step: 0.02, get: () => rp.rotation.z, set: (v) => { rp.rotation.z = v; } },
       ].forEach(createSliderRow);
+      appendIndexFingerSliders('RIGHT INDEX FINGER', vm.unarmedRightFinger, 'rIdx', 'R Idx', -0.8, 0.8, 1.0);
       return;
     }
 
@@ -581,6 +624,7 @@ export class ViewmodelTuner {
       const target = activeTargets.handPivot;
       const wrist = activeTargets.wrist;
       const elbow = activeTargets.elbow;
+      const triggerFinger = activeTargets.triggerFinger;
 
       if (!target) {
         container.innerHTML = '<div style="color:#a0aec0; padding:10px 0;">Loading hands 3D model...</div>';
@@ -653,6 +697,8 @@ export class ViewmodelTuner {
       }
 
       fields.forEach(createSliderRow);
+
+      appendIndexFingerSliders('TRIGGER FINGER (INDEX)', triggerFinger, 'trig', 'Trig');
     } else if (vm.tunerMode === 'GUN (HIP)') {
       const posTarget = activeTargets.hipPos;
       const rotTarget = activeTargets.hipRot;

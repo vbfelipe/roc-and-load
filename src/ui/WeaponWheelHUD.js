@@ -11,7 +11,7 @@ export const WHEEL_SLOTS = [
   },
   {
     index: 1,
-    id: 'pistol',
+    id: 'desert_eagle',
     name: 'DESERT EAGLE',
     angleDeg: -45, // 1:30 Top-Right
     isRare: false,
@@ -144,6 +144,7 @@ function getSlotWeaponSilhouetteSVG(slotId) {
         </g>
       `;
 
+    case 'desert_eagle':
     case 'pistol':
       // 2. DESERT EAGLE (Wedge 1 — Top-Right): Massive long triangular/hexagonal .50 AE barrel profile,
       // top Picatinny rail notches, deep barrel flute, thick rear slide with serrations, wide grip frame.

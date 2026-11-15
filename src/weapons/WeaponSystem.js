@@ -23,6 +23,16 @@ const _decalUnitZ = new THREE.Vector3(0, 0, 1);
 const _raycaster = new THREE.Raycaster();
 _raycaster.firstHitOnly = true;
 
+const DEFAULT_EJECTION_PROFILE = { pool: 'casingPool', right: [2.2, 0.6], up: [1.5, 0.5], fwd: [0.35, 0.25] };
+const SHELL_EJECTION_PROFILES = {
+  hk_usp: { pool: 'casing9mmPool', right: [2.1, 0.6], up: [1.45, 0.45], fwd: [0.35, 0.22] },
+  glock_flamengo: { pool: 'casing9mmPool', right: [2.3, 0.6], up: [1.5, 0.5], fwd: [0.38, 0.25] },
+  desert_eagle: { pool: 'casingPool', right: [2.2, 0.6], up: [1.55, 0.5], fwd: [0.35, 0.25] },
+  hk_mp5: { pool: 'casing9mmPool', right: [2.8, 0.7], up: [1.25, 0.45], fwd: [0.65, 0.30] },
+  akms_gold: { pool: 'casingPool', right: [2.9, 0.8], up: [1.3, 0.5], fwd: [0.70, 0.35] },
+  shotgun: { pool: 'shotgunShellPool', right: [2.6, 0.5], up: [1.0, 0.4], fwd: [0.32, 0.22] },
+};
+
 // Procedural multi-layered architectural wall/surface bullet impact decal texture (256x256)
 // Engineered for high-contrast 3D readability at 1m, 5m, and 10m+ distances across dark & light surfaces.
 function createBulletDecalTexture(variantIndex = 0, isHeavySpall = false) {
@@ -552,7 +562,7 @@ export class WeaponSystem {
         isRare: false,
         isSlideLocked: false,
       },
-      pistol: {
+      desert_eagle: {
         name: 'DESERT EAGLE',
         currentAmmo: 7,
         maxAmmo: 7,
@@ -713,7 +723,7 @@ export class WeaponSystem {
     this.gameState = 'MENU';
     this.armedAt = 0;
     this.isUnarmed = false;
-    this.unlockedWeapons = new Set(['hk_usp', 'pistol', 'shotgun', 'hk_mp5']);
+    this.unlockedWeapons = new Set(['hk_usp', 'desert_eagle', 'shotgun', 'hk_mp5']);
 
     // Zombie & blood decal integrations (injected after boot)
     this.zombieManager = null;
@@ -761,7 +771,7 @@ export class WeaponSystem {
     const w = String(weaponType).toLowerCase();
     if (w === 'unarmed' || w === 'fist' || w === 'fists' || w === 'desarmado') return 'unarmed';
     if (w === 'usp' || w === 'hk_usp' || w === '1') return 'hk_usp';
-    if (w === 'pistol' || w === 'deagle' || w === 'desert_eagle' || w === '2') return 'pistol';
+    if (w === 'pistol' || w === 'deagle' || w === 'desert_eagle' || w === '2') return 'desert_eagle';
     if (w === 'shotgun' || w === 'remington_870' || w === '3') return 'shotgun';
     if (w === 'mp5' || w === 'hk_mp5' || w === '4') return 'hk_mp5';
     if (w === 'colt' || w === 'peacemaker' || w === 'colt_peacemaker' || w === '5') return 'colt_peacemaker';
@@ -782,7 +792,7 @@ export class WeaponSystem {
 
   unlockAllWeapons() {
     this.unlockedWeapons.add('hk_usp');
-    this.unlockedWeapons.add('pistol');
+    this.unlockedWeapons.add('desert_eagle');
     this.unlockedWeapons.add('shotgun');
     this.unlockedWeapons.add('hk_mp5');
     this.unlockedWeapons.add('colt_peacemaker');
@@ -857,7 +867,7 @@ export class WeaponSystem {
 
     this.setUnarmed(false);
 
-    if (this.viewmodel && (weaponType === 'hk_usp' || weaponType === 'pistol')) {
+    if (this.viewmodel && (weaponType === 'hk_usp' || weaponType === 'desert_eagle')) {
       this.viewmodel.setSlideLocked(this.isSlideLocked);
     }
     if (this.hud) {
@@ -937,7 +947,7 @@ export class WeaponSystem {
 
   /**
    * Switches between Slot 1 ('hk_usp' - 9mm H&K USP),
-   * Slot 2 ('pistol' - .50 AE Desert Eagle),
+   * Slot 2 ('desert_eagle' - .50 AE Desert Eagle),
    * Slot 3 ('shotgun' - Remington 870 12-Gauge),
    * and Slot 4 ('hk_mp5' - 9mm H&K MP5 Submachine Gun).
    */
@@ -985,7 +995,7 @@ export class WeaponSystem {
         this.viewmodel.setADS(false);
       }
       this.viewmodel.switchWeapon(weaponType, { silent: isSilent, force });
-      if (weaponType === 'hk_usp' || weaponType === 'pistol') {
+      if (weaponType === 'hk_usp' || weaponType === 'desert_eagle') {
         this.viewmodel.setSlideLocked(this.isSlideLocked);
       }
     }
@@ -1089,7 +1099,7 @@ export class WeaponSystem {
         this.isSlideLocked = false;
         this.isReloading = false;
         if (st) st.isSlideLocked = false;
-        if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'pistol') {
+        if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'desert_eagle') {
           this.viewmodel.setSlideLocked(false);
         }
 
@@ -1155,8 +1165,8 @@ export class WeaponSystem {
       return mesh;
     }, 48);
 
-    // 3. Pooled Shiny Brass .50 AE Shell Casings (15 items)
-    const casingGeo = new THREE.CylinderGeometry(0.0068, 0.0068, 0.032, 10);
+    // 3. Pooled Shiny Brass .50 AE / 7.62mm Shell Casings (28 items for sustained full-auto)
+    const casingGeo = new THREE.CylinderGeometry(0.0056, 0.0056, 0.030, 10);
     this.casingPool = new ObjectPool(() => {
       const mesh = new THREE.Mesh(casingGeo, this.casingMaterial);
       mesh.name = 'ShellCasing';
@@ -1166,10 +1176,10 @@ export class WeaponSystem {
       mesh.visible = false;
       this.scene.add(mesh);
       return mesh;
-    }, 15);
+    }, 28);
 
     // 3a. Pooled 9mm Luger Brass Shell Casings (36 items for full-auto)
-    const casing9mmGeo = new THREE.CylinderGeometry(0.0048, 0.0048, 0.019, 10);
+    const casing9mmGeo = new THREE.CylinderGeometry(0.0040, 0.0040, 0.017, 10);
     this.casing9mmPool = new ObjectPool(() => {
       const mesh = new THREE.Mesh(casing9mmGeo, this.casingMaterial);
       mesh.name = 'ShellCasing9mm';
@@ -1211,6 +1221,9 @@ export class WeaponSystem {
       this.input.consumeKeyJustPressed('KeyR');
       this.input.consumeKeyJustPressed('r');
       this.wasMouseDown0 = true;
+      if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
+        this.viewmodel.setTriggerHeld(false);
+      }
       if (this.camera && Math.abs(75 - this.camera.fov) > 0.05) {
         this.camera.fov += (75 - this.camera.fov) * Math.min(delta * 14.0, 1.0);
         this.camera.updateProjectionMatrix();
@@ -1228,6 +1241,9 @@ export class WeaponSystem {
 
     if (!isArmed) {
       this.wasMouseDown0 = true; // Prevents click-bleed
+      if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
+        this.viewmodel.setTriggerHeld(false);
+      }
       if (!window.isViewmodelTunerOpen) {
         this.viewmodel.setADS(false);
       }
@@ -1277,6 +1293,9 @@ export class WeaponSystem {
     this.wasMouseDown0 = isLeftDown;
 
     const isFullAuto = !!(this.weapons[this.currentWeapon] && this.weapons[this.currentWeapon].isAutomatic);
+    if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
+      this.viewmodel.setTriggerHeld(isFullAuto && isLeftDown && !this.isReloading && this.currentAmmo > 0);
+    }
     const shouldFire = isFullAuto
       ? (isLeftDown && this.fireTimer <= 0 && !this.isReloading && (this.currentAmmo > 0 || justClicked))
       : (justClicked && this.fireTimer <= 0);
@@ -1506,7 +1525,7 @@ export class WeaponSystem {
       this._performHitscan();
 
       if (this.currentAmmo === 0) {
-        if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'pistol') {
+        if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'desert_eagle') {
           this.isSlideLocked = true;
           this.weapons[this.currentWeapon].isSlideLocked = true;
           if (this.viewmodel) {
@@ -1528,7 +1547,7 @@ export class WeaponSystem {
     }
   }
 
-  _ejectShellCasing(weaponType = 'pistol') {
+  _ejectShellCasing(weaponType = 'desert_eagle') {
     let ejectPos = _scratchVec1;
     if (this.viewmodel && typeof this.viewmodel.getEjectionWorldPosition === 'function') {
       ejectPos = this.viewmodel.getEjectionWorldPosition(_scratchVec1);
@@ -1536,12 +1555,8 @@ export class WeaponSystem {
       ejectPos.copy(this.camera.position);
     }
 
-    let pool = this.casingPool;
-    if (weaponType === 'shotgun' && this.shotgunShellPool) {
-      pool = this.shotgunShellPool;
-    } else if ((weaponType === 'hk_usp' || weaponType === 'hk_mp5' || weaponType === 'glock_flamengo') && this.casing9mmPool) {
-      pool = this.casing9mmPool;
-    }
+    const profile = SHELL_EJECTION_PROFILES[weaponType] || DEFAULT_EJECTION_PROFILE;
+    const pool = this[profile.pool] || this.casingPool;
     const casing = pool.acquire();
     casing.visible = true;
     casing.position.copy(ejectPos);
@@ -1552,10 +1567,13 @@ export class WeaponSystem {
     _camUp.set(0, 1, 0).applyQuaternion(this.camera.quaternion);
     _camFwd.set(0, 0, -1).applyQuaternion(this.camera.quaternion);
 
-    // Eject to top-right with realistic upward/rightward velocity & slight backward push
-    casing._velocity.copy(_camRight).multiplyScalar(1.9 + Math.random() * 0.7)
-      .addScaledVector(_camUp, 2.2 + Math.random() * 0.8)
-      .addScaledVector(_camFwd, -0.3 + (Math.random() - 0.5) * 0.4);
+    // Eject briskly outward & slightly forward-right so brass clears the receiver and ADS sightline
+    const rightSpeed = profile.right[0] + Math.random() * profile.right[1];
+    const upSpeed = profile.up[0] + Math.random() * profile.up[1];
+    const fwdSpeed = profile.fwd[0] + (Math.random() - 0.5) * profile.fwd[1];
+    casing._velocity.copy(_camRight).multiplyScalar(rightSpeed)
+      .addScaledVector(_camUp, upSpeed)
+      .addScaledVector(_camFwd, fwdSpeed);
 
     // Tumbling spin
     casing._rotVelocity.set(
@@ -2008,7 +2026,7 @@ export class WeaponSystem {
     decal.material.opacity = 1.0;
 
     const activeWeapon = isPellet ? 'shotgun' : (weaponId || this.currentWeapon);
-    const isHeavyCal = activeWeapon === 'pistol' || activeWeapon === 'colt_peacemaker' || activeWeapon === 'akms_gold';
+    const isHeavyCal = activeWeapon === 'desert_eagle' || activeWeapon === 'pistol' || activeWeapon === 'colt_peacemaker' || activeWeapon === 'akms_gold';
 
     // Select pre-warmed texture map (zero material.needsUpdate shader rebuilds!)
     let targetMap = (isHeavyCal && this.heavyGlassDecalTexture)
@@ -2081,9 +2099,9 @@ export class WeaponSystem {
     this.weapons.hk_usp.currentAmmo = 12;
     this.weapons.hk_usp.reserveAmmo = Infinity;
     this.weapons.hk_usp.isSlideLocked = false;
-    this.weapons.pistol.currentAmmo = 7;
-    this.weapons.pistol.reserveAmmo = 56;
-    this.weapons.pistol.isSlideLocked = false;
+    this.weapons.desert_eagle.currentAmmo = 7;
+    this.weapons.desert_eagle.reserveAmmo = 56;
+    this.weapons.desert_eagle.isSlideLocked = false;
     this.weapons.shotgun.currentAmmo = 6;
     this.weapons.shotgun.reserveAmmo = 48;
     this.weapons.shotgun.isSlideLocked = false;

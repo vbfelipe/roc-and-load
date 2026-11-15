@@ -7,6 +7,35 @@ import { Spring3D, Spring1D } from '../player/Spring.js';
 // Pre-allocated scratch vector for zero-GC calculations
 const _scratchVec = new THREE.Vector3();
 
+// Baseline 12-gauge left support hand/arm rig pose and heavy-weapon overrides (single left arm only).
+const DEFAULT_LEFT_SUPPORT_POSE = {
+  pos: [-0.088, -0.134, 0.194],
+  rot: [2.88, 1.14, 2.1],
+  scale: 0.92,
+  wristPitch: -0.08,
+  wristRoll: -0.1,
+  elbowBend: -0.22,
+  armPitch: 0.45,
+};
+
+const MP5_LEFT_HAND_POSE = {
+  ...DEFAULT_LEFT_SUPPORT_POSE,
+  pos: [-0.094, -0.128, 0.264],
+  rot: [2.92, 1.14, 2.1],
+  scale: 0.91,
+  wristPitch: 0.04,
+  wristRoll: 0.04,
+};
+
+const AKMS_LEFT_HAND_POSE = {
+  ...DEFAULT_LEFT_SUPPORT_POSE,
+  pos: [-0.072, -0.15, 0.22],
+  rot: [3.06, 1.12, 2],
+  scale: 0.92,
+  wristPitch: -0.06,
+  wristRoll: 0.02,
+};
+
 // Cached singleton procedural flame starburst texture
 let _cachedFlashTexture = null;
 
@@ -271,7 +300,7 @@ export class WeaponViewmodel {
     // while the world uses the dark NightOfficeEnvironment. Zero extra lights = zero per-pixel cost.
     this.viewmodelEnvMap = null;
 
-    // Active weapon type ('hk_usp' = Slot 1 9mm Pistol, 'pistol' = Slot 2 Desert Eagle .50 AE, 'shotgun' = Slot 3 Remington 870, 'hk_mp5' = Slot 4)
+    // Active weapon type ('hk_usp' = Slot 1 9mm Pistol, 'desert_eagle' = Slot 2 Desert Eagle .50 AE, 'shotgun' = Slot 3 Remington 870, 'hk_mp5' = Slot 4)
     this.currentWeapon = 'hk_usp';
     this.isUnarmed = false;
     this.unarmedIdlePhase = 0;
@@ -294,9 +323,9 @@ export class WeaponViewmodel {
     this.uspAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 2 (.50 AE Desert Eagle) Hip & ADS Transforms
-    this.pistolHipPosition = new THREE.Vector3(0.1, -0.1, -0.42);
+    this.pistolHipPosition = new THREE.Vector3(0.1, -0.1, -0.4);
     this.pistolAdsPosition = new THREE.Vector3(0.000, -0.104, -0.345);
-    this.pistolHipRotation = new THREE.Euler(0.15, 0.04, 0.1);
+    this.pistolHipRotation = new THREE.Euler(0.1, 0, 0.1);
     this.pistolAdsRotation = new THREE.Euler(-0.017, 0, 0);
 
     // Slot 3 (Remington 870 12-Gauge Shotgun) Hip & ADS Transforms
@@ -306,27 +335,27 @@ export class WeaponViewmodel {
     this.shotgunAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 4 (H&K MP5 9mm Submachine Gun) Hip & ADS Transforms
-    this.mp5HipPosition = new THREE.Vector3(0.09, -0.12, -0.16);
+    this.mp5HipPosition = new THREE.Vector3(0.1, -0.13, -0.13);
     this.mp5AdsPosition = new THREE.Vector3(0, -0.085, -0.08);
     this.mp5HipRotation = new THREE.Euler(0.08, 0, 0.05);
     this.mp5AdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 5 (Colt Peacemaker .45 Revolver - RARE) Hip & ADS Transforms
-    this.coltHipPosition = new THREE.Vector3(0.10, -0.105, -0.25);
-    this.coltAdsPosition = new THREE.Vector3(0, -0.080, -0.18);
-    this.coltHipRotation = new THREE.Euler(0.10, 0, 0.08);
-    this.coltAdsRotation = new THREE.Euler(0, 0, 0);
+    this.coltHipPosition = new THREE.Vector3(0.1, -0.1, -0.22);
+    this.coltAdsPosition = new THREE.Vector3(0, -0.0793, -0.16);
+    this.coltHipRotation = new THREE.Euler(0.03, 0, 0.1);
+    this.coltAdsRotation = new THREE.Euler(-0.004, 0, 0);
 
     // Slot 6 (Glock Auto 30rd Flamengo - RARE) Hip & ADS Transforms
-    this.glockHipPosition = new THREE.Vector3(0.1, -0.05, -0.22);
+    this.glockHipPosition = new THREE.Vector3(0.1, -0.08, -0.22);
     this.glockAdsPosition = new THREE.Vector3(-0.0014, -0.0596, -0.14);
-    this.glockHipRotation = new THREE.Euler(0.1, 0, 0.1);
+    this.glockHipRotation = new THREE.Euler(0.1, 0.1, 0.1);
     this.glockAdsRotation = new THREE.Euler(0.0025, 0.0784, 0.0204);
 
     // Slot 7 (AKMS Gold 7.62 Rifle - RARE) Hip & ADS Transforms
-    this.akmsHipPosition = new THREE.Vector3(0.095, -0.12, -0.20);
-    this.akmsAdsPosition = new THREE.Vector3(0, -0.087, -0.12);
-    this.akmsHipRotation = new THREE.Euler(0.08, 0, 0.04);
+    this.akmsHipPosition = new THREE.Vector3(0.1, -0.13, -0.1);
+    this.akmsAdsPosition = new THREE.Vector3(0.008, -0.083, -0.094);
+    this.akmsHipRotation = new THREE.Euler(0.1, 0, 0);
     this.akmsAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Dynamic targets pointing to current active weapon transforms
@@ -388,6 +417,7 @@ export class WeaponViewmodel {
     this.coltCylinderSpin = 0;
     this.glockSlideBlowback = 0;
     this.akmsBoltBlowback = 0;
+    this.akmsBoltHold = 0;
     this.isSlideLocked = false;
     this.isReloading = false;
     this.isPumping = false;
@@ -406,7 +436,9 @@ export class WeaponViewmodel {
     this.uspHandPivot = null;
     this.uspWristBone = null;
     this.uspElbowBone = null;
-    this.uspTriggerFingerGroup = null;
+    this.uspTriggerFinger = null;
+    this._trigFingerQuatTmp = new THREE.Quaternion();
+    this._trigFingerEulerTmp = new THREE.Euler();
 
     this.gunGroup = null;
     this.pistolGroup = null;
@@ -427,15 +459,12 @@ export class WeaponViewmodel {
     this.shotgunReloadShell = null;
     this.shotgunTriggerMesh = null;
 
-    // MP5 Sub-assemblies & references
-    this.mp5Group = null;
-    this.mp5ModelGroup = null;
-    this.mp5HandGroup = null;
+    // MP5 Sub-assemblies & references (single left support arm, matching 12-gauge)
+    this.mp5LeftHandGroup = null;
     this.mp5HandsClone = null;
     this.mp5HandPivot = null;
     this.mp5WristBone = null;
     this.mp5ElbowBone = null;
-    this.mp5TriggerFingerGroup = null;
     this.mp5BoltBlowback = 0;
     this.mp5BoltMesh = null;
     this.mp5BoltRestZ = 0;
@@ -453,7 +482,7 @@ export class WeaponViewmodel {
     this.coltHandPivot = null;
     this.coltWristBone = null;
     this.coltElbowBone = null;
-    this.coltTriggerFingerGroup = null;
+    this.coltTriggerFinger = null;
     this.coltCylinderMesh = null;
     this.coltHammerMesh = null;
     this.coltTriggerMesh = null;
@@ -466,30 +495,38 @@ export class WeaponViewmodel {
     this.glockHandPivot = null;
     this.glockWristBone = null;
     this.glockElbowBone = null;
-    this.glockTriggerFingerGroup = null;
+    this.glockTriggerFinger = null;
     this.glockSlideMesh = null;
     this.glockSlideRestY = 0;
     this.glockSlideRestZ = 0;
+    this.glockSlideCycle = 0;
+    this.glockSlideCycleDuration = 0.050;
+    this.glockSlideMaxStroke = 0.088;
+    this._glockShotJustTriggered = false;
     this.glockSelectorMesh = null;
     this.glockSelectorRestY = 0;
     this.glockSelectorRestZ = 0;
+    this.glockTriggerMesh = null;
+    this.glockTriggerRestZ = 0;
     this.glockMagMesh = null;
     this.glockMagRestY = 0;
     this.glockMagRestZ = 0;
+    this.isTriggerHeld = false;
 
-    // AKMS Gold Sub-assemblies & references
+    // AKMS Gold Sub-assemblies & references (single left support arm, matching 12-gauge)
     this.akmsGroup = null;
     this.akmsModelGroup = null;
-    this.akmsHandGroup = null;
+    this.akmsLeftHandGroup = null;
     this.akmsHandsClone = null;
     this.akmsHandPivot = null;
     this.akmsWristBone = null;
     this.akmsElbowBone = null;
-    this.akmsTriggerFingerGroup = null;
     this.akmsMagMesh = null;
     this.akmsMagRestX = 0;
     this.akmsMagRestY = 0;
     this.akmsMagRestZ = 0;
+    this.akmsBoltMesh = null;
+    this.akmsBoltRestX = 0;
 
     this.shotgunPumpMesh = null;
     this.shotgunPumpRodsMesh = null;
@@ -507,20 +544,20 @@ export class WeaponViewmodel {
     this.pistolHandPivot = null;
     this.pistolWristBone = null;
     this.pistolElbowBone = null;
-    this.pistolTriggerFingerGroup = null;
+    this.pistolTriggerFinger = null;
 
     this.shotgunLeftHandGroup = null;
-    this.shotgunRightHandGroup = null;
     this.shotgunHandsClone = null;
     this.shotgunHandPivot = null;
     this.shotgunWristBone = null;
     this.shotgunElbowBone = null;
-    this.shotgunTriggerFingerGroup = null;
 
     // Unarmed bare hands assembly
     this.unarmedGroup = null;
     this.unarmedRightPivot = null;
     this.unarmedLeftPivot = null;
+    this.unarmedRightFinger = null;
+    this.unarmedLeftFinger = null;
 
     this.reloadTweens = [];
     this.reloadTimers = [];
@@ -622,7 +659,7 @@ export class WeaponViewmodel {
     this.uspMuzzleSocket.position.set(0, 0.0594, -0.095);
     this.uspGroup.add(this.uspMuzzleSocket);
 
-    this.uspEjectionAnchor.position.set(0.012, 0.060, 0.027);
+    this.uspEjectionAnchor.position.set(0.016, 0.066, -0.002);
     this.uspGroup.add(this.uspEjectionAnchor);
   }
 
@@ -652,7 +689,7 @@ export class WeaponViewmodel {
     this.muzzleSocket.position.set(0, 0.024, -0.160);
     this.gunGroup.add(this.muzzleSocket);
 
-    this.ejectionAnchor.position.set(0.018, 0.032, 0.015);
+    this.ejectionAnchor.position.set(0.016, 0.080, 0.138);
     this.gunGroup.add(this.ejectionAnchor);
   }
 
@@ -682,14 +719,10 @@ export class WeaponViewmodel {
     this.shotgunLeftHandGroup.name = 'ShotgunLeftHandContainer';
     this.shotgunPumpGroup.add(this.shotgunLeftHandGroup);
 
-    this.shotgunRightHandGroup = new THREE.Group();
-    this.shotgunRightHandGroup.name = 'ShotgunRightHandContainer';
-    this.shotgunGroup.add(this.shotgunRightHandGroup);
-
     this.shotgunMuzzleSocket.position.set(0, 0.020, -0.520);
     this.shotgunGroup.add(this.shotgunMuzzleSocket);
 
-    this.shotgunEjectionAnchor.position.set(0.020, 0.026, -0.008);
+    this.shotgunEjectionAnchor.position.set(0.014, 0.040, -0.097);
     this.shotgunGroup.add(this.shotgunEjectionAnchor);
 
     // Tactical reload shell cylinder (visible when inserting shells into loading gate)
@@ -722,14 +755,14 @@ export class WeaponViewmodel {
     this.mp5ModelGroup.name = 'MP5ModelContainer';
     this.mp5Group.add(this.mp5ModelGroup);
 
-    this.mp5HandGroup = new THREE.Group();
-    this.mp5HandGroup.name = 'MP5HandContainer';
-    this.mp5Group.add(this.mp5HandGroup);
+    this.mp5LeftHandGroup = new THREE.Group();
+    this.mp5LeftHandGroup.name = 'MP5LeftHandContainer';
+    this.mp5Group.add(this.mp5LeftHandGroup);
 
     this.mp5MuzzleSocket.position.set(0, 0.036, -0.292);
     this.mp5Group.add(this.mp5MuzzleSocket);
 
-    this.mp5EjectionAnchor.position.set(0.018, 0.043, -0.011);
+    this.mp5EjectionAnchor.position.set(0.017, 0.050, -0.044);
     this.mp5Group.add(this.mp5EjectionAnchor);
   }
 
@@ -750,7 +783,7 @@ export class WeaponViewmodel {
     this.coltMuzzleSocket.position.set(0, 0.064, -0.235);
     this.coltGroup.add(this.coltMuzzleSocket);
 
-    this.coltEjectionAnchor.position.set(0.016, 0.056, 0.015);
+    this.coltEjectionAnchor.position.set(0.018, 0.050, -0.012);
     this.coltGroup.add(this.coltEjectionAnchor);
   }
 
@@ -772,7 +805,7 @@ export class WeaponViewmodel {
     this.glockMuzzleSocket.rotation.set(-0.0025, -0.0784, -0.0204);
     this.glockGroup.add(this.glockMuzzleSocket);
 
-    this.glockEjectionAnchor.position.set(0.018, 0.054, 0.015);
+    this.glockEjectionAnchor.position.set(0.021, 0.050, 0.018);
     this.glockGroup.add(this.glockEjectionAnchor);
   }
 
@@ -786,14 +819,14 @@ export class WeaponViewmodel {
     this.akmsModelGroup.name = 'AKMSModelContainer';
     this.akmsGroup.add(this.akmsModelGroup);
 
-    this.akmsHandGroup = new THREE.Group();
-    this.akmsHandGroup.name = 'AKMSHandContainer';
-    this.akmsGroup.add(this.akmsHandGroup);
+    this.akmsLeftHandGroup = new THREE.Group();
+    this.akmsLeftHandGroup.name = 'AKMSLeftHandContainer';
+    this.akmsGroup.add(this.akmsLeftHandGroup);
 
     this.akmsMuzzleSocket.position.set(0, 0.048, -0.415);
     this.akmsGroup.add(this.akmsMuzzleSocket);
 
-    this.akmsEjectionAnchor.position.set(0.018, 0.048, -0.020);
+    this.akmsEjectionAnchor.position.set(0.010, 0.060, -0.050);
     this.akmsGroup.add(this.akmsEjectionAnchor);
   }
 
@@ -822,9 +855,9 @@ export class WeaponViewmodel {
       { key: 'desert_eagle', url: './models/desert_eagle.glb', bytes: 4298716, setup: (gltf) => this._setupPistolModel(gltf) },
       { key: 'remington_870', url: './models/remington_870.glb', bytes: 2620892, setup: (gltf) => this._setupShotgunModel(gltf) },
       { key: 'hk_mp5', url: './models/hk_mp5.glb', bytes: 3069496, setup: (gltf) => this._setupMP5Model(gltf) },
-      { key: 'colt_peacemaker', url: './models/colt_peacemaker.glb', bytes: 6133400, setup: (gltf) => this._setupColtModel(gltf) },
-      { key: 'glock_flamengo', url: './models/glock_flamengo.glb', bytes: 2263736, setup: (gltf) => this._setupGlockModel(gltf) },
-      { key: 'akms_gold', url: './models/akms_gold.glb', bytes: 2043588, setup: (gltf) => this._setupAkmsModel(gltf) },
+      { key: 'colt_peacemaker', url: './models/colt_peacemaker.glb', bytes: 937652, setup: (gltf) => this._setupColtModel(gltf) },
+      { key: 'glock_flamengo', url: './models/glock_flamengo.glb', bytes: 828512, setup: (gltf) => this._setupGlockModel(gltf) },
+      { key: 'akms_gold', url: './models/akms_gold.glb', bytes: 667536, setup: (gltf) => this._setupAkmsModel(gltf) },
       { key: 'fps_hands', url: './models/fps_hands.glb', bytes: 827564, setup: (gltf) => this._setupHandsModel(gltf) },
     ];
 
@@ -1256,6 +1289,164 @@ export class WeaponViewmodel {
     this.mp5ModelGroup.add(mp5Scene);
   }
 
+  /**
+   * Filters disconnected triangle islands on a mesh, disposing the superseded geometry.
+   * No-ops when the mesh is absent, has a single island, or all islands would be stripped.
+   */
+  _stripMeshIslands(mesh, keepPredicate) {
+    if (!mesh || !mesh.isMesh || !mesh.geometry) return;
+    const islands = decomposeMeshIslands(mesh.geometry);
+    if (islands.length <= 1) return;
+    const keepTris = [];
+    let totalTris = 0;
+    for (const isl of islands) {
+      totalTris += isl.triList.length;
+      if (keepPredicate(isl)) {
+        keepTris.push(...isl.triList);
+      }
+    }
+    if (keepTris.length > 0 && keepTris.length < totalTris) {
+      const oldGeo = mesh.geometry;
+      mesh.geometry = buildSubGeometryFromTriangles(oldGeo, keepTris);
+      oldGeo.dispose();
+    }
+  }
+
+  /**
+   * Builds the authentic Colt SAA half-moon front sight blade in `barrel_Material_0` local space.
+   * Normalizes UVs onto brushed barrel metal texels so shading matches the surrounding barrel.
+   */
+  _createColtFrontSightMesh(material) {
+    const bladeWidth = 0.025;
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.90, 0.108);
+    shape.quadraticCurveTo(-1.03, 0.140, -1.10, 0.228);
+    shape.quadraticCurveTo(-1.16, 0.268, -1.210, 0.238);
+    shape.quadraticCurveTo(-1.225, 0.195, -1.220, 0.108);
+    shape.closePath();
+
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: bladeWidth, bevelEnabled: false, curveSegments: 12 });
+    geo.translate(0, 0, -bladeWidth * 0.5);
+    geo.rotateY(-Math.PI / 2);
+
+    const uvAttr = geo.attributes.uv;
+    const posAttr = geo.attributes.position;
+    if (uvAttr && posAttr) {
+      for (let i = 0; i < posAttr.count; i++) {
+        const zNorm = THREE.MathUtils.clamp((posAttr.getZ(i) + 1.225) / 0.325, 0, 1);
+        const yNorm = THREE.MathUtils.clamp((posAttr.getY(i) - 0.108) / 0.160, 0, 1);
+        uvAttr.setXY(i, 0.234 + zNorm * 0.006, 0.745 + yNorm * 0.070);
+      }
+      uvAttr.needsUpdate = true;
+    }
+
+    const mesh = new THREE.Mesh(geo, material);
+    mesh.name = 'colt_front_sight_blade';
+    mesh.frustumCulled = false;
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+    return mesh;
+  }
+
+  /**
+   * Builds a clean curved 30-round stamped-steel AKMS magazine in `akms_magazine` local space
+   * with continuous side ribs and a solid floorplate cuff to replace the corrupted GLB geometry.
+   */
+  _createAkmsMagazineGeometry(invMagMatrix) {
+    const centerX = -0.0077;
+    const pivotZ = -0.265;
+    const pivotY = 0.075;
+    const midRadius = 0.235;
+    const posArr = [];
+    const uvArr = [];
+    const idxArr = [];
+    const pt = new THREE.Vector3();
+
+    const pushCappedEnd = (startIdx, count, reverseWinding) => {
+      let cx = 0;
+      let cy = 0;
+      let cz = 0;
+      for (let r = 0; r < count; r++) {
+        const off = (startIdx + r) * 3;
+        cx += posArr[off];
+        cy += posArr[off + 1];
+        cz += posArr[off + 2];
+      }
+      const centerIdx = posArr.length / 3;
+      posArr.push(cx / count, cy / count, cz / count);
+      uvArr.push(0.30, 0.30);
+      for (let r = 0; r < count; r++) {
+        const nextR = (r + 1) % count;
+        if (reverseWinding) {
+          idxArr.push(centerIdx, startIdx + nextR, startIdx + r);
+        } else {
+          idxArr.push(centerIdx, startIdx + r, startIdx + nextR);
+        }
+      }
+    };
+
+    const sweepSection = (ring, thetaStart, thetaEnd, segments) => {
+      const ringLen = ring.length;
+      const base = posArr.length / 3;
+      for (let s = 0; s <= segments; s++) {
+        const t = s / segments;
+        const th = thetaStart + (thetaEnd - thetaStart) * t;
+        const sinTh = Math.sin(th);
+        const cosTh = Math.cos(th);
+        for (let r = 0; r < ringLen; r++) {
+          const [ds, dx] = ring[r];
+          const rad = midRadius + ds;
+          pt.set(centerX + dx, pivotY - rad * sinTh, pivotZ + rad * cosTh).applyMatrix4(invMagMatrix);
+          posArr.push(pt.x, pt.y, pt.z);
+          const u = THREE.MathUtils.clamp(0.10 + ((ds + 0.026) / 0.052) * 0.42, 0.10, 0.52);
+          uvArr.push(u, 0.92 - t * 0.62);
+        }
+      }
+      for (let s = 0; s < segments; s++) {
+        for (let r = 0; r < ringLen; r++) {
+          const nr = (r + 1) % ringLen;
+          const a = base + s * ringLen + r;
+          const b = base + s * ringLen + nr;
+          const c = base + (s + 1) * ringLen + nr;
+          const d = base + (s + 1) * ringLen + r;
+          idxArr.push(a, b, c, a, c, d);
+        }
+      }
+      pushCappedEnd(base, ringLen, false);
+      pushCappedEnd(base + segments * ringLen, ringLen, true);
+    };
+
+    const mirrorRing = (halfProfile) => [
+      ...halfProfile,
+      ...halfProfile.slice(1, -1).reverse().map(([s, x]) => [s, -x]),
+    ];
+
+    const halfX = 0.0085;
+    const ribIn = 0.0070;
+    const spineW = 0.0046;
+    const rearW = 0.0058;
+    const bodyRing = mirrorRing([
+      [-0.0255, 0.0000], [-0.0245, spineW], [-0.0175, spineW], [-0.0145, halfX],
+      [-0.0080, halfX], [-0.0055, ribIn], [-0.0010, ribIn], [0.0015, halfX],
+      [0.0045, halfX], [0.0070, ribIn], [0.0125, ribIn], [0.0150, halfX],
+      [0.0200, halfX], [0.0225, rearW], [0.0255, rearW * 0.65], [0.0260, 0.0000],
+    ]);
+    const plateRing = mirrorRing([
+      [-0.0268, 0.0000], [-0.0260, spineW * 1.15], [-0.0210, halfX * 1.08],
+      [0.0000, halfX * 1.08], [0.0210, halfX * 1.08], [0.0260, rearW * 1.12], [0.0270, 0.0000],
+    ]);
+
+    sweepSection(bodyRing, 0.16, 0.74, 20);
+    sweepSection(plateRing, 0.73, 0.79, 2);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
+    geo.setIndex(idxArr);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
   _setupColtModel(gltf) {
     const coltScene = gltf.scene;
     coltScene.name = 'ColtPeacemakerGLTF';
@@ -1264,7 +1455,7 @@ export class WeaponViewmodel {
       if (child.isMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
-        child.receiveShadow = true;
+        child.receiveShadow = false;
         if (child.material && child.material.map) {
           child.material.map.colorSpace = THREE.SRGBColorSpace;
         }
@@ -1274,6 +1465,17 @@ export class WeaponViewmodel {
     coltScene.scale.setScalar(0.85);
     coltScene.rotation.set(0, 0, 0);
     coltScene.position.set(0, 0.01, -0.068);
+
+    // Strip the stray bottom muzzle fin on spring_Material_0 and stubby top nub on barrel_Material_0,
+    // then mount an authentic tall half-moon Colt SAA front sight blade atop the muzzle crown.
+    const springMesh = coltScene.getObjectByName('spring_Material_0');
+    this._stripMeshIslands(springMesh, (isl) => !(isl.box.min.y < -0.10 && isl.box.max.z < 0));
+
+    const barrelMesh = coltScene.getObjectByName('barrel_Material_0');
+    if (barrelMesh) {
+      this._stripMeshIslands(barrelMesh, (isl) => isl.box.max.y <= 0.14);
+      barrelMesh.add(this._createColtFrontSightMesh(barrelMesh.material));
+    }
 
     this.coltCylinderMesh = coltScene.getObjectByName('Cylinder') || coltScene.getObjectByName('Cylinder_Material_0');
     this.coltHammerMesh = coltScene.getObjectByName('hammer') || coltScene.getObjectByName('hammer_Material_0');
@@ -1290,7 +1492,7 @@ export class WeaponViewmodel {
       if (child.isMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
-        child.receiveShadow = true;
+        child.receiveShadow = false;
         const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
         for (const m of mats) {
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
@@ -1326,6 +1528,121 @@ export class WeaponViewmodel {
       this.glockMagRestZ = this.glockMagMesh.position.z;
     }
 
+    // Separate slide-mounted black components (front sight post, rear sight U-notch, rear slide cover plate,
+    // selector insert, and extractor claw) plus the 3D trigger from corpo_4 (Object_10) so the sights and
+    // backplate reciprocate 1:1 with cima_glock_5 instead of staying frozen in mid-air during blowback.
+    const corpoNode = glockScene.getObjectByName('corpo_4');
+    const corpoMesh = glockScene.getObjectByName('Object_10') || (corpoNode && corpoNode.children && corpoNode.children[0]);
+    if (corpoMesh && corpoMesh.isMesh && corpoMesh.geometry && corpoMesh.geometry.index) {
+      const geo = corpoMesh.geometry;
+      const posAttr = geo.attributes.position;
+      const idxAttr = geo.index;
+      const posArr = posAttr.array;
+      const idxArr = idxAttr.array;
+      const nVerts = posAttr.count;
+
+      const parent = new Int32Array(nVerts);
+      for (let i = 0; i < nVerts; i++) parent[i] = i;
+      const find = (x) => {
+        while (parent[x] !== x) {
+          parent[x] = parent[parent[x]];
+          x = parent[x];
+        }
+        return x;
+      };
+      const union = (a, b) => {
+        a = find(a);
+        b = find(b);
+        if (a !== b) parent[a] = b;
+      };
+
+      const vMap = new Map();
+      for (let i = 0; i < nVerts; i++) {
+        const k = `${posArr[i * 3].toFixed(5)},${posArr[i * 3 + 1].toFixed(5)},${posArr[i * 3 + 2].toFixed(5)}`;
+        if (vMap.has(k)) union(i, vMap.get(k));
+        else vMap.set(k, i);
+      }
+      for (let i = 0; i < idxArr.length; i += 3) {
+        union(idxArr[i], idxArr[i + 1]);
+        union(idxArr[i], idxArr[i + 2]);
+      }
+
+      const comps = new Map();
+      for (let i = 0; i < nVerts; i++) {
+        const r = find(i);
+        let c = comps.get(r);
+        if (!c) {
+          c = { count: 0, minY: 1e9, maxY: -1e9, minZ: 1e9, maxZ: -1e9, role: 0 };
+          comps.set(r, c);
+        }
+        c.count++;
+        const y = posArr[i * 3 + 1];
+        const z = posArr[i * 3 + 2];
+        if (y < c.minY) c.minY = y;
+        if (y > c.maxY) c.maxY = y;
+        if (z < c.minZ) c.minZ = z;
+        if (z > c.maxZ) c.maxZ = z;
+      }
+
+      for (const c of comps.values()) {
+        if (
+          c.count < 1000 &&
+          ((c.maxY < -0.50 && c.minZ > 0.15) ||
+            (c.maxY < -0.10 && c.minZ < -0.92) ||
+            (c.maxY < -0.17 && c.minZ > -0.42 && c.maxZ < -0.36))
+        ) {
+          c.role = 1; // Slide-mounted part (front sight, rear sight, backplate, extractor)
+        } else if (c.count < 1000 && c.minY > -0.165 && c.maxY < 0.11 && c.minZ > -0.64 && c.maxZ < -0.38) {
+          c.role = 2; // Trigger & trigger safety blade
+        }
+      }
+
+      const frameTris = [];
+      const slideTris = [];
+      const triggerTris = [];
+      for (let i = 0; i < idxArr.length; i += 3) {
+        const triIdx = (i / 3) | 0;
+        const a = idxArr[i];
+        const role = comps.get(find(a)).role;
+        if (role === 1) slideTris.push(triIdx);
+        else if (role === 2) triggerTris.push(triIdx);
+        else frameTris.push(triIdx);
+      }
+
+      if (frameTris.length > 0) {
+        corpoMesh.geometry = buildSubGeometryFromTriangles(geo, frameTris);
+      }
+
+      if (slideTris.length > 0 && this.glockSlideMesh) {
+        const slideBlackMesh = new THREE.Mesh(
+          buildSubGeometryFromTriangles(geo, slideTris),
+          corpoMesh.material
+        );
+        slideBlackMesh.name = 'GlockSlideBlackParts';
+        slideBlackMesh.frustumCulled = false;
+        slideBlackMesh.castShadow = false;
+        slideBlackMesh.receiveShadow = false;
+        this.glockSlideMesh.add(slideBlackMesh);
+      }
+
+      if (triggerTris.length > 0 && corpoNode) {
+        this.glockTriggerMesh = new THREE.Mesh(
+          buildSubGeometryFromTriangles(geo, triggerTris),
+          corpoMesh.material
+        );
+        this.glockTriggerMesh.name = 'GlockTriggerMesh';
+        this.glockTriggerMesh.frustumCulled = false;
+        this.glockTriggerMesh.castShadow = false;
+        this.glockTriggerMesh.receiveShadow = false;
+        this.glockTriggerRestZ = 0;
+        corpoNode.add(this.glockTriggerMesh);
+      }
+
+      if (corpoMesh.geometry !== geo) {
+        geo.dispose();
+      }
+    }
+
     this.glockModelGroup.add(glockScene);
   }
 
@@ -1337,7 +1654,7 @@ export class WeaponViewmodel {
       if (child.isMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
-        child.receiveShadow = true;
+        child.receiveShadow = false;
         const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
         for (const m of mats) {
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
@@ -1358,9 +1675,81 @@ export class WeaponViewmodel {
 
     this.akmsMagMesh = akmsScene.getObjectByName('akms_magazine') || akmsScene.getObjectByName('Object_2');
     if (this.akmsMagMesh) {
+      // Replace the corrupted lower-half GLB magazine mesh with a clean swept ribbed steel curve
+      // sharing the golden PBR material, mapped cleanly from akmsGroup space into magMesh local space.
+      const magMesh = this.akmsMagMesh;
+      if (magMesh.isMesh && magMesh.geometry) {
+        akmsScene.updateMatrix();
+        const magToGroup = new THREE.Matrix4().copy(akmsScene.matrix);
+        const parentChain = [];
+        for (let node = magMesh; node && node !== akmsScene; node = node.parent) {
+          node.updateMatrix();
+          parentChain.push(node.matrix);
+        }
+        for (let i = parentChain.length - 1; i >= 0; i--) {
+          magToGroup.multiply(parentChain[i]);
+        }
+        const oldMagGeo = magMesh.geometry;
+        magMesh.geometry = this._createAkmsMagazineGeometry(magToGroup.invert());
+        oldMagGeo.dispose();
+      }
       this.akmsMagRestX = this.akmsMagMesh.position.x;
       this.akmsMagRestY = this.akmsMagMesh.position.y;
       this.akmsMagRestZ = this.akmsMagMesh.position.z;
+    }
+
+    // Separate the AKMS bolt carrier & right-side charging handle from the static receiver
+    // (Object_3) so it cycles backward/forward on every shot and during reload.
+    const akmsBodyMesh = akmsScene.getObjectByName('Object_3');
+    if (akmsBodyMesh && akmsBodyMesh.isMesh && akmsBodyMesh.geometry) {
+      const origGeo = akmsBodyMesh.geometry;
+      const bodyIslands = decomposeMeshIslands(origGeo);
+      const staticTris = [];
+      const boltTris = [];
+      for (const isl of bodyIslands) {
+        const b = isl.box;
+        // Charging handle (x: 0.200..0.209) + bolt carrier body (x: 0.113..0.209);
+        // excludes front trunnion rivet (x: 0.212..0.220) cleanly via max.x <= 0.211.
+        const isBoltPart =
+          isl.triList.length < 150 &&
+          b.min.x >= 0.10 && b.max.x <= 0.211 &&
+          b.min.z >= 0.088 && b.max.z <= 0.122 &&
+          b.max.y <= 0.012 && b.min.y < -0.01;
+        if (isBoltPart) {
+          boltTris.push(...isl.triList);
+        } else {
+          staticTris.push(...isl.triList);
+        }
+      }
+
+      if (boltTris.length > 0 && staticTris.length > 0) {
+        akmsBodyMesh.geometry = buildSubGeometryFromTriangles(origGeo, staticTris);
+        const boltGeo = buildSubGeometryFromTriangles(origGeo, boltTris);
+        origGeo.dispose();
+
+        const boltMesh = new THREE.Mesh(boltGeo, akmsBodyMesh.material);
+        boltMesh.name = 'akms_bolt_carrier';
+        boltMesh.position.copy(akmsBodyMesh.position);
+        boltMesh.rotation.copy(akmsBodyMesh.rotation);
+        boltMesh.scale.copy(akmsBodyMesh.scale);
+        boltMesh.frustumCulled = false;
+        boltMesh.castShadow = false;
+        boltMesh.receiveShadow = false;
+        akmsBodyMesh.parent.add(boltMesh);
+
+        this.akmsBoltMesh = boltMesh;
+        this.akmsBoltRestX = boltMesh.position.x;
+
+        // Matte dark receiver interior baffle behind ejection port so sliding the bolt back reveals a dark breech
+        const chamberBaffle = new THREE.Mesh(
+          new THREE.BoxGeometry(0.085, 0.008, 0.022),
+          new THREE.MeshStandardMaterial({ color: 0x0e0e0e, roughness: 0.92, metalness: 0.1 })
+        );
+        chamberBaffle.name = 'akms_chamber_baffle';
+        chamberBaffle.position.set(0.168, 0.003, 0.103);
+        chamberBaffle.frustumCulled = false;
+        akmsBodyMesh.parent.add(chamberBaffle);
+      }
     }
 
     this.akmsModelGroup.add(akmsScene);
@@ -1371,7 +1760,7 @@ export class WeaponViewmodel {
       if (child.isMesh || child.isSkinnedMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
-        child.receiveShadow = true;
+        child.receiveShadow = false;
         if (child.material) {
           if (child.material.map) {
             child.material.map.colorSpace = THREE.SRGBColorSpace;
@@ -1534,7 +1923,7 @@ export class WeaponViewmodel {
    * Clones the rigged hand model and re-centers its origin directly at the palm bone
    * so rotations and scaling spin in place on the grip.
    */
-  _createPalmCenteredHandClone(side) {
+  _createPalmCenteredHandClone(side, { applyTriggerFinger = true } = {}) {
     if (!this.rawHandsScene) return null;
 
     const clone = SkeletonUtils.clone(this.rawHandsScene);
@@ -1625,6 +2014,10 @@ export class WeaponViewmodel {
       elbowBone.userData.bend = 0;
     }
 
+    const triggerFinger = side === 'R' && applyTriggerFinger
+      ? this._createIndexFingerController(clone, 'R')
+      : null;
+
     const pivotGroup = new THREE.Group();
     pivotGroup.name = side === 'R' ? 'RightHandPivot' : 'LeftHandPivot';
 
@@ -1642,7 +2035,141 @@ export class WeaponViewmodel {
     }
 
     pivotGroup.add(clone);
-    return { pivotGroup, clone, palmBone, wristBone, elbowBone };
+    return { pivotGroup, clone, palmBone, wristBone, elbowBone, triggerFinger };
+  }
+
+  /**
+   * Binds an index-finger bone controller (4 phalanges) to a cloned hand rig, snapshotting
+   * each bone's current quaternion as its rest reference before applying base offsets.
+   */
+  _createIndexFingerController(
+    clone,
+    side = 'R',
+    {
+      basePitch = 0.28,
+      baseCurl = -0.62,
+      baseYaw = -0.06,
+      defaultPitch = 0,
+      defaultCurl = 0,
+      defaultYaw = 0,
+    } = {}
+  ) {
+    if (!clone) return null;
+    const boneNames = side === 'R'
+      ? ['index0_R_035', 'index1_R_036', 'index2_R_037', 'index3_R_038']
+      : ['index0_L_08', 'index1_L_09', 'index2_L_010', 'index3_L_011'];
+    const [index0, index1, index2, index3] = boneNames.map((name) => clone.getObjectByName(name));
+    for (const bone of [index0, index1, index2, index3]) {
+      if (bone) bone.userData.restQuat = bone.quaternion.clone();
+    }
+    if (!index0 && !index1) return null;
+
+    const fingerData = {
+      side,
+      index0,
+      index1,
+      index2,
+      index3,
+      basePitch,
+      baseCurl,
+      baseYaw,
+      pitch: defaultPitch,
+      curl: defaultCurl,
+      yaw: defaultYaw,
+      defaultPitch,
+      defaultCurl,
+      defaultYaw,
+      squeeze: 0,
+    };
+    this._applyTriggerFingerPose(fingerData);
+    return fingerData;
+  }
+
+  /**
+   * Uncurls and poses the 4 index finger phalanges (left or right) relative to their rest rotations
+   * so the finger pad rests naturally on/around a trigger or relaxed bare-hand pose.
+   */
+  _applyTriggerFingerPose(fingerData) {
+    if (!fingerData) return;
+    const { index0, index1, index2, index3 } = fingerData;
+    const zSign = fingerData.side === 'L' ? -1 : 1;
+    const effPitch = (fingerData.basePitch ?? 0.28) + (fingerData.pitch || 0);
+    const effCurl = (fingerData.baseCurl ?? -0.62) + (fingerData.curl || 0) + (fingerData.squeeze || 0) * 0.20;
+    const effYaw = (fingerData.baseYaw ?? -0.06) + (fingerData.yaw || 0);
+    const qTmp = this._trigFingerQuatTmp || (this._trigFingerQuatTmp = new THREE.Quaternion());
+    const eTmp = this._trigFingerEulerTmp || (this._trigFingerEulerTmp = new THREE.Euler());
+
+    if (index0 && index0.userData.restQuat) {
+      index0.quaternion.copy(index0.userData.restQuat).multiply(
+        qTmp.setFromEuler(eTmp.set(effYaw * 0.8 - effPitch * 0.20, 0, -zSign * effPitch, 'XYZ'))
+      );
+    }
+    if (index1 && index1.userData.restQuat) {
+      index1.quaternion.copy(index1.userData.restQuat).multiply(
+        qTmp.setFromEuler(eTmp.set(0, 0, zSign * effCurl * 0.28, 'XYZ'))
+      );
+    }
+    if (index2 && index2.userData.restQuat) {
+      index2.quaternion.copy(index2.userData.restQuat).multiply(
+        qTmp.setFromEuler(eTmp.set(0, 0, zSign * effCurl * 0.72, 'XYZ'))
+      );
+    }
+    if (index3 && index3.userData.restQuat) {
+      index3.quaternion.copy(index3.userData.restQuat).multiply(
+        qTmp.setFromEuler(eTmp.set(0, 0, zSign * effCurl * 0.65, 'XYZ'))
+      );
+    }
+  }
+
+  _resetIndexFingerPose(fingerData) {
+    if (!fingerData) return;
+    fingerData.pitch = fingerData.defaultPitch ?? 0;
+    fingerData.curl = fingerData.defaultCurl ?? 0;
+    fingerData.yaw = fingerData.defaultYaw ?? 0;
+    fingerData.squeeze = 0;
+    this._applyTriggerFingerPose(fingerData);
+  }
+
+  _initTriggerFingerDefaults(fingerData, defaultPitch = 0, defaultCurl = 0, defaultYaw = 0) {
+    if (!fingerData) return null;
+    fingerData.defaultPitch = defaultPitch;
+    fingerData.defaultCurl = defaultCurl;
+    fingerData.defaultYaw = defaultYaw;
+    fingerData.pitch = defaultPitch;
+    fingerData.curl = defaultCurl;
+    fingerData.yaw = defaultYaw;
+    fingerData.squeeze = 0;
+    this._applyTriggerFingerPose(fingerData);
+    return fingerData;
+  }
+
+  _resetAllTriggerFingers() {
+    for (const tf of [
+      this.uspTriggerFinger,
+      this.pistolTriggerFinger,
+      this.coltTriggerFinger,
+      this.glockTriggerFinger,
+    ]) {
+      if (tf && tf.squeeze !== 0) {
+        tf.squeeze = 0;
+        this._applyTriggerFingerPose(tf);
+      }
+    }
+  }
+
+  setTriggerFingerPose(weaponType, { pitch, curl, yaw } = {}) {
+    const map = {
+      hk_usp: this.uspTriggerFinger,
+      desert_eagle: this.pistolTriggerFinger,
+      colt_peacemaker: this.coltTriggerFinger,
+      glock_flamengo: this.glockTriggerFinger,
+    };
+    const tf = map[weaponType];
+    if (!tf) return;
+    if (pitch !== undefined) tf.pitch = pitch;
+    if (curl !== undefined) tf.curl = curl;
+    if (yaw !== undefined) tf.yaw = yaw;
+    this._applyTriggerFingerPose(tf);
   }
 
   /**
@@ -1688,10 +2215,8 @@ export class WeaponViewmodel {
     this.uspHandPivot.userData.defaultRot = this.uspHandPivot.rotation.clone();
     this.uspHandPivot.userData.defaultScale = this.uspHandPivot.scale.clone();
 
-    // Link trigger finger
-    this.uspTriggerFingerGroup =
-      handData.clone.getObjectByName('index0_R_035') ||
-      handData.clone.getObjectByName('index1_R_036');
+    // Link trigger finger and pose naturally inside trigger guard
+    this.uspTriggerFinger = this._initTriggerFingerDefaults(handData.triggerFinger, -0.06, -0.06, 0);
 
     this.uspHandGroup.add(this.uspHandPivot);
   }
@@ -1715,7 +2240,7 @@ export class WeaponViewmodel {
     this.pistolElbowBone = handData.elbowBone;
 
     // User-tuned Desert Eagle grip anchor and orientation
-    this.pistolHandPivot.position.set(0.006, 0.012, 0.256);
+    this.pistolHandPivot.position.set(0.008, 0.008, 0.256);
     this.pistolHandPivot.rotation.set(0.66, -3.14, 0.14);
     this.pistolHandPivot.scale.setScalar(0.85);
 
@@ -1743,12 +2268,76 @@ export class WeaponViewmodel {
     this.pistolHandPivot.userData.defaultRot = this.pistolHandPivot.rotation.clone();
     this.pistolHandPivot.userData.defaultScale = this.pistolHandPivot.scale.clone();
 
-    // Link trigger finger
-    this.pistolTriggerFingerGroup =
-      handData.clone.getObjectByName('index0_R_035') ||
-      handData.clone.getObjectByName('index1_R_036');
+    // Link trigger finger and pose naturally inside trigger guard
+    this.pistolTriggerFinger = this._initTriggerFingerDefaults(handData.triggerFinger, 0, -0.06, 0);
 
     this.pistolHandGroup.add(this.pistolHandPivot);
+  }
+
+  /**
+   * Applies wrist (pitch, roll) and elbow (bend) Euler deltas atop each bone's rest quaternion.
+   */
+  _applyHandBoneOffsets(wristBone, elbowBone, pitch, roll, bend) {
+    if (wristBone && wristBone.userData.restQuat) {
+      wristBone.userData.pitch = pitch;
+      wristBone.userData.roll = roll;
+      wristBone.quaternion.copy(wristBone.userData.restQuat);
+      if (pitch !== 0 || roll !== 0) {
+        wristBone.quaternion.multiply(
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, 0, roll, 'XYZ'))
+        );
+      }
+    }
+    if (elbowBone && elbowBone.userData.restQuat) {
+      elbowBone.userData.bend = bend;
+      elbowBone.quaternion.copy(elbowBone.userData.restQuat);
+      if (bend !== 0) {
+        elbowBone.quaternion.multiply(
+          new THREE.Quaternion().setFromEuler(new THREE.Euler(bend, 0, 0, 'XYZ'))
+        );
+      }
+    }
+  }
+
+  /**
+   * Mounts a left support arm/hand rig into `containerGroup` with the 12-gauge default pose
+   * so heavy two-handed weapons start from one consistent support-arm baseline.
+   */
+  _buildLeftSupportHandRig(containerGroup, pose = DEFAULT_LEFT_SUPPORT_POSE) {
+    if (!containerGroup) return null;
+    while (containerGroup.children.length > 0) {
+      containerGroup.remove(containerGroup.children[0]);
+    }
+
+    const handData = this._createPalmCenteredHandClone('L');
+    if (!handData) return null;
+
+    const { pivotGroup, clone, wristBone, elbowBone } = handData;
+    pivotGroup.position.set(...pose.pos);
+    pivotGroup.rotation.set(...pose.rot);
+    pivotGroup.scale.setScalar(pose.scale);
+
+    if (wristBone) {
+      wristBone.userData.defaultPitch = pose.wristPitch;
+      wristBone.userData.defaultRoll = pose.wristRoll;
+    }
+    if (elbowBone) {
+      elbowBone.userData.defaultBend = pose.elbowBend;
+    }
+    this._applyHandBoneOffsets(wristBone, elbowBone, pose.wristPitch, pose.wristRoll, pose.elbowBend);
+
+    // Bend left upper-arm bone downward behind camera frustum so upper arm & shoulder stay 100% off-screen
+    const armL = clone.getObjectByName('arm_L_01');
+    if (armL) {
+      armL.rotation.x = pose.armPitch;
+    }
+
+    pivotGroup.userData.defaultPos = pivotGroup.position.clone();
+    pivotGroup.userData.defaultRot = pivotGroup.rotation.clone();
+    pivotGroup.userData.defaultScale = pivotGroup.scale.clone();
+
+    containerGroup.add(pivotGroup);
+    return { pivotGroup, clone, wristBone, elbowBone };
   }
 
   /**
@@ -1756,106 +2345,25 @@ export class WeaponViewmodel {
    * Mounted directly onto this.shotgunPumpGroup so it translates 1:1 with pump action.
    */
   _buildShotgunHands() {
-    if (!this.shotgunLeftHandGroup) return;
-    while (this.shotgunLeftHandGroup.children.length > 0) {
-      this.shotgunLeftHandGroup.remove(this.shotgunLeftHandGroup.children[0]);
-    }
+    const rig = this._buildLeftSupportHandRig(this.shotgunLeftHandGroup);
+    if (!rig) return;
 
-    const handData = this._createPalmCenteredHandClone('L');
-    if (!handData) return;
-
-    this.shotgunHandPivot = handData.pivotGroup;
-    this.shotgunHandsClone = handData.clone;
-    this.shotgunWristBone = handData.wristBone;
-    this.shotgunElbowBone = handData.elbowBone;
-
-    // User-tuned Remington 870 pump grip anchor and orientation
-    this.shotgunHandPivot.position.set(-0.088, -0.134, 0.194);
-    this.shotgunHandPivot.rotation.set(2.88, 1.14, 2.1);
-    this.shotgunHandPivot.scale.setScalar(0.92);
-
-    // Initial bone delta rotations (wristPitch: -0.08, wristRoll: -0.1, elbowBend: -0.22)
-    if (this.shotgunWristBone) {
-      this.shotgunWristBone.userData.pitch = -0.08;
-      this.shotgunWristBone.userData.roll = -0.1;
-      this.shotgunWristBone.quaternion.copy(this.shotgunWristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-0.08, 0, -0.1, 'XYZ')
-      );
-      this.shotgunWristBone.quaternion.multiply(qDelta);
-    }
-    if (this.shotgunElbowBone) {
-      this.shotgunElbowBone.userData.bend = -0.22;
-      this.shotgunElbowBone.quaternion.copy(this.shotgunElbowBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-0.22, 0, 0, 'XYZ')
-      );
-      this.shotgunElbowBone.quaternion.multiply(qDelta);
-    }
-
-    // Bend left upper-arm bone downward behind camera frustum so upper arm & shoulder stay 100% off-screen
-    const armL = handData.clone.getObjectByName('arm_L_01');
-    if (armL) {
-      armL.rotation.x = 0.45;
-    }
-
-    // Cache default transforms for Reset Hand Pose
-    this.shotgunHandPivot.userData.defaultPos = this.shotgunHandPivot.position.clone();
-    this.shotgunHandPivot.userData.defaultRot = this.shotgunHandPivot.rotation.clone();
-    this.shotgunHandPivot.userData.defaultScale = this.shotgunHandPivot.scale.clone();
-
-    this.shotgunLeftHandGroup.add(this.shotgunHandPivot);
+    this.shotgunHandPivot = rig.pivotGroup;
+    this.shotgunHandsClone = rig.clone;
+    this.shotgunWristBone = rig.wristBone;
+    this.shotgunElbowBone = rig.elbowBone;
   }
   /**
-   * Builds Slot 4 (H&K MP5 9mm) Right Rigged Hand
-   * Centered on the MP5 submachine gun grip with forearm exiting bottom-right.
+   * Builds Slot 4 (H&K MP5 9mm) Single Left Support Arm (matching 12-gauge layout; right arm omitted).
    */
   _buildMP5Hand() {
-    if (!this.mp5HandGroup) return;
-    while (this.mp5HandGroup.children.length > 0) {
-      this.mp5HandGroup.remove(this.mp5HandGroup.children[0]);
-    }
+    const rig = this._buildLeftSupportHandRig(this.mp5LeftHandGroup, MP5_LEFT_HAND_POSE);
+    if (!rig) return;
 
-    const handData = this._createPalmCenteredHandClone('R');
-    if (!handData) return;
-
-    this.mp5HandPivot = handData.pivotGroup;
-    this.mp5HandsClone = handData.clone;
-    this.mp5WristBone = handData.wristBone;
-    this.mp5ElbowBone = handData.elbowBone;
-
-    // Baseline tuned MP5 grip anchor and orientation
-    this.mp5HandPivot.position.set(0.022, -0.034, 0.065);
-    this.mp5HandPivot.rotation.set(0.28, -3.14, 0.16);
-    this.mp5HandPivot.scale.setScalar(1.0);
-
-    if (this.mp5WristBone) {
-      this.mp5WristBone.userData.pitch = 0.24;
-      this.mp5WristBone.userData.roll = 0.04;
-      this.mp5WristBone.quaternion.copy(this.mp5WristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(0.24, 0, 0.04, 'XYZ')
-      );
-      this.mp5WristBone.quaternion.multiply(qDelta);
-    }
-    if (this.mp5ElbowBone) {
-      this.mp5ElbowBone.userData.bend = -0.04;
-      this.mp5ElbowBone.quaternion.copy(this.mp5ElbowBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(
-        new THREE.Euler(-0.04, 0, 0, 'XYZ')
-      );
-      this.mp5ElbowBone.quaternion.multiply(qDelta);
-    }
-
-    this.mp5HandPivot.userData.defaultPos = this.mp5HandPivot.position.clone();
-    this.mp5HandPivot.userData.defaultRot = this.mp5HandPivot.rotation.clone();
-    this.mp5HandPivot.userData.defaultScale = this.mp5HandPivot.scale.clone();
-
-    this.mp5TriggerFingerGroup =
-      handData.clone.getObjectByName('index0_R_035') ||
-      handData.clone.getObjectByName('index1_R_036');
-
-    this.mp5HandGroup.add(this.mp5HandPivot);
+    this.mp5HandPivot = rig.pivotGroup;
+    this.mp5HandsClone = rig.clone;
+    this.mp5WristBone = rig.wristBone;
+    this.mp5ElbowBone = rig.elbowBone;
   }
 
   _buildColtHand() {
@@ -1872,15 +2380,15 @@ export class WeaponViewmodel {
     this.coltWristBone = handData.wristBone;
     this.coltElbowBone = handData.elbowBone;
 
-    this.coltHandPivot.position.set(0.02, -0.018, 0.115);
+    this.coltHandPivot.position.set(0.012, -0.038, 0.112);
     this.coltHandPivot.rotation.set(0.52, -3.0, 0.22);
     this.coltHandPivot.scale.setScalar(1.0);
 
     if (this.coltWristBone) {
-      this.coltWristBone.userData.pitch = 0.24;
+      this.coltWristBone.userData.pitch = 0.3;
       this.coltWristBone.userData.roll = 0.02;
       this.coltWristBone.quaternion.copy(this.coltWristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.02, 'XYZ'));
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.3, 0, 0.02, 'XYZ'));
       this.coltWristBone.quaternion.multiply(qDelta);
     }
     if (this.coltElbowBone) {
@@ -1892,9 +2400,7 @@ export class WeaponViewmodel {
     this.coltHandPivot.userData.defaultRot = this.coltHandPivot.rotation.clone();
     this.coltHandPivot.userData.defaultScale = this.coltHandPivot.scale.clone();
 
-    this.coltTriggerFingerGroup =
-      handData.clone.getObjectByName('index0_R_035') ||
-      handData.clone.getObjectByName('index1_R_036');
+    this.coltTriggerFinger = this._initTriggerFingerDefaults(handData.triggerFinger, -0.14, 0, -0.1);
 
     this.coltHandGroup.add(this.coltHandPivot);
   }
@@ -1913,21 +2419,21 @@ export class WeaponViewmodel {
     this.glockWristBone = handData.wristBone;
     this.glockElbowBone = handData.elbowBone;
 
-    this.glockHandPivot.position.set(0.02, -0.02, 0.116);
-    this.glockHandPivot.rotation.set(0.4, -3.0, 0.28);
+    this.glockHandPivot.position.set(0.024, -0.034, 0.114);
+    this.glockHandPivot.rotation.set(0.28, -3.0, 0.28);
     this.glockHandPivot.scale.setScalar(1.0);
 
     if (this.glockWristBone) {
-      this.glockWristBone.userData.pitch = 0.36;
-      this.glockWristBone.userData.roll = 0.2;
+      this.glockWristBone.userData.pitch = 0.4;
+      this.glockWristBone.userData.roll = 0.34;
       this.glockWristBone.quaternion.copy(this.glockWristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.36, 0, 0.2, 'XYZ'));
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, 0, 0.34, 'XYZ'));
       this.glockWristBone.quaternion.multiply(qDelta);
     }
     if (this.glockElbowBone) {
-      this.glockElbowBone.userData.bend = -0.02;
+      this.glockElbowBone.userData.bend = 0;
       this.glockElbowBone.quaternion.copy(this.glockElbowBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.02, 0, 0, 'XYZ'));
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0, 'XYZ'));
       this.glockElbowBone.quaternion.multiply(qDelta);
     }
 
@@ -1935,54 +2441,22 @@ export class WeaponViewmodel {
     this.glockHandPivot.userData.defaultRot = this.glockHandPivot.rotation.clone();
     this.glockHandPivot.userData.defaultScale = this.glockHandPivot.scale.clone();
 
-    this.glockTriggerFingerGroup =
-      handData.clone.getObjectByName('index0_R_035') ||
-      handData.clone.getObjectByName('index1_R_036');
+    this.glockTriggerFinger = this._initTriggerFingerDefaults(handData.triggerFinger, 0.14, 0.12, 0);
 
     this.glockHandGroup.add(this.glockHandPivot);
   }
 
+  /**
+   * Builds Slot 7 (AKMS Gold 7.62) Single Left Support Arm (matching 12-gauge layout; right arm omitted).
+   */
   _buildAkmsHand() {
-    if (!this.akmsHandGroup) return;
-    while (this.akmsHandGroup.children.length > 0) {
-      this.akmsHandGroup.remove(this.akmsHandGroup.children[0]);
-    }
+    const rig = this._buildLeftSupportHandRig(this.akmsLeftHandGroup, AKMS_LEFT_HAND_POSE);
+    if (!rig) return;
 
-    const handData = this._createPalmCenteredHandClone('R');
-    if (!handData) return;
-
-    this.akmsHandPivot = handData.pivotGroup;
-    this.akmsHandsClone = handData.clone;
-    this.akmsWristBone = handData.wristBone;
-    this.akmsElbowBone = handData.elbowBone;
-
-    this.akmsHandPivot.position.set(0.022, -0.026, 0.105);
-    this.akmsHandPivot.rotation.set(0.28, -3.14, 0.16);
-    this.akmsHandPivot.scale.setScalar(1.0);
-
-    if (this.akmsWristBone) {
-      this.akmsWristBone.userData.pitch = 0.24;
-      this.akmsWristBone.userData.roll = 0.04;
-      this.akmsWristBone.quaternion.copy(this.akmsWristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.04, 'XYZ'));
-      this.akmsWristBone.quaternion.multiply(qDelta);
-    }
-    if (this.akmsElbowBone) {
-      this.akmsElbowBone.userData.bend = -0.04;
-      this.akmsElbowBone.quaternion.copy(this.akmsElbowBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.04, 0, 0, 'XYZ'));
-      this.akmsElbowBone.quaternion.multiply(qDelta);
-    }
-
-    this.akmsHandPivot.userData.defaultPos = this.akmsHandPivot.position.clone();
-    this.akmsHandPivot.userData.defaultRot = this.akmsHandPivot.rotation.clone();
-    this.akmsHandPivot.userData.defaultScale = this.akmsHandPivot.scale.clone();
-
-    this.akmsTriggerFingerGroup =
-      handData.clone.getObjectByName('index0_R_035') ||
-      handData.clone.getObjectByName('index1_R_036');
-
-    this.akmsHandGroup.add(this.akmsHandPivot);
+    this.akmsHandPivot = rig.pivotGroup;
+    this.akmsHandsClone = rig.clone;
+    this.akmsWristBone = rig.wristBone;
+    this.akmsElbowBone = rig.elbowBone;
   }
 
   _buildUnarmedMesh() {
@@ -2030,6 +2504,11 @@ export class WeaponViewmodel {
       this.unarmedGroup.remove(this.unarmedGroup.children[0]);
     }
 
+    this.unarmedRightPivot = null;
+    this.unarmedLeftPivot = null;
+    this.unarmedRightFinger = null;
+    this.unarmedLeftFinger = null;
+
     this.unarmedGroup.position.set(0, 0, 0);
     this.unarmedGroup.rotation.set(0, 0, 0);
     this.unarmedGroup.scale.setScalar(1.0);
@@ -2037,25 +2516,36 @@ export class WeaponViewmodel {
     this.unarmedGroup.userData.defaultHipRot = new THREE.Euler(-0.04, 0, 0);
     this.unarmedGroup.userData.defaultScale = 1.0;
 
-    const rightData = this._createPalmCenteredHandClone('R');
+    // Skip gun trigger-finger offsets before relaxing bare hands so the right index finger doesn't double-uncurl into a claw
+    const rightData = this._createPalmCenteredHandClone('R', { applyTriggerFinger: false });
     if (rightData) {
       this.unarmedRightPivot = rightData.pivotGroup;
       this.unarmedRightPivot.position.set(0.162, -0.178, -0.208);
       this.unarmedRightPivot.rotation.set(-1.88, -1.38, -3.14);
       this.unarmedRightPivot.scale.setScalar(0.96);
       this._relaxUnarmedHandFingers(rightData.clone, 'R');
+      this.unarmedRightFinger = this._createIndexFingerController(rightData.clone, 'R', {
+        basePitch: 0,
+        baseCurl: 0,
+        baseYaw: 0,
+      });
       this.unarmedRightPivot.userData.defaultPos = this.unarmedRightPivot.position.clone();
       this.unarmedRightPivot.userData.defaultRot = this.unarmedRightPivot.rotation.clone();
       this.unarmedGroup.add(this.unarmedRightPivot);
     }
 
-    const leftData = this._createPalmCenteredHandClone('L');
+    const leftData = this._createPalmCenteredHandClone('L', { applyTriggerFinger: false });
     if (leftData) {
       this.unarmedLeftPivot = leftData.pivotGroup;
       this.unarmedLeftPivot.position.set(-0.13, -0.148, -0.178);
       this.unarmedLeftPivot.rotation.set(-0.18, 2.36, 1.38);
       this.unarmedLeftPivot.scale.setScalar(0.96);
       this._relaxUnarmedHandFingers(leftData.clone, 'L');
+      this.unarmedLeftFinger = this._createIndexFingerController(leftData.clone, 'L', {
+        basePitch: 0,
+        baseCurl: 0,
+        baseYaw: 0,
+      });
       this.unarmedLeftPivot.userData.defaultPos = this.unarmedLeftPivot.position.clone();
       this.unarmedLeftPivot.userData.defaultRot = this.unarmedLeftPivot.rotation.clone();
       this.unarmedGroup.add(this.unarmedLeftPivot);
@@ -2116,6 +2606,8 @@ export class WeaponViewmodel {
         this.unarmedRightPivot.position.copy(this.unarmedRightPivot.userData.defaultPos);
         this.unarmedRightPivot.rotation.copy(this.unarmedRightPivot.userData.defaultRot);
       }
+      this._resetIndexFingerPose(this.unarmedLeftFinger);
+      this._resetIndexFingerPose(this.unarmedRightFinger);
       this.posSpring.reset(this.unarmedHipPosition.x, this.unarmedHipPosition.y, this.unarmedHipPosition.z);
       this.rotSpring.reset(this.unarmedHipRotation.x, this.unarmedHipRotation.y, this.unarmedHipRotation.z);
       this.root.position.copy(this.unarmedHipPosition);
@@ -2135,42 +2627,29 @@ export class WeaponViewmodel {
     let target = this.pistolHandPivot;
     let wrist = this.pistolWristBone;
     let elbow = this.pistolElbowBone;
-    if (isUSP) { target = this.uspHandPivot; wrist = this.uspWristBone; elbow = this.uspElbowBone; }
-    else if (isShotgun) { target = this.shotgunHandPivot; wrist = this.shotgunWristBone; elbow = this.shotgunElbowBone; }
-    else if (isMP5) { target = this.mp5HandPivot; wrist = this.mp5WristBone; elbow = this.mp5ElbowBone; }
-    else if (isColt) { target = this.coltHandPivot; wrist = this.coltWristBone; elbow = this.coltElbowBone; }
-    else if (isGlock) { target = this.glockHandPivot; wrist = this.glockWristBone; elbow = this.glockElbowBone; }
-    else if (isAkms) { target = this.akmsHandPivot; wrist = this.akmsWristBone; elbow = this.akmsElbowBone; }
+    let triggerFinger = this.pistolTriggerFinger;
+    if (isUSP) { target = this.uspHandPivot; wrist = this.uspWristBone; elbow = this.uspElbowBone; triggerFinger = this.uspTriggerFinger; }
+    else if (isShotgun) { target = this.shotgunHandPivot; wrist = this.shotgunWristBone; elbow = this.shotgunElbowBone; triggerFinger = null; }
+    else if (isMP5) { target = this.mp5HandPivot; wrist = this.mp5WristBone; elbow = this.mp5ElbowBone; triggerFinger = null; }
+    else if (isColt) { target = this.coltHandPivot; wrist = this.coltWristBone; elbow = this.coltElbowBone; triggerFinger = this.coltTriggerFinger; }
+    else if (isGlock) { target = this.glockHandPivot; wrist = this.glockWristBone; elbow = this.glockElbowBone; triggerFinger = this.glockTriggerFinger; }
+    else if (isAkms) { target = this.akmsHandPivot; wrist = this.akmsWristBone; elbow = this.akmsElbowBone; triggerFinger = null; }
 
     if (target && target.userData.defaultPos) {
       target.position.copy(target.userData.defaultPos);
       target.rotation.copy(target.userData.defaultRot);
       target.scale.copy(target.userData.defaultScale);
     }
-    if (wrist && wrist.userData.restQuat) {
-      const defaultPitch = isGlock ? 0.36 : ((isUSP || isColt || isMP5 || isAkms) ? 0.24 : (isShotgun ? -0.08 : -0.02));
-      const defaultRoll = isGlock ? 0.2 : ((isUSP || isColt) ? 0.02 : (isShotgun ? -0.1 : ((isMP5 || isAkms) ? 0.04 : -0.02)));
-      wrist.userData.pitch = defaultPitch;
-      wrist.userData.roll = defaultRoll;
-      wrist.quaternion.copy(wrist.userData.restQuat);
-      if (defaultPitch !== 0 || defaultRoll !== 0) {
-        const qDelta = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(defaultPitch, 0, defaultRoll, 'XYZ')
-        );
-        wrist.quaternion.multiply(qDelta);
-      }
-    }
-    if (elbow && elbow.userData.restQuat) {
-      const defaultBend = (isUSP || isColt) ? 0 : (isGlock ? -0.02 : (isShotgun ? -0.22 : ((isMP5 || isAkms) ? -0.04 : -0.02)));
-      elbow.userData.bend = defaultBend;
-      elbow.quaternion.copy(elbow.userData.restQuat);
-      if (defaultBend !== 0) {
-        const qDelta = new THREE.Quaternion().setFromEuler(
-          new THREE.Euler(defaultBend, 0, 0, 'XYZ')
-        );
-        elbow.quaternion.multiply(qDelta);
-      }
-    }
+
+    const defaultPitch = isGlock ? 0.4 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : (isAkms ? -0.06 : (isShotgun ? -0.08 : -0.02)))));
+    const defaultRoll = isGlock ? 0.34 : ((isUSP || isColt || isAkms) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02)));
+    const defaultBend = (isUSP || isColt || isGlock) ? 0 : ((isShotgun || isMP5 || isAkms) ? -0.22 : -0.02);
+    const pitch = wrist?.userData?.defaultPitch ?? defaultPitch;
+    const roll = wrist?.userData?.defaultRoll ?? defaultRoll;
+    const bend = elbow?.userData?.defaultBend ?? defaultBend;
+    this._applyHandBoneOffsets(wrist, elbow, pitch, roll, bend);
+
+    this._resetIndexFingerPose(triggerFinger);
 
     if (this.tunerMode === 'GUN (HIP)') {
       if (isUSP) {
@@ -2180,20 +2659,20 @@ export class WeaponViewmodel {
         this.shotgunHipPosition.set(0.1, -0.13, -0.042);
         this.shotgunHipRotation.set(0.1, 0, 0);
       } else if (isMP5) {
-        this.mp5HipPosition.set(0.09, -0.12, -0.16);
+        this.mp5HipPosition.set(0.1, -0.13, -0.13);
         this.mp5HipRotation.set(0.08, 0, 0.05);
       } else if (isColt) {
-        this.coltHipPosition.set(0.10, -0.105, -0.25);
-        this.coltHipRotation.set(0.10, 0, 0.08);
+        this.coltHipPosition.set(0.1, -0.1, -0.22);
+        this.coltHipRotation.set(0.03, 0, 0.1);
       } else if (isGlock) {
-        this.glockHipPosition.set(0.1, -0.05, -0.22);
-        this.glockHipRotation.set(0.1, 0, 0.1);
+        this.glockHipPosition.set(0.1, -0.08, -0.22);
+        this.glockHipRotation.set(0.1, 0.1, 0.1);
       } else if (isAkms) {
-        this.akmsHipPosition.set(0.095, -0.12, -0.20);
-        this.akmsHipRotation.set(0.08, 0, 0.04);
+        this.akmsHipPosition.set(0.1, -0.13, -0.1);
+        this.akmsHipRotation.set(0.1, 0, 0);
       } else {
-        this.pistolHipPosition.set(0.1, -0.1, -0.42);
-        this.pistolHipRotation.set(0.15, 0.04, 0.1);
+        this.pistolHipPosition.set(0.1, -0.1, -0.4);
+        this.pistolHipRotation.set(0.1, 0, 0.1);
       }
       const posTarget = this.hipPosition;
       const rotTarget = this.hipRotation;
@@ -2210,13 +2689,13 @@ export class WeaponViewmodel {
         this.mp5AdsPosition.set(0, -0.085, -0.08);
         this.mp5AdsRotation.set(0, 0, 0);
       } else if (isColt) {
-        this.coltAdsPosition.set(0, -0.080, -0.18);
-        this.coltAdsRotation.set(0, 0, 0);
+        this.coltAdsPosition.set(0, -0.0793, -0.16);
+        this.coltAdsRotation.set(-0.004, 0, 0);
       } else if (isGlock) {
         this.glockAdsPosition.set(-0.0014, -0.0596, -0.14);
         this.glockAdsRotation.set(0.0025, 0.0784, 0.0204);
       } else if (isAkms) {
-        this.akmsAdsPosition.set(0, -0.087, -0.12);
+        this.akmsAdsPosition.set(0.008, -0.083, -0.094);
         this.akmsAdsRotation.set(0, 0, 0);
       } else {
         this.pistolAdsPosition.set(0.000, -0.104, -0.345);
@@ -2255,15 +2734,14 @@ export class WeaponViewmodel {
     this.isPumping = false;
     this._updateShotgunPumpVisuals(0);
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
-    if (this.shotgunLeftHandGroup) {
-      this.shotgunLeftHandGroup.position.set(0, 0, 0);
-      this.shotgunLeftHandGroup.rotation.set(0, 0, 0);
+    for (const leftGroup of [this.shotgunLeftHandGroup, this.mp5LeftHandGroup, this.akmsLeftHandGroup]) {
+      if (leftGroup) {
+        leftGroup.position.set(0, 0, 0);
+        leftGroup.rotation.set(0, 0, 0);
+      }
     }
-    if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
-    if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
-    if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0;
-    if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0;
-    if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0;
+    this._resetAllTriggerFingers();
+    if (this.glockTriggerMesh) this.glockTriggerMesh.position.z = this.glockTriggerRestZ || 0;
     this.mp5BoltBlowback = 0;
     if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
       this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
@@ -2273,8 +2751,13 @@ export class WeaponViewmodel {
       this.mp5MagMesh.position.set(0, this.mp5MagRestY, this.mp5MagRestZ);
     }
     if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
-    if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
+    this.isTriggerHeld = false;
     this.glockSlideBlowback = 0;
+    this.glockSlideCycle = 0;
+    this._glockShotJustTriggered = false;
+    if (this.glockTriggerMesh) {
+      this.glockTriggerMesh.position.z = this.glockTriggerRestZ || 0;
+    }
     if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
       this.glockSlideMesh.position.y = this.glockSlideRestY;
       this.glockSlideMesh.position.z = this.glockSlideRestZ;
@@ -2288,10 +2771,7 @@ export class WeaponViewmodel {
       this.glockMagMesh.position.y = this.glockMagRestY;
       this.glockMagMesh.position.z = this.glockMagRestZ;
     }
-    if (this.akmsMagMesh && this.akmsMagRestY !== undefined) {
-      this.akmsMagMesh.visible = true;
-      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
-    }
+    this._resetAkmsMechState();
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
@@ -2302,7 +2782,7 @@ export class WeaponViewmodel {
     const isUSP = weaponType === 'hk_usp';
     const isShotgun = weaponType === 'shotgun';
     const isMP5 = weaponType === 'hk_mp5';
-    const isPistol = weaponType === 'pistol';
+    const isPistol = weaponType === 'desert_eagle' || weaponType === 'pistol';
     const isColt = weaponType === 'colt_peacemaker';
     const isGlock = weaponType === 'glock_flamengo';
     const isAkms = weaponType === 'akms_gold';
@@ -2513,6 +2993,10 @@ export class WeaponViewmodel {
   // FIRING RECOIL & CYCLING
   // ===========================================================================
 
+  setTriggerHeld(held) {
+    this.isTriggerHeld = !!held;
+  }
+
   applyRecoil() {
     if (this.currentWeapon === 'shotgun') {
       const recoilKick = this.isADS ? 0.082 : 0.135;
@@ -2543,24 +3027,30 @@ export class WeaponViewmodel {
         this.coltCylinderSpin = (this.coltCylinderSpin + Math.PI / 3) % (Math.PI * 2);
         this.coltCylinderMesh.rotation.z = this.coltCylinderSpin;
       }
-      if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0.22;
+      if (this.coltTriggerFinger) {
+        this.coltTriggerFinger.squeeze = 1.0;
+        this._applyTriggerFingerPose(this.coltTriggerFinger);
+      }
 
       this.triggerMuzzleFlash();
       return;
     }
 
     if (this.currentWeapon === 'glock_flamengo') {
-      const recoilKick = this.isADS ? 0.022 : 0.046;
-      const recoilZ = this.isADS ? 0.006 : 0.044;
-      const recoilPitch = this.isADS ? 0.036 : 0.072;
-      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.006 : 0.014);
-      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.008 : 0.018);
+      const recoilKick = this.isADS ? 0.016 : 0.030;
+      const recoilZ = this.isADS ? 0.004 : 0.022;
+      const recoilPitch = this.isADS ? 0.024 : 0.048;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.005 : 0.011);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.006 : 0.014);
 
       this.posSpring.impulse(0, recoilKick * 0.22, recoilZ);
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
-      this.glockSlideBlowback = 0.22;
-      if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0.18;
+      this.glockSlideCycle = 0.0001;
+      this.glockSlideCycleDuration = 0.050;
+      this.glockSlideMaxStroke = this.isADS ? 0.068 : 0.088;
+      this._glockShotJustTriggered = true;
+      this.isTriggerHeld = true;
 
       this.triggerMuzzleFlash();
       return;
@@ -2576,7 +3066,12 @@ export class WeaponViewmodel {
       this.posSpring.impulse(0, recoilKick * 0.25, recoilZ);
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
-      if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0.18;
+      this.akmsBoltBlowback = 0.078;
+      this.akmsBoltHold = 0.025;
+      if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
+        this.akmsBoltMesh.position.x = this.akmsBoltRestX - this.akmsBoltBlowback;
+      }
+      this.isTriggerHeld = true;
 
       this.triggerMuzzleFlash();
       return;
@@ -2595,7 +3090,10 @@ export class WeaponViewmodel {
       this.uspSlideBlowback = 0.024;
       this.uspHammerRecoil = 0.40;
       if (this.uspTriggerGroup) this.uspTriggerGroup.rotation.x = -0.18;
-      if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0.18;
+      if (this.uspTriggerFinger) {
+        this.uspTriggerFinger.squeeze = 1.0;
+        this._applyTriggerFingerPose(this.uspTriggerFinger);
+      }
 
       this.triggerMuzzleFlash();
       return;
@@ -2612,8 +3110,7 @@ export class WeaponViewmodel {
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
       this.mp5BoltBlowback = 0.032;
-      if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0.16;
-      if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0.16;
+      this.isTriggerHeld = true;
 
       this.triggerMuzzleFlash();
       return;
@@ -2633,7 +3130,10 @@ export class WeaponViewmodel {
     this.hammerRecoil = 0.35;
 
     if (this.triggerMesh) this.triggerMesh.rotation.x = 0.15;
-    if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0.22;
+    if (this.pistolTriggerFinger) {
+      this.pistolTriggerFinger.squeeze = 1.0;
+      this._applyTriggerFingerPose(this.pistolTriggerFinger);
+    }
 
     this.triggerMuzzleFlash();
   }
@@ -2796,26 +3296,62 @@ export class WeaponViewmodel {
 
     // 2. Slide Blowback & Reciprocation
     if (this.currentWeapon === 'glock_flamengo') {
-      if (this.glockSlideBlowback > 0.001) {
-        this.glockSlideBlowback = THREE.MathUtils.lerp(this.glockSlideBlowback, 0, Math.min(delta * 42.0, 1.0));
-        // Scene_1 in glock_flamengo.glb is rotated ~83.5 deg around X, so local +Y is backward along the slide axis
+      if (this.glockSlideCycle > 0) {
+        if (this._glockShotJustTriggered) {
+          this._glockShotJustTriggered = false;
+          this.glockSlideCycle = 0.24;
+        } else {
+          this.glockSlideCycle += delta / (this.glockSlideCycleDuration || 0.052);
+        }
+
+        if (this.glockSlideCycle >= 1.0) {
+          this.glockSlideCycle = 0;
+          this.glockSlideBlowback = 0;
+        } else {
+          this.glockSlideBlowback = Math.sin(this.glockSlideCycle * Math.PI) * (this.glockSlideMaxStroke || 0.088);
+        }
+
+        const d = this.glockSlideBlowback;
+        // Translate strictly along the Glock frame rail slope (dy = +d, dz = +0.0562 * d)
         if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
-          this.glockSlideMesh.position.y = this.glockSlideRestY + this.glockSlideBlowback;
+          this.glockSlideMesh.position.y = this.glockSlideRestY + d;
+          this.glockSlideMesh.position.z = this.glockSlideRestZ + d * 0.0562;
         }
         if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
-          this.glockSelectorMesh.position.y = this.glockSelectorRestY + this.glockSlideBlowback;
+          this.glockSelectorMesh.position.y = this.glockSelectorRestY + d;
+          this.glockSelectorMesh.position.z = this.glockSelectorRestZ + d * 0.0562;
         }
       } else {
         if (this.glockSlideMesh && this.glockSlideRestY !== undefined && this.glockSlideMesh.position.y !== this.glockSlideRestY) {
           this.glockSlideMesh.position.y = this.glockSlideRestY;
+          this.glockSlideMesh.position.z = this.glockSlideRestZ;
         }
         if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined && this.glockSelectorMesh.position.y !== this.glockSelectorRestY) {
           this.glockSelectorMesh.position.y = this.glockSelectorRestY;
+          this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
         }
       }
     } else if (this.currentWeapon === 'colt_peacemaker') {
       if (this.coltHammerRecoil > 0.001) {
         this.coltHammerRecoil = THREE.MathUtils.lerp(this.coltHammerRecoil, 0, Math.min(delta * 20.0, 1.0));
+      }
+    } else if (this.currentWeapon === 'akms_gold') {
+      if (!this.isReloading) {
+        if (this.akmsBoltHold > 0) {
+          this.akmsBoltHold = Math.max(0, this.akmsBoltHold - Math.min(delta, 0.033));
+          if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
+            this.akmsBoltMesh.position.x = this.akmsBoltRestX - this.akmsBoltBlowback;
+          }
+        } else if (this.akmsBoltBlowback > 0.0005) {
+          const dt = Math.min(delta, 0.033);
+          this.akmsBoltBlowback *= Math.exp(-38.0 * dt);
+          if (this.akmsBoltBlowback <= 0.0005) this.akmsBoltBlowback = 0;
+          if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
+            this.akmsBoltMesh.position.x = this.akmsBoltRestX - this.akmsBoltBlowback;
+          }
+        } else if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined && this.akmsBoltMesh.position.x !== this.akmsBoltRestX) {
+          this.akmsBoltMesh.position.x = this.akmsBoltRestX;
+        }
       }
     } else if (this.currentWeapon === 'hk_mp5') {
       if (!this.isReloading) {
@@ -2883,36 +3419,64 @@ export class WeaponViewmodel {
       }
     }
 
-    // 3. Smooth return for triggers
+    // 3. Smooth trigger squeeze & release (Full-Auto weapons lock/hold the trigger down while firing!)
+    const isFullAutoHeld =
+      this.isTriggerHeld &&
+      !this.isReloading &&
+      (this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'akms_gold');
+
     if (this.triggerMesh && this.triggerMesh.rotation.x > 0.001) {
       this.triggerMesh.rotation.x = THREE.MathUtils.lerp(this.triggerMesh.rotation.x, 0, Math.min(delta * 20.0, 1.0));
     }
     if (this.shotgunTriggerMesh && this.shotgunTriggerMesh.rotation.x > 0.001) {
       this.shotgunTriggerMesh.rotation.x = THREE.MathUtils.lerp(this.shotgunTriggerMesh.rotation.x, 0, Math.min(delta * 20.0, 1.0));
     }
-    if (this.pistolTriggerFingerGroup && this.pistolTriggerFingerGroup.rotation.x > 0.001) {
-      this.pistolTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.pistolTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
-    }
     if (this.uspTriggerGroup && this.uspTriggerGroup.rotation.x < -0.001) {
       this.uspTriggerGroup.rotation.x = THREE.MathUtils.lerp(this.uspTriggerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
     }
-    if (this.uspTriggerFingerGroup && this.uspTriggerFingerGroup.rotation.x > 0.001) {
-      this.uspTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.uspTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
+    for (const tf of [this.pistolTriggerFinger, this.uspTriggerFinger, this.coltTriggerFinger]) {
+      if (tf && tf.squeeze > 0.001) {
+        tf.squeeze = THREE.MathUtils.lerp(tf.squeeze, 0, Math.min(delta * 18.0, 1.0));
+        if (tf.squeeze <= 0.001) tf.squeeze = 0;
+        this._applyTriggerFingerPose(tf);
+      }
     }
-    if (this.mp5TriggerMesh && this.mp5TriggerMesh.rotation.x > 0.001) {
-      this.mp5TriggerMesh.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerMesh.rotation.x, 0, Math.min(delta * 22.0, 1.0));
+
+    // Full-Auto Trigger Lock for MP5 and Glock
+    const mp5Held = isFullAutoHeld && this.currentWeapon === 'hk_mp5';
+    if (this.mp5TriggerMesh) {
+      const targetRot = mp5Held ? 0.16 : 0;
+      if (Math.abs(this.mp5TriggerMesh.rotation.x - targetRot) > 0.001) {
+        this.mp5TriggerMesh.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerMesh.rotation.x, targetRot, Math.min(delta * 24.0, 1.0));
+      } else {
+        this.mp5TriggerMesh.rotation.x = targetRot;
+      }
     }
-    if (this.mp5TriggerFingerGroup && this.mp5TriggerFingerGroup.rotation.x > 0.001) {
-      this.mp5TriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.mp5TriggerFingerGroup.rotation.x, 0, Math.min(delta * 22.0, 1.0));
+
+    const glockHeld = isFullAutoHeld && this.currentWeapon === 'glock_flamengo';
+    if (this.glockTriggerMesh) {
+      const targetZ = glockHeld ? -0.045 : 0;
+      if (Math.abs(this.glockTriggerMesh.position.z - targetZ) > 0.0005) {
+        this.glockTriggerMesh.position.z = THREE.MathUtils.lerp(this.glockTriggerMesh.position.z, targetZ, Math.min(delta * 26.0, 1.0));
+      } else {
+        this.glockTriggerMesh.position.z = targetZ;
+      }
     }
-    if (this.coltTriggerFingerGroup && this.coltTriggerFingerGroup.rotation.x > 0.001) {
-      this.coltTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.coltTriggerFingerGroup.rotation.x, 0, Math.min(delta * 20.0, 1.0));
-    }
-    if (this.glockTriggerFingerGroup && this.glockTriggerFingerGroup.rotation.x > 0.001) {
-      this.glockTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.glockTriggerFingerGroup.rotation.x, 0, Math.min(delta * 24.0, 1.0));
-    }
-    if (this.akmsTriggerFingerGroup && this.akmsTriggerFingerGroup.rotation.x > 0.001) {
-      this.akmsTriggerFingerGroup.rotation.x = THREE.MathUtils.lerp(this.akmsTriggerFingerGroup.rotation.x, 0, Math.min(delta * 22.0, 1.0));
+
+    // Only Glock renders a right trigger arm; MP5 and AKMS render only the left support arm.
+    const fullAutoFingers = [
+      [this.glockTriggerFinger, glockHeld, 26.0],
+    ];
+    for (const [tf, held, speed] of fullAutoFingers) {
+      if (!tf) continue;
+      const targetSqueeze = held ? 1.0 : 0.0;
+      if (Math.abs(tf.squeeze - targetSqueeze) > 0.002) {
+        tf.squeeze = THREE.MathUtils.lerp(tf.squeeze, targetSqueeze, Math.min(delta * speed, 1.0));
+        this._applyTriggerFingerPose(tf);
+      } else if (tf.squeeze !== targetSqueeze) {
+        tf.squeeze = targetSqueeze;
+        this._applyTriggerFingerPose(tf);
+      }
     }
 
     // 4. Muzzle flash fade
@@ -3000,7 +3564,7 @@ export class WeaponViewmodel {
       }
       return;
     }
-    if (this.currentWeapon === 'pistol') {
+    if (this.currentWeapon === 'desert_eagle' || this.currentWeapon === 'pistol') {
       if (locked) {
         this.slideBlowback = 0.036;
         this.slideGroup.position.z = 0.036;
@@ -3075,7 +3639,7 @@ export class WeaponViewmodel {
 
     // Authentic reload sound (9mm_reload.mp3 pitched to 0.90x) or procedural fallback
     if (this.sound && typeof this.sound.playReloadSound === 'function') {
-      this.sound.playReloadSound('pistol');
+      this.sound.playReloadSound('desert_eagle');
     } else if (this.sound) {
       this.sound.playMagOut();
     }
@@ -3615,7 +4179,10 @@ export class WeaponViewmodel {
 
         const rackTimer = setTimeout(() => {
           if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
-          this.glockSlideBlowback = 0.26;
+          this.glockSlideCycle = 0.0001;
+          this.glockSlideCycleDuration = 0.13;
+          this.glockSlideMaxStroke = 0.115;
+          this._glockShotJustTriggered = true;
           this.posSpring.impulse(0, -0.012, -0.032);
           this.rotSpring.impulse(-0.048, 0, -0.022);
           if (this.sound && typeof this.sound.play9mmSlideRack === 'function') {
@@ -3644,6 +4211,19 @@ export class WeaponViewmodel {
     this.reloadTimers.push(magDropTimer);
   }
 
+  _resetAkmsMechState() {
+    this.akmsBoltBlowback = 0;
+    this.akmsBoltHold = 0;
+    if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
+      this.akmsBoltMesh.position.x = this.akmsBoltRestX;
+    }
+    if (this.akmsMagMesh && this.akmsMagRestY !== undefined) {
+      this.akmsMagMesh.visible = true;
+      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
+      this.akmsMagMesh.rotation.set(0, 0, 0);
+    }
+  }
+
   _startAkmsReloadAnimation(onComplete) {
     if (this.sound && typeof this.sound.playReloadSound === 'function') {
       this.sound.playReloadSound('akms_gold');
@@ -3651,73 +4231,112 @@ export class WeaponViewmodel {
       this.sound.playMagOut();
     }
 
-    if (this.akmsMagMesh) {
-      this.akmsMagMesh.visible = true;
-      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
-    }
+    this._resetAkmsMechState();
 
+    // STAGE 1: Lift weapon and cant slightly right so magazine rock-out/in is clearly framed
     const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
-      .to({ roll: 0.34, pitch: 0.16, yaw: 0.10, y: -0.018 }, 260)
+      .to({ roll: -0.18, pitch: 0.22, yaw: 0.08, y: 0.042 }, 220)
       .easing(TWEEN.Easing.Cubic.Out);
     this.reloadTweens.push(tiltIn);
     tiltIn.start();
 
+    // STAGE 2: Rock magazine forward (-Y rot) and pull downward (-Z, +X in Sketchfab local coords)
     const magDropTimer = setTimeout(() => {
       if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
       if (this.akmsMagMesh) {
-        const drop = new TWEEN.Tween(this.akmsMagMesh.position, true)
-          .to({ y: this.akmsMagRestY - 0.18, x: this.akmsMagRestX + 0.04 }, 240)
+        const dropPos = new TWEEN.Tween(this.akmsMagMesh.position, true)
+          .to({ z: this.akmsMagRestZ - 0.19, x: this.akmsMagRestX + 0.032 }, 220)
           .easing(TWEEN.Easing.Quadratic.In)
           .onComplete(() => {
             if (this.akmsMagMesh) this.akmsMagMesh.visible = false;
           });
-        this.reloadTweens.push(drop);
-        drop.start();
+        const dropRot = new TWEEN.Tween(this.akmsMagMesh.rotation, true)
+          .to({ y: -0.36 }, 180)
+          .easing(TWEEN.Easing.Cubic.Out);
+        this.reloadTweens.push(dropPos, dropRot);
+        dropPos.start();
+        dropRot.start();
       }
 
+      // STAGE 3: Insert fresh magazine upward (+Z) and rock back to lock upright into receiver
       const magInTimer = setTimeout(() => {
         if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
         if (this.akmsMagMesh) {
           this.akmsMagMesh.visible = true;
-          this.akmsMagMesh.position.set(this.akmsMagRestX + 0.04, this.akmsMagRestY - 0.18, this.akmsMagRestZ);
-          const insert = new TWEEN.Tween(this.akmsMagMesh.position, true)
-            .to({ x: this.akmsMagRestX, y: this.akmsMagRestY, z: this.akmsMagRestZ }, 240)
-            .easing(TWEEN.Easing.Back.Out)
+          this.akmsMagMesh.position.set(this.akmsMagRestX + 0.032, this.akmsMagRestY, this.akmsMagRestZ - 0.19);
+          this.akmsMagMesh.rotation.set(0, -0.36, 0);
+          const insertPos = new TWEEN.Tween(this.akmsMagMesh.position, true)
+            .to({ x: this.akmsMagRestX, y: this.akmsMagRestY, z: this.akmsMagRestZ }, 220)
+            .easing(TWEEN.Easing.Cubic.Out)
             .onComplete(() => {
               this.posSpring.impulse(0, 0.052, 0);
               this.rotSpring.impulse(0.022, 0, 0.038);
               if (this.sound) this.sound.playMagIn();
+              const tiltCharge = new TWEEN.Tween(this.reloadTilt, true)
+                .to({ roll: 0.30, pitch: 0.18, yaw: 0.06, y: 0.018 }, 160)
+                .easing(TWEEN.Easing.Cubic.Out);
+              this.reloadTweens.push(tiltCharge);
+              tiltCharge.start();
             });
-          this.reloadTweens.push(insert);
-          insert.start();
+          const insertRot = new TWEEN.Tween(this.akmsMagMesh.rotation, true)
+            .to({ y: 0 }, 220)
+            .easing(TWEEN.Easing.Quadratic.Out);
+          this.reloadTweens.push(insertPos, insertRot);
+          insertPos.start();
+          insertRot.start();
         }
 
+        // STAGE 4: Rack charging handle backward (-X) and snap forward to chamber a round
         const chargeTimer = setTimeout(() => {
           if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
-          this.posSpring.impulse(0, -0.015, -0.042);
-          this.rotSpring.impulse(-0.055, 0, -0.025);
-          if (this.sound && typeof this.sound.playSlideRelease === 'function') {
-            this.sound.playSlideRelease();
-          }
 
-          const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
-            .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 220)
-            .easing(TWEEN.Easing.Cubic.Out)
-            .onComplete(() => {
-              this.isReloading = false;
-              if (this.akmsMagMesh) {
-                this.akmsMagMesh.visible = true;
-                this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
-              }
-              if (typeof onComplete === 'function') onComplete();
-            });
-          this.reloadTweens.push(tiltOut);
-          tiltOut.start();
+          const finishCharge = () => {
+            this.posSpring.impulse(0, -0.015, -0.042);
+            this.rotSpring.impulse(-0.055, 0, -0.025);
+            if (this.sound && typeof this.sound.playSlideRelease === 'function') {
+              this.sound.playSlideRelease();
+            }
+            const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
+              .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 200)
+              .easing(TWEEN.Easing.Cubic.Out)
+              .onComplete(() => {
+                this.isReloading = false;
+                this._resetAkmsMechState();
+                if (typeof onComplete === 'function') onComplete();
+              });
+            this.reloadTweens.push(tiltOut);
+            tiltOut.start();
+          };
+
+          if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
+            this.posSpring.impulse(0, 0.012, 0.025);
+            this.rotSpring.impulse(0.025, 0, -0.015);
+            const pullBolt = new TWEEN.Tween(this.akmsBoltMesh.position, true)
+              .to({ x: this.akmsBoltRestX - 0.080 }, 140)
+              .easing(TWEEN.Easing.Cubic.Out)
+              .onComplete(() => {
+                if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
+                const holdBoltTimer = setTimeout(() => {
+                  if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
+                  const releaseBolt = new TWEEN.Tween(this.akmsBoltMesh.position, true)
+                    .to({ x: this.akmsBoltRestX }, 85)
+                    .easing(TWEEN.Easing.Cubic.In)
+                    .onComplete(finishCharge);
+                  this.reloadTweens.push(releaseBolt);
+                  releaseBolt.start();
+                }, 45);
+                this.reloadTimers.push(holdBoltTimer);
+              });
+            this.reloadTweens.push(pullBolt);
+            pullBolt.start();
+          } else {
+            finishCharge();
+          }
         }, 420);
         this.reloadTimers.push(chargeTimer);
       }, 340);
       this.reloadTimers.push(magInTimer);
-    }, 260);
+    }, 240);
     this.reloadTimers.push(magDropTimer);
   }
 
@@ -3743,7 +4362,9 @@ export class WeaponViewmodel {
     this.mp5BoltBlowback = 0;
     this.coltHammerRecoil = 0;
     this.glockSlideBlowback = 0;
-    this.akmsBoltBlowback = 0;
+    this.glockSlideCycle = 0;
+    this._glockShotJustTriggered = false;
+    this.isTriggerHeld = false;
     this.flashTimer = 0;
 
     // Restore 3D weapon group visibilities to Slot 1 (H&K USP 9mm)
@@ -3789,9 +4410,11 @@ export class WeaponViewmodel {
     if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
     if (this.shotgunTriggerMesh) this.shotgunTriggerMesh.rotation.x = 0;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
-    if (this.shotgunLeftHandGroup) {
-      this.shotgunLeftHandGroup.position.set(0, 0, 0);
-      this.shotgunLeftHandGroup.rotation.set(0, 0, 0);
+    for (const leftGroup of [this.shotgunLeftHandGroup, this.mp5LeftHandGroup, this.akmsLeftHandGroup]) {
+      if (leftGroup) {
+        leftGroup.position.set(0, 0, 0);
+        leftGroup.rotation.set(0, 0, 0);
+      }
     }
     if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
       this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
@@ -3801,12 +4424,8 @@ export class WeaponViewmodel {
       this.mp5MagMesh.position.set(0, this.mp5MagRestY, this.mp5MagRestZ);
     }
     if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
-    if (this.mp5TriggerFingerGroup) this.mp5TriggerFingerGroup.rotation.x = 0;
-    if (this.pistolTriggerFingerGroup) this.pistolTriggerFingerGroup.rotation.x = 0;
-    if (this.uspTriggerFingerGroup) this.uspTriggerFingerGroup.rotation.x = 0;
-    if (this.coltTriggerFingerGroup) this.coltTriggerFingerGroup.rotation.x = 0;
-    if (this.glockTriggerFingerGroup) this.glockTriggerFingerGroup.rotation.x = 0;
-    if (this.akmsTriggerFingerGroup) this.akmsTriggerFingerGroup.rotation.x = 0;
+    this._resetAllTriggerFingers();
+    if (this.glockTriggerMesh) this.glockTriggerMesh.position.z = this.glockTriggerRestZ || 0;
     if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
       this.glockSlideMesh.position.y = this.glockSlideRestY;
       this.glockSlideMesh.position.z = this.glockSlideRestZ;
@@ -3820,10 +4439,7 @@ export class WeaponViewmodel {
       this.glockMagMesh.position.y = this.glockMagRestY;
       this.glockMagMesh.position.z = this.glockMagRestZ;
     }
-    if (this.akmsMagMesh && this.akmsMagRestY !== undefined) {
-      this.akmsMagMesh.visible = true;
-      this.akmsMagMesh.position.set(this.akmsMagRestX, this.akmsMagRestY, this.akmsMagRestZ);
-    }
+    this._resetAkmsMechState();
 
     this._syncTuner();
 
