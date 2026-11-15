@@ -59,8 +59,19 @@ export class SoundManager {
     this._fractureBufferCache = new Map();
     this._fractureVariantIdx = 0;
     this.activeActionSources = new Set();
+    this.activeReloadSource = null;
+    this.activeReloadGain = null;
     this.isSampleReloadActive = false;
-    this.lastDryFireTime = 0;
+    this._reloadSampleConfig = {
+      hk_usp: { key: '9mm_reload', playbackRate: 2.13, volume: 0.95, fallbackMs: 1055 },
+      desert_eagle: { key: '9mm_reload', playbackRate: 0.90, volume: 1.05, fallbackMs: 2497 },
+      pistol: { key: '9mm_reload', playbackRate: 0.90, volume: 1.05, fallbackMs: 2497 },
+      hk_mp5: { key: '9mm_reload', playbackRate: 1.65, volume: 0.95, fallbackMs: 1362 },
+      glock_flamengo: { key: '9mm_reload', playbackRate: 1.80, volume: 0.95, fallbackMs: 1248 },
+      colt_peacemaker: { key: 'revolver_spin', playbackRate: 1.0, volume: 1.05, fallbackMs: 3344 },
+      akms_gold: { key: 'akms_reload', playbackRate: 1.0, volume: 1.02, fallbackMs: 1646 },
+    };
+    this.lastDryFireTime = -Infinity;
     this.isPreloading = true;
     this._buildingExplosion = null;
 
@@ -233,46 +244,32 @@ export class SoundManager {
 
   /**
    * Colt Peacemaker .45 Single-Action Revolver Gunshot (RARE).
-   * Heavy vintage .45 Colt boom + single-action hammer/cylinder ratchet click.
+   * Authentic .45 Colt boom with subtle pitch variation.
    */
   playColtGunshot() {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
 
-    if (this.audioBuffers.has('desert_eagle_fire')) {
-      const playbackRate = 0.85 + Math.random() * 0.06;
-      this._playSoundBuffer('desert_eagle_fire', { volume: 1.22, playbackRate });
-    } else {
-      this.playGunshot();
+    if (this.audioBuffers.has('revolver_shot')) {
+      const playbackRate = 0.98 + Math.random() * 0.04;
+      this._playSoundBuffer('revolver_shot', { volume: 0.96, playbackRate });
+      return;
     }
 
-    // Add single-action cylinder ratchet / hammer re-cock metallic click at +140ms
-    const t = this.ctx.currentTime + 0.14;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'square';
-    osc.frequency.setValueAtTime(2650, t);
-    osc.frequency.exponentialRampToValueAtTime(1400, t + 0.028);
-    gain.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-    gain.gain.setValueAtTime(0.16, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.032);
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(t);
-    osc.stop(t + 0.035);
+    this.playGunshot();
   }
 
   /**
    * Full-Auto Custom Glock (30rd Extended Mag) Gunshot (RARE).
-   * Ultra-fast snappy 9mm full-auto crack (~880 RPM).
+   * Ultra-fast snappy 9mm full-auto crack (~880 RPM) with crisp overlap headroom.
    */
   playGlockGunshot() {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
 
     if (this.audioBuffers.has('9mm_fire')) {
-      const playbackRate = 1.12 + (Math.random() - 0.5) * 0.09;
-      this._playSoundBuffer('9mm_fire', { volume: 0.92, playbackRate });
+      const playbackRate = 1.02 + Math.random() * 0.04;
+      this._playSoundBuffer('9mm_fire', { volume: 0.78, playbackRate });
       return;
     }
 
@@ -281,15 +278,15 @@ export class SoundManager {
 
   /**
    * Gold-Plated AKMS 7.62x39 Assault Rifle Gunshot (RARE).
-   * Heavy 7.62x39 bark + metallic AK bolt carrier reciprocation.
+   * Polyphonic 7.62x39 bark with subtle pitch variation.
    */
   playAkmsGunshot() {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
 
-    if (this.audioBuffers.has('desert_eagle_fire')) {
-      const rate = 1.15 + (Math.random() - 0.5) * 0.07;
-      this._playSoundBuffer('desert_eagle_fire', { volume: 1.0, playbackRate: rate });
+    if (this.audioBuffers.has('akms_shot')) {
+      const playbackRate = 0.98 + Math.random() * 0.05;
+      this._playSoundBuffer('akms_shot', { volume: 0.92, playbackRate });
       return;
     }
 
@@ -297,7 +294,7 @@ export class SoundManager {
   }
 
   /**
-   * Preload and decode authentic weapon audio samples (9mm, .50 AE, 12-gauge).
+   * Preload and decode authentic weapon audio samples.
    * Supports progress reporting and returns a Promise that resolves when all are decoded.
    */
   async preloadAllAudio(onProgress) {
@@ -309,6 +306,10 @@ export class SoundManager {
       'desert_eagle_fire': './sounds/desert_eagle_fire.mp3',
       'remington_870_fire': './sounds/remington_870_fire.mp3',
       'remington_870_pump': './sounds/remington_870_pump.mp3',
+      'akms_shot': './sounds/akms_shot.mp3',
+      'akms_reload': './sounds/akms_reload.mp3',
+      'revolver_shot': './sounds/revolver_shot.mp3',
+      'revolver_spin': './sounds/revolver_spin.mp3',
       'building_explosions': './sounds/building_explosions.mp3',
     };
 
@@ -332,7 +333,14 @@ export class SoundManager {
           const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
           // Automatically detect & trim leading MP3 encoder/pre-attack silence on immediate weapon sounds
           // so gunshots fire at 0.0ms on click and never lag behind impact effects!
-          if (key === '9mm_fire' || key === 'desert_eagle_fire' || key === 'remington_870_fire' || key === '9mm_dryfire') {
+          if (
+            key === '9mm_fire' ||
+            key === 'desert_eagle_fire' ||
+            key === 'remington_870_fire' ||
+            key === '9mm_dryfire' ||
+            key === 'akms_shot' ||
+            key === 'revolver_shot'
+          ) {
             const ch0 = audioBuffer.getChannelData(0);
             const threshold = 0.022;
             let firstSample = 0;
@@ -417,11 +425,16 @@ export class SoundManager {
 
     source.connect(gainNode);
     gainNode.connect(this.masterGain);
+    source._gainNode = gainNode;
 
     if (isAction) {
       this.activeActionSources.add(source);
       source.onended = () => {
         this.activeActionSources.delete(source);
+        try {
+          source.disconnect();
+          gainNode.disconnect();
+        } catch (e) { }
       };
     }
 
@@ -431,53 +444,108 @@ export class SoundManager {
   }
 
   /**
-   * Cancel and immediately stop any active reload or pump action sounds.
-   * Called on weapon switch or viewmodel reset to avoid audio ghosting.
+   * Fade out and stop a playing AudioBufferSourceNode smoothly to prevent clicks on cancel.
+   */
+  _fadeOutAndStopSource(source, gainNode, now, fadeSec = 0.03) {
+    if (!source) return;
+    try {
+      if (gainNode && gainNode.gain && this.ctx) {
+        const g = gainNode.gain;
+        if (typeof g.cancelScheduledValues === 'function') {
+          g.cancelScheduledValues(now);
+        }
+        const currentVal = typeof g.value === 'number' ? Math.max(0.0001, g.value) : 1.0;
+        g.setValueAtTime(currentVal, now);
+        g.linearRampToValueAtTime(0.0, now + fadeSec);
+        source.stop(now + fadeSec + 0.005);
+      } else {
+        source.stop();
+        source.disconnect();
+      }
+    } catch (e) { }
+  }
+
+  /**
+   * Cancel active reload/pump sounds with a fast 30ms fade-out so holstering never leaves audio tails.
    */
   stopActionSounds() {
     this.isSampleReloadActive = false;
+    const now = this.ctx ? this.ctx.currentTime : 0;
+
+    if (this.activeReloadSource) {
+      const reloadSrc = this.activeReloadSource;
+      const reloadGain = this.activeReloadGain || reloadSrc._gainNode;
+      this.activeReloadSource = null;
+      this.activeReloadGain = null;
+      this.activeActionSources.delete(reloadSrc);
+      this._fadeOutAndStopSource(reloadSrc, reloadGain, now, 0.03);
+    }
+
     for (const source of this.activeActionSources) {
-      try {
-        source.stop();
-        source.disconnect();
-      } catch (e) { }
+      this._fadeOutAndStopSource(source, source._gainNode, now, 0.03);
     }
     this.activeActionSources.clear();
   }
 
+  _resolveReloadAudioConfig(weaponType = 'hk_usp') {
+    const cfg = this._reloadSampleConfig?.[weaponType] || this._reloadSampleConfig?.hk_usp;
+    if (!cfg) return null;
+    if (this.audioBuffers.has(cfg.key)) {
+      return cfg;
+    }
+    if (cfg.key !== '9mm_reload' && this.audioBuffers.has('9mm_reload')) {
+      return { key: '9mm_reload', playbackRate: 1.18, volume: cfg.volume, fallbackMs: cfg.fallbackMs };
+    }
+    return null;
+  }
+
   /**
-   * Authentic Reload Audio Sequence (9mm_reload.mp3).
-   * Synchronized for H&K USP (~0.75s cycle at 2.13x) or Desert Eagle (.50 AE at 0.90x).
+   * Returns decoded clip duration in milliseconds (adjusted by playbackRate) for reload sync.
+   */
+  getReloadDurationMs(weaponType = 'hk_usp', fallbackMs = 1500) {
+    const cfg = this._resolveReloadAudioConfig(weaponType);
+    if (!cfg) {
+      const staticCfg = this._reloadSampleConfig?.[weaponType];
+      return staticCfg ? staticCfg.fallbackMs : fallbackMs;
+    }
+    const buf = this.audioBuffers.get(cfg.key);
+    if (buf && typeof buf.duration === 'number' && buf.duration > 0) {
+      return Math.round((buf.duration / cfg.playbackRate) * 1000);
+    }
+    return cfg.fallbackMs || fallbackMs;
+  }
+
+  /**
+   * Authentic Reload Audio Sequence per weapon (9mm_reload, akms_reload, revolver_spin).
+   * Tracks activeReloadSource so mid-reload weapon switches cleanly fade out over 30ms.
    */
   playReloadSound(weaponType = 'hk_usp') {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return false;
     this.resume();
 
-    if (this.audioBuffers.has('9mm_reload')) {
-      let playbackRate = 2.13;
-      let volume = 0.95;
-      if (weaponType === 'desert_eagle' || weaponType === 'pistol') {
-        playbackRate = 0.90;
-        volume = 1.05;
-      } else if (weaponType === 'colt_peacemaker') {
-        playbackRate = 0.85;
-        volume = 1.05;
-      } else if (weaponType === 'hk_mp5') {
-        playbackRate = 1.65;
-      } else if (weaponType === 'glock_flamengo') {
-        playbackRate = 1.80;
-      } else if (weaponType === 'akms_gold') {
-        playbackRate = 1.18;
-        volume = 1.02;
-      }
-
+    const cfg = this._resolveReloadAudioConfig(weaponType);
+    if (cfg) {
       this.stopActionSounds();
       this.isSampleReloadActive = true;
-      const src = this._playSoundBuffer('9mm_reload', { volume, playbackRate, isAction: true });
+      const src = this._playSoundBuffer(cfg.key, {
+        volume: cfg.volume,
+        playbackRate: cfg.playbackRate,
+        isAction: true,
+      });
       if (src) {
+        this.activeReloadSource = src;
+        this.activeReloadGain = src._gainNode || null;
         src.onended = () => {
           this.activeActionSources.delete(src);
-          this.isSampleReloadActive = false;
+          if (this.activeReloadSource === src) {
+            this.activeReloadSource = null;
+            this.activeReloadGain = null;
+            this.isSampleReloadActive = false;
+          }
+          try {
+            src.disconnect();
+            if (src._gainNode) src._gainNode.disconnect();
+          } catch (e) { }
         };
         return true;
       }
@@ -838,23 +906,25 @@ export class SoundManager {
    * Distinct pitch for 9mm (1.0), .50 AE (0.90), and 12-gauge (0.85).
    */
   playDryFireClick(weaponType = 'hk_usp') {
-    if (!this.ctx || this.isMuted) return;
+    if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
 
     const now = performance.now();
-    if (now - this.lastDryFireTime < 150) return;
+    if (now - this.lastDryFireTime < 250) return;
     this.lastDryFireTime = now;
 
     // Authentic sample playback (9mm_dryfire.mp3)
     if (this.audioBuffers.has('9mm_dryfire')) {
-      let playbackRate = 1.0;
-      if (weaponType === 'shotgun') {
-        playbackRate = 0.85;
-      } else if (weaponType === 'desert_eagle' || weaponType === 'pistol') {
-        playbackRate = 0.90;
-      } else if (weaponType === 'hk_mp5') {
-        playbackRate = 1.05;
-      }
+      const dryFireRates = {
+        shotgun: 0.85,
+        desert_eagle: 0.90,
+        pistol: 0.90,
+        colt_peacemaker: 0.88,
+        akms_gold: 0.95,
+        hk_mp5: 1.05,
+        glock_flamengo: 1.04,
+      };
+      const playbackRate = dryFireRates[weaponType] ?? 1.0;
       this._playSoundBuffer('9mm_dryfire', { volume: 0.85, playbackRate });
       return;
     }

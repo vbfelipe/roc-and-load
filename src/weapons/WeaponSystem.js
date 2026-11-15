@@ -606,6 +606,7 @@ export class WeaponSystem {
         defaultReserveAmmo: 36,
         infiniteReserve: false,
         fireRate: 0.42,
+        reloadTime: 3.344,
         isAutomatic: false,
         isRare: true,
         isSlideLocked: false,
@@ -618,6 +619,7 @@ export class WeaponSystem {
         defaultReserveAmmo: 150,
         infiniteReserve: false,
         fireRate: 0.068,
+        reloadTime: 1.248,
         isAutomatic: true,
         isRare: true,
         isSlideLocked: false,
@@ -630,6 +632,7 @@ export class WeaponSystem {
         defaultReserveAmmo: 120,
         infiniteReserve: false,
         fireRate: 0.10,
+        reloadTime: 1.646,
         isAutomatic: true,
         isRare: true,
         isSlideLocked: false,
@@ -1441,7 +1444,7 @@ export class WeaponSystem {
 
     // Dry-Fire on Empty Click (currentAmmo === 0)
     if (this.currentAmmo === 0) {
-      this.fireTimer = 0.22; // Cadence for dead trigger click
+      this.fireTimer = 0.25; // Cadence for dead trigger click (0.25s cooldown)
       if (this.sound) {
         this.sound.playDryFireClick(this.currentWeapon);
       }

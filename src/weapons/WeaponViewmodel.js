@@ -2563,6 +2563,15 @@ export class WeaponViewmodel {
     this.isPumping = false;
 
     if (next) {
+      this._clearReloadTimersAndTweens();
+      this._resetColtMechState();
+      this._resetAkmsMechState();
+      this.reloadTilt.x = 0;
+      this.reloadTilt.y = 0;
+      this.reloadTilt.z = 0;
+      this.reloadTilt.pitch = 0;
+      this.reloadTilt.yaw = 0;
+      this.reloadTilt.roll = 0;
       if (this.uspGroup) this.uspGroup.visible = false;
       if (this.gunGroup) this.gunGroup.visible = false;
       if (this.shotgunGroup) this.shotgunGroup.visible = false;
@@ -2725,10 +2734,7 @@ export class WeaponViewmodel {
       this.sound.stopActionSounds();
     }
 
-    this.reloadTimers.forEach((t) => clearTimeout(t));
-    this.reloadTimers.length = 0;
-    this.reloadTweens.forEach((t) => t.stop());
-    this.reloadTweens.length = 0;
+    this._clearReloadTimersAndTweens();
 
     this.isReloading = false;
     this.isPumping = false;
@@ -2771,6 +2777,7 @@ export class WeaponViewmodel {
       this.glockMagMesh.position.y = this.glockMagRestY;
       this.glockMagMesh.position.z = this.glockMagRestZ;
     }
+    this._resetColtMechState();
     this._resetAkmsMechState();
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
@@ -3593,10 +3600,7 @@ export class WeaponViewmodel {
   startReloadAnimation(options = {}) {
     const { onComplete, shellsToLoad, onShellInserted } = options;
 
-    this.reloadTimers.forEach((id) => clearTimeout(id));
-    this.reloadTimers.length = 0;
-    this.reloadTweens.forEach((tw) => tw.stop());
-    this.reloadTweens.length = 0;
+    this._clearReloadTimersAndTweens();
 
     this.isReloading = true;
 
@@ -4076,12 +4080,41 @@ export class WeaponViewmodel {
     this.reloadTimers.push(magDropTimer);
   }
 
+  _clearReloadTimersAndTweens() {
+    this.reloadTimers.forEach((id) => clearTimeout(id));
+    this.reloadTimers.length = 0;
+    this.reloadTweens.forEach((tw) => tw.stop());
+    this.reloadTweens.length = 0;
+  }
+
+  _resetColtMechState() {
+    if (this.coltModelGroup) {
+      this.coltModelGroup.position.set(0, 0, 0);
+      this.coltModelGroup.rotation.set(0, 0, 0);
+    }
+    if (this.coltGroup) {
+      this.coltGroup.rotation.set(0, 0, 0);
+    }
+    if (this.coltCylinderMesh) {
+      this.coltCylinderMesh.rotation.z = this.coltCylinderSpin;
+    }
+  }
+
   _startColtReloadAnimation(onComplete) {
     if (this.sound && typeof this.sound.playReloadSound === 'function') {
       this.sound.playReloadSound('colt_peacemaker');
     } else if (this.sound) {
       this.sound.playMagOut();
     }
+
+    this._resetColtMechState();
+
+    const totalMs = (this.sound && typeof this.sound.getReloadDurationMs === 'function')
+      ? this.sound.getReloadDurationMs('colt_peacemaker', 3344)
+      : 3344;
+    const tiltOutMs = 240;
+    const lockDelay = Math.max(950, totalMs - tiltOutMs);
+    const cylinderSpinMs = Math.max(850, lockDelay - 80);
 
     const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
       .to({ roll: -0.45, pitch: 0.22, yaw: -0.14, y: -0.02 }, 260)
@@ -4092,7 +4125,7 @@ export class WeaponViewmodel {
     if (this.coltCylinderMesh) {
       const spinObj = { z: this.coltCylinderSpin };
       const spinTween = new TWEEN.Tween(spinObj, true)
-        .to({ z: this.coltCylinderSpin + Math.PI * 2 }, 950)
+        .to({ z: this.coltCylinderSpin + Math.PI * 6 }, cylinderSpinMs)
         .easing(TWEEN.Easing.Cubic.InOut)
         .onUpdate(() => {
           if (this.coltCylinderMesh) this.coltCylinderMesh.rotation.z = spinObj.z;
@@ -4113,15 +4146,16 @@ export class WeaponViewmodel {
       }
 
       const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
-        .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 240)
+        .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, tiltOutMs)
         .easing(TWEEN.Easing.Cubic.Out)
         .onComplete(() => {
           this.isReloading = false;
+          this._resetColtMechState();
           if (typeof onComplete === 'function') onComplete();
         });
       this.reloadTweens.push(tiltOut);
       tiltOut.start();
-    }, 1050);
+    }, lockDelay);
     this.reloadTimers.push(lockTimer);
   }
 
@@ -4233,9 +4267,16 @@ export class WeaponViewmodel {
 
     this._resetAkmsMechState();
 
+    // Sync animation stages proportionally to akms_reload.mp3 duration (~1.646s)
+    const totalMs = (this.sound && typeof this.sound.getReloadDurationMs === 'function')
+      ? this.sound.getReloadDurationMs('akms_gold', 1646)
+      : 1646;
+    const scale = Math.max(0.5, totalMs / 1646);
+    const ms = (v) => Math.max(20, Math.round(v * scale));
+
     // STAGE 1: Lift weapon and cant slightly right so magazine rock-out/in is clearly framed
     const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
-      .to({ roll: -0.18, pitch: 0.22, yaw: 0.08, y: 0.042 }, 220)
+      .to({ roll: -0.18, pitch: 0.22, yaw: 0.08, y: 0.042 }, ms(230))
       .easing(TWEEN.Easing.Cubic.Out);
     this.reloadTweens.push(tiltIn);
     tiltIn.start();
@@ -4245,13 +4286,13 @@ export class WeaponViewmodel {
       if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
       if (this.akmsMagMesh) {
         const dropPos = new TWEEN.Tween(this.akmsMagMesh.position, true)
-          .to({ z: this.akmsMagRestZ - 0.19, x: this.akmsMagRestX + 0.032 }, 220)
+          .to({ z: this.akmsMagRestZ - 0.19, x: this.akmsMagRestX + 0.032 }, ms(240))
           .easing(TWEEN.Easing.Quadratic.In)
           .onComplete(() => {
             if (this.akmsMagMesh) this.akmsMagMesh.visible = false;
           });
         const dropRot = new TWEEN.Tween(this.akmsMagMesh.rotation, true)
-          .to({ y: -0.36 }, 180)
+          .to({ y: -0.36 }, ms(190))
           .easing(TWEEN.Easing.Cubic.Out);
         this.reloadTweens.push(dropPos, dropRot);
         dropPos.start();
@@ -4266,20 +4307,20 @@ export class WeaponViewmodel {
           this.akmsMagMesh.position.set(this.akmsMagRestX + 0.032, this.akmsMagRestY, this.akmsMagRestZ - 0.19);
           this.akmsMagMesh.rotation.set(0, -0.36, 0);
           const insertPos = new TWEEN.Tween(this.akmsMagMesh.position, true)
-            .to({ x: this.akmsMagRestX, y: this.akmsMagRestY, z: this.akmsMagRestZ }, 220)
+            .to({ x: this.akmsMagRestX, y: this.akmsMagRestY, z: this.akmsMagRestZ }, ms(240))
             .easing(TWEEN.Easing.Cubic.Out)
             .onComplete(() => {
               this.posSpring.impulse(0, 0.052, 0);
               this.rotSpring.impulse(0.022, 0, 0.038);
               if (this.sound) this.sound.playMagIn();
               const tiltCharge = new TWEEN.Tween(this.reloadTilt, true)
-                .to({ roll: 0.30, pitch: 0.18, yaw: 0.06, y: 0.018 }, 160)
+                .to({ roll: 0.30, pitch: 0.18, yaw: 0.06, y: 0.018 }, ms(180))
                 .easing(TWEEN.Easing.Cubic.Out);
               this.reloadTweens.push(tiltCharge);
               tiltCharge.start();
             });
           const insertRot = new TWEEN.Tween(this.akmsMagMesh.rotation, true)
-            .to({ y: 0 }, 220)
+            .to({ y: 0 }, ms(240))
             .easing(TWEEN.Easing.Quadratic.Out);
           this.reloadTweens.push(insertPos, insertRot);
           insertPos.start();
@@ -4290,14 +4331,14 @@ export class WeaponViewmodel {
         const chargeTimer = setTimeout(() => {
           if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
 
-          const finishCharge = () => {
+          const finishCharge = (settleMs = ms(236)) => {
             this.posSpring.impulse(0, -0.015, -0.042);
             this.rotSpring.impulse(-0.055, 0, -0.025);
             if (this.sound && typeof this.sound.playSlideRelease === 'function') {
               this.sound.playSlideRelease();
             }
             const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
-              .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 200)
+              .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, settleMs)
               .easing(TWEEN.Easing.Cubic.Out)
               .onComplete(() => {
                 this.isReloading = false;
@@ -4312,39 +4353,36 @@ export class WeaponViewmodel {
             this.posSpring.impulse(0, 0.012, 0.025);
             this.rotSpring.impulse(0.025, 0, -0.015);
             const pullBolt = new TWEEN.Tween(this.akmsBoltMesh.position, true)
-              .to({ x: this.akmsBoltRestX - 0.080 }, 140)
+              .to({ x: this.akmsBoltRestX - 0.080 }, ms(150))
               .easing(TWEEN.Easing.Cubic.Out)
               .onComplete(() => {
                 if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
                 const holdBoltTimer = setTimeout(() => {
                   if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
                   const releaseBolt = new TWEEN.Tween(this.akmsBoltMesh.position, true)
-                    .to({ x: this.akmsBoltRestX }, 85)
+                    .to({ x: this.akmsBoltRestX }, ms(100))
                     .easing(TWEEN.Easing.Cubic.In)
-                    .onComplete(finishCharge);
+                    .onComplete(() => finishCharge(ms(236)));
                   this.reloadTweens.push(releaseBolt);
                   releaseBolt.start();
-                }, 45);
+                }, ms(60));
                 this.reloadTimers.push(holdBoltTimer);
               });
             this.reloadTweens.push(pullBolt);
             pullBolt.start();
           } else {
-            finishCharge();
+            finishCharge(ms(546));
           }
-        }, 420);
+        }, ms(460));
         this.reloadTimers.push(chargeTimer);
-      }, 340);
+      }, ms(380));
       this.reloadTimers.push(magInTimer);
-    }, 240);
+    }, ms(260));
     this.reloadTimers.push(magDropTimer);
   }
 
   reset() {
-    this.reloadTimers.forEach((id) => clearTimeout(id));
-    this.reloadTimers.length = 0;
-    this.reloadTweens.forEach((tw) => tw.stop());
-    this.reloadTweens.length = 0;
+    this._clearReloadTimersAndTweens();
 
     if (this.sound && typeof this.sound.stopActionSounds === 'function') {
       this.sound.stopActionSounds();
@@ -4439,6 +4477,7 @@ export class WeaponViewmodel {
       this.glockMagMesh.position.y = this.glockMagRestY;
       this.glockMagMesh.position.z = this.glockMagRestZ;
     }
+    this._resetColtMechState();
     this._resetAkmsMechState();
 
     this._syncTuner();
