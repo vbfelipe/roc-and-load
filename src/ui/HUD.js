@@ -23,10 +23,14 @@ export class HUD {
     this.onReloadClick = null;
 
     this.damageVignetteEl = null;
+    this.healVignetteEl = null;
     this.gameOverScreenEl = null;
     this._damageFlashAlpha = 0;
     this._damagePulsePhase = 0;
     this._lastVignetteOpacity = -1;
+    this._healVignetteActive = false;
+    this._healVignetteTimer = 0;
+    this._lastHealVignetteOpacity = -1;
 
     // Top-right status HUD state (HP, rolling Money, Kills) + Safe-zone indicator
     this._statusHp = 3;
@@ -52,6 +56,7 @@ export class HUD {
     const uiLayer = document.getElementById('ui-layer') || document.body;
     this.uiLayer = uiLayer;
     this.damageVignetteEl = document.getElementById('hud-damage-vignette');
+    this.healVignetteEl = document.getElementById('hud-heal-vignette');
     this.gameOverScreenEl = document.getElementById('game-over-screen');
 
     // Track unarmed & opening sequence HUD state (dirty checked)
@@ -66,6 +71,7 @@ export class HUD {
     this._lastObjectiveVisible = null;
     this._lastPhoneDialogueVisible = null;
     this._lastDialogueSnapshot = {
+      topSpeaker: null,
       showCallerRow: null,
       showPlayerRow: null,
       activeSpeaker: null,
@@ -608,6 +614,7 @@ export class HUD {
     `;
     introHost.appendChild(this.phoneDialogueEl);
 
+    this._dialogueStackEl = this.phoneDialogueEl.querySelector('.phone-dialogue-stack');
     this._dialogueCallerRow = this.phoneDialogueEl.querySelector('#dialogue-row-caller');
     this._dialoguePlayerRow = this.phoneDialogueEl.querySelector('#dialogue-row-player');
     this._dialogueCallerTextEl = this.phoneDialogueEl.querySelector('#dialogue-text-caller');
@@ -870,9 +877,74 @@ export class HUD {
     this._syncIntroOverlays(instant);
   }
 
-  setPhoneDialogueState({ showCallerRow = true, showPlayerRow, activeSpeaker, callerText, playerText, skipHintText }) {
+  /**
+   * Synchronously clears previous dialogue text, speaker rows, and transitions BEFORE
+   * opening a new phone call so there is zero 1-frame flash of stale speaker state.
+   */
+  resetPhoneDialogueImmediate(topSpeaker = 'jorio') {
+    if (!this.phoneDialogueEl) return;
+    if (this.phoneDialogueEl._hideTimer) {
+      clearTimeout(this.phoneDialogueEl._hideTimer);
+      this.phoneDialogueEl._hideTimer = null;
+    }
+
+    if (this._dialogueStackEl) {
+      this._dialogueStackEl.classList.add('no-transitions');
+    }
+
+    this._phoneDialogueActive = false;
+    this._lastPhoneDialogueVisible = false;
+    this.phoneDialogueEl.classList.add('hidden');
+    this.phoneDialogueEl.style.display = 'none';
+    this.phoneDialogueEl.style.visibility = 'hidden';
+    this.phoneDialogueEl.style.opacity = '0';
+
+    const rocTop = topSpeaker === 'roc';
+    if (this._dialogueCallerRow) {
+      this._dialogueCallerRow.style.order = rocTop ? '1' : '0';
+      this._dialogueCallerRow.classList.add('row-hidden');
+      this._dialogueCallerRow.classList.remove('is-active', 'is-inactive');
+      this._dialogueCallerRow.classList.add(rocTop ? 'is-inactive' : 'is-active');
+    }
+    if (this._dialoguePlayerRow) {
+      this._dialoguePlayerRow.style.order = rocTop ? '0' : '1';
+      this._dialoguePlayerRow.classList.add('row-hidden');
+      this._dialoguePlayerRow.classList.remove('is-active', 'is-inactive');
+      this._dialoguePlayerRow.classList.add(rocTop ? 'is-active' : 'is-inactive');
+    }
+    if (this._dialogueCallerTextEl) this._dialogueCallerTextEl.textContent = '';
+    if (this._dialoguePlayerTextEl) this._dialoguePlayerTextEl.textContent = '';
+
+    this._lastDialogueSnapshot = {
+      topSpeaker,
+      showCallerRow: false,
+      showPlayerRow: false,
+      activeSpeaker: rocTop ? 'roc' : 'jorio',
+      callerText: '',
+      playerText: '',
+      skipHintText: '[ESPAÇO] PULAR ▸',
+    };
+
+    if (this._dialogueStackEl) {
+      void this._dialogueStackEl.offsetWidth;
+      this._dialogueStackEl.classList.remove('no-transitions');
+    }
+  }
+
+  setPhoneDialogueState({ topSpeaker = 'jorio', showCallerRow = true, showPlayerRow, activeSpeaker, callerText, playerText, skipHintText }) {
     const snap = this._lastDialogueSnapshot;
     const isJorioActive = activeSpeaker === 'jorio';
+
+    if (snap.topSpeaker !== topSpeaker) {
+      snap.topSpeaker = topSpeaker;
+      const rocTop = topSpeaker === 'roc';
+      if (this._dialogueCallerRow) {
+        this._dialogueCallerRow.style.order = rocTop ? '1' : '0';
+      }
+      if (this._dialoguePlayerRow) {
+        this._dialoguePlayerRow.style.order = rocTop ? '0' : '1';
+      }
+    }
 
     if (snap.activeSpeaker !== activeSpeaker) {
       snap.activeSpeaker = activeSpeaker;
@@ -930,7 +1002,32 @@ export class HUD {
     this._damageFlashAlpha = currentHp <= 0 ? 0.96 : 0.85;
   }
 
+  triggerHealVignette() {
+    this._healVignetteActive = true;
+    this._healVignetteTimer = 0;
+  }
+
   updateDamageVignette(delta, currentHp = 3) {
+    if (this.healVignetteEl && this._healVignetteActive) {
+      this._healVignetteTimer += delta;
+      const pulseIn = 0.15;
+      const fadeOut = 0.75;
+      let hAlpha = 0;
+      if (this._healVignetteTimer <= pulseIn) {
+        hAlpha = this._healVignetteTimer / pulseIn;
+      } else if (this._healVignetteTimer < pulseIn + fadeOut) {
+        const t = (this._healVignetteTimer - pulseIn) / fadeOut;
+        hAlpha = Math.max(0, 1.0 - t * t * (3 - 2 * t));
+      } else {
+        this._healVignetteActive = false;
+        hAlpha = 0;
+      }
+      if (Math.abs(hAlpha - this._lastHealVignetteOpacity) > 0.005) {
+        this._lastHealVignetteOpacity = hAlpha;
+        this.healVignetteEl.style.opacity = hAlpha.toFixed(3);
+      }
+    }
+
     if (!this.damageVignetteEl) return;
     if (this._damageFlashAlpha > 0) {
       this._damageFlashAlpha = Math.max(0, this._damageFlashAlpha - delta * 2.1);
@@ -957,6 +1054,12 @@ export class HUD {
     this._lastVignetteOpacity = 0;
     if (this.damageVignetteEl) {
       this.damageVignetteEl.style.opacity = '0';
+    }
+    this._healVignetteActive = false;
+    this._healVignetteTimer = 0;
+    this._lastHealVignetteOpacity = 0;
+    if (this.healVignetteEl) {
+      this.healVignetteEl.style.opacity = '0';
     }
   }
 
@@ -985,14 +1088,7 @@ export class HUD {
     if (this.moneyFloatEl) {
       this.moneyFloatEl.classList.remove('is-animating');
     }
-    this.setPhoneDialogueVisible(false, true);
-    this.setPhoneDialogueState({
-      showPlayerRow: false,
-      activeSpeaker: 'jorio',
-      callerText: '',
-      playerText: '',
-      skipHintText: '[ESPAÇO] PULAR ▸',
-    });
+    this.resetPhoneDialogueImmediate('jorio');
 
     if (this.reloadPromptEl) {
       this.reloadPromptEl.classList.add('hidden');

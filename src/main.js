@@ -175,6 +175,17 @@ window.addEventListener('DOMContentLoaded', () => {
     sound,
     getMoney: () => playerMoney,
     spendMoney,
+    getHp: () => player.hp,
+    getMaxHp: () => player.maxHp,
+    onPurchaseMedkit: () => {
+      player.healFull();
+      if (typeof hud.setHealth === 'function') {
+        hud.setHealth(player.hp, player.maxHp);
+      }
+      if (typeof hud.triggerHealVignette === 'function') {
+        hud.triggerHealVignette();
+      }
+    },
     onWeaponUnlocked: () => {
       if (weaponWheel) weaponWheel.refreshVisuals();
     },
@@ -352,9 +363,10 @@ window.addEventListener('DOMContentLoaded', () => {
     let modelFrac = 0;
     let zombieFrac = 0;
     let crateFrac = 0;
+    let medkitFrac = 0;
     let heroFrac = 0;
     const syncAssetProgress = (statusMsg) => {
-      const weighted = 10 + (0.08 * audioFrac + 0.43 * modelFrac + 0.41 * zombieFrac + 0.04 * crateFrac + 0.04 * heroFrac) * 76;
+      const weighted = 10 + (0.08 * audioFrac + 0.41 * modelFrac + 0.40 * zombieFrac + 0.04 * crateFrac + 0.03 * medkitFrac + 0.04 * heroFrac) * 76;
       updateBootProgress(weighted, statusMsg);
     };
 
@@ -384,6 +396,14 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress('LOADING SUPPLY CRATE...');
     });
 
+    // 3c. Parallel loading: First Aid Medkit GLB (downscales >1024px maps -> 1024px)
+    const medkitPromise = gunShop && typeof gunShop.loadMedkitModel === 'function'
+      ? gunShop.loadMedkitModel((fraction) => {
+          medkitFrac = fraction;
+          syncAssetProgress('LOADING MEDICAL SUPPLIES...');
+        })
+      : Promise.resolve(null);
+
     // 4. Parallel loading: WebP UI hero portraits
     const heroImagePromise = Promise.all(
       ['./roc_hero.webp', './jorio_hero.webp'].map((src) => new Promise((resolve) => {
@@ -401,7 +421,7 @@ window.addEventListener('DOMContentLoaded', () => {
       syncAssetProgress();
     });
 
-    await Promise.all([audioPromise, modelsPromise, zombiePromise, cratePromise, heroImagePromise]);
+    await Promise.all([audioPromise, modelsPromise, zombiePromise, cratePromise, medkitPromise, heroImagePromise]);
     const assetsMs = Math.round(performance.now() - bootStart);
 
     // 5. Unified WebGL2 & EffectComposer Warm-Up (textures, VBOs, Skeleton.boneTextures, MSAA HalfFloat PSOs)
@@ -665,6 +685,7 @@ window.addEventListener('DOMContentLoaded', () => {
     hud.resetDamageVignette();
     hud.setGameOverVisible(false);
     if (gunShop && gunShop.isOpen) gunShop.close(false);
+    if (gunShop && typeof gunShop.resetStock === 'function') gunShop.resetStock();
     if (weaponWheel && weaponWheel.isOpen) weaponWheel.close(false);
     weaponSystem.reset();
     if (typeof hud.setHealth === 'function') hud.setHealth(player.hp, player.maxHp);

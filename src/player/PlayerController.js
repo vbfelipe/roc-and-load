@@ -109,6 +109,12 @@ export class PlayerController {
     this.hitPunchRoll = 0;
   }
 
+  healFull() {
+    if (this.hp >= this.maxHp) return false;
+    this.hp = this.maxHp;
+    return true;
+  }
+
   takeDamage(amount = 1) {
     if (this.hp <= 0) return 0;
     this.hp = Math.max(0, this.hp - amount);

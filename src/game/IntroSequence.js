@@ -103,6 +103,7 @@ export class IntroSequence {
 
     // Post-Wave 1 progression state (2nd call, permanent maintenance door, Gun Shop trigger)
     this._activeDialogueScript = PHONE_DIALOGUE_SCRIPT;
+    this._dialogueTopSpeaker = 'jorio';
     this._showCallerRow = true;
     this.maintenanceDoorPermanentlyOpened = false;
     this.maintenanceDoorOpening = false;
@@ -674,8 +675,12 @@ export class IntroSequence {
     this._nonSpaceCharCount = 0;
     this._callerDisplayedText = '';
     this._playerDisplayedText = '';
+    this._dialogueTopSpeaker = isSecondCall ? 'roc' : 'jorio';
     this._showCallerRow = !isSecondCall;
     this._showPlayerRow = isSecondCall;
+    if (this.hud && typeof this.hud.resetPhoneDialogueImmediate === 'function') {
+      this.hud.resetPhoneDialogueImmediate(this._dialogueTopSpeaker);
+    }
   }
 
   _beginDialogueTurn(turnIdx) {
@@ -708,6 +713,7 @@ export class IntroSequence {
     }
     if (typeof this.hud.setPhoneDialogueState === 'function') {
       this.hud.setPhoneDialogueState({
+        topSpeaker: this._dialogueTopSpeaker,
         showCallerRow: this._showCallerRow,
         showPlayerRow: this._showPlayerRow,
         activeSpeaker: turn.speaker,
@@ -1731,6 +1737,7 @@ export class IntroSequence {
 
     // Post-Wave 1 progression state (2nd call, permanent maintenance door, Gun Shop trigger)
     this._activeDialogueScript = PHONE_DIALOGUE_SCRIPT;
+    this._dialogueTopSpeaker = 'jorio';
     this._showCallerRow = true;
     this.maintenanceDoorPermanentlyOpened = false;
     this.maintenanceDoorOpening = false;

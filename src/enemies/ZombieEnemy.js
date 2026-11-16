@@ -370,6 +370,7 @@ export class ZombieEnemy {
     this._footPinPrevLeftZ = 0;
     this._footPinPrevRightZ = 0;
     this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
+    this.runSpeed = 2.65;
 
     // Combat / Health / Corpse & Audio lifecycle
     this.sound = options.sound ?? null;
@@ -1504,6 +1505,13 @@ export class ZombieEnemy {
   }
 
   /**
+   * Returns sprint ground speed (m/s) used when charging up the stairs or chasing.
+   */
+  getDesiredRunSpeed() {
+    return this.runSpeed;
+  }
+
+  /**
    * Keeps Walk animation timeScale steady at WALK_CALIBRATION.walkTimeScale (default 1.18)
    * during unobstructed movement, only scaling down if walls/desks block >15% of desired distance.
    */
@@ -1534,6 +1542,7 @@ export class ZombieEnemy {
     }
     if (!WALK_CALIBRATION.footLockPinning) {
       this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
+    this.runSpeed = 2.65;
     }
   }
 
@@ -1555,6 +1564,7 @@ export class ZombieEnemy {
     if (stateName === 'Walk') {
       this._footPinInitialized = false;
       this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
+    this.runSpeed = 2.65;
     }
 
     nextAction.enabled = true;
@@ -1658,6 +1668,7 @@ export class ZombieEnemy {
     this._footPinInitialized = false;
     this._prevTestAttackNorm = 0;
     this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
+    this.runSpeed = 2.65;
     const activeSound = this._getSound();
     if (activeSound && typeof activeSound.stopZombieVocal === 'function') {
       activeSound.stopZombieVocal(this, 0.015);

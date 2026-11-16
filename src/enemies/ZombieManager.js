@@ -418,7 +418,7 @@ export class ZombieManager {
     const zom = entry.zombie;
     entry.spawned = true;
     entry.aiState = 'CLIMB_STAIRS';
-    entry.subState = 'WALK';
+    entry.subState = 'RUN';
     entry.portalIndex = 0;
     entry.targetX = -12.35 + entry.laneX * 0.45;
     entry.targetZ = 8.25;
@@ -441,7 +441,7 @@ export class ZombieManager {
     zom.root.rotation.set(0, 0, 0);
     zom.setActive(true);
     zom.setHitboxesVisible(this.hitboxesVisible);
-    zom.playAnimation('Walk', 0);
+    zom.playAnimation('Run', 0);
     if (zom.mixer) zom.mixer.update(0);
   }
 
@@ -1337,14 +1337,14 @@ export class ZombieManager {
     const pos = zom.root.position;
     const pPos = this.player ? this.player.position : null;
 
-    // 1. Phase 1: CLIMB_STAIRS
+    // 1. Phase 1: CLIMB_STAIRS (zombies sprint up the stairwell in Run mode)
     if (entry.aiState === 'CLIMB_STAIRS') {
-      if (zom.tookDamageAggro && zom.currentState !== 'Run') {
+      if (!entry.queuePaused && zom.currentState !== 'Run') {
         zom.playAnimation('Run', 0.15);
       }
       const climbSpeed = zom.tookDamageAggro
         ? 3.10
-        : zom.getDesiredWalkSpeed();
+        : (typeof zom.getDesiredRunSpeed === 'function' ? zom.getDesiredRunSpeed() : 2.65);
 
       const tx = entry.targetX;
       const tz = entry.targetZ;
@@ -1368,7 +1368,7 @@ export class ZombieManager {
         } else {
           if (entry.queuePaused) {
             entry.queuePaused = false;
-            zom.playAnimation(zom.tookDamageAggro ? 'Run' : 'Walk', 0.18);
+            zom.playAnimation('Run', 0.18);
           }
           desiredStep = Math.min(dist, climbSpeed * delta);
           const actualStep = Math.min(dist, climbSpeed * qMul * delta);

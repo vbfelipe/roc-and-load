@@ -1,7 +1,44 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const MEDKIT_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+
+function downscaleMedkitTextureIfNeeded(tex, maxSize = 1024) {
+  if (!tex || !tex.image) return;
+  const img = tex.image;
+  const w = img.width || img.naturalWidth || 0;
+  const h = img.height || img.naturalHeight || 0;
+  if (w <= maxSize && h <= maxSize) return;
+  const scale = maxSize / Math.max(w, h);
+  const dstW = Math.max(1, Math.round(w * scale));
+  const dstH = Math.max(1, Math.round(h * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = dstW;
+  canvas.height = dstH;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+  ctx.drawImage(img, 0, 0, dstW, dstH);
+  if (typeof img.close === 'function') {
+    try { img.close(); } catch (e) { }
+  }
+  tex.image = canvas;
+  tex.needsUpdate = true;
+}
 
 export const GUN_SHOP_CATALOG = Object.freeze([
+  {
+    id: 'medkit',
+    kind: 'consumable',
+    name: 'KIT MÉDICO',
+    caliber: 'CURA TOTAL IMEDIATA',
+    price: 1000,
+    maxStock: 3,
+    isLegendary: false,
+    infiniteAmmo: true,
+    ammoPackSize: 0,
+    ammoPackPrice: 0,
+  },
   {
     id: 'hk_usp',
     name: 'HK USP',
@@ -153,16 +190,35 @@ function formatMoney(n) {
  * Clones already-loaded weapon .glb templates in memory (0 network loads, 0 frame drops).
  */
 export class GunShopHUD {
-  constructor({ weaponSystem, sound, getMoney, spendMoney, onClose, onWeaponUnlocked } = {}) {
+  constructor({
+    weaponSystem,
+    sound,
+    getMoney,
+    spendMoney,
+    getHp,
+    getMaxHp,
+    onPurchaseMedkit,
+    onClose,
+    onWeaponUnlocked,
+  } = {}) {
     this.weaponSystem = weaponSystem;
     this.sound = sound;
     this.getMoney = getMoney || (() => 0);
     this.spendMoney = spendMoney || (() => false);
+    this.getHp = getHp || (() => 3);
+    this.getMaxHp = getMaxHp || (() => 3);
+    this.onPurchaseMedkit = onPurchaseMedkit || null;
     this.onClose = onClose || null;
     this.onWeaponUnlocked = onWeaponUnlocked || null;
 
+    this.maxMedkits = 3;
+    this.medkitsRemaining = 3;
+    this._medkitTemplate = null;
+    this._medkitLoadPromise = null;
+    this._medkitTextures = [];
+
     this.isOpen = false;
-    this.selectedId = 'shotgun';
+    this.selectedId = 'medkit';
     this._isViewportHovered = false;
     this._isCardHovered = false;
     this._thumbnailsGenerated = false;
@@ -208,7 +264,7 @@ export class GunShopHUD {
               </div>
               <div id="gunshop-detail-legendary" class="gunshop-legendary-badge gunshop-detail-legendary" style="display: none;">★ LENDÁRIA</div>
             </div>
-            <div class="gunshop-stats-grid">
+            <div id="gunshop-stats-grid" class="gunshop-stats-grid">
               <div class="gunshop-stat-row">
                 <div class="gunshop-stat-top"><span>DANO CABEÇA</span><span id="gs-stat-head" class="gunshop-stat-val">100</span></div>
                 <div class="gunshop-stat-bar"><div id="gs-bar-head" class="gunshop-stat-bar-fill" style="width: 100%;"></div></div>
@@ -225,6 +281,13 @@ export class GunShopHUD {
                 <div class="gunshop-stat-top"><span>CAPACIDADE</span><span id="gs-stat-cap" class="gunshop-stat-val">6 + 18</span></div>
                 <div class="gunshop-stat-bar"><div id="gs-bar-cap" class="gunshop-stat-bar-fill" style="width: 40%;"></div></div>
               </div>
+            </div>
+            <div id="gunshop-medkit-info" class="gunshop-medkit-info">
+              <div class="gunshop-medkit-info-left">
+                <div class="gunshop-medkit-cross">+</div>
+                <div id="gunshop-medkit-copy" class="gunshop-medkit-copy">Estoque limitado. Uso imediato após a compra!</div>
+              </div>
+              <div id="gunshop-medkit-stock-pill" class="gunshop-medkit-stock-pill">3/3</div>
             </div>
             <div class="gunshop-actions">
               <button id="gunshop-buy-btn" type="button" class="gunshop-buy-btn">COMPRAR ARMA</button>
@@ -244,6 +307,10 @@ export class GunShopHUD {
     this.detailTitleEl = this.rootEl.querySelector('#gunshop-detail-title');
     this.detailCaliberEl = this.rootEl.querySelector('#gunshop-detail-caliber');
     this.detailLegendaryEl = this.rootEl.querySelector('#gunshop-detail-legendary');
+    this.statsGridEl = this.rootEl.querySelector('#gunshop-stats-grid');
+    this.medkitInfoEl = this.rootEl.querySelector('#gunshop-medkit-info');
+    this.medkitCopyEl = this.rootEl.querySelector('#gunshop-medkit-copy');
+    this.medkitStockPillEl = this.rootEl.querySelector('#gunshop-medkit-stock-pill');
     this.statHeadEl = this.rootEl.querySelector('#gs-stat-head');
     this.statBodyEl = this.rootEl.querySelector('#gs-stat-body');
     this.statRateEl = this.rootEl.querySelector('#gs-stat-rate');
@@ -326,12 +393,131 @@ export class GunShopHUD {
   }
 
   /**
+   * Loads /models/medkit.glb during boot and downscales any >1024px textures to 1024x1024.
+   */
+  loadMedkitModel(onProgress = null) {
+    if (this._medkitLoadPromise) return this._medkitLoadPromise;
+    this._medkitLoadPromise = new Promise((resolve) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        './models/medkit.glb',
+        (gltf) => {
+          const medScene = gltf.scene;
+          const seenTextures = new Set();
+          medScene.traverse((child) => {
+            if (!child.isMesh) return;
+            child.frustumCulled = false;
+            child.castShadow = false;
+            child.receiveShadow = false;
+            const mats = Array.isArray(child.material) ? child.material : [child.material];
+            for (const m of mats) {
+              if (!m) continue;
+              if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+              if (m.emissiveMap) m.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+              for (const linSlot of ['metalnessMap', 'roughnessMap', 'normalMap', 'aoMap']) {
+                if (m[linSlot]?.isTexture) m[linSlot].colorSpace = THREE.NoColorSpace;
+              }
+              for (const slot of MEDKIT_TEXTURE_SLOTS) {
+                const tex = m[slot];
+                if (tex?.isTexture && !seenTextures.has(tex)) {
+                  seenTextures.add(tex);
+                  downscaleMedkitTextureIfNeeded(tex, 1024);
+                  this._medkitTextures.push(tex);
+                }
+              }
+              if (m.isMeshStandardMaterial) {
+                // Keep native glTF PBR metalness (1.0) & roughness (1.0) so metalnessMap/roughnessMap render brushed steel rims cleanly
+                m.envMap = null;
+                m.metalness = 1.0;
+                m.roughness = 1.0;
+                m.envMapIntensity = 0.55;
+                m.needsUpdate = true;
+              }
+            }
+          });
+          this._medkitTemplate = medScene;
+          if (typeof onProgress === 'function') onProgress(1);
+          resolve(medScene);
+        },
+        (xhr) => {
+          if (typeof onProgress === 'function' && xhr && xhr.total > 0) {
+            onProgress(Math.min(0.95, xhr.loaded / xhr.total));
+          }
+        },
+        (err) => {
+          console.error('[GunShopHUD] Failed to load /models/medkit.glb:', err);
+          if (typeof onProgress === 'function') onProgress(1);
+          resolve(null);
+        }
+      );
+    });
+    return this._medkitLoadPromise;
+  }
+
+  _buildMedkitShowcaseModel() {
+    if (!this._medkitTemplate) return null;
+    const clone = this._medkitTemplate.clone(true);
+    clone.visible = true;
+    clone.position.set(0, 0, 0);
+    clone.rotation.set(0, 0, 0);
+    clone.scale.set(1, 1, 1);
+    clone.updateMatrixWorld(true);
+
+    const rawBox = new THREE.Box3().setFromObject(clone);
+    const rawSize = rawBox.getSize(new THREE.Vector3());
+    const rawCenter = rawBox.getCenter(new THREE.Vector3());
+
+    const maxDim = Math.max(rawSize.x, rawSize.y, rawSize.z, 0.001);
+    const normScale = 1.0 / maxDim;
+
+    const spinGroup = new THREE.Group();
+    spinGroup.name = 'MedkitTurntableGroup';
+    clone.position.sub(rawCenter);
+    spinGroup.add(clone);
+    spinGroup.scale.setScalar(normScale);
+
+    // Rest yaw (~145 deg / 2.53 rad) places carry handle front-right & side label front-left
+    const defaultYaw = 2.53;
+    const defaultPitch = 0.42; // ~24 deg isometric forward pitch tilt (prevents lid specular glare)
+    spinGroup.rotation.set(0, defaultYaw, 0);
+
+    const tiltGroup = new THREE.Group();
+    tiltGroup.name = 'ShopShowcase_medkit';
+    tiltGroup.add(spinGroup);
+    tiltGroup.rotation.set(defaultPitch, 0, 0);
+    tiltGroup.updateMatrixWorld(true);
+
+    const tiltedBox = new THREE.Box3().setFromObject(tiltGroup);
+    const tiltedSize = tiltedBox.getSize(new THREE.Vector3());
+
+    tiltGroup.userData.isTurntable = true;
+    tiltGroup.userData.turntableGroup = spinGroup;
+    tiltGroup.userData.defaultYaw = defaultYaw;
+    tiltGroup.userData.defaultPitch = defaultPitch;
+    tiltGroup.userData.showcaseSize = {
+      width: Math.max(tiltedSize.x, tiltedSize.z * 0.92),
+      height: tiltedSize.y * 1.08,
+      depth: tiltedSize.z,
+    };
+
+    return tiltGroup;
+  }
+
+  /**
    * Boot-time pre-warm: creates the shared WebGLRenderer, RoomEnvironment studio cubemap,
-   * 7 centered/normalized weapon clones, pre-renders all 7 cached card thumbnails, and
+   * 7 centered/normalized weapon clones + Medkit, pre-renders all card thumbnails, and
    * compiles showcase shaders so opening the crate in-game takes 0ms with locked 60 FPS.
    */
   prewarm() {
     this._ensureShowcaseScene();
+  }
+
+  resetStock() {
+    this.medkitsRemaining = this.maxMedkits;
+    this.selectedId = 'medkit';
+    if (this.isOpen) {
+      this.refreshUI();
+    }
   }
 
   _computeFitDistance(bounds, aspect, fillRatio = 0.75, isSpinning = false) {
@@ -369,49 +555,69 @@ export class GunShopHUD {
     // Balanced High-Contrast 3-Point Studio Rig
     const ambient = new THREE.AmbientLight(0xffffff, 0.35);
     this._scene.add(ambient);
+    this._ambientLight = ambient;
 
     const hemi = new THREE.HemisphereLight(0xe2e8f0, 0x0f172a, 0.55);
     this._scene.add(hemi);
+    this._hemiLight = hemi;
 
     const frontKey = new THREE.DirectionalLight(0xffffff, 1.15);
     frontKey.position.set(2.5, 2.0, 3.5);
     this._scene.add(frontKey);
+    this._frontKeyLight = frontKey;
 
     const leftFill = new THREE.DirectionalLight(0xcbd5e1, 0.45);
     leftFill.position.set(-3.0, 0.8, 2.0);
     this._scene.add(leftFill);
+    this._softFillLight = leftFill;
 
     const backRim = new THREE.DirectionalLight(0xfffbeb, 0.85);
     backRim.position.set(0.0, 3.2, -2.5);
     this._scene.add(backRim);
+    this._backRimLight = backRim;
 
     this._camera = new THREE.PerspectiveCamera(34, 16 / 9, 0.05, 30);
     this._camera.position.set(0, 0, 1.6);
     this._camera.lookAt(0, 0, 0);
 
     const viewmodel = this.weaponSystem?.viewmodel;
-    if (viewmodel && typeof viewmodel.getShowcaseModelClone === 'function') {
-      for (const item of GUN_SHOP_CATALOG) {
-        const model = viewmodel.getShowcaseModelClone(item.id);
-        if (model) {
-          model.traverse((child) => {
-            if (!child.isMesh || !child.material) return;
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            for (const mat of mats) {
-              if (mat && mat.isMeshStandardMaterial) {
+    for (const item of GUN_SHOP_CATALOG) {
+      let model = null;
+      if (item.id === 'medkit') {
+        model = this._buildMedkitShowcaseModel();
+      } else if (viewmodel && typeof viewmodel.getShowcaseModelClone === 'function') {
+        model = viewmodel.getShowcaseModelClone(item.id);
+      }
+      if (model) {
+        model.traverse((child) => {
+          if (!child.isMesh || !child.material) return;
+          const mats = Array.isArray(child.material) ? child.material : [child.material];
+          for (const mat of mats) {
+            if (mat && mat.isMeshStandardMaterial) {
+              if (item.id === 'medkit') {
+                mat.envMap = null;
+                mat.metalness = 1.0;
+                mat.roughness = 1.0;
+                mat.envMapIntensity = 0.55;
+                if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+                for (const linSlot of ['metalnessMap', 'roughnessMap', 'normalMap', 'aoMap']) {
+                  if (mat[linSlot]?.isTexture) mat[linSlot].colorSpace = THREE.NoColorSpace;
+                }
+              } else {
                 mat.envMapIntensity = 0.45;
-                mat.needsUpdate = true;
               }
+              mat.needsUpdate = true;
             }
-          });
-          model.visible = false;
-          this._scene.add(model);
-          this._showcaseModels.set(item.id, model);
-        }
+          }
+        });
+        model.visible = false;
+        this._scene.add(model);
+        this._showcaseModels.set(item.id, model);
       }
     }
 
     this._generateStaticCardThumbnails();
+    this._syncLightingForItem(this.selectedId);
 
     // Compile all showcase PBR shader programs once at boot
     for (const m of this._showcaseModels.values()) {
@@ -424,6 +630,55 @@ export class GunShopHUD {
       m.visible = false;
     }
     this._syncCanvasSize();
+  }
+
+  _syncLightingForItem(itemId) {
+    const isMedkit = itemId === 'medkit';
+    if (isMedkit) {
+      // Position key & fill lights below the tilted top-lid mirror reflection axis
+      if (this._backRimLight) {
+        this._backRimLight.intensity = 0.0;
+      }
+      if (this._frontKeyLight) {
+        this._frontKeyLight.position.set(3.2, 0.45, 4.0);
+        this._frontKeyLight.intensity = 1.05;
+      }
+      if (this._softFillLight) {
+        this._softFillLight.position.set(-3.2, 0.35, 3.6);
+        this._softFillLight.intensity = 0.75;
+      }
+      if (this._hemiLight) {
+        this._hemiLight.intensity = 0.65;
+      }
+      if (this._ambientLight) {
+        this._ambientLight.intensity = 0.30;
+      }
+      if (this._renderer) {
+        this._renderer.toneMappingExposure = 0.86;
+      }
+    } else {
+      if (this._backRimLight) {
+        this._backRimLight.position.set(0.0, 3.2, -2.5);
+        this._backRimLight.intensity = 0.85;
+      }
+      if (this._frontKeyLight) {
+        this._frontKeyLight.position.set(2.5, 2.0, 3.5);
+        this._frontKeyLight.intensity = 1.15;
+      }
+      if (this._softFillLight) {
+        this._softFillLight.position.set(-3.0, 0.8, 2.0);
+        this._softFillLight.intensity = 0.45;
+      }
+      if (this._hemiLight) {
+        this._hemiLight.intensity = 0.55;
+      }
+      if (this._ambientLight) {
+        this._ambientLight.intensity = 0.35;
+      }
+      if (this._renderer) {
+        this._renderer.toneMappingExposure = 0.92;
+      }
+    }
   }
 
   _generateStaticCardThumbnails() {
@@ -443,8 +698,14 @@ export class GunShopHUD {
       for (const other of this._showcaseModels.values()) {
         other.visible = false;
       }
+      this._syncLightingForItem(item.id);
       m.visible = true;
-      m.rotation.set(0, 0, 0);
+      if (m.userData?.isTurntable && m.userData.turntableGroup) {
+        m.rotation.set(m.userData.defaultPitch ?? 0.42, 0, 0);
+        m.userData.turntableGroup.rotation.set(0, m.userData.defaultYaw ?? 2.53, 0);
+      } else {
+        m.rotation.set(0, 0, 0);
+      }
       const dist = this._computeFitDistance(m.userData?.showcaseSize, thumbAspect, 0.82, false);
       this._camera.position.set(0, 0, dist);
       this._camera.lookAt(0, 0, 0);
@@ -512,11 +773,17 @@ export class GunShopHUD {
       this.sound?.playUiClick?.(item.isLegendary);
     }
 
+    this._syncLightingForItem(item.id);
     for (const [id, m] of this._showcaseModels.entries()) {
       const isMatch = id === item.id;
       m.visible = isMatch;
       if (isMatch) {
-        m.rotation.set(0, 0, 0);
+        if (m.userData?.isTurntable && m.userData.turntableGroup) {
+          m.rotation.set(m.userData.defaultPitch ?? 0.42, 0, 0);
+          m.userData.turntableGroup.rotation.set(0, m.userData.defaultYaw ?? 2.53, 0);
+        } else {
+          m.rotation.set(0, 0, 0);
+        }
         this._activeShowcaseModel = m;
       }
     }
@@ -547,30 +814,48 @@ export class GunShopHUD {
       const ref = this._cardEls.get(item.id);
       if (!ref) continue;
 
+      ref.card.classList.toggle('is-selected', this.selectedId === item.id);
+
+      if (item.kind === 'consumable') {
+        const rem = Math.max(0, this.medkitsRemaining);
+        if (rem > 0) {
+          ref.priceEl.style.display = '';
+          ref.priceEl.textContent = formatMoney(item.price);
+          ref.priceEl.classList.toggle('is-locked-cost', balance < item.price);
+          ref.statusEl.textContent = `RESTAM: ${rem}/${this.maxMedkits}`;
+          ref.statusEl.className = 'gunshop-card-status is-stock';
+        } else {
+          ref.priceEl.style.display = 'none';
+          ref.priceEl.textContent = '';
+          ref.priceEl.classList.remove('is-locked-cost');
+          ref.statusEl.textContent = `ESGOTADO (0/${this.maxMedkits})`;
+          ref.statusEl.className = 'gunshop-card-status is-depleted';
+        }
+        continue;
+      }
+
       const owned = this.weaponSystem?.isWeaponUnlocked?.(item.id) || false;
       const canAfford = balance >= item.price;
 
-      ref.card.classList.toggle('is-selected', this.selectedId === item.id);
       ref.priceEl.classList.toggle('is-locked-cost', !owned && !canAfford);
 
       if (owned) {
         ref.priceEl.style.display = 'none';
         ref.priceEl.textContent = '';
         ref.statusEl.textContent = 'ADQUIRIDA';
-        ref.statusEl.classList.add('is-owned');
-        ref.statusEl.classList.remove('is-locked');
+        ref.statusEl.className = 'gunshop-card-status is-owned';
       } else {
         ref.priceEl.style.display = '';
         ref.priceEl.textContent = formatMoney(item.price);
         ref.statusEl.textContent = 'BLOQUEADA';
-        ref.statusEl.classList.remove('is-owned');
-        ref.statusEl.classList.add('is-locked');
+        ref.statusEl.className = 'gunshop-card-status is-locked';
       }
     }
 
     const sel = GUN_SHOP_CATALOG.find((x) => x.id === this.selectedId) || GUN_SHOP_CATALOG[0];
-    const owned = this.weaponSystem?.isWeaponUnlocked?.(sel.id) || false;
-    const canAffordWeapon = balance >= sel.price;
+    const isConsumable = sel.kind === 'consumable';
+    const owned = !isConsumable && (this.weaponSystem?.isWeaponUnlocked?.(sel.id) || false);
+    const canAffordItem = balance >= sel.price;
     const canAffordAmmo = balance >= sel.ammoPackPrice;
 
     if (this.detailTitleEl) {
@@ -580,7 +865,7 @@ export class GunShopHUD {
       this.detailLegendaryEl.style.display = sel.isLegendary ? 'inline-flex' : 'none';
     }
     if (this.detailCaliberEl) {
-      if (owned && !sel.infiniteAmmo) {
+      if (!isConsumable && owned && !sel.infiniteAmmo) {
         const wState = this.weaponSystem?.weapons?.[sel.id];
         const mag = wState?.currentAmmo ?? 0;
         const res = wState?.reserveAmmo ?? 0;
@@ -589,6 +874,40 @@ export class GunShopHUD {
         this.detailCaliberEl.textContent = sel.caliber;
       }
     }
+
+    if (isConsumable) {
+      if (this.statsGridEl) this.statsGridEl.style.display = 'none';
+      if (this.medkitInfoEl) this.medkitInfoEl.style.display = 'flex';
+      const rem = Math.max(0, this.medkitsRemaining);
+      if (this.medkitCopyEl) {
+        this.medkitCopyEl.textContent = 'Estoque limitado. Uso imediato após a compra!';
+      }
+      if (this.medkitStockPillEl) {
+        this.medkitStockPillEl.textContent = `${rem}/${this.maxMedkits}`;
+        this.medkitStockPillEl.classList.toggle('is-depleted', rem <= 0);
+      }
+
+      this.buyBtnEl.classList.remove('is-owned', 'is-insufficient', 'is-unavailable');
+      const hp = Number(this.getHp()) || 0;
+      const maxHp = Math.max(1, Number(this.getMaxHp()) || 3);
+      if (hp >= maxHp || rem <= 0) {
+        this.buyBtnEl.classList.add('is-unavailable');
+        this.buyBtnEl.textContent = 'INDISPONÍVEL';
+        this.buyBtnEl.disabled = true;
+      } else if (!canAffordItem) {
+        this.buyBtnEl.classList.add('is-insufficient');
+        this.buyBtnEl.textContent = `SALDO INSUFICIENTE • ${formatMoney(sel.price)}`;
+        this.buyBtnEl.disabled = true;
+      } else {
+        this.buyBtnEl.textContent = `COMPRAR KIT MÉDICO • ${formatMoney(sel.price)}`;
+        this.buyBtnEl.disabled = false;
+      }
+      this.ammoBtnEl.style.display = 'none';
+      return;
+    }
+
+    if (this.statsGridEl) this.statsGridEl.style.display = 'grid';
+    if (this.medkitInfoEl) this.medkitInfoEl.style.display = 'none';
 
     this.statHeadEl.textContent = sel.stats.headDamage;
     this.statBodyEl.textContent = sel.stats.bodyDamage;
@@ -604,12 +923,12 @@ export class GunShopHUD {
     }
 
     // Buy / Owned primary status bar (unlocks only; TAB weapon wheel equips weapons in-game)
-    this.buyBtnEl.classList.remove('is-owned', 'is-insufficient');
+    this.buyBtnEl.classList.remove('is-owned', 'is-insufficient', 'is-unavailable');
     if (owned) {
       this.buyBtnEl.classList.add('is-owned');
       this.buyBtnEl.textContent = 'ARMA ADQUIRIDA';
       this.buyBtnEl.disabled = true;
-    } else if (canAffordWeapon) {
+    } else if (canAffordItem) {
       this.buyBtnEl.textContent = `COMPRAR ARMA • ${formatMoney(sel.price)}`;
       this.buyBtnEl.disabled = false;
     } else {
@@ -630,8 +949,29 @@ export class GunShopHUD {
 
   _handlePrimaryAction() {
     const sel = GUN_SHOP_CATALOG.find((x) => x.id === this.selectedId);
-    if (!sel || !this.weaponSystem) return;
+    if (!sel) return;
 
+    if (sel.kind === 'consumable') {
+      const hp = Number(this.getHp()) || 0;
+      const maxHp = Math.max(1, Number(this.getMaxHp()) || 3);
+      if (this.medkitsRemaining <= 0 || hp >= maxHp) {
+        this.refreshUI();
+        return;
+      }
+      if (!this.spendMoney(sel.price)) {
+        this.refreshUI();
+        return;
+      }
+      this.medkitsRemaining = Math.max(0, this.medkitsRemaining - 1);
+      if (typeof this.onPurchaseMedkit === 'function') {
+        this.onPurchaseMedkit();
+      }
+      this.sound?.playMedkitHealSound?.();
+      this.refreshUI();
+      return;
+    }
+
+    if (!this.weaponSystem) return;
     if (this.weaponSystem.isWeaponUnlocked(sel.id)) {
       return;
     }
@@ -682,7 +1022,20 @@ export class GunShopHUD {
     this._camera.lookAt(0, 0, 0);
 
     if (this._activeShowcaseModel) {
-      if (isSpinning) {
+      if (this._activeShowcaseModel.userData?.isTurntable && this._activeShowcaseModel.userData.turntableGroup) {
+        const inner = this._activeShowcaseModel.userData.turntableGroup;
+        const defaultYaw = this._activeShowcaseModel.userData.defaultYaw ?? 2.53;
+        this._activeShowcaseModel.rotation.set(this._activeShowcaseModel.userData.defaultPitch ?? 0.42, 0, 0);
+        if (isSpinning) {
+          inner.rotation.y += delta * 1.15;
+        } else {
+          const twoPi = Math.PI * 2;
+          let diff = (inner.rotation.y - defaultYaw) % twoPi;
+          if (diff > Math.PI) diff -= twoPi;
+          if (diff < -Math.PI) diff += twoPi;
+          inner.rotation.y = defaultYaw + diff * Math.exp(-delta * 6.5);
+        }
+      } else if (isSpinning) {
         this._activeShowcaseModel.rotation.y += delta * 1.15;
       } else {
         // Gently ease toward clean static side profile when cursor leaves viewport

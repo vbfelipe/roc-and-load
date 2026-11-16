@@ -3733,6 +3733,46 @@ export class SoundManager {
   }
 
   /**
+   * Crisp tactical medical latch click + soothing ascending emerald healing chime.
+   */
+  playMedkitHealSound() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    // 1. Snappy latch click
+    const latch = this.ctx.createOscillator();
+    const lg = this.ctx.createGain();
+    latch.type = 'triangle';
+    latch.frequency.setValueAtTime(1180, now);
+    latch.frequency.exponentialRampToValueAtTime(340, now + 0.035);
+    lg.gain.setValueAtTime(0.001, now);
+    lg.gain.linearRampToValueAtTime(0.14, now + 0.003);
+    lg.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+    latch.connect(lg);
+    lg.connect(this.masterGain);
+    latch.start(now);
+    latch.stop(now + 0.05);
+
+    // 2. Warm ascending medical restoration triad
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((freq, idx) => {
+      const t = now + 0.045 + idx * 0.065;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.linearRampToValueAtTime(idx === 3 ? 0.16 : 0.12, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.24);
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + 0.25);
+    });
+  }
+
+  /**
    * Subtle crisp UI interaction click for Gun Shop controls.
    */
   playUiClick(isAccent = false) {
