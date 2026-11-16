@@ -1705,15 +1705,11 @@ export class IntroSequence {
       }
     }
 
-    // Safe-Zone outside pause detection (while inside Maintenance Closet OR while Gun Shop HUD is open)
+    // Safe-Zone badge follows Maintenance Closet presence; outside world continues running in real time
     const pPos = this.player ? this.player.position : this.camera?.position;
     const inSafeCloset = this.warehouse?.isPlayerInMaintenanceCloset(pPos) || false;
-    const safePaused = inSafeCloset || !!window.isGunShopOpen;
-    if (this.zombieManager && typeof this.zombieManager.setWorldPaused === 'function') {
-      this.zombieManager.setWorldPaused(safePaused);
-    }
     if (this.hud && typeof this.hud.setSafeZoneVisible === 'function') {
-      this.hud.setSafeZoneVisible(safePaused);
+      this.hud.setSafeZoneVisible(inSafeCloset);
     }
   }
 

@@ -726,6 +726,8 @@ export class WeaponSystem {
     this.gameState = 'MENU';
     this.armedAt = 0;
     this.isUnarmed = false;
+    this.isSafeZoneLocked = false;
+    this.isAiming = false;
     this.unlockedWeapons = new Set(['hk_usp', 'desert_eagle', 'shotgun', 'hk_mp5']);
 
     // Zombie & blood decal integrations (injected after boot)
@@ -848,20 +850,67 @@ export class WeaponSystem {
     return String(wState.reserveAmmo ?? 0);
   }
 
+  isControlsLocked() {
+    return Boolean(
+      this.isSafeZoneLocked ||
+      (typeof window !== 'undefined' &&
+        (window.isPlayerInSafeZone ||
+          window.isGunShopOpen ||
+          document.getElementById('hud-gun-shop')?.classList.contains('is-open')))
+    );
+  }
+
+  onEnterSafeZone() {
+    this.isSafeZoneLocked = true;
+    this.isAiming = false;
+    this.isReloading = false;
+    this.wasMouseDown0 = true;
+
+    if (this.viewmodel && typeof this.viewmodel.setADS === 'function') {
+      this.viewmodel.setADS(false);
+    }
+    if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
+      this.viewmodel.setTriggerHeld(false);
+    }
+    if (this.sound) {
+      if (typeof this.sound.stopReloadAudio === 'function') {
+        this.sound.stopReloadAudio();
+      } else if (typeof this.sound.stopActionSounds === 'function') {
+        this.sound.stopActionSounds();
+      }
+    }
+    if (!this.isUnarmed) {
+      this.setUnarmed(true);
+    } else if (this.hud && typeof this.hud.setUnarmedMode === 'function') {
+      this.hud.setUnarmedMode(true);
+    }
+  }
+
+  onExitSafeZone() {
+    this.isSafeZoneLocked = false;
+  }
+
+  setSafeZoneLocked(locked) {
+    if (locked) {
+      this.onEnterSafeZone();
+    } else {
+      this.onExitSafeZone();
+    }
+  }
+
   /**
    * Equips the weapon or unarmed state selected from the TAB Radial Weapon Wheel.
    */
   selectWheelSlot(slotId) {
+    const key = this._normalizeWeaponSlotKey(slotId);
+    if (!key) return false;
     if (
-      typeof window !== 'undefined' &&
-      (window.isGunShopOpen ||
-        document.pointerLockElement === null ||
-        document.getElementById('hud-gun-shop')?.classList.contains('is-open'))
+      key !== 'unarmed' &&
+      (this.isControlsLocked() ||
+        (typeof document !== 'undefined' && document.pointerLockElement === null))
     ) {
       return false;
     }
-    const key = this._normalizeWeaponSlotKey(slotId);
-    if (!key) return false;
     if (key === 'unarmed') {
       if (!this.isUnarmed) {
         this.setUnarmed(true);
@@ -891,6 +940,7 @@ export class WeaponSystem {
    * reveals the ammo HUD, and triggers its tactical draw animation and equip sound.
    */
   equipUnlockedWeaponFromUnarmed(weaponType = 'hk_usp') {
+    if (this.isControlsLocked()) return false;
     if (!this.isUnarmed || !this.isWeaponUnlocked(weaponType)) return false;
 
     const targetState = this.weapons[weaponType];
@@ -936,8 +986,16 @@ export class WeaponSystem {
     this.wasMouseDown0 = true;
 
     if (next) {
-      if (this.sound && typeof this.sound.stopActionSounds === 'function') {
-        this.sound.stopActionSounds();
+      this.isAiming = false;
+      if (this.viewmodel && typeof this.viewmodel.setADS === 'function') {
+        this.viewmodel.setADS(false);
+      }
+      if (this.sound) {
+        if (typeof this.sound.stopReloadAudio === 'function') {
+          this.sound.stopReloadAudio();
+        } else if (typeof this.sound.stopActionSounds === 'function') {
+          this.sound.stopActionSounds();
+        }
       }
       if (this.muzzleLight) {
         this.muzzleLight.intensity = 0;
@@ -994,6 +1052,7 @@ export class WeaponSystem {
    * and Slot 4 ('hk_mp5' - 9mm H&K MP5 Submachine Gun).
    */
   switchWeapon(weaponType, force = false, options = {}) {
+    if (this.isControlsLocked() && !window.isViewmodelTunerOpen) return;
     if (this.isUnarmed && !window.isViewmodelTunerOpen) return;
     let isSilent = false;
     if (typeof force === 'object' && force !== null) {
@@ -1065,7 +1124,7 @@ export class WeaponSystem {
   }
 
   startReload(force = false) {
-    if (this.isUnarmed) return;
+    if (this.isUnarmed || (this.isControlsLocked() && !window.isViewmodelTunerOpen)) return;
     const canReload = force || window.isViewmodelTunerOpen || (this.gameState === 'PLAYING' && this.input.isLocked && document.pointerLockElement !== null);
     if (!canReload) return;
     if (this.currentAmmo >= this.maxAmmo || this.isReloading) return;
@@ -1258,13 +1317,22 @@ export class WeaponSystem {
     // 1. Always update in-flight visual effects (tracers, casings, sparks, decals, light fade)
     this._updateVisualEffects(delta);
 
-    // Block firing/ADS/reloading while unarmed (weapon switching is handled exclusively by the TAB Radial Wheel)
-    if (this.isUnarmed) {
+    // Block firing/ADS/reloading while inside Safe Zone or unarmed
+    if (this.isSafeZoneLocked && !this.isUnarmed) {
+      this.onEnterSafeZone();
+    }
+    if (this.isUnarmed || this.isControlsLocked()) {
+      this.isAiming = false;
       this.input.consumeKeyJustPressed('KeyR');
       this.input.consumeKeyJustPressed('r');
       this.wasMouseDown0 = true;
-      if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
-        this.viewmodel.setTriggerHeld(false);
+      if (this.viewmodel) {
+        if (typeof this.viewmodel.setTriggerHeld === 'function') {
+          this.viewmodel.setTriggerHeld(false);
+        }
+        if (!window.isViewmodelTunerOpen && typeof this.viewmodel.setADS === 'function') {
+          this.viewmodel.setADS(false);
+        }
       }
       if (this.camera && Math.abs(75 - this.camera.fov) > 0.05) {
         this.camera.fov += (75 - this.camera.fov) * Math.min(delta * 14.0, 1.0);
@@ -1311,6 +1379,7 @@ export class WeaponSystem {
 
     // 5. Handle ADS (Right Mouse Button) - Interrupted back to hip-fire during reload
     const isRightDown = this.input.isMouseDown(2) && !this.isReloading;
+    this.isAiming = isRightDown;
     this.viewmodel.setADS(isRightDown);
 
     // Fade crosshair during ADS for authentic iron sights alignment (dirty checked)
@@ -1478,7 +1547,7 @@ export class WeaponSystem {
   }
 
   fire() {
-    if (this.isUnarmed) return;
+    if (this.isUnarmed || this.isControlsLocked()) return;
     if (this.gameState !== 'PLAYING' || !this.input.isLocked || document.pointerLockElement === null || performance.now() < this.armedAt) return;
     if (this.isReloading) return;
 
@@ -2184,6 +2253,8 @@ export class WeaponSystem {
     this.fireRate = 0.18;
     this.isReloading = false;
     this.isSlideLocked = false;
+    this.isSafeZoneLocked = false;
+    this.isAiming = false;
     this.fireTimer = 0;
     this.wasMouseDown0 = true;
     this.flashDuration = 0;

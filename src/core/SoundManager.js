@@ -487,6 +487,13 @@ export class SoundManager {
     this.activeActionSources.clear();
   }
 
+  /**
+   * Stops any in-progress reload audio immediately (e.g. entering Safe Zone / forced disarm).
+   */
+  stopReloadAudio() {
+    this.stopActionSounds();
+  }
+
   _resolveReloadAudioConfig(weaponType = 'hk_usp') {
     const cfg = this._reloadSampleConfig?.[weaponType] || this._reloadSampleConfig?.hk_usp;
     if (!cfg) return null;

@@ -232,7 +232,55 @@ window.addEventListener('DOMContentLoaded', () => {
   let menuCameraElapsed = 0;
   let deathCollapseElapsed = 0;
   let gameOverShown = false;
+  let isPlayerInSafeZone = false;
+  window.isPlayerInSafeZone = false;
   window.getGameState = () => gameState;
+
+  function onEnterSafeZone() {
+    if (isPlayerInSafeZone) return;
+    isPlayerInSafeZone = true;
+    window.isPlayerInSafeZone = true;
+
+    if (weaponWheel && weaponWheel.isOpen) {
+      weaponWheel.close(false);
+    }
+    if (weaponWheel && typeof weaponWheel.setSafeZoneLocked === 'function') {
+      weaponWheel.setSafeZoneLocked(true);
+    }
+    if (weaponSystem && typeof weaponSystem.onEnterSafeZone === 'function') {
+      weaponSystem.onEnterSafeZone();
+    } else if (weaponSystem && typeof weaponSystem.setUnarmed === 'function') {
+      weaponSystem.setUnarmed(true);
+    }
+    if (weaponWheel && typeof weaponWheel.refreshVisuals === 'function') {
+      weaponWheel.refreshVisuals();
+    }
+    if (hud && typeof hud.setSafeZoneVisible === 'function') {
+      hud.setSafeZoneVisible(true);
+    }
+    if (zombieManager && typeof zombieManager.setPlayerInSafeZone === 'function') {
+      zombieManager.setPlayerInSafeZone(true);
+    }
+  }
+
+  function onExitSafeZone() {
+    if (!isPlayerInSafeZone) return;
+    isPlayerInSafeZone = false;
+    window.isPlayerInSafeZone = false;
+
+    if (weaponWheel && typeof weaponWheel.setSafeZoneLocked === 'function') {
+      weaponWheel.setSafeZoneLocked(false);
+    }
+    if (weaponSystem && typeof weaponSystem.onExitSafeZone === 'function') {
+      weaponSystem.onExitSafeZone();
+    }
+    if (hud && typeof hud.setSafeZoneVisible === 'function') {
+      hud.setSafeZoneVisible(false);
+    }
+    if (zombieManager && typeof zombieManager.setPlayerInSafeZone === 'function') {
+      zombieManager.setPlayerInSafeZone(false);
+    }
+  }
 
   zombieManager.onZombieKilled = ({ kills, reward, isHeadshot }) => {
     if (typeof hud.setKills === 'function') {
@@ -607,6 +655,18 @@ window.addEventListener('DOMContentLoaded', () => {
       // 2. Camera subtle step bob
       player.updateBobAndCamera(delta);
 
+      // 2b. Safe Zone detection (Maintenance Closet): real-time disarmament + zombie patrol de-aggro
+      const inSafeCloset = Boolean(
+        warehouse &&
+        typeof warehouse.isPlayerInMaintenanceCloset === 'function' &&
+        warehouse.isPlayerInMaintenanceCloset(player.position)
+      );
+      if (inSafeCloset) {
+        onEnterSafeZone();
+      } else {
+        onExitSafeZone();
+      }
+
       // 3. Viewmodel springs (recoil, sway, ADS, bob)
       viewmodel.update(delta, player.velocity, player.isGrounded);
 
@@ -616,8 +676,8 @@ window.addEventListener('DOMContentLoaded', () => {
       // 4b. Opening gameplay sequence state machine (tutorial fade-in, phone ringing, proximity pickup)
       introSequence.update(delta, gameState);
 
-      // 4c. Wave-1 zombie AI, animations, blood decals/droplets & edge vignette pulse
-      zombieManager.update(delta, gameState);
+      // 4c. Wave-1 zombie AI, animations, blood decals/droplets & edge vignette pulse (always live at 60 FPS)
+      zombieManager.update(delta, gameState, isPlayerInSafeZone);
       decalManager.update(delta);
       hud.updateDamageVignette(delta, player.hp);
       if (typeof hud.updateStatusTicker === 'function') {
@@ -687,6 +747,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (gunShop && gunShop.isOpen) gunShop.close(false);
     if (gunShop && typeof gunShop.resetStock === 'function') gunShop.resetStock();
     if (weaponWheel && weaponWheel.isOpen) weaponWheel.close(false);
+    onExitSafeZone();
     weaponSystem.reset();
     if (typeof hud.setHealth === 'function') hud.setHealth(player.hp, player.maxHp);
     if (typeof hud.setMoney === 'function') hud.setMoney(0, 0);
@@ -858,10 +919,12 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Suppress outside weapon switching (wheel & TAB) whenever pointer lock is inactive,
+  // Suppress outside weapon switching (wheel, TAB & 1-8) whenever inside Safe Zone, pointer lock is inactive,
   // gun shop / military crate is open or animating, or a dialogue/tuner modal is active.
   const isOutsideWeaponSwitchBlocked = () =>
     gameState !== 'PLAYING' ||
+    isPlayerInSafeZone ||
+    Boolean(window.isPlayerInSafeZone) ||
     document.pointerLockElement === null ||
     (gunShop && gunShop.isOpen) ||
     Boolean(window.isGunShopOpen) ||
@@ -875,7 +938,7 @@ window.addEventListener('DOMContentLoaded', () => {
     Boolean(window.isLightingTunerOpen) ||
     Boolean(window.isZombieTunerOpen);
 
-  // GTA V-style 8-Wedge Radial Weapon Wheel (TAB Hold & Release) + KeyR Reload
+  // GTA V-style 8-Wedge Radial Weapon Wheel (TAB Hold & Release), 1-8 Quick-Select & KeyR Reload
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Tab' || e.key === 'Tab') {
       e.preventDefault();
@@ -887,8 +950,22 @@ window.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    // Number keys 1-8: completely locked inside Safe Zone / Shop; switches unlocked weapons outside
+    const digitMatch = /^Digit([1-8])$/.exec(e.code) || /^Numpad([1-8])$/.exec(e.code);
+    const numKey = digitMatch ? digitMatch[1] : (/^[1-8]$/.test(e.key) ? e.key : null);
+    if (numKey && !e.repeat) {
+      if (isOutsideWeaponSwitchBlocked() || window.isWeaponWheelOpen) {
+        return;
+      }
+      const slotTarget = numKey === '8' ? 'unarmed' : numKey;
+      if (weaponSystem.selectWheelSlot(slotTarget) && weaponWheel) {
+        weaponWheel.refreshVisuals();
+      }
+      return;
+    }
+
     if (gameState !== 'PLAYING' || !input.isLocked || document.pointerLockElement === null) return;
-    if (window.isWeaponWheelOpen || window.isGunShopOpen) return;
+    if (isPlayerInSafeZone || window.isPlayerInSafeZone || window.isWeaponWheelOpen || window.isGunShopOpen) return;
 
     if (e.code === 'KeyR' || e.key === 'r' || e.key === 'R') {
       if (!weaponSystem.isUnarmed && weaponSystem.currentAmmo < weaponSystem.maxAmmo && !weaponSystem.isReloading) {

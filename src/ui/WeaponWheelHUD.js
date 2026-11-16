@@ -425,6 +425,7 @@ export class WeaponWheelHUD {
     this.wedgeEls = [];
     this.arcEls = [];
     this.iconGroupEls = [];
+    this.isSafeZoneLocked = false;
 
     this._buildDOM();
     if (typeof window !== 'undefined') {
@@ -579,8 +580,17 @@ export class WeaponWheelHUD {
    * - deltaY > 0 (Scroll Backward): Next unlocked slot to the left / counter-clockwise (-1)
    * Includes a 70ms debounce so fast scroll wheels step cleanly one weapon at a time.
    */
+  setSafeZoneLocked(locked) {
+    this.isSafeZoneLocked = !!locked;
+    if (this.isSafeZoneLocked && this.isOpen) {
+      this.close(false);
+    }
+  }
+
   _isBlockedByShopOrUnlock() {
     return Boolean(
+      this.isSafeZoneLocked ||
+      window.isPlayerInSafeZone ||
       window.isGunShopOpen ||
       document.pointerLockElement === null ||
       document.getElementById('hud-gun-shop')?.classList.contains('is-open')

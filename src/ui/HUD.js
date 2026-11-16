@@ -168,12 +168,12 @@ export class HUD {
     this.moneyFloatEl = this.topRightStatusEl.querySelector('#hud-money-float');
     this.killsValueEl = this.topRightStatusEl.querySelector('#hud-kills-value');
 
-    // Safe-zone badge shown while player is inside the Maintenance Closet / Gun Shop
+    // Safe-zone badge shown while player is inside the Maintenance Closet
     this.safeZoneBannerEl = document.createElement('div');
     this.safeZoneBannerEl.id = 'hud-safe-zone-banner';
     this.safeZoneBannerEl.className = 'hud-safe-zone-banner hidden';
     this.safeZoneBannerEl.style.display = 'none';
-    this.safeZoneBannerEl.innerHTML = `<span class="safe-dot"></span><span>ZONA SEGURA — JOGO PAUSADO LÁ FORA</span>`;
+    this.safeZoneBannerEl.innerHTML = `<span class="safe-dot"></span><span>ZONA SEGURA</span>`;
     uiLayer.appendChild(this.safeZoneBannerEl);
   }
 

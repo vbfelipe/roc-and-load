@@ -117,6 +117,10 @@ const OFFICE_AISLE_WAYPOINTS = [
   { x: 5.8, z: -5.2 },
 ];
 
+// Maintenance Closet doorway threshold center (used to keep patrol waypoints >= 2.5m away)
+const MAINTENANCE_DOORWAY_POS = { x: -10.05, z: -4.00 };
+const MAINTENANCE_DOORWAY_PATROL_CLEARANCE = 2.5;
+
 // Exact floor-level AABBs from WarehouseBuilder.js so zombies cleanly slide around desks, walls & stairwell
 const FLOOR_OBSTACLES = [
   // Partition wall separating Main Office & Vestibule (open doorway Z = 9.752..10.848)
@@ -246,6 +250,7 @@ export class ZombieManager {
     this._wave1ClearedTimer = 0;
     this._wave1ClearedNotified = false;
     this.isWorldPaused = false;
+    this.isPlayerInSafeZone = false;
 
     this._hitboxesCache = [];
     this._solidCollidersCache = [];
@@ -455,6 +460,7 @@ export class ZombieManager {
     this._wave1ClearedTimer = 0;
     this._wave1ClearedNotified = false;
     this.isWorldPaused = false;
+    this.isPlayerInSafeZone = false;
     this.sound?.stopAllZombieVocals?.();
     for (const entry of this.waveEntries) {
       entry.spawned = false;
@@ -485,15 +491,60 @@ export class ZombieManager {
   }
 
   /**
-   * Freezes/resumes outside zombie AI, animations, wave timers & vocals (Safe-Zone Closet / Gun Shop).
+   * Deprecated world-pause hook retained as no-op so Safe Zone entry never freezes outside zombies.
    */
-  setWorldPaused(paused) {
-    const next = !!paused;
-    if (this.isWorldPaused === next) return;
-    this.isWorldPaused = next;
+  setWorldPaused(_paused) {
+    this.isWorldPaused = false;
+  }
+
+  /**
+   * Updates Safe Zone state in real time:
+   * - While true, all chasing/attacking zombies immediately drop aggro and patrol via WANDER_IDLE (Walk).
+   * - While true, player sight/proximity aggro is disabled; re-enables immediately on exit.
+   */
+  setPlayerInSafeZone(inSafeZone) {
+    const next = !!inSafeZone;
+    if (this.isPlayerInSafeZone === next) return;
+    this.isPlayerInSafeZone = next;
+
     if (next) {
-      this.sound?.stopAllZombieVocals?.();
+      for (let i = 0; i < this.waveEntries.length; i++) {
+        const entry = this.waveEntries[i];
+        if (!entry || !entry.zombie) continue;
+        entry.zombie.tookDamageAggro = false;
+        if (entry.spawned && !entry.zombie.isDead && (entry.aiState === 'RUN_CHASE' || entry.aiState === 'ATTACK')) {
+          this._enterPatrolFromDeAggro(entry);
+        }
+      }
     }
+  }
+
+  /**
+   * Transitions a zombie cleanly from RUN_CHASE / ATTACK back to ground-synced Walk patrol (WANDER_IDLE).
+   */
+  _enterPatrolFromDeAggro(entry) {
+    const zom = entry.zombie;
+    if (!zom || zom.isDead) return;
+
+    zom.tookDamageAggro = false;
+    entry.aiState = 'WANDER_IDLE';
+    entry.subState = 'WALK';
+    entry.queuePaused = false;
+    entry.sidestepTimer = 0;
+    entry.steerCommitTimer = 0;
+    entry.attackSwungThisCycle = false;
+    entry.stateTimer = randRange(3.5, 6.0);
+    entry.walkVocalTimer = randRange(1.0, 3.2);
+
+    const activePortal = this._getActivePortalGoal(entry);
+    if (activePortal) {
+      entry.targetX = activePortal.x;
+      entry.targetZ = activePortal.z;
+    } else {
+      this._pickNextOfficeWaypoint(entry, 2.0);
+    }
+
+    zom.playAnimation('Walk', 0.25);
   }
 
   applyWalkCalibration() {
@@ -696,6 +747,7 @@ export class ZombieManager {
   }
 
   _canDetectPlayer(entry) {
+    if (this.isPlayerInSafeZone) return false;
     if (!this.player || this.player.hp <= 0) return false;
     const zom = entry.zombie;
     if (zom.tookDamageAggro) return true;
@@ -752,6 +804,12 @@ export class ZombieManager {
 
     for (let i = 0; i < OFFICE_AISLE_WAYPOINTS.length; i++) {
       const wp = OFFICE_AISLE_WAYPOINTS[i];
+      const distFromMaintDoor = Math.hypot(
+        wp.x - MAINTENANCE_DOORWAY_POS.x,
+        wp.z - MAINTENANCE_DOORWAY_POS.z
+      );
+      if (distFromMaintDoor < MAINTENANCE_DOORWAY_PATROL_CLEARANCE) continue;
+
       const dist = Math.hypot(wp.x - zPos.x, wp.z - zPos.z);
       if (dist < minDist || dist > 12.5) continue;
 
@@ -767,8 +825,17 @@ export class ZombieManager {
 
     const pool = candidates.length > 0 ? candidates : OFFICE_AISLE_WAYPOINTS;
     const chosen = pool[Math.floor(Math.random() * pool.length)];
-    entry.targetX = Math.max(-7.8, chosen.x + randRange(-0.35, 0.35));
-    entry.targetZ = chosen.z + randRange(-0.35, 0.35);
+    let tx = Math.max(-7.8, chosen.x + randRange(-0.35, 0.35));
+    let tz = chosen.z + randRange(-0.35, 0.35);
+    if (
+      Math.hypot(tx - MAINTENANCE_DOORWAY_POS.x, tz - MAINTENANCE_DOORWAY_POS.z) <
+      MAINTENANCE_DOORWAY_PATROL_CLEARANCE
+    ) {
+      tx = chosen.x;
+      tz = chosen.z;
+    }
+    entry.targetX = tx;
+    entry.targetZ = tz;
     entry.watchdogTimer = 0;
     entry.watchdogLastX = zPos.x;
     entry.watchdogLastZ = zPos.z;
@@ -1510,6 +1577,10 @@ export class ZombieManager {
 
     // 3. Phase 3: RUN_CHASE
     if (entry.aiState === 'RUN_CHASE' && pPos) {
+      if (this.isPlayerInSafeZone) {
+        this._enterPatrolFromDeAggro(entry);
+        return;
+      }
       if (this.player.hp <= 0) {
         entry.aiState = 'WANDER_IDLE';
         entry.subState = 'IDLE';
@@ -1567,6 +1638,10 @@ export class ZombieManager {
 
     // 4. Phase 4: ATTACK
     if (entry.aiState === 'ATTACK' && pPos) {
+      if (this.isPlayerInSafeZone) {
+        this._enterPatrolFromDeAggro(entry);
+        return;
+      }
       if (this.player.hp <= 0) {
         entry.aiState = 'WANDER_IDLE';
         entry.subState = 'IDLE';
@@ -1611,26 +1686,27 @@ export class ZombieManager {
     }
   }
 
-  update(delta, gameState = 'PLAYING') {
+  update(delta, gameStateOrPos = 'PLAYING', isPlayerInSafeZoneArg = undefined) {
+    const gameState = typeof gameStateOrPos === 'string' ? gameStateOrPos : 'PLAYING';
     if (gameState !== 'PLAYING' && gameState !== 'GAME_OVER') return;
 
-    // Safe-Zone Pause Rule: Freeze outside zombies, AI timers, wave timers & vocals while player is in Closet / Shop
-    if (this.isWorldPaused && gameState === 'PLAYING') {
-      return;
+    if (typeof isPlayerInSafeZoneArg === 'boolean') {
+      this.setPlayerInSafeZone(isPlayerInSafeZoneArg);
     }
 
     const cam = this.player?.camera || null;
-    const pPos = this.player?.position || null;
+    const pPos = this.player?.position || (gameStateOrPos && typeof gameStateOrPos === 'object' ? gameStateOrPos : null);
+    const inSafeZone = this.isPlayerInSafeZone;
 
     // Update showcase/test zombies (e.g., toggled via F9) + real-time 3D spatial audio
     if (this.womanTemplate && this.womanTemplate.isActive) {
-      this.womanTemplate.update(delta, cam);
+      this.womanTemplate.update(delta, cam, inSafeZone);
       if (this.sound && cam) {
         this.sound.updateZombieSpatialAudio(this.womanTemplate, cam, pPos);
       }
     }
     if (this.manTemplate && this.manTemplate.isActive) {
-      this.manTemplate.update(delta, cam);
+      this.manTemplate.update(delta, cam, inSafeZone);
       if (this.sound && cam) {
         this.sound.updateZombieSpatialAudio(this.manTemplate, cam, pPos);
       }
@@ -1653,7 +1729,7 @@ export class ZombieManager {
       if (gameState === 'PLAYING') {
         this._updateEntryAI(entry, delta);
       }
-      entry.zombie.update(delta, cam);
+      entry.zombie.update(delta, cam, inSafeZone);
 
       if (
         this.sound &&

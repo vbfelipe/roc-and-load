@@ -1703,10 +1703,11 @@ export class ZombieEnemy {
     }
   }
 
-  update(delta, camera = null) {
+  update(delta, camera = null, isPlayerInSafeZone = false) {
     if (camera) {
       this._billboardCamera = camera;
     }
+    this._isPlayerInSafeZone = !!isPlayerInSafeZone;
     if (!this.isActive || !this.isLoaded || !this.mixer) return;
     this.mixer.update(delta);
 
