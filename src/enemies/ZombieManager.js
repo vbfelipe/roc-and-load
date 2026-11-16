@@ -1,11 +1,19 @@
 import * as THREE from 'three';
-import { ZombieEnemy, getZombieHitboxMeta } from './ZombieEnemy.js';
+import { ZombieEnemy, HAZMAT_RADIATION_CONFIG, getZombieHitboxMeta } from './ZombieEnemy.js';
 
 // Wave 1 schedule: 2 ZombieWoman (100% HP, pitch 1.51-1.54) + 1 ZombieMan (100% HP, untouched 0.84)
 const WAVE_1_SPAWN_SPECS = [
   { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Wave1_ZombieWoman_1', logTag: 'Wave1_ZW_1' },
   { archetype: 'woman', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 1.65, rootName: 'Wave1_ZombieWoman_2', logTag: 'Wave1_ZW_2' },
   { archetype: 'man', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 2.35, rootName: 'Wave1_ZombieMan_1', logTag: 'Wave1_ZM_1' },
+];
+
+// Wave 2 schedule: adds Radioactive Tank Boss (ZombieHazmat, 300 HP = 3x ZombieMan, $600/$750 bounty)
+const WAVE_2_SPAWN_SPECS = [
+  { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Wave2_ZombieWoman_1', logTag: 'Wave2_ZW_1' },
+  { archetype: 'man', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 1.65, rootName: 'Wave2_ZombieMan_1', logTag: 'Wave2_ZM_1' },
+  { archetype: 'woman', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 2.35, rootName: 'Wave2_ZombieWoman_2', logTag: 'Wave2_ZW_2' },
+  { archetype: 'hazmat', delay: 5.4, laneX: 0.00, maxHp: 300, pitchBase: 0.68, walkVocalDelay: 3.10, rootName: 'Wave2_ZombieHazmat_1', logTag: 'Wave2_ZH_1' },
 ];
 
 /**
@@ -31,7 +39,12 @@ export function normalizeWeaponId(weaponId = 'hk_usp') {
 export function getWeaponZombieDamage(weaponId = 'hk_usp', archetype = 'woman', zone = 'body', distance = 5.0) {
   const weapon = normalizeWeaponId(weaponId);
   const archStr = String(archetype || 'woman').toLowerCase();
-  const isMan = archStr === 'man' || archStr === 'zombieman';
+  // ZombieHazmat has 3x ZombieMan HP (300 vs 100), so using ZombieMan's per-shot damage gives 3x tank TTK
+  const isMan =
+    archStr === 'man' ||
+    archStr === 'zombieman' ||
+    archStr === 'hazmat' ||
+    archStr === 'zombiehazmat';
   const isHead = zone === 'head' || zone === true;
   const dist = typeof distance === 'number' && Number.isFinite(distance) ? distance : 5.0;
 
@@ -89,11 +102,20 @@ export function getWeaponZombieDamage(weaponId = 'hk_usp', archetype = 'woman', 
   return isMan ? (isHead ? 45 : 18) : (isHead ? 75 : 35);
 }
 
-// Strict position-gated vestibule exit portal chain (never skipped on a timer)
+// Main Room Red Circle Entry Zone (2.0m-3.2m past doorway threshold, clear of stanchions & in front of fire-hose cabinet)
+const RED_CIRCLE_ENTRY_CENTER = { x: -7.35, z: 9.35 };
+const RED_CIRCLE_FAN_SPREAD = [
+  { x: -0.50, z: -0.35 },
+  { x: 0.45, z: 0.35 },
+  { x: 0.05, z: -0.10 },
+];
+
+// Continuous vestibule -> doorway -> main room red circle entry chain (CLIMB_STAIRS runs at full speed through this path)
 const VESTIBULE_PORTALS = [
-  { x: -11.60, z: 9.20 },  // PORTAL_0_STAIR_LANDING
-  { x: -10.60, z: 10.30 }, // PORTAL_1_DOOR_APPROACH
-  { x: -8.10, z: 10.30 },  // PORTAL_2_OFFICE_ENTRY
+  { x: -11.35, z: 9.75 },  // PORTAL_0_VESTIBULE_APPROACH (across vestibule toward door)
+  { x: -10.30, z: 10.22 }, // PORTAL_1_DOORWAY_CENTER (center of open glass doorway gap)
+  { x: -9.00, z: 9.95 },   // PORTAL_2_PAST_DOOR_AND_STANCHIONS (clear of door leaf & stanchions)
+  { x: -7.35, z: 9.35 },   // PORTAL_3_RED_CIRCLE_MAIN_ROOM (final entry zone before WANDER_IDLE)
 ];
 
 // Navigable main-room aisle waypoints matching WarehouseBuilder.js desk/room layout (all X >= -7.8)
@@ -228,21 +250,28 @@ function segmentHitsAabb2D(x0, z0, x1, z1, box, pad = 0.28) {
  * solid zombie/player/obstacle collisions, and active hitbox aggregation.
  */
 export class ZombieManager {
-  constructor(scene, { womanTemplate = null, manTemplate = null, sound = null, decalManager = null } = {}) {
+  constructor(scene, { womanTemplate = null, manTemplate = null, hazmatTemplate = null, sound = null, decalManager = null } = {}) {
     this.scene = scene;
     this.womanTemplate = womanTemplate;
     this.manTemplate = manTemplate;
+    this.hazmatTemplate = hazmatTemplate;
     this.sound = sound;
     this.decalManager = decalManager;
 
     this.colliderMesh = null;
     this.player = null;
     this.onPlayerHit = null;
+    this.onPlayerRadiationDrain = null;
+    this.onPlayerRadiationBurst = null;
     this.onZombieKilled = null;
     this.onWave1Cleared = null;
 
     this.waveZombies = [];
     this.waveEntries = [];
+    this._poolByArchetype = { woman: [], man: [], hazmat: [] };
+    this._allPoolZombies = [];
+    this._poolInitialized = false;
+    this.currentWave = 1;
     this.waveActive = false;
     this._waveElapsed = 0;
     this.playerKills = 0;
@@ -251,6 +280,13 @@ export class ZombieManager {
     this._wave1ClearedNotified = false;
     this.isWorldPaused = false;
     this.isPlayerInSafeZone = false;
+    this._wasRadiationExposed = false;
+    this._testHazmatSkillState = {
+      cooldown: 0,
+      casting: false,
+      timer: 0,
+      burstFired: false,
+    };
 
     this._hitboxesCache = [];
     this._solidCollidersCache = [];
@@ -270,13 +306,16 @@ export class ZombieManager {
       this.manTemplate.vocalPitchBase = 0.84;
       this.sound?.initZombieVocalChannel?.(this.manTemplate, 0.84);
     }
-    for (let i = 0; i < this.waveZombies.length; i++) {
-      const zom = this.waveZombies[i];
+    if (this.hazmatTemplate) {
+      this.hazmatTemplate.sound = this.sound;
+      this.hazmatTemplate.vocalPitchBase = 0.68;
+      this.sound?.initZombieVocalChannel?.(this.hazmatTemplate, 0.68);
+    }
+    for (let i = 0; i < this._allPoolZombies.length; i++) {
+      const zom = this._allPoolZombies[i];
       if (!zom) continue;
-      const spec = WAVE_1_SPAWN_SPECS[i % WAVE_1_SPAWN_SPECS.length];
       zom.sound = this.sound;
-      zom.vocalPitchBase = spec.pitchBase;
-      this.sound?.initZombieVocalChannel?.(zom, spec.pitchBase);
+      this.sound?.initZombieVocalChannel?.(zom, zom.vocalPitchBase);
     }
   }
 
@@ -302,41 +341,102 @@ export class ZombieManager {
   }
 
   /**
-   * Pre-allocates the 6 Wave-1 zombies (4 ZombieWoman + 2 ZombieMan) using SkeletonUtils.clone()
-   * at load time (sharing the single set of 1024x1024 PBR textures & clips).
+   * Pre-allocates SkeletonUtils clones for Wave 1 (woman x2, man x1) + Wave 2+ (woman x3, man x2, hazmat x2)
+   * at load time (zero runtime GC or texture overhead).
    */
   initWavePool() {
     this._syncSoundToTemplates();
-    if (!this.womanTemplate || !this.womanTemplate.isLoaded || this.waveZombies.length > 0) {
+    if (!this.womanTemplate || !this.womanTemplate.isLoaded || this._poolInitialized) {
       return;
     }
+    this._poolInitialized = true;
 
     const manReady = !!(this.manTemplate && this.manTemplate.isLoaded);
+    const hazmatReady = !!(this.hazmatTemplate && this.hazmatTemplate.isLoaded);
 
-    for (let i = 0; i < WAVE_1_SPAWN_SPECS.length; i++) {
-      const spec = WAVE_1_SPAWN_SPECS[i];
-      const useMan = spec.archetype === 'man' && manReady;
-      const template = useMan ? this.manTemplate : this.womanTemplate;
-      const maxHp = spec.maxHp ?? 100;
+    const allocatePool = (archetype, count, template, maxHp, defaultPitch) => {
+      const list = this._poolByArchetype[archetype];
+      for (let i = 0; i < count; i++) {
+        const zom = new ZombieEnemy(this.scene, {
+          cloneFrom: template,
+          archetype,
+          maxHp,
+          rootName: `Pool_${archetype}_${i + 1}`,
+          logTag: `Pool_${archetype}_${i + 1}`,
+          spawnPosition: new THREE.Vector3(-12.60, -2.60, 2.75),
+          lookAtPosition: new THREE.Vector3(-12.60, 0.0, 9.0),
+          active: false,
+          sound: this.sound,
+          isWaveZombie: true,
+          vocalPitchBase: defaultPitch,
+        });
+        this.sound?.initZombieVocalChannel?.(zom, defaultPitch);
+        zom.setHitboxesVisible(this.hitboxesVisible);
+        list.push(zom);
+        this._allPoolZombies.push(zom);
+      }
+    };
 
-      const zom = new ZombieEnemy(this.scene, {
-        cloneFrom: template,
-        archetype: spec.archetype,
-        maxHp,
-        rootName: spec.rootName,
-        logTag: spec.logTag,
-        spawnPosition: new THREE.Vector3(-12.60 + spec.laneX, -2.60, 2.75),
-        lookAtPosition: new THREE.Vector3(-12.60 + spec.laneX, 0.0, 9.0),
-        active: false,
-        sound: this.sound,
-        isWaveZombie: true,
-        vocalPitchBase: spec.pitchBase,
-        initialWalkVocalDelay: spec.walkVocalDelay,
-      });
+    allocatePool('woman', 3, this.womanTemplate, 100, 1.55);
+    allocatePool('man', 2, manReady ? this.manTemplate : this.womanTemplate, 100, 0.84);
+    if (hazmatReady) {
+      allocatePool('hazmat', 2, this.hazmatTemplate, 300, 0.68);
+    }
+
+    // Bind Wave 1 slots immediately for warm-up and initial queries
+    this._bindWaveSpecs(WAVE_1_SPAWN_SPECS);
+  }
+
+  _bindWaveSpecs(specs) {
+    this.waveZombies.length = 0;
+    this.waveEntries.length = 0;
+
+    for (const zom of this._allPoolZombies) {
+      if (zom) {
+        zom.reset();
+        zom.setActive(false);
+      }
+    }
+
+    const usedCounts = { woman: 0, man: 0, hazmat: 0 };
+    for (let i = 0; i < specs.length; i++) {
+      const spec = specs[i];
+      let arch = spec.archetype;
+      const poolList = this._poolByArchetype[arch];
+      let zom = poolList && poolList[usedCounts[arch]];
+      if (!zom && arch === 'hazmat' && this.hazmatTemplate?.isLoaded) {
+        // Dynamically clone if Wave 3+ needs an extra Hazmat
+        zom = new ZombieEnemy(this.scene, {
+          cloneFrom: this.hazmatTemplate,
+          archetype: 'hazmat',
+          maxHp: 300,
+          rootName: spec.rootName,
+          logTag: spec.logTag,
+          active: false,
+          sound: this.sound,
+          isWaveZombie: true,
+          vocalPitchBase: spec.pitchBase,
+        });
+        poolList.push(zom);
+        this._allPoolZombies.push(zom);
+      }
+      if (!zom) {
+        arch = 'woman';
+        zom = this._poolByArchetype.woman[usedCounts.woman % Math.max(1, this._poolByArchetype.woman.length)];
+      }
+      if (!zom) continue;
+      usedCounts[spec.archetype] = (usedCounts[spec.archetype] || 0) + 1;
+
+      zom.maxHp = spec.maxHp ?? (spec.archetype === 'hazmat' ? 300 : 100);
+      zom.hp = zom.maxHp;
+      zom.vocalPitchBase = spec.pitchBase;
       this.sound?.initZombieVocalChannel?.(zom, spec.pitchBase);
+      zom.reset();
+      zom.setActive(false);
       zom.setHitboxesVisible(this.hitboxesVisible);
 
       this.waveZombies.push(zom);
+      const fanBase = RED_CIRCLE_FAN_SPREAD[i % RED_CIRCLE_FAN_SPREAD.length];
       this.waveEntries.push({
         zombie: zom,
         index: i,
@@ -344,14 +444,20 @@ export class ZombieManager {
         spawnDelay: spec.delay,
         walkVocalDelay: spec.walkVocalDelay,
         spawned: false,
-        aiState: 'WAITING', // 'WAITING' | 'CLIMB_STAIRS' | 'WANDER_IDLE' | 'RUN_CHASE' | 'ATTACK' | 'DEAD'
+        aiState: 'WAITING', // 'WAITING' | 'CLIMB_STAIRS' | 'WANDER_IDLE' | 'RUN_CHASE' | 'ATTACK' | 'SKILL_CAST' | 'DEAD'
         subState: 'WALK',   // 'IDLE' | 'WALK'
         stateTimer: 0,
-        portalIndex: 0,     // Mandatory position-gated vestibule exit portal 0..2
+        climbStage: 0,
+        portalIndex: 0,
+        entryEndX: RED_CIRCLE_ENTRY_CENTER.x + fanBase.x,
+        entryEndZ: RED_CIRCLE_ENTRY_CENTER.z + fanBase.z,
         targetX: -12.35 + spec.laneX * 0.45,
         targetZ: 8.25,
         yaw: 0,
         attackCooldown: 0,
+        skillCooldown: 0,
+        skillTimer: 0,
+        skillBurstTriggered: false,
         attackSwungThisCycle: false,
         prevAttackNorm: 0,
         hasPlayedAggroHiss: false,
@@ -372,59 +478,131 @@ export class ZombieManager {
   }
 
   /**
-   * Starts the staggered 3-zombie stairwell Wave 1 immediately (0.0s .. 3.6s, every 1.8s).
+   * Builds wave spawn specs for Wave 1 (unchanged), Wave 2 (+1 ZombieHazmat boss), or Wave 3+.
    */
-  triggerWave1() {
+  getWaveSpecs(waveNumber = 1) {
+    if (waveNumber <= 1) return WAVE_1_SPAWN_SPECS;
+    if (waveNumber === 2) return WAVE_2_SPAWN_SPECS;
+
+    const specs = WAVE_2_SPAWN_SPECS.map((s, idx) => ({
+      ...s,
+      rootName: `Wave${waveNumber}_${s.archetype}_${idx + 1}`,
+      logTag: `W${waveNumber}_${idx + 1}`,
+    }));
+    const extraHazmatCount = Math.min(2, waveNumber - 2);
+    for (let h = 0; h < extraHazmatCount; h++) {
+      specs.push({
+        archetype: 'hazmat',
+        delay: specs.length * 1.8,
+        laneX: h % 2 === 0 ? -0.25 : 0.25,
+        maxHp: 300,
+        pitchBase: 0.66,
+        walkVocalDelay: 3.4 + h * 0.7,
+        rootName: `Wave${waveNumber}_ZombieHazmat_${h + 2}`,
+        logTag: `W${waveNumber}_ZH_${h + 2}`,
+      });
+    }
+    return specs;
+  }
+
+  /**
+   * Triggers a specific Wave number (Wave 1 preserves early USP balance; Wave 2+ spawns ZombieHazmat).
+   */
+  triggerWave(waveNumber = 1) {
     this.initWavePool();
     this.sound?.stopAllZombieVocals?.();
+    this.currentWave = Math.max(1, Math.floor(waveNumber));
+    const specs = this.getWaveSpecs(this.currentWave);
+    this._bindWaveSpecs(specs);
+
     this.waveActive = true;
     this._waveElapsed = 0;
+    this.wave1Cleared = false;
+    this._wave1ClearedTimer = 0;
+    this._wave1ClearedNotified = false;
 
-    for (let i = 0; i < this.waveEntries.length; i++) {
-      const entry = this.waveEntries[i];
-      const zom = entry.zombie;
-      zom.reset();
-      zom.setActive(false);
-      zom.setHitboxesVisible(this.hitboxesVisible);
-
-      entry.spawned = false;
-      entry.aiState = 'WAITING';
-      entry.subState = 'WALK';
-      entry.stateTimer = 0;
-      entry.portalIndex = 0;
-      entry.targetX = -12.35 + entry.laneX * 0.45;
-      entry.targetZ = 8.25;
-      entry.yaw = 0;
-      entry.attackCooldown = 0;
-      entry.attackSwungThisCycle = false;
-      entry.prevAttackNorm = 0;
-      entry.hasPlayedAggroHiss = false;
-      entry.walkVocalTimer = entry.walkVocalDelay;
-      entry.idleVocalTimer = randRange(1.0, 3.2);
-      entry.chaseVocalTimer = randRange(2.8, 4.6);
-      entry.steerCommitTimer = 0;
-      entry.steerCommitSign = 0;
-      entry.watchdogTimer = 0;
-      entry.watchdogLastX = -12.60 + entry.laneX;
-      entry.watchdogLastZ = 2.75;
-      entry.sidestepTimer = 0;
-      entry.sidestepDirX = 0;
-      entry.sidestepDirZ = 0;
-      entry.queuePaused = false;
-    }
-
-    // Immediately activate zombie #1 (delay = 0.0s)
     if (this.waveEntries[0]) {
       this._activateStairClimb(this.waveEntries[0]);
     }
   }
 
+  /**
+   * Starts Wave 1 (staggered 2 ZombieWoman + 1 ZombieMan).
+   */
+  triggerWave1() {
+    this.triggerWave(1);
+  }
+
+  /**
+   * Starts Wave 2 featuring the Radioactive Hazmat Boss Tank (ZombieHazmat).
+   */
+  triggerWave2() {
+    this.triggerWave(2);
+  }
+
+  /**
+   * Spawns a single solo ZombieHazmat wave from the stairwell for isolated boss testing.
+   */
+  triggerHazmatAlone() {
+    this.initWavePool();
+    this.sound?.stopAllZombieVocals?.();
+    this.currentWave = 2;
+    this._bindWaveSpecs([
+      {
+        archetype: 'hazmat',
+        delay: 0.0,
+        laneX: 0.0,
+        maxHp: 300,
+        pitchBase: 0.68,
+        walkVocalDelay: 1.8,
+        rootName: 'Solo_ZombieHazmat',
+        logTag: 'SOLO_ZH',
+      },
+    ]);
+
+    this.waveActive = true;
+    this._waveElapsed = 0;
+    this.wave1Cleared = false;
+    this._wave1ClearedTimer = 0;
+    this._wave1ClearedNotified = false;
+
+    if (this.waveEntries[0]) {
+      this._activateStairClimb(this.waveEntries[0]);
+    }
+  }
+
+  /**
+   * Activates and positions the standalone F9 Dev Tuner ZombieHazmat showcase/combat instance on demand.
+   */
+  spawnTestHazmat(x = 3.4, z = 2.5) {
+    if (!this.hazmatTemplate || !this.hazmatTemplate.isLoaded) return null;
+    const h = this.hazmatTemplate;
+    h.spawnPosition.set(x, 0.0, z);
+    h.reset();
+    h.root.position.set(x, 0.0, z);
+    h.setActive(true);
+    h.setHitboxesVisible(this.hitboxesVisible);
+    h.playTestAnimation('Idle', this.sound);
+    this._testHazmatSkillState.cooldown = 0;
+    this._testHazmatSkillState.casting = false;
+    this._testHazmatSkillState.timer = 0;
+    this._testHazmatSkillState.burstFired = false;
+    return h;
+  }
+
   _activateStairClimb(entry) {
     const zom = entry.zombie;
+    const fanBase = RED_CIRCLE_FAN_SPREAD[entry.index % RED_CIRCLE_FAN_SPREAD.length];
+    const fanOffX = THREE.MathUtils.clamp(fanBase.x + randRange(-0.22, 0.22), -0.75, 0.75);
+    const fanOffZ = THREE.MathUtils.clamp(fanBase.z + randRange(-0.22, 0.22), -0.65, 0.65);
+
     entry.spawned = true;
     entry.aiState = 'CLIMB_STAIRS';
     entry.subState = 'RUN';
+    entry.climbStage = 0;
     entry.portalIndex = 0;
+    entry.entryEndX = RED_CIRCLE_ENTRY_CENTER.x + fanOffX;
+    entry.entryEndZ = RED_CIRCLE_ENTRY_CENTER.z + fanOffZ;
     entry.targetX = -12.35 + entry.laneX * 0.45;
     entry.targetZ = 8.25;
     entry.yaw = 0; // Facing +Z up the stairs
@@ -440,6 +618,11 @@ export class ZombieManager {
     entry.sidestepDirX = 0;
     entry.sidestepDirZ = 0;
     entry.queuePaused = false;
+    entry.attackCooldown = 0;
+    entry.skillCooldown = 0;
+    entry.skillTimer = 0;
+    entry.skillBurstTriggered = false;
+    entry.attackSwungThisCycle = false;
 
     zom.reset();
     zom.root.position.set(-12.60 + entry.laneX, -2.60, 2.75);
@@ -461,10 +644,16 @@ export class ZombieManager {
     this._wave1ClearedNotified = false;
     this.isWorldPaused = false;
     this.isPlayerInSafeZone = false;
+    this._wasRadiationExposed = false;
+    this._testHazmatSkillState.cooldown = 0;
+    this._testHazmatSkillState.casting = false;
+    this._testHazmatSkillState.timer = 0;
+    this._testHazmatSkillState.burstFired = false;
     this.sound?.stopAllZombieVocals?.();
     for (const entry of this.waveEntries) {
       entry.spawned = false;
       entry.aiState = 'WAITING';
+      entry.climbStage = 0;
       entry.portalIndex = 0;
       entry.hasPlayedAggroHiss = false;
       entry.steerCommitTimer = 0;
@@ -472,21 +661,24 @@ export class ZombieManager {
       entry.watchdogTimer = 0;
       entry.sidestepTimer = 0;
       entry.queuePaused = false;
-      if (entry.zombie) {
-        entry.zombie.reset();
-        entry.zombie.setActive(false);
+    }
+    for (const zom of this._allPoolZombies) {
+      if (zom) {
+        zom.reset();
+        zom.setActive(false);
       }
     }
   }
 
   /**
-   * Resets all zombies (Wave 1 + test showcase zombies).
+   * Resets all zombies (Wave 1 + Wave 2+ + test showcase zombies).
    */
   resetAll() {
     this.resetWave1();
     this.playerKills = 0;
     if (this.womanTemplate) this.womanTemplate.reset();
     if (this.manTemplate) this.manTemplate.reset();
+    if (this.hazmatTemplate) this.hazmatTemplate.reset();
     this.sound?.stopAllZombieVocals?.();
   }
 
@@ -512,7 +704,11 @@ export class ZombieManager {
         const entry = this.waveEntries[i];
         if (!entry || !entry.zombie) continue;
         entry.zombie.tookDamageAggro = false;
-        if (entry.spawned && !entry.zombie.isDead && (entry.aiState === 'RUN_CHASE' || entry.aiState === 'ATTACK')) {
+        if (
+          entry.spawned &&
+          !entry.zombie.isDead &&
+          (entry.aiState === 'RUN_CHASE' || entry.aiState === 'ATTACK' || entry.aiState === 'SKILL_CAST')
+        ) {
           this._enterPatrolFromDeAggro(entry);
         }
       }
@@ -550,8 +746,9 @@ export class ZombieManager {
   applyWalkCalibration() {
     if (this.womanTemplate) this.womanTemplate.applyWalkCalibration();
     if (this.manTemplate) this.manTemplate.applyWalkCalibration();
-    for (let i = 0; i < this.waveZombies.length; i++) {
-      if (this.waveZombies[i]) this.waveZombies[i].applyWalkCalibration();
+    if (this.hazmatTemplate) this.hazmatTemplate.applyWalkCalibration();
+    for (let i = 0; i < this._allPoolZombies.length; i++) {
+      if (this._allPoolZombies[i]) this._allPoolZombies[i].applyWalkCalibration();
     }
   }
 
@@ -562,8 +759,9 @@ export class ZombieManager {
     this.hitboxesVisible = !!visible;
     if (this.womanTemplate) this.womanTemplate.setHitboxesVisible(this.hitboxesVisible);
     if (this.manTemplate) this.manTemplate.setHitboxesVisible(this.hitboxesVisible);
-    for (const zom of this.waveZombies) {
-      zom.setHitboxesVisible(this.hitboxesVisible);
+    if (this.hazmatTemplate) this.hazmatTemplate.setHitboxesVisible(this.hitboxesVisible);
+    for (const zom of this._allPoolZombies) {
+      if (zom) zom.setHitboxesVisible(this.hitboxesVisible);
     }
     return this.hitboxesVisible;
   }
@@ -587,6 +785,7 @@ export class ZombieManager {
 
     if (this.womanTemplate) pushFrom(this.womanTemplate);
     if (this.manTemplate) pushFrom(this.manTemplate);
+    if (this.hazmatTemplate) pushFrom(this.hazmatTemplate);
     for (let i = 0; i < this.waveZombies.length; i++) {
       pushFrom(this.waveZombies[i]);
     }
@@ -612,6 +811,7 @@ export class ZombieManager {
 
     if (this.womanTemplate) addIfSolid(this.womanTemplate);
     if (this.manTemplate) addIfSolid(this.manTemplate);
+    if (this.hazmatTemplate) addIfSolid(this.hazmatTemplate);
     for (let i = 0; i < this.waveZombies.length; i++) {
       addIfSolid(this.waveZombies[i]);
     }
@@ -619,15 +819,16 @@ export class ZombieManager {
   }
 
   /**
-   * Ensures pre-allocated Wave 1 clones & fade materials are GPU shader-warmed during boot.
+   * Ensures pre-allocated Wave 1 & Wave 2+ clones (including ZombieHazmat) & fade materials are GPU shader-warmed during boot.
    */
   prepareWarmUp() {
     const restored = [];
-    for (let i = 0; i < this.waveZombies.length; i++) {
-      const zom = this.waveZombies[i];
+    const pool = this._allPoolZombies.length > 0 ? this._allPoolZombies : this.waveZombies;
+    for (let i = 0; i < pool.length; i++) {
+      const zom = pool[i];
       if (!zom || !zom.isLoaded) continue;
       restored.push({ zom, wasActive: zom.isActive, pos: zom.root.position.clone() });
-      zom.root.position.set(-1.5 + i * 1.5, 0, 0);
+      zom.root.position.set(-1.5 + i * 1.3, 0, 0);
       zom.setActive(true);
       zom.setFadeMode(true, 1.0);
     }
@@ -708,10 +909,11 @@ export class ZombieManager {
 
     if (!wasDead && (result?.killed || zombie.isDead)) {
       this.playerKills += 1;
+      const isHazmat = zombie.archetype === 'hazmat' || !!zombie.isHazmat;
       const isMan = zombie.archetype === 'man';
       const isHead = !!result?.headshot || part === 'head';
-      const baseReward = isMan ? 200 : 100;
-      const bonusReward = isHead ? (isMan ? 50 : 25) : 0;
+      const baseReward = isHazmat ? 600 : (isMan ? 200 : 100);
+      const bonusReward = isHead ? (isHazmat ? 150 : (isMan ? 50 : 25)) : 0;
       const reward = baseReward + bonusReward;
       this.sound?.playRewardTick?.(isHead);
       if (typeof this.onZombieKilled === 'function') {
@@ -787,12 +989,27 @@ export class ZombieManager {
   }
 
   _enterAttack(entry) {
+    if (entry.zombie?.isHazmat) {
+      return this._enterSkillCast(entry);
+    }
     entry.aiState = 'ATTACK';
     entry.queuePaused = false;
     entry.sidestepTimer = 0;
     entry.attackSwungThisCycle = false;
     entry.prevAttackNorm = 0;
     entry.zombie.playAnimation('Attack', 0.15);
+    if (this.sound && typeof this.sound.playZombieVocal === 'function') {
+      this.sound.playZombieVocal(entry.zombie, 'attack');
+    }
+  }
+
+  _enterSkillCast(entry) {
+    entry.aiState = 'SKILL_CAST';
+    entry.queuePaused = false;
+    entry.sidestepTimer = 0;
+    entry.skillTimer = 0;
+    entry.skillBurstTriggered = false;
+    entry.zombie.playAnimation('Skill', 0.14);
     if (this.sound && typeof this.sound.playZombieVocal === 'function') {
       this.sound.playZombieVocal(entry.zombie, 'attack');
     }
@@ -842,45 +1059,53 @@ export class ZombieManager {
   }
 
   /**
-   * Strictly advances vestibule exit portals by XZ distance (<= 0.42m), NEVER on a timer.
-   * Forbids main-office free roaming or direct room-wide chases until PORTAL_2 (-8.10, 10.30) is cleared.
+   * Strictly advances vestibule -> doorway -> red-circle portals by XZ distance, NEVER on a timer.
+   * Forbids main-office free roaming until the zombie is cleanly past the doorway & stanchions.
    */
   _getActivePortalGoal(entry) {
     const zom = entry.zombie;
     if (zom.hasExitedVestibule) return null;
 
     const pos = zom.root.position;
-    while (entry.portalIndex < VESTIBULE_PORTALS.length) {
-      const portal = VESTIBULE_PORTALS[entry.portalIndex];
+    const lastIdx = VESTIBULE_PORTALS.length - 1;
+    while (entry.portalIndex <= lastIdx) {
+      const portal =
+        entry.portalIndex === lastIdx && entry.entryEndX !== undefined
+          ? { x: entry.entryEndX, z: entry.entryEndZ }
+          : VESTIBULE_PORTALS[entry.portalIndex];
       const dist = Math.hypot(portal.x - pos.x, portal.z - pos.z);
-      if (dist <= 0.42) {
-        if (entry.portalIndex < VESTIBULE_PORTALS.length - 1) {
+      if (dist <= 0.52) {
+        if (entry.portalIndex >= 2 && pos.x > -9.2) {
+          if (entry.portalIndex === lastIdx) {
+            zom.hasExitedVestibule = true;
+            return null;
+          }
+        }
+        if (entry.portalIndex < lastIdx) {
           entry.portalIndex++;
           entry.steerCommitTimer = 0;
           entry.steerCommitSign = 0;
           continue;
         }
-        // Only unlock main office once PORTAL_2_OFFICE_ENTRY is reached AND past partition threshold
-        if (pos.x > -9.2) {
-          zom.hasExitedVestibule = true;
-          return null;
-        }
       }
       break;
     }
 
-    const clamped = Math.min(entry.portalIndex, VESTIBULE_PORTALS.length - 1);
+    const clamped = Math.min(entry.portalIndex, lastIdx);
+    if (clamped === lastIdx && entry.entryEndX !== undefined) {
+      return { x: entry.entryEndX, z: entry.entryEndZ };
+    }
     return VESTIBULE_PORTALS[clamped];
   }
 
   /**
    * Checks whether another living zombie blocks the single-file bottleneck ahead of this zombie.
-   * Returns a speed multiplier (1.0 = full speed, 0.30 = queue slow, 0.0 = brief yield pause).
+   * Returns a speed multiplier (1.0 = full speed; softened slow during sprint stages so runners flow through the doorway).
    */
   _evaluateBottleneckQueue(entry, ux, uz) {
     const zom = entry.zombie;
     const pos = zom.root.position;
-    if (zom.hasExitedVestibule && pos.x >= -8.0) return 1.0;
+    if (zom.hasExitedVestibule && pos.x >= -7.8) return 1.0;
 
     let minAheadProj = Infinity;
     for (let i = 0; i < this.waveEntries.length; i++) {
@@ -897,13 +1122,20 @@ export class ZombieManager {
       if (proj <= 0.05 || proj > 0.95) continue;
 
       const perp = Math.abs(-uz * dx + ux * dz);
-      if (perp <= 0.62 && proj < minAheadProj) {
+      if (perp <= 0.56 && proj < minAheadProj) {
         minAheadProj = proj;
       }
     }
 
-    if (minAheadProj <= 0.72) return 0.0;
-    if (minAheadProj <= 0.95) return 0.30;
+    // In post-stair sprint stages (1..4), slow down smoothly instead of hard-pausing to Idle
+    if (entry.aiState === 'CLIMB_STAIRS' && entry.climbStage >= 1) {
+      if (minAheadProj <= 0.58) return 0.45;
+      if (minAheadProj <= 0.90) return 0.72;
+      return 1.0;
+    }
+
+    if (minAheadProj <= 0.68) return 0.0;
+    if (minAheadProj <= 0.95) return 0.35;
     return 1.0;
   }
 
@@ -949,6 +1181,14 @@ export class ZombieManager {
         px > 9.95 - WHISKER_PROBE_PAD ||
         pz > 12.95 - WHISKER_PROBE_PAD ||
         pz < -9.50 + WHISKER_PROBE_PAD
+      ) {
+        return true;
+      }
+      // Keep WANDER_IDLE patrol inside the main office room (never wander back into the vestibule)
+      if (
+        entry.aiState === 'WANDER_IDLE' &&
+        entry.zombie.hasExitedVestibule &&
+        px < -9.55
       ) {
         return true;
       }
@@ -1095,7 +1335,8 @@ export class ZombieManager {
     }
     if (entry.queuePaused) {
       entry.queuePaused = false;
-      const resumeAnim = entry.aiState === 'RUN_CHASE' ? 'Run' : 'Walk';
+      const resumeAnim =
+        entry.aiState === 'RUN_CHASE' || entry.aiState === 'CLIMB_STAIRS' ? 'Run' : 'Walk';
       zom.playAnimation(resumeAnim, 0.18);
     }
 
@@ -1122,6 +1363,11 @@ export class ZombieManager {
     pos.z += steerZ * moveStep;
 
     this._resolveSingleZombieObstacles(pos, true, steerX, steerZ, goalX, goalZ, moveStep);
+
+    // Keep main-office patrolling zombies from drifting back west through the vestibule doorway
+    if (entry.aiState === 'WANDER_IDLE' && zom.hasExitedVestibule && pos.x < -9.55) {
+      pos.x = -9.55;
+    }
 
     const actualDist = Math.hypot(pos.x - prevX, pos.z - prevZ);
     if (zom.currentState === 'Walk') {
@@ -1318,30 +1564,37 @@ export class ZombieManager {
   }
 
   /**
-   * Soft separation between living Wave-1 zombies (minDist = 0.78m once inside main office;
-   * disabled in vestibule/doorway bottlenecks so zombies don't shove each other into doorframes) +
-   * hard player minimum center distance (0.88m).
+   * Soft separation between living Wave-1 zombies:
+   * - Disabled in stairwell / vestibule approach (X < -9.5) so runners don't jam against door jambs.
+   * - Softened (0.28x push at 0.62m) through the doorway bottleneck (-9.5 <= X < -7.8) and entry sprint.
+   * - Full 0.78m separation once inside the open main office floor, plus 0.88m player capsule clearance.
    */
   _resolveDynamicSeparations() {
-    const minZombieDist = 0.78;
-    const minZombieDistSq = minZombieDist * minZombieDist;
-
     for (let i = 0; i < this.waveEntries.length; i++) {
       const eA = this.waveEntries[i];
       if (!eA.spawned || eA.aiState === 'DEAD' || !eA.zombie.isSolidForPlayer()) continue;
-      if (eA.aiState === 'CLIMB_STAIRS') continue;
+      const pA = eA.zombie.root.position;
+      if (eA.aiState === 'CLIMB_STAIRS' && (pA.y < -0.1 || pA.x < -9.5)) continue;
 
       for (let j = i + 1; j < this.waveEntries.length; j++) {
         const eB = this.waveEntries[j];
         if (!eB.spawned || eB.aiState === 'DEAD' || !eB.zombie.isSolidForPlayer()) continue;
-        if (eB.aiState === 'CLIMB_STAIRS') continue;
-
-        const pA = eA.zombie.root.position;
         const pB = eB.zombie.root.position;
-        // Skip sideways separation in vestibule/doorway bottleneck (single-file queueing handles it)
-        if (!eA.zombie.hasExitedVestibule || !eB.zombie.hasExitedVestibule || pA.x < -8.0 || pB.x < -8.0) {
+        if (eB.aiState === 'CLIMB_STAIRS' && (pB.y < -0.1 || pB.x < -9.5)) continue;
+
+        // Skip sideways separation in stairwell/vestibule bottleneck (single-file queueing handles it)
+        if (pA.x < -9.5 || pB.x < -9.5) {
           continue;
         }
+
+        const inEntryBottleneck =
+          pA.x < -7.8 ||
+          pB.x < -7.8 ||
+          eA.aiState === 'CLIMB_STAIRS' ||
+          eB.aiState === 'CLIMB_STAIRS';
+        const minZombieDist = inEntryBottleneck ? 0.62 : 0.78;
+        const pushStrength = inEntryBottleneck ? 0.28 : 0.50;
+        const minZombieDistSq = minZombieDist * minZombieDist;
 
         const dx = pB.x - pA.x;
         const dz = pB.z - pA.z;
@@ -1349,13 +1602,13 @@ export class ZombieManager {
 
         if (dSq < minZombieDistSq) {
           const d = Math.sqrt(Math.max(1e-6, dSq));
-          const halfPush = (minZombieDist - d) * 0.5;
+          const push = (minZombieDist - d) * pushStrength;
           const nx = d > 1e-3 ? dx / d : 1;
           const nz = d > 1e-3 ? dz / d : 0;
-          pA.x -= nx * halfPush;
-          pA.z -= nz * halfPush;
-          pB.x += nx * halfPush;
-          pB.z += nz * halfPush;
+          pA.x -= nx * push;
+          pA.z -= nz * push;
+          pB.x += nx * push;
+          pB.z += nz * push;
           this._resolveSingleZombieObstacles(pA, true);
           this._resolveSingleZombieObstacles(pB, true);
         }
@@ -1400,11 +1653,14 @@ export class ZombieManager {
     if (entry.attackCooldown > 0) {
       entry.attackCooldown = Math.max(0, entry.attackCooldown - delta);
     }
+    if (entry.skillCooldown > 0) {
+      entry.skillCooldown = Math.max(0, entry.skillCooldown - delta);
+    }
 
     const pos = zom.root.position;
     const pPos = this.player ? this.player.position : null;
 
-    // 1. Phase 1: CLIMB_STAIRS (zombies sprint up the stairwell in Run mode)
+    // 1. Phase 1: CLIMB_STAIRS (continuous Run sprint up the stairs -> vestibule -> doorway -> Main Room Red Circle)
     if (entry.aiState === 'CLIMB_STAIRS') {
       if (!entry.queuePaused && zom.currentState !== 'Run') {
         zom.playAnimation('Run', 0.15);
@@ -1413,46 +1669,63 @@ export class ZombieManager {
         ? 3.10
         : (typeof zom.getDesiredRunSpeed === 'function' ? zom.getDesiredRunSpeed() : 2.65);
 
+      const stage = entry.climbStage ?? 0;
       const tx = entry.targetX;
       const tz = entry.targetZ;
-      const dx = tx - pos.x;
-      const dz = tz - pos.z;
-      const dist = Math.hypot(dx, dz);
+      let remaining = Math.hypot(tx - pos.x, tz - pos.z);
 
-      const prevX = pos.x;
-      const prevZ = pos.z;
-      let desiredStep = 0;
-      if (dist > 0.08) {
-        const ux = dx / dist;
-        const uz = dz / dist;
-        const qMul = this._evaluateBottleneckQueue(entry, ux, uz);
-        if (qMul === 0.0) {
-          if (!entry.queuePaused) {
-            entry.queuePaused = true;
-            zom.playAnimation('Idle', 0.18);
+      if (stage === 0) {
+        const dx = tx - pos.x;
+        const dz = tz - pos.z;
+        const prevX = pos.x;
+        const prevZ = pos.z;
+        if (remaining > 0.08) {
+          const ux = dx / remaining;
+          const uz = dz / remaining;
+          const qMul = this._evaluateBottleneckQueue(entry, ux, uz);
+          if (qMul === 0.0) {
+            if (!entry.queuePaused) {
+              entry.queuePaused = true;
+              zom.playAnimation('Idle', 0.18);
+            }
+            this._rotateYawToward(entry, Math.atan2(ux, uz), 4.5, delta);
+          } else {
+            if (entry.queuePaused) {
+              entry.queuePaused = false;
+              zom.playAnimation('Run', 0.18);
+            }
+            const actualStep = Math.min(remaining, climbSpeed * qMul * delta);
+            pos.x += ux * actualStep;
+            pos.z += uz * actualStep;
+            this._rotateYawToward(entry, Math.atan2(ux, uz), 6.5, delta);
           }
-          this._rotateYawToward(entry, Math.atan2(ux, uz), 4.5, delta);
+        }
+        const actualDist = Math.hypot(pos.x - prevX, pos.z - prevZ);
+        if (zom.currentState === 'Run' && delta > 1e-4) {
+          zom.syncRunTimeScale(actualDist / delta);
+        }
+
+        // Smooth stair elevation curve matching WarehouseBuilder 12 steps (Z=3.68 -> 7.40, Y=-2.22 -> 0.0)
+        if (pos.z <= 3.68) {
+          const t = Math.max(0, Math.min(1, (pos.z - 2.75) / (3.68 - 2.75)));
+          pos.y = -2.60 + t * 0.38;
+        } else if (pos.z < 7.40) {
+          const t = (pos.z - 3.68) / (7.40 - 3.68);
+          pos.y = -2.22 * (1.0 - t);
         } else {
-          if (entry.queuePaused) {
-            entry.queuePaused = false;
-            zom.playAnimation('Run', 0.18);
-          }
-          desiredStep = Math.min(dist, climbSpeed * delta);
-          const actualStep = Math.min(dist, climbSpeed * qMul * delta);
-          pos.x += ux * actualStep;
-          pos.z += uz * actualStep;
-          this._rotateYawToward(entry, Math.atan2(ux, uz), 6.5, delta);
+          pos.y = 0.0;
+        }
+        remaining = Math.hypot(tx - pos.x, tz - pos.z);
+      } else {
+        // Stages 1..4: Sprint on ground (Y = 0.0) across vestibule, through doorway & stanchions into red circle
+        pos.y = 0.0;
+        remaining = this._moveZombieWithObstacles(entry, tx, tz, climbSpeed, delta, false);
+        if (pos.x > -9.2 && stage >= 3) {
+          zom.hasExitedVestibule = true;
         }
       }
-      const actualDist = Math.hypot(pos.x - prevX, pos.z - prevZ);
-      if (zom.currentState === 'Walk') {
-        const movedFrac = desiredStep > 1e-4 ? actualDist / desiredStep : 1.0;
-        zom.syncWalkObstacleBlocking(movedFrac);
-      } else if (zom.currentState === 'Run' && delta > 1e-4) {
-        zom.syncRunTimeScale(actualDist / delta);
-      }
 
-      // Stairwell walk vocalization on staggered 3.2s - 5.8s cycle
+      // Entry vocalization on staggered 3.2s - 5.8s cycle
       if (!zom.tookDamageAggro && !entry.queuePaused && this.sound?.playZombieVocal) {
         entry.walkVocalTimer -= delta;
         if (entry.walkVocalTimer <= 0) {
@@ -1461,21 +1734,49 @@ export class ZombieManager {
         }
       }
 
-      // Smooth stair elevation curve matching WarehouseBuilder 12 steps (Z=3.68 -> 7.40, Y=-2.22 -> 0.0)
-      if (pos.z <= 3.68) {
-        const t = Math.max(0, Math.min(1, (pos.z - 2.75) / (3.68 - 2.75)));
-        pos.y = -2.60 + t * 0.38;
-      } else if (pos.z < 7.40) {
-        const t = (pos.z - 3.68) / (7.40 - 3.68);
-        pos.y = -2.22 * (1.0 - t);
-      } else {
-        pos.y = 0.0;
+      // Interrupt sprint ONLY if player is standing right in front of the zombie along the path (or already in main room with aggro)
+      if (!this.isPlayerInSafeZone && pos.y >= -0.35 && pPos) {
+        const distToPlayer = Math.hypot(pPos.x - pos.x, pPos.z - pos.z);
+        const directFrontAggro =
+          distToPlayer <= 2.4 && this._hasLineOfSightToPlayer(zom, pPos);
+        const postDoorAggro = zom.hasExitedVestibule && this._canDetectPlayer(entry);
+        if (directFrontAggro || postDoorAggro) {
+          this._enterChase(entry);
+          return;
+        }
       }
 
-      // Finished stair climb onto vestibule top landing
-      if (pos.z >= 7.95 && dist <= 0.45) {
+      // Advance along continuous sprint waypoint chain: stairs (0) -> vestibule (1) -> doorway (2) -> threshold (3) -> red circle (4)
+      if (stage === 0 && pos.z >= 7.95 && remaining <= 0.52) {
         pos.y = 0.0;
+        entry.climbStage = 1;
         entry.portalIndex = 0;
+        entry.targetX = VESTIBULE_PORTALS[0].x;
+        entry.targetZ = VESTIBULE_PORTALS[0].z;
+        entry.queuePaused = false;
+        entry.watchdogTimer = 0;
+        entry.watchdogLastX = pos.x;
+        entry.watchdogLastZ = pos.z;
+      } else if (stage >= 1 && stage <= 3 && remaining <= 0.55) {
+        const nextStage = stage + 1;
+        entry.climbStage = nextStage;
+        entry.portalIndex = Math.min(nextStage - 1, VESTIBULE_PORTALS.length - 1);
+        if (nextStage === 4) {
+          entry.targetX = entry.entryEndX ?? RED_CIRCLE_ENTRY_CENTER.x;
+          entry.targetZ = entry.entryEndZ ?? RED_CIRCLE_ENTRY_CENTER.z;
+        } else {
+          const nextPortal = VESTIBULE_PORTALS[entry.portalIndex];
+          entry.targetX = nextPortal.x;
+          entry.targetZ = nextPortal.z;
+        }
+        entry.watchdogTimer = 0;
+        entry.watchdogLastX = pos.x;
+        entry.watchdogLastZ = pos.z;
+      } else if (stage >= 4 && remaining <= 0.55) {
+        // Reached Main Room Red Circle Zone: transition into RUN_CHASE or WANDER_IDLE patrol
+        pos.y = 0.0;
+        zom.hasExitedVestibule = true;
+        entry.portalIndex = VESTIBULE_PORTALS.length - 1;
         entry.queuePaused = false;
         entry.watchdogTimer = 0;
         entry.watchdogLastX = pos.x;
@@ -1485,10 +1786,9 @@ export class ZombieManager {
         } else {
           entry.aiState = 'WANDER_IDLE';
           entry.subState = 'WALK';
-          entry.targetX = VESTIBULE_PORTALS[0].x;
-          entry.targetZ = VESTIBULE_PORTALS[0].z;
+          this._pickNextOfficeWaypoint(entry, 2.2);
           entry.stateTimer = randRange(3.5, 5.5);
-          zom.playAnimation('Walk', 0.22);
+          zom.playAnimation('Walk', 0.25);
         }
       }
       return;
@@ -1593,7 +1893,17 @@ export class ZombieManager {
       const zombieInOffice = pos.x > -10.05;
       const playerInOffice = pPos.x > -10.05;
 
-      if (distToPlayer <= 1.30 && zombieInOffice === playerInOffice && Math.abs(pPos.y - pos.y) < 1.2) {
+      if (zom.isHazmat) {
+        if (
+          distToPlayer <= HAZMAT_RADIATION_CONFIG.skillTriggerRadius &&
+          zombieInOffice === playerInOffice &&
+          Math.abs(pPos.y - pos.y) < 1.2 &&
+          entry.skillCooldown <= 0
+        ) {
+          this._enterSkillCast(entry);
+          return;
+        }
+      } else if (distToPlayer <= 1.30 && zombieInOffice === playerInOffice && Math.abs(pPos.y - pos.y) < 1.2) {
         this._enterAttack(entry);
         return;
       }
@@ -1623,7 +1933,14 @@ export class ZombieManager {
         }
       }
 
-      this._moveZombieWithObstacles(entry, goalX, goalZ, 3.10, delta, true);
+      const chaseSpeed = zom.isHazmat
+        ? (typeof zom.getDesiredRunSpeed === 'function' ? zom.getDesiredRunSpeed() : 2.45)
+        : 3.10;
+      if (zom.isHazmat && distToPlayer <= 1.45) {
+        this._rotateYawToward(entry, Math.atan2(pPos.x - pos.x, pPos.z - pos.z), 6.0, delta);
+      } else {
+        this._moveZombieWithObstacles(entry, goalX, goalZ, chaseSpeed, delta, true);
+      }
 
       // Sustained chase snarls: wait 2.8s - 4.6s AFTER the previous vocal clip finishes
       if (!zom.vocalChannel?.isPlaying && this.sound?.playZombieVocal) {
@@ -1631,6 +1948,43 @@ export class ZombieManager {
         if (entry.chaseVocalTimer <= 0) {
           this.sound.playZombieVocal(zom, 'chase');
           entry.chaseVocalTimer = randRange(2.8, 4.6);
+        }
+      }
+      return;
+    }
+
+    // 4b. Phase 4b: SKILL_CAST (ZombieHazmat close-range Zombie_Skill radiation burst)
+    if (entry.aiState === 'SKILL_CAST' && pPos) {
+      if (this.isPlayerInSafeZone) {
+        this._enterPatrolFromDeAggro(entry);
+        return;
+      }
+      const dx = pPos.x - pos.x;
+      const dz = pPos.z - pos.z;
+      const dist = Math.hypot(dx, dz);
+      this._rotateYawToward(entry, Math.atan2(dx, dz), 9.0, delta);
+
+      entry.skillTimer += delta;
+      const skillClip = zom.clips?.Skill || zom.clips?.Attack;
+      const clipDur = skillClip ? Math.max(1.2, skillClip.duration) : 3.5;
+
+      if (!entry.skillBurstTriggered && entry.skillTimer >= 0.45) {
+        entry.skillBurstTriggered = true;
+        entry.skillCooldown = HAZMAT_RADIATION_CONFIG.skillCooldown;
+        if (
+          dist <= HAZMAT_RADIATION_CONFIG.skillBurstRadius &&
+          Math.abs(pPos.y - pos.y) < 1.5 &&
+          typeof this.onPlayerRadiationBurst === 'function'
+        ) {
+          this.onPlayerRadiationBurst(HAZMAT_RADIATION_CONFIG.skillBurstDamage, zom);
+        }
+      }
+
+      if (entry.skillTimer >= clipDur) {
+        if (this.player.hp <= 0) {
+          this._enterPatrolFromDeAggro(entry);
+        } else {
+          this._enterChase(entry);
         }
       }
       return;
@@ -1711,64 +2065,152 @@ export class ZombieManager {
         this.sound.updateZombieSpatialAudio(this.manTemplate, cam, pPos);
       }
     }
+    if (this.hazmatTemplate && this.hazmatTemplate.isActive) {
+      this.hazmatTemplate.update(delta, cam, inSafeZone);
+      if (this.sound && cam) {
+        this.sound.updateZombieSpatialAudio(this.hazmatTemplate, cam, pPos);
+      }
+      // Allow testing Zombie_Skill 1.85m burst on the standalone F9 Hazmat showcase zombie
+      if (
+        gameState === 'PLAYING' &&
+        !this.hazmatTemplate.isDead &&
+        !inSafeZone &&
+        pPos &&
+        this.player?.hp > 0
+      ) {
+        const hzPos = this.hazmatTemplate.root.position;
+        const hzDist = Math.hypot(pPos.x - hzPos.x, pPos.z - hzPos.z);
+        const st = this._testHazmatSkillState;
+        if (st.cooldown > 0) st.cooldown = Math.max(0, st.cooldown - delta);
+        if (!st.casting && hzDist <= HAZMAT_RADIATION_CONFIG.skillTriggerRadius && Math.abs(pPos.y - hzPos.y) < 1.2 && st.cooldown <= 0) {
+          st.casting = true;
+          st.timer = 0;
+          st.burstFired = false;
+          this.hazmatTemplate.playAnimation('Skill', 0.14);
+          this.sound?.playZombieVocal?.(this.hazmatTemplate, 'attack');
+        }
+        if (st.casting) {
+          st.timer += delta;
+          if (!st.burstFired && st.timer >= 0.45) {
+            st.burstFired = true;
+            st.cooldown = HAZMAT_RADIATION_CONFIG.skillCooldown;
+            if (hzDist <= HAZMAT_RADIATION_CONFIG.skillBurstRadius && Math.abs(pPos.y - hzPos.y) < 1.5) {
+              this.onPlayerRadiationBurst?.(HAZMAT_RADIATION_CONFIG.skillBurstDamage, this.hazmatTemplate);
+            }
+          }
+          const clipDur = this.hazmatTemplate.clips?.Skill ? Math.max(1.2, this.hazmatTemplate.clips.Skill.duration) : 3.5;
+          if (st.timer >= clipDur) {
+            st.casting = false;
+            this.hazmatTemplate.playAnimation('Idle', 0.25);
+          }
+        }
+      }
+    }
 
-    if (!this.waveActive) return;
+    if (this.waveActive) {
+      this._waveElapsed += delta;
 
-    this._waveElapsed += delta;
+      for (let i = 0; i < this.waveEntries.length; i++) {
+        const entry = this.waveEntries[i];
+        if (!entry.spawned) {
+          if (this._waveElapsed >= entry.spawnDelay) {
+            this._activateStairClimb(entry);
+          } else {
+            continue;
+          }
+        }
 
-    for (let i = 0; i < this.waveEntries.length; i++) {
-      const entry = this.waveEntries[i];
-      if (!entry.spawned) {
-        if (this._waveElapsed >= entry.spawnDelay) {
-          this._activateStairClimb(entry);
-        } else {
-          continue;
+        if (gameState === 'PLAYING') {
+          this._updateEntryAI(entry, delta);
+        }
+        entry.zombie.update(delta, cam, inSafeZone);
+
+        if (
+          this.sound &&
+          cam &&
+          (entry.aiState !== 'DEAD' || entry.zombie.vocalChannel?.isPlaying)
+        ) {
+          this.sound.updateZombieSpatialAudio(entry.zombie, cam, pPos);
         }
       }
 
       if (gameState === 'PLAYING') {
-        this._updateEntryAI(entry, delta);
-      }
-      entry.zombie.update(delta, cam, inSafeZone);
+        this._resolveDynamicSeparations();
 
-      if (
-        this.sound &&
-        cam &&
-        (entry.aiState !== 'DEAD' || entry.zombie.vocalChannel?.isPlaying)
-      ) {
-        this.sound.updateZombieSpatialAudio(entry.zombie, cam, pPos);
-      }
-    }
-
-    if (gameState === 'PLAYING') {
-      this._resolveDynamicSeparations();
-
-      // Track Wave 1 cleared (all Wave-1 zombies spawned and dead) -> trigger Jório's 2nd phone call after 3.0s
-      if (!this._wave1ClearedNotified && this.waveEntries.length >= WAVE_1_SPAWN_SPECS.length) {
-        let allSpawned = true;
-        let allDead = true;
-        for (let i = 0; i < this.waveEntries.length; i++) {
-          const e = this.waveEntries[i];
-          if (!e.spawned) {
-            allSpawned = false;
-            break;
+        // Track Wave 1 cleared (all Wave-1 zombies spawned and dead) -> trigger Jório's 2nd phone call after 3.0s
+        if (
+          this.currentWave === 1 &&
+          !this._wave1ClearedNotified &&
+          this.waveEntries.length >= WAVE_1_SPAWN_SPECS.length
+        ) {
+          let allSpawned = true;
+          let allDead = true;
+          for (let i = 0; i < this.waveEntries.length; i++) {
+            const e = this.waveEntries[i];
+            if (!e.spawned) {
+              allSpawned = false;
+              break;
+            }
+            if (!e.zombie || !e.zombie.isDead) {
+              allDead = false;
+              break;
+            }
           }
-          if (!e.zombie || !e.zombie.isDead) {
-            allDead = false;
-            break;
-          }
-        }
-        if (allSpawned && allDead) {
-          this.wave1Cleared = true;
-          this._wave1ClearedTimer += delta;
-          if (this._wave1ClearedTimer >= 3.0) {
-            this._wave1ClearedNotified = true;
-            if (typeof this.onWave1Cleared === 'function') {
-              this.onWave1Cleared();
+          if (allSpawned && allDead) {
+            this.wave1Cleared = true;
+            this._wave1ClearedTimer += delta;
+            if (this._wave1ClearedTimer >= 3.0) {
+              this._wave1ClearedNotified = true;
+              if (typeof this.onWave1Cleared === 'function') {
+                this.onWave1Cleared();
+              }
             }
           }
         }
       }
+    }
+
+    // Zone 1 Passive Radiation Poisoning Aura (3.6m) across ALL living active ZombieHazmat instances
+    if (gameState === 'PLAYING' && !inSafeZone && pPos && this.player && this.player.hp > 0) {
+      const auraRadius = HAZMAT_RADIATION_CONFIG.auraRadius;
+      let closestDist = Infinity;
+
+      const checkHazmat = (zom) => {
+        if (!zom || !zom.isHazmat || !zom.isActive || !zom.isLoaded || zom.isDead) return;
+        const zp = zom.root.position;
+        if (Math.abs(pPos.y - zp.y) >= 2.2) return;
+        const d = Math.hypot(pPos.x - zp.x, pPos.z - zp.z);
+        if (d < closestDist) closestDist = d;
+      };
+
+      checkHazmat(this.hazmatTemplate);
+      for (let i = 0; i < this.waveZombies.length; i++) {
+        checkHazmat(this.waveZombies[i]);
+      }
+
+      if (closestDist <= auraRadius) {
+        const closeness = THREE.MathUtils.clamp(
+          (auraRadius - closestDist) / Math.max(0.5, auraRadius - 1.0),
+          0,
+          1
+        );
+        const drainRate = THREE.MathUtils.lerp(
+          HAZMAT_RADIATION_CONFIG.passiveDrainMin,
+          HAZMAT_RADIATION_CONFIG.passiveDrainMax,
+          closeness
+        );
+        this._wasRadiationExposed = true;
+        this.sound?.updateRadiationGeiger?.(delta, closeness);
+        this.onPlayerRadiationDrain?.(drainRate * delta, Math.max(0.15, closeness), closestDist);
+      } else if (this._wasRadiationExposed) {
+        this._wasRadiationExposed = false;
+        this.sound?.updateRadiationGeiger?.(delta, 0);
+        this.onPlayerRadiationDrain?.(0, 0, Infinity);
+      }
+    } else if (this._wasRadiationExposed) {
+      this._wasRadiationExposed = false;
+      this.sound?.updateRadiationGeiger?.(delta, 0);
+      this.onPlayerRadiationDrain?.(0, 0, Infinity);
     }
   }
 }

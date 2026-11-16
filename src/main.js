@@ -9,9 +9,7 @@ import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
 import { WeaponWheelHUD } from './ui/WeaponWheelHUD.js';
 import { GunShopHUD } from './ui/GunShopHUD.js';
-import { LightingTuner } from './ui/LightingTuner.js';
-import { ViewmodelTuner } from './ui/ViewmodelTuner.js';
-import { ZombieTuner } from './ui/ZombieTuner.js';
+import { DevToolsModal } from './ui/DevToolsModal.js';
 import { IntroSequence, ELEVATOR_SPAWN } from './game/IntroSequence.js';
 import { DecalManager } from './world/DecalManager.js';
 import { ZombieManager } from './enemies/ZombieManager.js';
@@ -121,13 +119,11 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   window.__rocIntro = introSequence;
 
-  const lightingTuner = new LightingTuner(engine, warehouse);
-  const viewmodelTuner = new ViewmodelTuner(viewmodel, weaponSystem);
-
   const decalManager = new DecalManager(engine.scene, warehouse.weaponColliderMesh || colliderMesh);
   const zombieManager = new ZombieManager(engine.scene, {
     womanTemplate: engine.zombie,
     manTemplate: engine.zombieMan,
+    hazmatTemplate: engine.zombieHazmat,
     sound,
     decalManager,
   });
@@ -219,14 +215,24 @@ window.addEventListener('DOMContentLoaded', () => {
     gunShop.open();
   };
 
-  const zombieTuner = new ZombieTuner(engine, zombieManager, weaponSystem);
+  const devToolsModal = new DevToolsModal({
+    engine,
+    warehouse,
+    viewmodel,
+    weaponSystem,
+    zombieManager,
+    player,
+    hud,
+    input,
+  });
 
   window.__rocWarehouse = warehouse;
-  window.__rocTuner = lightingTuner;
-  window.__rocViewmodelTuner = viewmodelTuner;
+  window.__rocDevTools = devToolsModal;
+  window.__rocTuner = devToolsModal;
+  window.__rocViewmodelTuner = devToolsModal;
   window.__rocZombieManager = zombieManager;
   window.__rocDecalManager = decalManager;
-  window.__rocZombieTuner = zombieTuner;
+  window.__rocZombieTuner = devToolsModal;
 
   let gameState = 'MAIN_MENU';
   let menuCameraElapsed = 0;
@@ -296,9 +302,20 @@ window.addEventListener('DOMContentLoaded', () => {
     introSequence.triggerSecondPhoneCall();
   };
 
+  function handlePlayerFatalDamage() {
+    deathCollapseElapsed = 0;
+    gameOverShown = false;
+    hud.resetRadiationWarning?.();
+    player.startDeathCollapse();
+    setGameState('GAME_OVER');
+    if (document.pointerLockElement) {
+      try { document.exitPointerLock(); } catch (e) {}
+    }
+  }
+
   zombieManager.onPlayerHit = () => {
     if (gameState !== 'PLAYING') return;
-    const remainingHp = player.takeDamage(1);
+    const remainingHp = player.takeDamage(33.34);
     if (typeof hud.setHealth === 'function') {
       hud.setHealth(remainingHp, player.maxHp);
     }
@@ -309,13 +326,46 @@ window.addEventListener('DOMContentLoaded', () => {
       hud.triggerDamageFlash(remainingHp, player.maxHp);
     }
     if (remainingHp <= 0) {
-      deathCollapseElapsed = 0;
-      gameOverShown = false;
-      player.startDeathCollapse();
-      setGameState('GAME_OVER');
-      if (document.pointerLockElement) {
-        try { document.exitPointerLock(); } catch (e) {}
+      handlePlayerFatalDamage();
+    }
+  };
+
+  zombieManager.onPlayerRadiationDrain = (drainAmount = 0, proximity = 0) => {
+    if (gameState !== 'PLAYING') return;
+    if (typeof hud.setRadiationExposure === 'function') {
+      hud.setRadiationExposure(proximity);
+    }
+    if (drainAmount > 0 && player.hp > 0) {
+      const remainingHp = player.takeDamage(drainAmount, { punch: false });
+      if (typeof hud.setHealth === 'function') {
+        hud.setHealth(remainingHp, player.maxHp);
       }
+      if (remainingHp <= 0) {
+        sound.playPlayerHit?.(true);
+        handlePlayerFatalDamage();
+      }
+    }
+  };
+
+  zombieManager.onPlayerRadiationBurst = (burstDamage = 28) => {
+    if (gameState !== 'PLAYING' || player.hp <= 0) return;
+    const remainingHp = player.takeDamage(burstDamage, {
+      punch: true,
+      punchPitch: 0.095,
+      punchRoll: 0.16,
+    });
+    if (typeof hud.setHealth === 'function') {
+      hud.setHealth(remainingHp, player.maxHp);
+    }
+    if (typeof hud.triggerRadiationBurst === 'function') {
+      hud.triggerRadiationBurst();
+    }
+    if (typeof sound.playHazmatSkillBurst === 'function') {
+      sound.playHazmatSkillBurst();
+    }
+    if (remainingHp <= 0) {
+      sound.playPlayerHit?.(true);
+      handlePlayerFatalDamage();
     }
   };
 
@@ -349,9 +399,7 @@ window.addEventListener('DOMContentLoaded', () => {
       viewmodel.root.visible = false;
       input.clearInputs();
       if (window.isGunShopOpen) gunShop.close(false);
-      if (window.isZombieTunerOpen) zombieTuner.close();
-      if (window.isViewmodelTunerOpen) viewmodelTuner.close();
-      if (window.isLightingTunerOpen) lightingTuner.close();
+      if (window.isDevToolsModalOpen) devToolsModal.close();
     } else if (state === 'PAUSED') {
       startModal.classList.remove('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
@@ -637,7 +685,7 @@ window.addEventListener('DOMContentLoaded', () => {
         }
         zombieManager.update(delta, gameState);
         decalManager.update(delta);
-        hud.updateDamageVignette(delta, player.hp);
+        hud.updateDamageVignette(delta, player.hp, player.maxHp);
         weaponSystem.update(delta);
         TWEEN.update();
         return;
@@ -676,10 +724,10 @@ window.addEventListener('DOMContentLoaded', () => {
       // 4b. Opening gameplay sequence state machine (tutorial fade-in, phone ringing, proximity pickup)
       introSequence.update(delta, gameState);
 
-      // 4c. Wave-1 zombie AI, animations, blood decals/droplets & edge vignette pulse (always live at 60 FPS)
+      // 4c. Wave zombie AI, radiation aura, blood decals/droplets & edge vignette pulse (always live at 60 FPS)
       zombieManager.update(delta, gameState, isPlayerInSafeZone);
       decalManager.update(delta);
-      hud.updateDamageVignette(delta, player.hp);
+      hud.updateDamageVignette(delta, player.hp, player.maxHp);
       if (typeof hud.updateStatusTicker === 'function') {
         hud.updateStatusTicker(delta);
       }
@@ -865,7 +913,8 @@ window.addEventListener('DOMContentLoaded', () => {
     setGameState('PLAYING');
   });
 
-  // Global flags for F7 lighting, F8 viewmodel, and F9 zombie tuners to prevent pause menu interference
+  // Global flags for Unified Master Dev Tools (F7 Lighting, F8 Viewmodel, F9 Zombies) to prevent pause menu interference
+  window.isDevToolsModalOpen = false;
   window.isViewmodelTunerOpen = false;
   window.isLightingTunerOpen = false;
   window.isZombieTunerOpen = false;
@@ -873,6 +922,7 @@ window.addEventListener('DOMContentLoaded', () => {
   input.onUnlock(() => {
     if (
       window.isGunShopOpen ||
+      window.isDevToolsModalOpen ||
       window.isViewmodelTunerOpen ||
       window.isLightingTunerOpen ||
       window.isZombieTunerOpen ||
@@ -896,16 +946,9 @@ window.addEventListener('DOMContentLoaded', () => {
       }
     }
     if (e.code === 'Escape' || e.key === 'Escape') {
-      if (window.isZombieTunerOpen) {
-        zombieTuner.close();
-        return;
-      }
-      if (window.isViewmodelTunerOpen) {
-        viewmodelTuner.close();
-        return;
-      }
-      if (window.isLightingTunerOpen) {
-        lightingTuner.close();
+      if (window.isDevToolsModalOpen) {
+        e.preventDefault();
+        devToolsModal.close();
         return;
       }
       if (gameState === 'PLAYING') {
@@ -934,6 +977,7 @@ window.addEventListener('DOMContentLoaded', () => {
       introSequence &&
       (introSequence.state === 'PHONE_ANSWERED' || introSequence.state === 'SECOND_PHONE_ANSWERED')
     ) ||
+    Boolean(window.isDevToolsModalOpen) ||
     Boolean(window.isViewmodelTunerOpen) ||
     Boolean(window.isLightingTunerOpen) ||
     Boolean(window.isZombieTunerOpen);

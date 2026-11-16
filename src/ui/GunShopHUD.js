@@ -205,8 +205,8 @@ export class GunShopHUD {
     this.sound = sound;
     this.getMoney = getMoney || (() => 0);
     this.spendMoney = spendMoney || (() => false);
-    this.getHp = getHp || (() => 3);
-    this.getMaxHp = getMaxHp || (() => 3);
+    this.getHp = getHp || (() => 100);
+    this.getMaxHp = getMaxHp || (() => 100);
     this.onPurchaseMedkit = onPurchaseMedkit || null;
     this.onClose = onClose || null;
     this.onWeaponUnlocked = onWeaponUnlocked || null;
@@ -889,7 +889,7 @@ export class GunShopHUD {
 
       this.buyBtnEl.classList.remove('is-owned', 'is-insufficient', 'is-unavailable');
       const hp = Number(this.getHp()) || 0;
-      const maxHp = Math.max(1, Number(this.getMaxHp()) || 3);
+      const maxHp = Math.max(1, Number(this.getMaxHp()) || 100);
       if (hp >= maxHp || rem <= 0) {
         this.buyBtnEl.classList.add('is-unavailable');
         this.buyBtnEl.textContent = 'INDISPONÍVEL';
@@ -953,7 +953,7 @@ export class GunShopHUD {
 
     if (sel.kind === 'consumable') {
       const hp = Number(this.getHp()) || 0;
-      const maxHp = Math.max(1, Number(this.getMaxHp()) || 3);
+      const maxHp = Math.max(1, Number(this.getMaxHp()) || 100);
       if (this.medkitsRemaining <= 0 || hp >= maxHp) {
         this.refreshUI();
         return;
@@ -1011,11 +1011,11 @@ export class GunShopHUD {
     const aspect = this._camera.aspect || 16 / 9;
     const targetZ = this._activeShowcaseModel
       ? this._computeFitDistance(
-          this._activeShowcaseModel.userData?.showcaseSize,
-          aspect,
-          isSpinning ? 0.86 : 0.75,
-          isSpinning
-        )
+        this._activeShowcaseModel.userData?.showcaseSize,
+        aspect,
+        isSpinning ? 0.86 : 0.75,
+        isSpinning
+      )
       : 1.6;
     this._camZ += (targetZ - this._camZ) * Math.min(1, delta * 9.0);
     this._camera.position.set(0, 0, this._camZ);

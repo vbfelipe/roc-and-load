@@ -57,9 +57,9 @@ export class PlayerController {
     this.gameState = 'MENU';
     this.jumpSuppressed = false;
 
-    // Player combat health & hit-punch jolt state
-    this.maxHp = 3;
-    this.hp = 3;
+    // Player combat health (0.0 - 100.0 percentage scale) & hit-punch jolt state
+    this.maxHp = 100.0;
+    this.hp = 100.0;
     this.hitPunchPitch = 0;
     this.hitPunchRoll = 0;
     this._deathCollapseStartY = 1.65;
@@ -115,16 +115,19 @@ export class PlayerController {
     return true;
   }
 
-  takeDamage(amount = 1) {
+  takeDamage(amount = 33.34, options = {}) {
     if (this.hp <= 0) return 0;
-    this.hp = Math.max(0, this.hp - amount);
-    this.applyHitPunch();
+    const dmg = Math.max(0, Number(amount) || 0);
+    this.hp = Math.max(0, this.hp - dmg);
+    if (options.punch !== false) {
+      this.applyHitPunch(options.punchPitch, options.punchRoll);
+    }
     return this.hp;
   }
 
-  applyHitPunch() {
-    this.hitPunchPitch += 0.085;
-    this.hitPunchRoll += (Math.random() > 0.5 ? 1 : -1) * 0.145;
+  applyHitPunch(pitchAmount = 0.085, rollAmount = 0.145) {
+    this.hitPunchPitch += pitchAmount;
+    this.hitPunchRoll += (Math.random() > 0.5 ? 1 : -1) * rollAmount;
   }
 
   startDeathCollapse() {

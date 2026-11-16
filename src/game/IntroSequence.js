@@ -47,12 +47,13 @@ const TUTORIAL_REVEAL_TIME_SECONDS = 2.45;
 // Threshold X coordinate stepping out of the glass partition doorway into the main office room
 const MAIN_ROOM_THRESHOLD_X = -9.8;
 const PHONE_RING_DELAY_AFTER_ENTRY_SECONDS = 6.0;
-const PHONE_INTERACT_RADIUS = 1.22;
+const PHONE_INTERACT_RADIUS = 1.65;
 const SECOND_PHONE_INTERACT_RADIUS = 2.30;
 const MAINTENANCE_DOOR_INTERACT_RADIUS = 2.30;
 const MAINTENANCE_DOOR_OPEN_DURATION = 0.75;
 const CRATE_INTERACT_RADIUS = 1.60;
 const CRATE_LOOK_DOT_THRESHOLD = 0.78;
+const PHONE_LOOK_DOT_THRESHOLD = 0.78;
 const TUTORIAL_MAX_DURATION_SECONDS = 12.0;
 const TYPEWRITER_CHARS_PER_SEC = 38.0;
 const TYPEWRITER_PUNCT_PAUSE = 0.18;
@@ -157,6 +158,11 @@ export class IntroSequence {
     this._camDir = new THREE.Vector3();
     this._toCrate = new THREE.Vector3();
     this._interactRay = new THREE.Ray();
+    this._phoneInteractBox = new THREE.Box3(
+      new THREE.Vector3(1.46 - 0.25, 0.85, -2.82 - 0.25),
+      new THREE.Vector3(1.46 + 0.25, 1.25, -2.82 + 0.25)
+    );
+    this._phoneTargetCenter = new THREE.Vector3(1.46, 1.05, -2.82);
     this._crateCenterFallback = new THREE.Vector3(-12.47, 0.26, -4.00);
     this._crateInteractBoxFallback = new THREE.Box3(
       new THREE.Vector3(-12.47 - 0.31 - 0.10, -0.10, -4.00 - 0.55 - 0.10),
@@ -189,10 +195,39 @@ export class IntroSequence {
 
     this._phoneRef = phone;
     if (this._phoneRef) {
-      this._phoneRef.updateWorldMatrix(true, false);
+      this._phoneRef.updateWorldMatrix(true, true);
       this._phoneRef.getWorldPosition(this._phoneWorldPos);
       this._arrowBaseY = this._phoneWorldPos.y + 0.68;
+      this._phoneInteractBox.setFromObject(this._phoneRef).expandByScalar(0.14);
+      this._phoneInteractBox.getCenter(this._phoneTargetCenter);
     }
+  }
+
+  /**
+   * Returns true only when the player is within horizontal distance AND looking directly at targetBox
+   * (dot-product cone + center camera ray intersection, matching the Supply Crate interaction).
+   */
+  _isLookTargetInRange(targetCenter, targetBox, maxHorizRadius, dotThreshold = 0.78) {
+    if (!this.camera || !targetCenter || !targetBox) return false;
+    const posRef = this.player ? this.player.position : this.camera.position;
+    if (!posRef) return false;
+
+    const horizDist = Math.hypot(targetCenter.x - posRef.x, targetCenter.z - posRef.z);
+    if (horizDist > maxHorizRadius) return false;
+
+    this.camera.updateMatrixWorld();
+    this.camera.getWorldPosition(this._camPos);
+    this.camera.getWorldDirection(this._camDir);
+
+    this._toCrate.subVectors(targetCenter, this._camPos);
+    if (this._toCrate.lengthSq() > 1e-8) {
+      this._toCrate.normalize();
+    }
+    if (this._camDir.dot(this._toCrate) < dotThreshold) return false;
+
+    this._interactRay.origin.copy(this._camPos);
+    this._interactRay.direction.copy(this._camDir);
+    return this._interactRay.intersectsBox(targetBox);
   }
 
   _buildFloatingArrow() {
@@ -1495,16 +1530,22 @@ export class IntroSequence {
         this.sound.updatePhoneRingtoneSpatial(distance, pan);
       }
 
-      // 4. Proximity [F] INTERAGIR prompt & F key pickup
-      const posRef = this.player ? this.player.position : this.camera.position;
-      const horizDist = Math.hypot(this._phoneWorldPos.x - posRef.x, this._phoneWorldPos.z - posRef.z);
-      const inRange = horizDist <= interactRadius;
+      // 4. Direct-look raycast + proximity [F] INTERAGIR prompt & F key pickup (matching Supply Crate)
+      const canInteractPhone = this._isLookTargetInRange(
+        this._phoneTargetCenter,
+        this._phoneInteractBox,
+        interactRadius,
+        PHONE_LOOK_DOT_THRESHOLD
+      );
       if (this.hud) {
-        this.hud.setInteractVisible(inRange);
+        this.hud.setInteractVisible(canInteractPhone);
       }
-
+      if (!canInteractPhone && this.input) {
+        this.input.consumeKeyJustPressed('KeyF');
+        this.input.consumeKeyJustPressed('f');
+      }
       if (
-        inRange &&
+        canInteractPhone &&
         this.input &&
         this.input.isLocked &&
         document.pointerLockElement !== null &&
@@ -1648,22 +1689,13 @@ export class IntroSequence {
       const inCloset = this.warehouse?.isPlayerInMaintenanceCloset(posRef) || false;
 
       let canInteractCrate = false;
-      if (crateClosed && inCloset && !window.isGunShopOpen && posRef && this.camera) {
-        const horizDist = Math.hypot(crateCenter.x - posRef.x, crateCenter.z - posRef.z);
-        if (horizDist <= CRATE_INTERACT_RADIUS) {
-          this.camera.updateMatrixWorld();
-          this.camera.getWorldPosition(this._camPos);
-          this.camera.getWorldDirection(this._camDir);
-          this._toCrate.subVectors(crateCenter, this._camPos);
-          if (this._toCrate.lengthSq() > 1e-8) {
-            this._toCrate.normalize();
-          }
-          if (this._camDir.dot(this._toCrate) >= CRATE_LOOK_DOT_THRESHOLD) {
-            this._interactRay.origin.copy(this._camPos);
-            this._interactRay.direction.copy(this._camDir);
-            canInteractCrate = this._interactRay.intersectsBox(crateBox);
-          }
-        }
+      if (crateClosed && inCloset && !window.isGunShopOpen) {
+        canInteractCrate = this._isLookTargetInRange(
+          crateCenter,
+          crateBox,
+          CRATE_INTERACT_RADIUS,
+          CRATE_LOOK_DOT_THRESHOLD
+        );
       }
 
       if (this.hud) {

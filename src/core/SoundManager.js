@@ -74,6 +74,7 @@ export class SoundManager {
     this.lastDryFireTime = -Infinity;
     this.isPreloading = true;
     this._buildingExplosion = null;
+    this._geigerTimer = 0;
 
     this._initAudio();
     this._initMenuMusic();
@@ -3053,10 +3054,12 @@ export class SoundManager {
   initZombieVocalChannel(zombie, pitchBase = null) {
     if (!zombie || !this.ctx || !this.masterGain) return zombie?.vocalChannel || null;
 
-    const isFemale =
-      zombie.isFemale !== undefined
+    const isHazmat = zombie.archetype === 'hazmat' || !!zombie.isHazmat;
+    const isFemale = isHazmat
+      ? false
+      : (zombie.isFemale !== undefined
         ? !!zombie.isFemale
-        : zombie.archetype !== 'man' && !(zombie.logTag || zombie.rootName || '').includes('Man');
+        : zombie.archetype !== 'man' && !(zombie.logTag || zombie.rootName || '').includes('Man'));
 
     if (zombie.vocalChannel) {
       if (pitchBase !== null && pitchBase !== undefined) {
@@ -3111,7 +3114,7 @@ export class SoundManager {
       wetSend.connect(ambienceIn);
     }
 
-    const defaultPitch = pitchBase ?? zombie.vocalPitchBase ?? (isFemale ? FEMALE_BASE_PITCH : 0.84);
+    const defaultPitch = pitchBase ?? zombie.vocalPitchBase ?? (isHazmat ? 0.68 : (isFemale ? FEMALE_BASE_PITCH : 0.84));
     const ch = {
       isFemale,
       pitchBase: defaultPitch,
@@ -3382,6 +3385,160 @@ export class SoundManager {
       g.connect(this.masterGain);
       src.start(now);
     }
+  }
+
+  /**
+   * Procedural Web Audio Geiger counter clicking/crackling loop whose frequency
+   * scales smoothly with proximity inside ZombieHazmat's 3.6m radiation aura.
+   */
+  updateRadiationGeiger(delta, proximity = 0) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    if (proximity <= 0.001) {
+      this._geigerTimer = 0;
+      return;
+    }
+
+    this._geigerTimer -= delta;
+    if (this._geigerTimer > 0) return;
+
+    this.resume();
+    const clamped = Math.max(0, Math.min(1, proximity));
+    // 4 Hz at outer 3.6m rim -> ~26 Hz point-blank, with subtle organic jitter
+    const clicksPerSec = 4.0 + clamped * 22.0;
+    this._geigerTimer = (1.0 / clicksPerSec) * (0.60 + Math.random() * 0.80);
+
+    const now = this.ctx.currentTime;
+    const nBuf = this._noiseBufferCache.get(0.015) || this._createNoiseBuffer(0.015);
+    if (nBuf) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = nBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(3400 + Math.random() * 1600, now);
+      bp.Q.setValueAtTime(2.6, now);
+
+      const g = this.ctx.createGain();
+      const amp = (0.09 + clamped * 0.14) * (0.75 + Math.random() * 0.5);
+      g.gain.setValueAtTime(amp, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.011);
+
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.masterGain);
+      src.start(now);
+      src.stop(now + 0.014);
+    }
+  }
+
+  /**
+   * Close-range Zombie_Skill radiation burst: muffled hazmat-mask roar + heavy shockwave pulse + frantic Geiger burst.
+   */
+  playHazmatSkillBurst() {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    // 1. Sub-bass radioactive shockwave thump
+    const sub = this.ctx.createOscillator();
+    const subG = this.ctx.createGain();
+    sub.type = 'sine';
+    sub.frequency.setValueAtTime(115, now);
+    sub.frequency.exponentialRampToValueAtTime(34, now + 0.42);
+    subG.gain.setValueAtTime(0.001, now);
+    subG.gain.linearRampToValueAtTime(0.55, now + 0.012);
+    subG.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
+    sub.connect(subG);
+    subG.connect(this.masterGain);
+    sub.start(now);
+    sub.stop(now + 0.48);
+
+    // 2. Muffled hazmat-mask distorted roar / electrical surge
+    const roar = this.ctx.createOscillator();
+    const roarFilt = this.ctx.createBiquadFilter();
+    const roarG = this.ctx.createGain();
+    roar.type = 'sawtooth';
+    roar.frequency.setValueAtTime(112, now);
+    roar.frequency.linearRampToValueAtTime(76, now + 0.38);
+    roarFilt.type = 'bandpass';
+    roarFilt.frequency.setValueAtTime(520, now);
+    roarFilt.frequency.exponentialRampToValueAtTime(240, now + 0.42);
+    roarFilt.Q.setValueAtTime(2.2, now);
+    roarG.gain.setValueAtTime(0.001, now);
+    roarG.gain.linearRampToValueAtTime(0.32, now + 0.03);
+    roarG.gain.exponentialRampToValueAtTime(0.0001, now + 0.46);
+    roar.connect(roarFilt);
+    roarFilt.connect(roarG);
+    roarG.connect(this.masterGain);
+    roar.start(now);
+    roar.stop(now + 0.48);
+
+    // 3. Rapid cluster of 5 intense Geiger crackles
+    const nBuf = this._noiseBufferCache.get(0.025) || this._createNoiseBuffer(0.025);
+    if (nBuf) {
+      for (let i = 0; i < 5; i++) {
+        const t = now + i * 0.038;
+        const src = this.ctx.createBufferSource();
+        src.buffer = nBuf;
+        const hp = this.ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.setValueAtTime(2800 + i * 300, t);
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.24 - i * 0.02, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.018);
+        src.connect(hp);
+        hp.connect(g);
+        g.connect(this.masterGain);
+        src.start(t);
+        src.stop(t + 0.022);
+      }
+    }
+  }
+
+  /**
+   * Muffled hazmat suit decompression hiss + heavy body collapse thud on ZombieHazmat death.
+   */
+  playHazmatDeath(distance = 5) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+    const att = Math.max(0.28, Math.min(1.0, 1.0 / (1.0 + Math.max(0, distance - 2.0) * 0.10)));
+
+    // 1. Pressurized hazmat suit rupture hiss
+    const hissDur = 0.65;
+    const nBuf = this._noiseBufferCache.get(hissDur) || this._createNoiseBuffer(hissDur);
+    if (nBuf) {
+      const src = this.ctx.createBufferSource();
+      src.buffer = nBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(2400, now);
+      bp.frequency.exponentialRampToValueAtTime(680, now + hissDur);
+      bp.Q.setValueAtTime(1.4, now);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.001, now);
+      g.gain.linearRampToValueAtTime(0.26 * att, now + 0.04);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + hissDur);
+      src.connect(bp);
+      bp.connect(g);
+      g.connect(this.masterGain);
+      src.start(now);
+      src.stop(now + hissDur + 0.02);
+    }
+
+    // 2. Heavy juggernaut body impact thud at 0.52s
+    const thudAt = now + 0.52;
+    const thud = this.ctx.createOscillator();
+    const thudG = this.ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(78, thudAt);
+    thud.frequency.exponentialRampToValueAtTime(28, thudAt + 0.24);
+    thudG.gain.setValueAtTime(0.001, thudAt);
+    thudG.gain.linearRampToValueAtTime(0.42 * att, thudAt + 0.012);
+    thudG.gain.exponentialRampToValueAtTime(0.0001, thudAt + 0.26);
+    thud.connect(thudG);
+    thudG.connect(this.masterGain);
+    thud.start(thudAt);
+    thud.stop(thudAt + 0.28);
   }
 
   /**

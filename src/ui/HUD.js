@@ -24,6 +24,8 @@ export class HUD {
 
     this.damageVignetteEl = null;
     this.healVignetteEl = null;
+    this.radiationOverlayEl = null;
+    this.radiationWarningEl = null;
     this.gameOverScreenEl = null;
     this._damageFlashAlpha = 0;
     this._damagePulsePhase = 0;
@@ -32,9 +34,17 @@ export class HUD {
     this._healVignetteTimer = 0;
     this._lastHealVignetteOpacity = -1;
 
-    // Top-right status HUD state (HP, rolling Money, Kills) + Safe-zone indicator
-    this._statusHp = 3;
-    this._statusMaxHp = 3;
+    // Radiation screen & top-center warning state
+    this._radiationExposure = 0;
+    this._radiationBurstAlpha = 0;
+    this._radiationPulsePhase = 0;
+    this._radiationHoldTimer = 0;
+    this._lastRadiationOverlayOpacity = -1;
+    this._lastRadiationWarningVisible = null;
+
+    // Top-right status HUD state (0-100% HP, rolling Money, Kills) + Safe-zone indicator
+    this._statusHp = 100;
+    this._statusMaxHp = 100;
     this._displayMoney = 0;
     this._targetMoney = 0;
     this._lastRenderedMoneyText = '$ 0';
@@ -57,6 +67,7 @@ export class HUD {
     this.uiLayer = uiLayer;
     this.damageVignetteEl = document.getElementById('hud-damage-vignette');
     this.healVignetteEl = document.getElementById('hud-heal-vignette');
+    this.radiationOverlayEl = document.getElementById('hud-radiation-overlay');
     this.gameOverScreenEl = document.getElementById('game-over-screen');
 
     // Track unarmed & opening sequence HUD state (dirty checked)
@@ -175,6 +186,25 @@ export class HUD {
     this.safeZoneBannerEl.style.display = 'none';
     this.safeZoneBannerEl.innerHTML = `<span class="safe-dot"></span><span>ZONA SEGURA</span>`;
     uiLayer.appendChild(this.safeZoneBannerEl);
+
+    // Top-center Radioactive Hazard Warning Banner + Trefoil SVG
+    this.radiationWarningEl = document.createElement('div');
+    this.radiationWarningEl.id = 'hud-radiation-warning';
+    this.radiationWarningEl.className = 'hud-radiation-warning hidden';
+    this.radiationWarningEl.style.display = 'none';
+    this.radiationWarningEl.innerHTML = `
+      <span class="hud-radiation-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+          <circle cx="12" cy="12" r="2.2"/>
+          <path d="M12 2a10 10 0 0 0-8.66 5l4.33 2.5a5 5 0 0 1 8.66 0L20.66 7A10 10 0 0 0 12 2z" opacity="0.95"/>
+          <path d="M12 22a10 10 0 0 0 8.66-5l-4.33-2.5a5 5 0 0 1-4.33 2.5V22z" opacity="0.95"/>
+          <path d="M3.34 17A10 10 0 0 0 12 22v-5a5 5 0 0 1-4.33-2.5L3.34 17z" opacity="0.95"/>
+          <circle cx="12" cy="12" r="10.4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
+        </svg>
+      </span>
+      <span>ALERTA DE RADIAÇÃO — AFESTE-SE!</span>
+    `;
+    uiLayer.appendChild(this.radiationWarningEl);
   }
 
   /**
@@ -736,6 +766,9 @@ export class HUD {
     if (this.safeZoneBannerEl) {
       this.safeZoneBannerEl.style.maxWidth = `${Math.max(160, window.innerWidth - 24)}px`;
     }
+    if (this.radiationWarningEl) {
+      this.radiationWarningEl.style.maxWidth = `${Math.max(180, window.innerWidth - 24)}px`;
+    }
   }
 
   setSafeZoneVisible(visible) {
@@ -743,22 +776,16 @@ export class HUD {
     this._syncIntroOverlays();
   }
 
-  setHealth(hp, maxHp = 3) {
-    const safeMax = Math.max(1, Number(maxHp) || 3);
+  setHealth(hp, maxHp = 100) {
+    const safeMax = Math.max(1, Number(maxHp) || 100);
     const safeHp = Math.max(0, Math.min(safeMax, Number(hp) || 0));
     this._statusHp = safeHp;
     this._statusMaxHp = safeMax;
 
     if (!this.hpBarFillEl) return;
-    let pct = (safeHp / safeMax) * 100;
-    if (safeMax === 3) {
-      if (safeHp === 3) pct = 100;
-      else if (safeHp === 2) pct = 66.67;
-      else if (safeHp === 1) pct = 33.33;
-      else pct = 0;
-    }
+    const pct = (safeHp / safeMax) * 100;
     this.hpBarFillEl.style.width = `${pct.toFixed(2)}%`;
-    this.hpBarFillEl.classList.toggle('is-critical', safeHp === 1);
+    this.hpBarFillEl.classList.toggle('is-critical', safeHp > 0 && pct <= 34.0);
   }
 
   setMoney(money, deltaAmount = 0) {
@@ -998,7 +1025,7 @@ export class HUD {
     }
   }
 
-  triggerDamageFlash(currentHp, _maxHp = 3) {
+  triggerDamageFlash(currentHp, _maxHp = 100) {
     this._damageFlashAlpha = currentHp <= 0 ? 0.96 : 0.85;
   }
 
@@ -1007,7 +1034,73 @@ export class HUD {
     this._healVignetteTimer = 0;
   }
 
-  updateDamageVignette(delta, currentHp = 3) {
+  setRadiationExposure(proximity = 0) {
+    const clamped = Math.max(0, Math.min(1, Number(proximity) || 0));
+    this._radiationExposure = clamped;
+    if (clamped > 0.001) {
+      this._radiationHoldTimer = 0.60;
+    }
+  }
+
+  triggerRadiationBurst() {
+    this._radiationBurstAlpha = 0.92;
+    this._radiationHoldTimer = Math.max(this._radiationHoldTimer, 1.25);
+  }
+
+  updateRadiationEffects(delta) {
+    if (this._radiationBurstAlpha > 0) {
+      this._radiationBurstAlpha = Math.max(0, this._radiationBurstAlpha - delta * 1.35);
+    }
+
+    const activeExposure = this._gameplayActive && this._radiationExposure > 0.001;
+    if (activeExposure) {
+      this._radiationHoldTimer = 0.60;
+    } else if (this._radiationHoldTimer > 0) {
+      this._radiationHoldTimer = Math.max(0, this._radiationHoldTimer - delta);
+    }
+
+    if (this.radiationOverlayEl) {
+      let passivePulse = 0;
+      if (activeExposure) {
+        this._radiationPulsePhase += delta * (4.2 + this._radiationExposure * 4.5);
+        passivePulse = 0.45 + 0.10 * Math.sin(this._radiationPulsePhase); // 0.35 <-> 0.55 pulse
+      }
+      const targetOverlayOpacity = this._gameplayActive
+        ? Math.min(0.95, Math.max(passivePulse, this._radiationBurstAlpha))
+        : 0;
+      if (Math.abs(targetOverlayOpacity - this._lastRadiationOverlayOpacity) > 0.005) {
+        this._lastRadiationOverlayOpacity = targetOverlayOpacity;
+        this.radiationOverlayEl.style.opacity = targetOverlayOpacity.toFixed(3);
+      }
+    }
+
+    if (this.radiationWarningEl) {
+      const showWarning = this._gameplayActive && (activeExposure || this._radiationHoldTimer > 0);
+      if (this._lastRadiationWarningVisible !== showWarning) {
+        this._lastRadiationWarningVisible = showWarning;
+        this._applyOverlayVisibility(this.radiationWarningEl, showWarning, { fadeMs: 250, centerX: true });
+      }
+    }
+  }
+
+  resetRadiationWarning() {
+    this._radiationExposure = 0;
+    this._radiationBurstAlpha = 0;
+    this._radiationPulsePhase = 0;
+    this._radiationHoldTimer = 0;
+    this._lastRadiationOverlayOpacity = 0;
+    if (this.radiationOverlayEl) {
+      this.radiationOverlayEl.style.opacity = '0';
+    }
+    this._lastRadiationWarningVisible = false;
+    if (this.radiationWarningEl) {
+      this._applyOverlayVisibility(this.radiationWarningEl, false, { instant: true, centerX: true });
+    }
+  }
+
+  updateDamageVignette(delta, currentHp = 100, maxHp = 100) {
+    this.updateRadiationEffects(delta);
+
     if (this.healVignetteEl && this._healVignetteActive) {
       this._healVignetteTimer += delta;
       const pulseIn = 0.15;
@@ -1033,11 +1126,13 @@ export class HUD {
       this._damageFlashAlpha = Math.max(0, this._damageFlashAlpha - delta * 2.1);
     }
 
+    const safeMax = Math.max(1, Number(maxHp) || 100);
+    const hpPct = (Math.max(0, Number(currentHp) || 0) / safeMax) * 100;
     let baseCritical = 0;
-    if (currentHp === 1) {
+    if (currentHp > 0 && hpPct <= 34.0) {
       this._damagePulsePhase += delta * 5.2;
       baseCritical = 0.20 + 0.09 * Math.sin(this._damagePulsePhase);
-    } else if (currentHp === 2) {
+    } else if (currentHp > 0 && hpPct <= 68.0) {
       baseCritical = 0.08;
     }
 
@@ -1049,6 +1144,7 @@ export class HUD {
   }
 
   resetDamageVignette() {
+    this.resetRadiationWarning();
     this._damageFlashAlpha = 0;
     this._damagePulsePhase = 0;
     this._lastVignetteOpacity = 0;
@@ -1080,7 +1176,7 @@ export class HUD {
     this.setInteractVisible(false);
     this.setSafeZoneVisible(false);
     this.setStatusHudVisible(false, true);
-    this.setHealth(3, 3);
+    this.setHealth(100, 100);
     this._displayMoney = 0;
     this._targetMoney = 0;
     this._renderMoneyText(0);

@@ -3,7 +3,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/examples/jsm/utils/SkeletonUtils.js';
 
-const ZOMBIE_STATES = ['Idle', 'Walk', 'Run', 'Attack', 'Death'];
+const ZOMBIE_STATES = ['Idle', 'Walk', 'Run', 'Skill', 'Attack', 'Death'];
 
 const ZOMBIE_ASSETS = [
   { key: 'Idle', type: 'fbx', url: './models/zombieWoman/Zombie_Idle.fbx', bytes: 1497200 },
@@ -14,7 +14,7 @@ const ZOMBIE_ASSETS = [
   { key: 'PBR', type: 'glb', url: './models/zombieWoman/zombie_woman.glb', bytes: 20084800 },
 ];
 
-const TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap'];
+const TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'alphaMap', 'emissiveMap'];
 const MAX_TEXTURE_SIZE = 1024;
 
 const _tmpVecA = new THREE.Vector3();
@@ -63,6 +63,54 @@ export const WALK_CALIBRATION = {
   walkTimeScale: 1.18,
   pinMultiplier: 1.00,
 };
+
+/**
+ * Live Radioactive Hazmat aura & burst configuration shared across Wave 2+ & F9 Dev Tuner.
+ */
+export const HAZMAT_RADIATION_CONFIG = {
+  auraRadius: 6.0,
+  passiveDrainMin: 6.0,
+  passiveDrainMax: 9.5,
+  skillTriggerRadius: 1.85,
+  skillBurstRadius: 2.35,
+  skillBurstDamage: 30.0,
+  skillCooldown: 2.8,
+  showVisualAura: false,
+};
+
+const _HAZMAT_TOXIC_TINT = new THREE.Color(0xcbef6a);
+const _HAZMAT_TOXIC_EMISSIVE = new THREE.Color(0x9be62e);
+
+let _sharedRadiationAuraTex = null;
+function getRadiationAuraTexture() {
+  if (_sharedRadiationAuraTex) return _sharedRadiationAuraTex;
+  if (typeof document === 'undefined') return null;
+
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const half = size * 0.5;
+  const grad = ctx.createRadialGradient(half, half, 0, half, half, half);
+  grad.addColorStop(0.00, 'rgba(163, 230, 53, 0.04)');
+  grad.addColorStop(0.65, 'rgba(234, 179, 8, 0.09)');
+  grad.addColorStop(0.90, 'rgba(234, 179, 8, 0.24)');
+  grad.addColorStop(0.97, 'rgba(190, 242, 100, 0.68)');
+  grad.addColorStop(0.992, 'rgba(250, 204, 21, 0.52)');
+  grad.addColorStop(1.00, 'rgba(234, 179, 8, 0.0)');
+
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, size, size);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.needsUpdate = true;
+  _sharedRadiationAuraTex = tex;
+  return tex;
+}
 
 /**
  * Returns non-serializable zombie/bone metadata for a hitbox mesh without polluting Object3D.userData.
@@ -123,14 +171,22 @@ function findBone(rootObj, candidates) {
   if (!rootObj) return null;
   const wanted = candidates.map(normalizeBoneKey);
   const byExact = new Map();
+  const byStripped = new Map();
   rootObj.traverse((node) => {
     const key = normalizeBoneKey(node.name);
+    const stripped = normalizeBoneKey((node.name || '').replace(/_\d+$/, ''));
     if (key && !byExact.has(key)) {
       byExact.set(key, node);
+    }
+    if (stripped && !byStripped.has(stripped)) {
+      byStripped.set(stripped, node);
     }
   });
   for (const w of wanted) {
     if (byExact.has(w)) return byExact.get(w);
+  }
+  for (const w of wanted) {
+    if (byStripped.has(w)) return byStripped.get(w);
   }
   for (const [k, node] of byExact.entries()) {
     for (const w of wanted) {
@@ -218,7 +274,7 @@ function lockHipsRootMotionXZ(clip) {
   for (const track of clip.tracks) {
     if (!track.name.endsWith('.position')) continue;
     const nodeName = track.name.slice(0, -'.position'.length).toLowerCase();
-    if (!nodeName.includes('hips')) continue;
+    if (!nodeName.includes('hips') && !nodeName.includes('rootjoint')) continue;
 
     const values = track.values;
     if (!values || values.length < 3) continue;
@@ -227,6 +283,68 @@ function lockHipsRootMotionXZ(clip) {
     for (let i = 0; i < values.length; i += 3) {
       values[i] = originX;
       values[i + 2] = originZ;
+    }
+  }
+}
+
+/**
+ * Scales rotational excursion around a track's mean quaternion so ZombieHazmat's
+ * Run clip achieves longer chasing strides without speeding up arm/torso jitter.
+ */
+function scaleTrackQuaternionExcursion(track, factor) {
+  const values = track?.values;
+  if (!values || values.length < 8 || factor === 1.0) return;
+
+  let sx = 0, sy = 0, sz = 0, sw = 0;
+  for (let i = 0; i < values.length; i += 4) {
+    const dot = sx * values[i] + sy * values[i + 1] + sz * values[i + 2] + sw * values[i + 3];
+    const sign = i > 0 && dot < 0 ? -1 : 1;
+    sx += sign * values[i];
+    sy += sign * values[i + 1];
+    sz += sign * values[i + 2];
+    sw += sign * values[i + 3];
+  }
+  const len = Math.hypot(sx, sy, sz, sw);
+  if (len < 1e-6) return;
+
+  const qAvg = new THREE.Quaternion(sx / len, sy / len, sz / len, sw / len);
+  const qInvAvg = qAvg.clone().invert();
+  const qCur = new THREE.Quaternion();
+  const qDelta = new THREE.Quaternion();
+  const axis = new THREE.Vector3();
+
+  for (let i = 0; i < values.length; i += 4) {
+    qCur.set(values[i], values[i + 1], values[i + 2], values[i + 3]).normalize();
+    qDelta.multiplyQuaternions(qInvAvg, qCur);
+    if (qDelta.w < 0) {
+      qDelta.set(-qDelta.x, -qDelta.y, -qDelta.z, -qDelta.w);
+    }
+    const clampedW = THREE.MathUtils.clamp(qDelta.w, -1, 1);
+    const angle = 2 * Math.acos(clampedW);
+    if (angle > 1e-4) {
+      const sinHalf = Math.sin(angle * 0.5);
+      axis.set(qDelta.x / sinHalf, qDelta.y / sinHalf, qDelta.z / sinHalf).normalize();
+      qDelta.setFromAxisAngle(axis, angle * factor);
+      qCur.multiplyQuaternions(qAvg, qDelta).normalize();
+    }
+    values[i] = qCur.x;
+    values[i + 1] = qCur.y;
+    values[i + 2] = qCur.z;
+    values[i + 3] = qCur.w;
+  }
+}
+
+function tuneHazmatRunClip(clip) {
+  if (!clip?.tracks) return;
+  for (const track of clip.tracks) {
+    if (!track.name.endsWith('.quaternion')) continue;
+    const nodeName = track.name.slice(0, -'.quaternion'.length).toLowerCase();
+    if (nodeName.includes('upleg')) {
+      scaleTrackQuaternionExcursion(track, 1.65);
+    } else if (nodeName.includes('arm') || nodeName.includes('shoulder')) {
+      scaleTrackQuaternionExcursion(track, 0.50);
+    } else if (nodeName.includes('spine') || nodeName.includes('neck') || nodeName.includes('head')) {
+      scaleTrackQuaternionExcursion(track, 0.60);
     }
   }
 }
@@ -365,23 +483,39 @@ export class ZombieEnemy {
     this.hitboxes = [];
     this._hitboxesWireframeVisible = false;
 
-    // Stance-foot ground pinning state for zero-slide Walk locomotion
+    // Stance-foot ground pinning & archetype speed defaults
     this._footPinInitialized = false;
     this._footPinPrevLeftZ = 0;
     this._footPinPrevRightZ = 0;
     this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
-    this.runSpeed = 2.65;
+    this.singleGlb = !!(options.singleGlb ?? options.cloneFrom?.singleGlb);
+    this._baseModelOffsetY = options.cloneFrom?._baseModelOffsetY ?? 0;
 
     // Combat / Health / Corpse & Audio lifecycle
     this.sound = options.sound ?? null;
     this.isWaveZombie = !!options.isWaveZombie;
+    const nameHint = (options.logTag || options.rootName || '').toLowerCase();
+    const isHazmat =
+      options.archetype === 'hazmat' ||
+      options.cloneFrom?.archetype === 'hazmat' ||
+      nameHint.includes('hazmat');
     const isMan =
-      options.archetype === 'man' ||
-      options.cloneFrom?.archetype === 'man' ||
-      (options.logTag || options.rootName || '').includes('Man');
-    this.archetype = options.archetype ?? (isMan ? 'man' : 'woman');
-    this.isFemale = !isMan;
-    const defaultPitch = isMan ? 0.84 : 1.55;
+      !isHazmat &&
+      (options.archetype === 'man' ||
+        options.cloneFrom?.archetype === 'man' ||
+        nameHint.includes('man'));
+    this.archetype = options.archetype ?? (isHazmat ? 'hazmat' : (isMan ? 'man' : 'woman'));
+    this.isHazmat = isHazmat;
+    this.isFemale = !isMan && !isHazmat;
+    this.walkSpeed = options.walkSpeed ?? (isHazmat ? 0.85 : 0.54);
+    this.runSpeed = options.runSpeed ?? (isHazmat ? 1.50 : 2.65);
+    this._defaultWalkSpeed = this.walkSpeed;
+    this._defaultRunSpeed = this.runSpeed;
+    this._smoothedWalkSpeed = isHazmat
+      ? this.walkSpeed
+      : (0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier);
+    this._smoothedRunSpeed = this.runSpeed;
+    const defaultPitch = isHazmat ? 0.68 : (isMan ? 0.84 : 1.55);
     this.vocalPitchBase = options.vocalPitchBase ?? defaultPitch;
     this.vocalChannel = null;
     this._walkVocalTimer = options.initialWalkVocalDelay ?? (0.5 + Math.random() * 2.5);
@@ -389,19 +523,22 @@ export class ZombieEnemy {
     this._chaseVocalTimer = 0;
     this._prevTestAttackNorm = 0;
 
-    this.maxHp = options.maxHp ?? 100;
+    this.maxHp = options.maxHp ?? (isHazmat ? 300 : 100);
     this.hp = this.maxHp;
     this.isDead = false;
-    this.collisionRadius = options.collisionRadius ?? 0.42;
+    this.collisionRadius = options.collisionRadius ?? (isHazmat ? 0.48 : 0.42);
     this.tookDamageAggro = false;
     this.hasExitedVestibule = this.spawnPosition.x > -9.2;
     this._flinchTimer = 0;
-    this._deathPhase = 'NONE'; // 'NONE' | 'PLAYING' | 'HOLDING' | 'FADING' | 'DONE'
+    this._deathPhase = 'NONE'; // 'NONE' | 'PLAYING' | 'PROC_COLLAPSE' | 'HOLDING' | 'FADING' | 'DONE'
     this._deathTimer = 0;
     this._deathClipDuration = 2.0;
     this._deathBaseY = 0;
+    this._deathModelStartY = 0;
     this._attachedWoundDecals = [];
     this._decalManager = null;
+    this._radiationRingMesh = null;
+    this._radiationPulsePhase = Math.random() * Math.PI * 2;
 
     // Floating 3D graphical overhead health bar (hidden at 100% HP until first hit)
     this._billboardCamera = options.camera ?? null;
@@ -472,6 +609,11 @@ export class ZombieEnemy {
         fadeMat.transparent = true;
         fadeMat.opacity = 1.0;
         fadeMat.depthWrite = true;
+        // Clear high glTF MASK alphaTest (e.g. 0.5 on HazMatSuit) on fadeMat so suit + head fade smoothly together to 0
+        fadeMat.alphaTest = Math.min(fadeMat.alphaTest || 0, 0.005);
+        fadeMat.userData._origColor = fadeMat.color ? fadeMat.color.clone() : new THREE.Color(0xffffff);
+        fadeMat.userData._origEmissive = fadeMat.emissive ? fadeMat.emissive.clone() : new THREE.Color(0x000000);
+        fadeMat.userData._origEmissiveIntensity = fadeMat.emissiveIntensity ?? 0;
         fadeMat.needsUpdate = true;
         baseMatToFade.set(baseMat, fadeMat);
         this._fadeMaterials.push(fadeMat);
@@ -487,11 +629,12 @@ export class ZombieEnemy {
 
     this.mixer = new THREE.AnimationMixer(this.model);
     this.clips = template.clips;
+    this._baseModelOffsetY = template._baseModelOffsetY ?? 0;
     for (const stateName of this.states) {
       const clip = this.clips[stateName];
       if (!clip) continue;
       const action = this.mixer.clipAction(clip);
-      if (stateName === 'Death') {
+      if (stateName === 'Death' || stateName === 'Skill' || (this.isHazmat && stateName === 'Attack')) {
         action.setLoop(THREE.LoopOnce, 1);
         action.clampWhenFinished = true;
       } else {
@@ -579,7 +722,11 @@ export class ZombieEnemy {
       assets.map((def, idx) => loadSingleAsset(def, idx))
     ).then((loadedItems) => {
       const byKey = new Map(loadedItems.map((item) => [item.def.key, item.result]));
-      this._assembleCharacter(byKey);
+      if (this.singleGlb && byKey.has('GLB')) {
+        this._assembleSingleGlbCharacter(byKey.get('GLB'));
+      } else {
+        this._assembleCharacter(byKey);
+      }
       byKey.clear();
       loadedItems.length = 0;
       this.isLoaded = true;
@@ -588,6 +735,190 @@ export class ZombieEnemy {
     });
 
     return this._loadPromise;
+  }
+
+  /**
+   * Assembles a standalone single-GLB character rig (e.g. ZombieHazmat /models/zombie_hazmat.glb):
+   * - Downscales all textures > 1024px onto 1024x1024 canvases (keeping map sRGB, PBR data maps NoColorSpace)
+   * - Disables castShadow/receiveShadow for locked 60 FPS
+   * - Strips horizontal XZ root motion from Zombie_Walk_Root while preserving vertical bounce
+   * - Binds strictly Zombie_Idle, Zombie_Walk_Root (Walk 1.0x / Run 1.55x), and Zombie_Skill (ignoring Zombie_EnemySpotted)
+   */
+  _assembleSingleGlbCharacter(gltf) {
+    const modelRoot = gltf?.scene || gltf;
+    if (!modelRoot) return;
+
+    modelRoot.position.set(0, 0, 0);
+    modelRoot.scale.set(1, 1, 1);
+    modelRoot.updateMatrixWorld(true);
+
+    const unscaledBox = new THREE.Box3().setFromObject(modelRoot);
+    const unscaledHeight = unscaledBox.max.y - unscaledBox.min.y;
+    const uniformScale = unscaledHeight > 0.0001 ? this.targetHeight / unscaledHeight : 0.01;
+    modelRoot.scale.setScalar(uniformScale);
+    this._baseModelOffsetY = -unscaledBox.min.y * uniformScale;
+    modelRoot.position.set(0, this._baseModelOffsetY, 0);
+    modelRoot.updateMatrixWorld(true);
+
+    const uploadedTextures = new Set();
+    const registerTexture = (tex, isSrgb = false) => {
+      if (tex && tex.isTexture) {
+        if (!uploadedTextures.has(tex)) {
+          uploadedTextures.add(tex);
+          downscaleTextureIfNeeded(tex, MAX_TEXTURE_SIZE);
+          if (tex.anisotropy !== undefined) tex.anisotropy = Math.max(tex.anisotropy || 1, 4);
+          this._textures.push(tex);
+        }
+        tex.colorSpace = isSrgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
+        tex.needsUpdate = true;
+      }
+    };
+
+    const baseMatToFade = new Map();
+    let meshIndex = 0;
+    let totalVertices = 0;
+    let totalTriangles = 0;
+
+    modelRoot.traverse((child) => {
+      if (!child.isMesh && !child.isSkinnedMesh) return;
+      meshIndex++;
+
+      const posAttr = child.geometry?.attributes?.position;
+      const vertCount = posAttr ? posAttr.count : 0;
+      const triCount = child.geometry?.index
+        ? Math.floor(child.geometry.index.count / 3)
+        : Math.floor(vertCount / 3);
+      totalVertices += vertCount;
+      totalTriangles += triCount;
+
+      child.frustumCulled = false;
+      child.castShadow = false;
+      child.receiveShadow = false;
+
+      const sourceMat = Array.isArray(child.material) ? child.material[0] : child.material;
+      if (!sourceMat) return;
+
+      for (const slot of TEXTURE_SLOTS) {
+        const tex = sourceMat[slot];
+        if (tex) {
+          const isSrgb = slot === 'map' || slot === 'emissiveMap';
+          registerTexture(tex, isSrgb);
+        }
+      }
+
+      if (!sourceMat.isMeshStandardMaterial) {
+        const std = new THREE.MeshStandardMaterial({
+          map: sourceMat.map || null,
+          color: sourceMat.color ? sourceMat.color.clone() : new THREE.Color(0xffffff),
+          roughness: 0.65,
+          metalness: 0.05,
+        });
+        child.material = std;
+        if (typeof sourceMat.dispose === 'function') sourceMat.dispose();
+      }
+      const mat = child.material;
+      mat.roughness = Math.max(mat.roughness ?? 0.65, 0.52);
+      mat.metalness = Math.min(mat.metalness ?? 0.05, 0.25);
+      mat.envMapIntensity = 0.45;
+      mat.needsUpdate = true;
+
+      if (!this._materials.includes(mat)) {
+        this._materials.push(mat);
+      }
+      let fadeMat = baseMatToFade.get(mat);
+      if (!fadeMat) {
+        fadeMat = mat.clone();
+        fadeMat.transparent = true;
+        fadeMat.opacity = 1.0;
+        fadeMat.depthWrite = true;
+        // Clear high glTF MASK alphaTest (e.g. 0.5 on HazMatSuit) on fadeMat so suit + head fade smoothly together to 0
+        fadeMat.alphaTest = Math.min(fadeMat.alphaTest || 0, 0.005);
+        fadeMat.userData._origColor = fadeMat.color ? fadeMat.color.clone() : new THREE.Color(0xffffff);
+        fadeMat.userData._origEmissive = fadeMat.emissive ? fadeMat.emissive.clone() : new THREE.Color(0x000000);
+        fadeMat.userData._origEmissiveIntensity = fadeMat.emissiveIntensity ?? 0;
+        fadeMat.needsUpdate = true;
+        baseMatToFade.set(mat, fadeMat);
+        this._fadeMaterials.push(fadeMat);
+      }
+      this._meshBindings.push({ mesh: child, baseMat: mat, fadeMat });
+    });
+
+    console.info(
+      `[${this.logTag}] ${this.idleAssetLabel} loaded: ${meshIndex} meshes, ${totalVertices} vertices, ${totalTriangles} triangles`
+    );
+
+    this.model = modelRoot;
+    this.root.add(this.model);
+    if (this.scene && this.root.parent !== this.scene) {
+      this.scene.add(this.root);
+    }
+
+    this.mixer = new THREE.AnimationMixer(this.model);
+    const anims = Array.isArray(gltf?.animations) ? gltf.animations : [];
+
+    // Explicitly ignore Zombie_EnemySpotted and bind strictly Idle, Walk_Root, and Skill
+    let rawIdle = null;
+    let rawWalk = null;
+    let rawSkill = null;
+    for (const clip of anims) {
+      if (!clip || !clip.name) continue;
+      const lower = clip.name.toLowerCase();
+      if (lower.includes('enemyspotted') || lower.includes('spotted')) continue;
+      if (clip.name === 'Zombie_Idle' || lower.includes('idle')) {
+        rawIdle = clip;
+      } else if (clip.name === 'Zombie_Walk_Root' || lower.includes('walk')) {
+        rawWalk = clip;
+      } else if (clip.name === 'Zombie_Skill' || lower.includes('skill')) {
+        rawSkill = clip;
+      }
+    }
+
+    if (rawIdle) {
+      const idleClip = rawIdle.clone();
+      idleClip.name = 'Idle';
+      this.clips.Idle = idleClip;
+      const act = this.mixer.clipAction(idleClip);
+      act.setLoop(THREE.LoopRepeat, Infinity);
+      this.actions.Idle = act;
+    }
+
+    if (rawWalk) {
+      const walkClip = rawWalk.clone();
+      walkClip.name = 'Walk';
+      lockHipsRootMotionXZ(walkClip);
+      this.clips.Walk = walkClip;
+      const walkAct = this.mixer.clipAction(walkClip);
+      walkAct.setLoop(THREE.LoopRepeat, Infinity);
+      this.actions.Walk = walkAct;
+
+      const runClip = walkClip.clone();
+      runClip.name = 'Run';
+      tuneHazmatRunClip(runClip);
+      this.clips.Run = runClip;
+      const runAct = this.mixer.clipAction(runClip);
+      runAct.setLoop(THREE.LoopRepeat, Infinity);
+      this.actions.Run = runAct;
+    }
+
+    if (rawSkill) {
+      const skillClip = rawSkill.clone();
+      skillClip.name = 'Skill';
+      this.clips.Skill = skillClip;
+      this.clips.Attack = skillClip;
+      const skillAct = this.mixer.clipAction(skillClip);
+      skillAct.setLoop(THREE.LoopOnce, 1);
+      skillAct.clampWhenFinished = true;
+      this.actions.Skill = skillAct;
+      this.actions.Attack = skillAct;
+    }
+
+    if (this.actions.Idle) {
+      this.actions.Idle.play();
+      this.currentState = 'Idle';
+      this.mixer.update(0);
+    }
+
+    this._setupHitboxes();
   }
 
   _assembleCharacter(assetsByKey) {
@@ -777,6 +1108,43 @@ export class ZombieEnemy {
   _setupHitboxes() {
     this._createHitboxes();
     this._createHealthBar();
+    if (this.isHazmat) {
+      this._createRadiationAura();
+    }
+  }
+
+  _createRadiationAura() {
+    this._disposeRadiationAura();
+    const tex = getRadiationAuraTexture();
+    const r = Math.max(0.5, HAZMAT_RADIATION_CONFIG.auraRadius);
+    // Unit-radius plane (radius 1.0m) so scale(r, 1, r) always matches exact world radius in meters
+    const geo = new THREE.PlaneGeometry(2, 2);
+    geo.rotateX(-Math.PI / 2);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      depthTest: true,
+    });
+    const ring = new THREE.Mesh(geo, mat);
+    ring.name = `${this.root.name}_RadiationRing`;
+    ring.position.set(0, 0.025, 0);
+    ring.scale.set(r, 1, r);
+    ring.renderOrder = 4;
+    ring.frustumCulled = false;
+    ring.visible = Boolean(HAZMAT_RADIATION_CONFIG.showVisualAura) && !this.isDead && this.isActive;
+    this.root.add(ring);
+    this._radiationRingMesh = ring;
+  }
+
+  _disposeRadiationAura() {
+    if (!this._radiationRingMesh) return;
+    if (this._radiationRingMesh.geometry) this._radiationRingMesh.geometry.dispose();
+    if (this._radiationRingMesh.material) this._radiationRingMesh.material.dispose();
+    if (this._radiationRingMesh.parent) this._radiationRingMesh.parent.remove(this._radiationRingMesh);
+    this._radiationRingMesh = null;
   }
 
   _createHitboxes() {
@@ -1352,14 +1720,44 @@ export class ZombieEnemy {
    * Temporarily swaps all skinned meshes to their transparent fade materials (or restores opaque).
    * Pre-compiled during GPU warmUpGPU so runtime death fade-out triggers zero shader hitches.
    */
-  setFadeMode(enabled, opacity = 1.0) {
+  setFadeMode(enabled, opacity = 1.0, radGlow = 0) {
     const useFade = !!enabled;
+    const glow = Math.max(0, Math.min(1, Number(radGlow) || 0));
     for (const binding of this._meshBindings) {
       if (!binding || !binding.mesh) continue;
       if (useFade && binding.fadeMat) {
-        binding.fadeMat.opacity = opacity;
-        binding.mesh.material = binding.fadeMat;
+        const fm = binding.fadeMat;
+        const origColor = fm.userData._origColor || binding.baseMat?.color;
+        const origEmissive = fm.userData._origEmissive || binding.baseMat?.emissive;
+        const origEmissiveIntensity = fm.userData._origEmissiveIntensity ?? binding.baseMat?.emissiveIntensity ?? 0;
+
+        fm.opacity = opacity;
+        fm.depthWrite = opacity > 0.92;
+        if (glow > 0) {
+          if (fm.color && origColor) {
+            fm.color.copy(origColor).lerp(_HAZMAT_TOXIC_TINT, glow * 0.55);
+          }
+          if (fm.emissive) {
+            fm.emissive.copy(_HAZMAT_TOXIC_EMISSIVE);
+            fm.emissiveIntensity = 1.85 * glow;
+          }
+        } else {
+          if (fm.color && origColor) fm.color.copy(origColor);
+          if (fm.emissive && origEmissive) fm.emissive.copy(origEmissive);
+          fm.emissiveIntensity = origEmissiveIntensity;
+        }
+        binding.mesh.material = fm;
       } else if (binding.baseMat) {
+        if (binding.fadeMat) {
+          const fm = binding.fadeMat;
+          const origColor = fm.userData._origColor || binding.baseMat.color;
+          const origEmissive = fm.userData._origEmissive || binding.baseMat.emissive;
+          if (fm.color && origColor) fm.color.copy(origColor);
+          if (fm.emissive && origEmissive) fm.emissive.copy(origEmissive);
+          fm.emissiveIntensity = fm.userData._origEmissiveIntensity ?? binding.baseMat.emissiveIntensity ?? 0;
+          fm.opacity = 1.0;
+          fm.depthWrite = true;
+        }
         binding.mesh.material = binding.baseMat;
       }
     }
@@ -1452,10 +1850,12 @@ export class ZombieEnemy {
     this.isDead = true;
     this.hp = 0;
     this._flinchTimer = 0;
-    this._deathPhase = 'PLAYING';
     this._deathTimer = 0;
     this._deathBaseY = this.root.position.y;
-    this._deathClipDuration = this.clips.Death ? Math.max(0.8, this.clips.Death.duration) : 2.0;
+    this._deathModelStartY = this.model ? this.model.position.y : this._baseModelOffsetY;
+    if (this._radiationRingMesh) {
+      this._radiationRingMesh.visible = false;
+    }
 
     for (const hb of this.hitboxes) {
       if (hb) {
@@ -1467,11 +1867,28 @@ export class ZombieEnemy {
     if (activeSound && typeof activeSound.playZombieVocal === 'function') {
       activeSound.playZombieVocal(this, 'dead');
     }
-    if (activeSound && typeof activeSound.playZombieDeath === 'function') {
-      activeSound.playZombieDeath(isHeadshot, distance);
-    }
 
-    this.playAnimation('Death', 0.15);
+    if (this.isHazmat) {
+      // Reuse Zombie_Skill convulsion in pain while surging toxic yellow-green & disintegrating
+      this._deathPhase = 'HAZMAT_DISINTEGRATE';
+      this.playAnimation('Skill', 0.10);
+      if (this.actions.Skill) {
+        this.actions.Skill.setEffectiveTimeScale(0.92);
+      }
+      this.setFadeMode(true, 1.0, 0.08);
+      if (activeSound && typeof activeSound.playHazmatDeath === 'function') {
+        activeSound.playHazmatDeath(distance);
+      } else if (activeSound && typeof activeSound.playZombieDeath === 'function') {
+        activeSound.playZombieDeath(isHeadshot, distance);
+      }
+    } else {
+      this._deathPhase = 'PLAYING';
+      this._deathClipDuration = this.clips.Death ? Math.max(0.8, this.clips.Death.duration) : 2.0;
+      if (activeSound && typeof activeSound.playZombieDeath === 'function') {
+        activeSound.playZombieDeath(isHeadshot, distance);
+      }
+      this.playAnimation('Death', 0.15);
+    }
   }
 
   /**
@@ -1498,6 +1915,9 @@ export class ZombieEnemy {
    * (or calibrated fallback speed when foot-lock pinning is disabled).
    */
   getDesiredWalkSpeed() {
+    if (this.isHazmat) {
+      return WALK_CALIBRATION.footLockPinning ? this._smoothedWalkSpeed : this.walkSpeed;
+    }
     if (!WALK_CALIBRATION.footLockPinning) {
       return 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
     }
@@ -1508,16 +1928,19 @@ export class ZombieEnemy {
    * Returns sprint ground speed (m/s) used when charging up the stairs or chasing.
    */
   getDesiredRunSpeed() {
+    if (this.isHazmat) {
+      return WALK_CALIBRATION.footLockPinning ? this._smoothedRunSpeed : this.runSpeed;
+    }
     return this.runSpeed;
   }
 
   /**
-   * Keeps Walk animation timeScale steady at WALK_CALIBRATION.walkTimeScale (default 1.18)
-   * during unobstructed movement, only scaling down if walls/desks block >15% of desired distance.
+   * Keeps Walk animation timeScale steady (1.18 for Mixamo rigs, 2.55 for ZombieHazmat),
+   * scaling down only if walls/desks block >15% of desired distance.
    */
   syncWalkObstacleBlocking(movedFraction = 1.0) {
     if (!this.isLoaded || this.currentState !== 'Walk' || !this.actions.Walk) return;
-    const baseTs = WALK_CALIBRATION.walkTimeScale;
+    const baseTs = this.isHazmat ? 2.55 : WALK_CALIBRATION.walkTimeScale;
     const ts = movedFraction < 0.85
       ? baseTs * THREE.MathUtils.clamp(movedFraction / 0.85, 0.30, 1.0)
       : baseTs;
@@ -1529,6 +1952,16 @@ export class ZombieEnemy {
    */
   syncRunTimeScale(actualMovedSpeed = 0) {
     if (!this.isLoaded || this.currentState !== 'Run' || !this.actions.Run) return;
+    if (this.isHazmat) {
+      const baseRunTs = 2.65;
+      const desiredRun = Math.max(0.25, this.getDesiredRunSpeed());
+      const movedFrac = actualMovedSpeed / desiredRun;
+      const ts = movedFrac < 0.85
+        ? baseRunTs * THREE.MathUtils.clamp(movedFrac / 0.85, 0.30, 1.0)
+        : baseRunTs;
+      this.actions.Run.setEffectiveTimeScale(ts);
+      return;
+    }
     const ts = THREE.MathUtils.clamp(actualMovedSpeed / 2.95, 0.85, 1.25);
     this.actions.Run.setEffectiveTimeScale(ts);
   }
@@ -1537,38 +1970,51 @@ export class ZombieEnemy {
    * Applies updated WALK_CALIBRATION parameters immediately (e.g., from F9 ZombieTuner sliders).
    */
   applyWalkCalibration() {
+    if (this.isHazmat) return;
     if (this.actions.Walk) {
       this.actions.Walk.setEffectiveTimeScale(WALK_CALIBRATION.walkTimeScale);
     }
     if (!WALK_CALIBRATION.footLockPinning) {
       this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
-    this.runSpeed = 2.65;
     }
   }
 
   /**
-   * Smoothly transitions to the named animation clip ('Idle', 'Walk', 'Run', 'Attack', 'Death').
+   * Smoothly transitions to the named animation clip ('Idle', 'Walk', 'Run', 'Skill', 'Attack', 'Death').
    */
   playAnimation(stateName, fadeDuration = 0.25) {
     if (!this.isLoaded) return;
-    const nextAction = this.actions[stateName];
+    const resolvedState = (this.isHazmat && stateName === 'Attack') ? 'Skill' : stateName;
+    const nextAction = this.actions[resolvedState];
     if (!nextAction) return;
 
     const prevAction = this.actions[this.currentState];
-    if (prevAction === nextAction && stateName !== 'Death') return;
+    if (prevAction === nextAction && resolvedState !== 'Death' && resolvedState !== 'Skill') return;
 
-    const baseTimeScale =
-      stateName === 'Walk' ? WALK_CALIBRATION.walkTimeScale :
-      stateName === 'Run' ? THREE.MathUtils.clamp(3.10 / 2.95, 0.85, 1.25) : 1.0;
+    let baseTimeScale = 1.0;
+    if (this.isHazmat) {
+      baseTimeScale = resolvedState === 'Run' ? 2.65 : (resolvedState === 'Walk' ? 2.55 : 1.0);
+    } else {
+      baseTimeScale =
+        resolvedState === 'Walk' ? WALK_CALIBRATION.walkTimeScale :
+          resolvedState === 'Run' ? THREE.MathUtils.clamp(3.10 / 2.95, 0.85, 1.25) : 1.0;
+    }
 
-    if (stateName === 'Walk') {
+    if (resolvedState === 'Walk' && !this.isHazmat) {
       this._footPinInitialized = false;
       this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
-    this.runSpeed = 2.65;
+    } else if (this.isHazmat && (resolvedState === 'Walk' || resolvedState === 'Run')) {
+      this._footPinInitialized = false;
+      this._smoothedWalkSpeed = this.walkSpeed;
+      this._smoothedRunSpeed = this.runSpeed;
     }
 
     nextAction.enabled = true;
     nextAction.reset();
+    // Preserve leg phase when ZombieHazmat transitions between Walk and Run (both use Zombie_Walk_Root)
+    if (this.isHazmat && prevAction && (this.currentState === 'Walk' || this.currentState === 'Run') && (resolvedState === 'Walk' || resolvedState === 'Run')) {
+      nextAction.time = prevAction.time;
+    }
     nextAction.setEffectiveTimeScale(baseTimeScale);
     nextAction.setEffectiveWeight(1);
     nextAction.play();
@@ -1579,7 +2025,7 @@ export class ZombieEnemy {
       prevAction.stop();
     }
 
-    this.currentState = stateName;
+    this.currentState = resolvedState;
   }
 
   /**
@@ -1609,7 +2055,7 @@ export class ZombieEnemy {
       this.die({ isHeadshot: false, sound: activeSound });
       this._resetHealthBar();
       if (wasDead) {
-        this.playAnimation('Death', 0.20);
+        this.playAnimation(this.isHazmat ? 'Skill' : 'Death', 0.20);
       }
       return stateName;
     }
@@ -1622,6 +2068,13 @@ export class ZombieEnemy {
     this._deathTimer = 0;
     this.setFadeMode(false, 1.0);
     this.root.position.y = this.spawnPosition.y;
+    if (this.model) {
+      this.model.rotation.set(0, 0, 0);
+      this.model.position.y = this._baseModelOffsetY;
+    }
+    if (this._radiationRingMesh) {
+      this._radiationRingMesh.visible = this.isHazmat && Boolean(HAZMAT_RADIATION_CONFIG.showVisualAura);
+    }
     for (const hb of this.hitboxes) {
       if (hb) {
         hb.visible = true;
@@ -1667,14 +2120,21 @@ export class ZombieEnemy {
     this._deathTimer = 0;
     this._footPinInitialized = false;
     this._prevTestAttackNorm = 0;
-    this._smoothedWalkSpeed = 0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier;
-    this.runSpeed = 2.65;
+    this._smoothedWalkSpeed = this.isHazmat
+      ? (this._defaultWalkSpeed ?? 0.85)
+      : (0.46 * WALK_CALIBRATION.walkTimeScale * WALK_CALIBRATION.pinMultiplier);
+    this.walkSpeed = this._defaultWalkSpeed ?? (this.isHazmat ? 0.85 : 0.54);
+    this.runSpeed = this._defaultRunSpeed ?? (this.isHazmat ? 1.50 : 2.65);
+    this._smoothedRunSpeed = this.runSpeed;
     const activeSound = this._getSound();
     if (activeSound && typeof activeSound.stopZombieVocal === 'function') {
       activeSound.stopZombieVocal(this, 0.015);
     }
     this.clearWoundDecals();
     this.setFadeMode(false, 1.0);
+    if (this._radiationRingMesh) {
+      this._radiationRingMesh.visible = this.isHazmat && Boolean(HAZMAT_RADIATION_CONFIG.showVisualAura);
+    }
 
     for (const hb of this.hitboxes) {
       if (hb) {
@@ -1684,6 +2144,10 @@ export class ZombieEnemy {
     }
 
     if (!this.isLoaded) return;
+    if (this.model) {
+      this.model.rotation.set(0, 0, 0);
+      this.model.position.y = this._baseModelOffsetY;
+    }
     this.root.position.copy(this.spawnPosition);
     this.root.lookAt(this.lookAtPosition);
     this.playAnimation('Idle', 0);
@@ -1711,12 +2175,16 @@ export class ZombieEnemy {
     if (!this.isActive || !this.isLoaded || !this.mixer) return;
     this.mixer.update(delta);
 
-    // Measure stance-foot backward displacement after mixer.update to drive zero-slide Walk speed
-    if (this.currentState === 'Walk' && !this.isDead && this.actions.Walk) {
-      const walkAction = this.actions.Walk;
-      const walkWeight = walkAction.getEffectiveWeight();
-      const activeTs = walkAction.getEffectiveTimeScale();
-      const fallbackSpeed = 0.46 * activeTs * WALK_CALIBRATION.pinMultiplier;
+    // Measure stance-foot backward displacement after mixer.update to drive zero-slide locomotion
+    const isHazmatLocomotion = this.isHazmat && (this.currentState === 'Walk' || this.currentState === 'Run');
+    const activeLocoAction = isHazmatLocomotion ? this.actions[this.currentState] : this.actions.Walk;
+    if ((isHazmatLocomotion || (!this.isHazmat && this.currentState === 'Walk')) && !this.isDead && activeLocoAction) {
+      const locoWeight = activeLocoAction.getEffectiveWeight();
+      const activeTs = activeLocoAction.getEffectiveTimeScale();
+      const isRunState = this.isHazmat && this.currentState === 'Run';
+      const fallbackSpeed = this.isHazmat
+        ? ((isRunState ? 0.58 : 0.320) * activeTs)
+        : (0.46 * activeTs * WALK_CALIBRATION.pinMultiplier);
 
       if (
         WALK_CALIBRATION.footLockPinning &&
@@ -1735,31 +2203,52 @@ export class ZombieEnemy {
         const rightY = _tmpVecB.y;
         const rightZ = _tmpVecB.z;
 
-        if (!this._footPinInitialized || walkWeight < 0.85) {
+        const backL = this._footPinPrevLeftZ - leftZ;
+        const backR = this._footPinPrevRightZ - rightZ;
+        const seamJump = Math.abs(backL) > 0.45 || Math.abs(backR) > 0.45;
+
+        if (!this._footPinInitialized || locoWeight < 0.85 || seamJump) {
           this._footPinPrevLeftZ = leftZ;
           this._footPinPrevRightZ = rightZ;
           this._footPinInitialized = true;
-          this._smoothedWalkSpeed += (fallbackSpeed - this._smoothedWalkSpeed) * 0.35;
+          if (isRunState) {
+            this._smoothedRunSpeed += (fallbackSpeed - this._smoothedRunSpeed) * 0.35;
+          } else {
+            this._smoothedWalkSpeed += (fallbackSpeed - this._smoothedWalkSpeed) * 0.35;
+          }
         } else {
-          // Smooth stance-foot blend using lowest floor elevation
-          const minY = Math.min(leftY, rightY);
-          const rawWL = Math.exp(-(leftY - minY) / 0.035);
-          const rawWR = Math.exp(-(rightY - minY) / 0.035);
-          const invSum = 1.0 / (rawWL + rawWR);
-          const wL = rawWL * invSum;
-          const wR = rawWR * invSum;
-
-          const backL = this._footPinPrevLeftZ - leftZ;
-          const backR = this._footPinPrevRightZ - rightZ;
-          const plantedBackDelta = Math.max(0, wL * backL + wR * backR);
-
           this._footPinPrevLeftZ = leftZ;
           this._footPinPrevRightZ = rightZ;
 
-          const rawSpeed = (plantedBackDelta / delta) * WALK_CALIBRATION.pinMultiplier;
-          const targetSpeed = THREE.MathUtils.clamp(rawSpeed, 0.12, 0.95);
-          this._smoothedWalkSpeed += (targetSpeed - this._smoothedWalkSpeed) * 0.35;
+          let plantedBackDelta = 0;
+          if (this.isHazmat) {
+            // In Zombie_Walk_Root, the limping left heel hovers ~5cm higher, so lock directly onto whichever foot pushes back
+            plantedBackDelta = Math.max(0, backL, backR);
+            const rawSpeed = (plantedBackDelta / delta) * (isRunState ? 1.05 : 1.00) * WALK_CALIBRATION.pinMultiplier;
+            if (isRunState) {
+              const targetSpeed = THREE.MathUtils.clamp(rawSpeed, 0.45, 2.50);
+              this._smoothedRunSpeed += (targetSpeed - this._smoothedRunSpeed) * 0.45;
+            } else {
+              const targetSpeed = THREE.MathUtils.clamp(rawSpeed, 0.25, 1.45);
+              this._smoothedWalkSpeed += (targetSpeed - this._smoothedWalkSpeed) * 0.45;
+            }
+          } else {
+            // Smooth stance-foot blend using lowest floor elevation
+            const minY = Math.min(leftY, rightY);
+            const rawWL = Math.exp(-(leftY - minY) / 0.035);
+            const rawWR = Math.exp(-(rightY - minY) / 0.035);
+            const invSum = 1.0 / (rawWL + rawWR);
+            const wL = rawWL * invSum;
+            const wR = rawWR * invSum;
+            plantedBackDelta = Math.max(0, wL * backL + wR * backR);
+
+            const rawSpeed = (plantedBackDelta / delta) * WALK_CALIBRATION.pinMultiplier;
+            const targetSpeed = THREE.MathUtils.clamp(rawSpeed, 0.12, 0.95);
+            this._smoothedWalkSpeed += (targetSpeed - this._smoothedWalkSpeed) * 0.35;
+          }
         }
+      } else if (isRunState) {
+        this._smoothedRunSpeed = this.runSpeed;
       } else {
         this._smoothedWalkSpeed = fallbackSpeed;
       }
@@ -1779,6 +2268,19 @@ export class ZombieEnemy {
 
     // Track level world-space billboard health bar (+0.26m above head) only when visible
     this._updateHealthBar(delta, camera);
+
+    // Subtle zero-light pulse & dynamic scale for ZombieHazmat's dev-tool floor radiation ring (OFF in-game by default)
+    if (this.isHazmat && this._radiationRingMesh) {
+      const showRing = Boolean(HAZMAT_RADIATION_CONFIG.showVisualAura) && !this.isDead && this.isActive;
+      this._radiationRingMesh.visible = showRing;
+      if (showRing) {
+        this._radiationPulsePhase += delta * 2.8;
+        const radiusMeters = Math.max(0.5, HAZMAT_RADIATION_CONFIG.auraRadius);
+        // Plane was rotated -PI/2 around X into XZ floor plane, so scale X and Z equally in meters
+        this._radiationRingMesh.scale.set(radiusMeters, 1, radiusMeters);
+        this._radiationRingMesh.material.opacity = 0.62 + 0.14 * Math.sin(this._radiationPulsePhase);
+      }
+    }
 
     // Autonomous state-driven vocal scheduler for F9 test showcase zombies
     if (!this.isWaveZombie && !this.isDead) {
@@ -1817,16 +2319,53 @@ export class ZombieEnemy {
       }
     }
 
-    // Corpse hold (2.0s) -> fade opacity 1->0 & sink -0.18m over 1.5s -> vanish
+    // Death sequences: ZombieHazmat toxic yellow-green Skill disintegration, or standard Death clip -> hold -> fade
     if (this.isDead && this._deathPhase !== 'DONE') {
       this._deathTimer += delta;
-      if (this._deathPhase === 'PLAYING') {
+      if (this._deathPhase === 'HAZMAT_DISINTEGRATE') {
+        const surgeDur = 0.80;
+        const fadeDur = 1.85;
+        const totalDur = surgeDur + fadeDur;
+        const fadeP = this._deathTimer <= surgeDur ? 0 : Math.min(1.0, (this._deathTimer - surgeDur) / fadeDur);
+        const surgeP = Math.min(1.0, this._deathTimer / surgeDur);
+        const opacity = 1.0 - Math.pow(fadeP, 1.15);
+        const pulse = 0.84 + 0.16 * Math.sin(this._deathTimer * 18.0);
+        const radGlow = this._deathTimer <= surgeDur
+          ? surgeP * pulse
+          : pulse * (1.0 - 0.30 * fadeP);
+
+        if (this._spine2Bone) {
+          this._spine2Bone.rotation.x += Math.sin(this._deathTimer * 26.0) * 0.08 * (1.0 - fadeP);
+        }
+        this.setFadeMode(true, opacity, radGlow);
+        this.root.position.y = this._deathBaseY - 0.16 * fadeP;
+
+        if (this._deathTimer >= totalDur) {
+          this._deathPhase = 'DONE';
+          this.setActive(false);
+          this.clearWoundDecals();
+          this.setFadeMode(false, 1.0);
+        }
+      } else if (this._deathPhase === 'PROC_COLLAPSE') {
+        const p = Math.min(1.0, this._deathTimer / 0.65);
+        const ease = p * p;
+        if (this.model) {
+          this.model.rotation.x = -Math.PI * 0.5 * ease;
+          this.model.rotation.z = 0.08 * ease;
+          this.model.position.y = THREE.MathUtils.lerp(this._deathModelStartY, 0.08, ease);
+        }
+        if (p >= 1.0) {
+          this._deathPhase = 'HOLDING';
+          this._deathTimer = 0;
+        }
+      } else if (this._deathPhase === 'PLAYING') {
         if (this._deathTimer >= this._deathClipDuration) {
           this._deathPhase = 'HOLDING';
           this._deathTimer = 0;
         }
       } else if (this._deathPhase === 'HOLDING') {
-        if (this._deathTimer >= 2.0) {
+        const holdDur = this.isHazmat ? 3.0 : 2.0;
+        if (this._deathTimer >= holdDur) {
           this._deathPhase = 'FADING';
           this._deathTimer = 0;
           this.setFadeMode(true, 1.0);
@@ -1849,6 +2388,7 @@ export class ZombieEnemy {
   dispose() {
     this.clearWoundDecals();
     this._disposeHealthBar();
+    this._disposeRadiationAura();
     for (const hb of this.hitboxes) {
       if (hb) {
         if (hb.geometry) hb.geometry.dispose();

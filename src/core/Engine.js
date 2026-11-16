@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { NightOfficeEnvironment } from './NightOfficeEnvironment.js';
 import { ZombieEnemy } from '../enemies/ZombieEnemy.js';
 import { ZombieMan } from '../enemies/ZombieMan.js';
+import { ZombieHazmat } from '../enemies/ZombieHazmat.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import {
   EffectComposer,
@@ -65,10 +66,16 @@ export class Engine {
       lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
       active: false,
     });
-    this.enemies = [this.zombie, this.zombieMan];
+    this.zombieHazmat = new ZombieHazmat(this.scene, {
+      spawnPosition: new THREE.Vector3(3.4, 0.0, 2.5),
+      lookAtPosition: new THREE.Vector3(0.0, 0.0, -3.0),
+      active: false,
+    });
+    this.enemies = [this.zombie, this.zombieMan, this.zombieHazmat];
     if (typeof window !== 'undefined') {
       window.__rocZombie = this.zombie;
       window.__rocZombieMan = this.zombieMan;
+      window.__rocZombieHazmat = this.zombieHazmat;
     }
 
     // 8. Loop & Physics Timing
@@ -210,9 +217,13 @@ export class Engine {
   setTestZombiesVisible(visible) {
     this.testZombiesVisible = !!visible;
     for (const enemy of this.enemies) {
-      if (enemy && typeof enemy.setActive === 'function') {
+      if (!enemy) continue;
+      if (this.testZombiesVisible && enemy.isDead && typeof enemy.reset === 'function') {
+        enemy.reset();
+      }
+      if (typeof enemy.setActive === 'function') {
         enemy.setActive(this.testZombiesVisible);
-      } else if (enemy && enemy.root) {
+      } else if (enemy.root) {
         enemy.root.visible = this.testZombiesVisible;
       }
     }
