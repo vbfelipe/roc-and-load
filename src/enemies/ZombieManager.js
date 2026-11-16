@@ -1,20 +1,18 @@
 import * as THREE from 'three';
 import { ZombieEnemy, HAZMAT_RADIATION_CONFIG, getZombieHitboxMeta } from './ZombieEnemy.js';
 
-// Wave 1 schedule: 2 ZombieWoman (100% HP, pitch 1.51-1.54) + 1 ZombieMan (100% HP, untouched 0.84)
-const WAVE_1_SPAWN_SPECS = [
-  { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Wave1_ZombieWoman_1', logTag: 'Wave1_ZW_1' },
-  { archetype: 'woman', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 1.65, rootName: 'Wave1_ZombieWoman_2', logTag: 'Wave1_ZW_2' },
-  { archetype: 'man', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 2.35, rootName: 'Wave1_ZombieMan_1', logTag: 'Wave1_ZM_1' },
+// Tutorial Wave schedule (triggered after 1st phone call & explosion): 2 ZombieWoman + 1 ZombieMan
+const TUTORIAL_WAVE_SPAWN_SPECS = [
+  { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Tutorial_ZombieWoman_1', logTag: 'Tutorial_ZW_1' },
+  { archetype: 'woman', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 1.65, rootName: 'Tutorial_ZombieWoman_2', logTag: 'Tutorial_ZW_2' },
+  { archetype: 'man', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 2.35, rootName: 'Tutorial_ZombieMan_1', logTag: 'Tutorial_ZM_1' },
 ];
 
-// Wave 2 schedule: adds Radioactive Tank Boss (ZombieHazmat, 300 HP = 3x ZombieMan, $600/$750 bounty)
-const WAVE_2_SPAWN_SPECS = [
-  { archetype: 'woman', delay: 0.0, laneX: -0.32, maxHp: 100, pitchBase: 1.51, walkVocalDelay: 0.45, rootName: 'Wave2_ZombieWoman_1', logTag: 'Wave2_ZW_1' },
-  { archetype: 'man', delay: 1.8, laneX: 0.32, maxHp: 100, pitchBase: 0.84, walkVocalDelay: 1.65, rootName: 'Wave2_ZombieMan_1', logTag: 'Wave2_ZM_1' },
-  { archetype: 'woman', delay: 3.6, laneX: 0.00, maxHp: 100, pitchBase: 1.54, walkVocalDelay: 2.35, rootName: 'Wave2_ZombieWoman_2', logTag: 'Wave2_ZW_2' },
-  { archetype: 'hazmat', delay: 5.4, laneX: 0.00, maxHp: 300, pitchBase: 0.68, walkVocalDelay: 3.10, rootName: 'Wave2_ZombieHazmat_1', logTag: 'Wave2_ZH_1' },
-];
+const HORDE_COUNTDOWN_SECONDS = 10;
+
+function randInt(min, max) {
+  return min + Math.floor(Math.random() * (max - min + 1));
+}
 
 /**
  * Normalizes weapon identifiers ('hk_usp'/'usp', 'pistol'/'deagle'/'desert_eagle',
@@ -265,13 +263,26 @@ export class ZombieManager {
     this.onPlayerRadiationBurst = null;
     this.onZombieKilled = null;
     this.onWave1Cleared = null;
+    this.onTutorialWaveCleared = null;
+    this.onHordeCountdownChange = null;
+    this.onHordeStarted = null;
+    this.onHordeCleared = null;
 
     this.waveZombies = [];
     this.waveEntries = [];
     this._poolByArchetype = { woman: [], man: [], hazmat: [] };
     this._allPoolZombies = [];
     this._poolInitialized = false;
+    this.waveMode = 'IDLE'; // 'IDLE' | 'TUTORIAL' | 'HORDE' | 'SOLO_HAZMAT'
+    this.isTutorialWave = false;
     this.currentWave = 1;
+    this.currentHorde = 0;
+    this.infiniteHordesEnabled = false;
+    this.hordeCountdownActive = false;
+    this.hordeCountdownTimer = 0;
+    this._lastHordeCountdownSec = -1;
+    this._hordeClearedScheduled = false;
+    this._lastHordeCounts = { woman: 0, man: 0, hazmat: 0, total: 0 };
     this.waveActive = false;
     this._waveElapsed = 0;
     this.playerKills = 0;
@@ -383,8 +394,8 @@ export class ZombieManager {
       allocatePool('hazmat', 2, this.hazmatTemplate, 300, 0.68);
     }
 
-    // Bind Wave 1 slots immediately for warm-up and initial queries
-    this._bindWaveSpecs(WAVE_1_SPAWN_SPECS);
+    // Bind Tutorial Wave slots immediately for warm-up and initial queries
+    this._bindWaveSpecs(TUTORIAL_WAVE_SPAWN_SPECS);
   }
 
   _bindWaveSpecs(specs) {
@@ -404,21 +415,31 @@ export class ZombieManager {
       let arch = spec.archetype;
       const poolList = this._poolByArchetype[arch];
       let zom = poolList && poolList[usedCounts[arch]];
-      if (!zom && arch === 'hazmat' && this.hazmatTemplate?.isLoaded) {
-        // Dynamically clone if Wave 3+ needs an extra Hazmat
-        zom = new ZombieEnemy(this.scene, {
-          cloneFrom: this.hazmatTemplate,
-          archetype: 'hazmat',
-          maxHp: 300,
-          rootName: spec.rootName,
-          logTag: spec.logTag,
-          active: false,
-          sound: this.sound,
-          isWaveZombie: true,
-          vocalPitchBase: spec.pitchBase,
-        });
-        poolList.push(zom);
-        this._allPoolZombies.push(zom);
+      if (!zom && poolList) {
+        const cloneTemplate =
+          arch === 'hazmat'
+            ? (this.hazmatTemplate?.isLoaded ? this.hazmatTemplate : null)
+            : arch === 'man'
+              ? (this.manTemplate?.isLoaded ? this.manTemplate : this.womanTemplate)
+              : (this.womanTemplate?.isLoaded ? this.womanTemplate : null);
+        if (cloneTemplate && cloneTemplate.isLoaded) {
+          const cloneArch = arch === 'man' && cloneTemplate === this.womanTemplate ? 'woman' : arch;
+          zom = new ZombieEnemy(this.scene, {
+            cloneFrom: cloneTemplate,
+            archetype: cloneArch,
+            maxHp: spec.maxHp ?? (cloneArch === 'hazmat' ? 300 : 100),
+            rootName: spec.rootName || `Pool_${arch}_${usedCounts[arch] + 1}`,
+            logTag: spec.logTag || `Pool_${arch}_${usedCounts[arch] + 1}`,
+            spawnPosition: new THREE.Vector3(-12.60, -2.60, 2.75),
+            lookAtPosition: new THREE.Vector3(-12.60, 0.0, 9.0),
+            active: false,
+            sound: this.sound,
+            isWaveZombie: true,
+            vocalPitchBase: spec.pitchBase,
+          });
+          poolList.push(zom);
+          this._allPoolZombies.push(zom);
+        }
       }
       if (!zom) {
         arch = 'woman';
@@ -478,42 +499,159 @@ export class ZombieManager {
   }
 
   /**
-   * Builds wave spawn specs for Wave 1 (unchanged), Wave 2 (+1 ZombieHazmat boss), or Wave 3+.
+   * Builds Tutorial Wave specs cleanly.
    */
   getWaveSpecs(waveNumber = 1) {
-    if (waveNumber <= 1) return WAVE_1_SPAWN_SPECS;
-    if (waveNumber === 2) return WAVE_2_SPAWN_SPECS;
-
-    const specs = WAVE_2_SPAWN_SPECS.map((s, idx) => ({
-      ...s,
-      rootName: `Wave${waveNumber}_${s.archetype}_${idx + 1}`,
-      logTag: `W${waveNumber}_${idx + 1}`,
-    }));
-    const extraHazmatCount = Math.min(2, waveNumber - 2);
-    for (let h = 0; h < extraHazmatCount; h++) {
-      specs.push({
-        archetype: 'hazmat',
-        delay: specs.length * 1.8,
-        laneX: h % 2 === 0 ? -0.25 : 0.25,
-        maxHp: 300,
-        pitchBase: 0.66,
-        walkVocalDelay: 3.4 + h * 0.7,
-        rootName: `Wave${waveNumber}_ZombieHazmat_${h + 2}`,
-        logTag: `W${waveNumber}_ZH_${h + 2}`,
-      });
-    }
-    return specs;
+    if (waveNumber <= 1) return TUTORIAL_WAVE_SPAWN_SPECS;
+    return this.generateHordeSpecs(waveNumber - 1, false);
   }
 
   /**
-   * Triggers a specific Wave number (Wave 1 preserves early USP balance; Wave 2+ spawns ZombieHazmat).
+   * Generates randomized, strictly escalating Horde specs ("HORDA 1, 2, 3, ...").
+   * Horde 1: 2-3 Woman + 1-2 Man (0 Hazmat)
+   * Horde 2: grows vs Horde 1 (e.g. 4-5 Woman + 2-3 Man, 0 Hazmat)
+   * Horde 3+: introduces ZombieHazmat (1+) alongside more Woman & Man zombies.
    */
-  triggerWave(waveNumber = 1) {
+  generateHordeSpecs(hordeNumber = 1, commitCounts = true) {
+    const num = Math.max(1, Math.floor(hordeNumber));
+    const prev = this._lastHordeCounts && this._lastHordeCounts.total > 0
+      ? this._lastHordeCounts
+      : {
+          woman: Math.max(0, num + 1),
+          man: Math.max(0, Math.floor((num + 1) / 2)),
+          hazmat: num >= 4 ? Math.max(1, Math.floor((num - 2) / 2)) : 0,
+          total: num >= 2 ? num * 2 + 1 : 0,
+        };
+
+    let woman = 0;
+    let man = 0;
+    let hazmat = 0;
+
+    if (num === 1) {
+      woman = randInt(2, 3);
+      man = randInt(1, 2);
+      hazmat = 0;
+    } else if (num === 2) {
+      woman = Math.min(12, prev.woman + randInt(1, 2));
+      man = Math.min(8, prev.man + 1);
+      hazmat = 0;
+    } else if (num === 3) {
+      woman = Math.min(12, Math.max(5, prev.woman + randInt(1, 2)));
+      man = Math.min(8, Math.max(2, prev.man + randInt(0, 1)));
+      hazmat = 1;
+    } else {
+      woman = Math.min(12, Math.max(num + 2, prev.woman + randInt(1, 2)));
+      man = Math.min(8, Math.max(Math.floor(num * 0.75), prev.man + randInt(0, 1)));
+      const hazmatFloor = Math.min(4, Math.max(1, Math.floor((num - 1) / 2)));
+      hazmat = Math.min(4, Math.max(prev.hazmat, hazmatFloor + (Math.random() < 0.35 ? 1 : 0)));
+    }
+
+    let total = woman + man + hazmat;
+    if (prev.total > 0 && total <= prev.total && total < 24) {
+      if (man < 8 && Math.random() < 0.4) {
+        man += 1;
+      } else if (woman < 12) {
+        woman += 1;
+      } else if (hazmat < 4 && num >= 3) {
+        hazmat += 1;
+      }
+      total = woman + man + hazmat;
+    }
+
+    if (commitCounts) {
+      this._lastHordeCounts = { woman, man, hazmat, total };
+    }
+
+    // Build an interleaved order so different archetypes mix naturally on the stairs
+    const order = [];
+    const remaining = { woman, man, hazmat };
+    while (order.length < total) {
+      if (remaining.woman > 0) {
+        order.push('woman');
+        remaining.woman--;
+      }
+      if (remaining.man > 0 && order.length % 2 === 1) {
+        order.push('man');
+        remaining.man--;
+      }
+      if (remaining.hazmat > 0 && order.length >= Math.floor(total / 3) && remaining.woman + remaining.man <= remaining.hazmat * 2) {
+        order.push('hazmat');
+        remaining.hazmat--;
+      } else if (remaining.man > 0 && remaining.woman === 0) {
+        order.push('man');
+        remaining.man--;
+      } else if (remaining.hazmat > 0 && remaining.woman === 0 && remaining.man === 0) {
+        order.push('hazmat');
+        remaining.hazmat--;
+      }
+    }
+
+    const delayStep = Math.max(0.95, 1.65 - Math.min(num - 1, 10) * 0.05);
+    const lanes = [-0.34, 0.34, 0.0, -0.18, 0.18];
+    let womanIdx = 0;
+    let manIdx = 0;
+    let hazmatIdx = 0;
+
+    return order.map((arch, idx) => {
+      const laneX = lanes[idx % lanes.length];
+      if (arch === 'hazmat') {
+        hazmatIdx++;
+        return {
+          archetype: 'hazmat',
+          delay: idx * delayStep,
+          laneX,
+          maxHp: 300,
+          pitchBase: 0.68 - Math.min(0.05, (hazmatIdx - 1) * 0.02),
+          walkVocalDelay: 1.6 + idx * 0.65,
+          rootName: `Horde${num}_ZombieHazmat_${hazmatIdx}`,
+          logTag: `H${num}_ZH_${hazmatIdx}`,
+        };
+      }
+      if (arch === 'man') {
+        manIdx++;
+        return {
+          archetype: 'man',
+          delay: idx * delayStep,
+          laneX,
+          maxHp: 100,
+          pitchBase: 0.84 + ((manIdx - 1) % 3) * 0.03,
+          walkVocalDelay: 1.4 + idx * 0.6,
+          rootName: `Horde${num}_ZombieMan_${manIdx}`,
+          logTag: `H${num}_ZM_${manIdx}`,
+        };
+      }
+      womanIdx++;
+      return {
+        archetype: 'woman',
+        delay: idx * delayStep,
+        laneX,
+        maxHp: 100,
+        pitchBase: 1.50 + ((womanIdx - 1) % 4) * 0.025,
+        walkVocalDelay: 0.45 + idx * 0.55,
+        rootName: `Horde${num}_ZombieWoman_${womanIdx}`,
+        logTag: `H${num}_ZW_${womanIdx}`,
+      };
+    });
+  }
+
+  /**
+   * Starts the Tutorial Wave (after 1st phone call & explosion): 2 ZombieWoman + 1 ZombieMan.
+   */
+  triggerTutorialWave() {
     this.initWavePool();
     this.sound?.stopAllZombieVocals?.();
-    this.currentWave = Math.max(1, Math.floor(waveNumber));
-    const specs = this.getWaveSpecs(this.currentWave);
-    this._bindWaveSpecs(specs);
+    this.hordeCountdownActive = false;
+    this.hordeCountdownTimer = 0;
+    this._lastHordeCountdownSec = -1;
+    this._hordeClearedScheduled = false;
+    this.infiniteHordesEnabled = false;
+    this.currentHorde = 0;
+    this.onHordeCountdownChange?.({ active: false, hordeNumber: 0, secondsRemaining: 0, immediate: true });
+
+    this.waveMode = 'TUTORIAL';
+    this.isTutorialWave = true;
+    this.currentWave = 1;
+    this._bindWaveSpecs(TUTORIAL_WAVE_SPAWN_SPECS);
 
     this.waveActive = true;
     this._waveElapsed = 0;
@@ -527,17 +665,99 @@ export class ZombieManager {
   }
 
   /**
-   * Starts Wave 1 (staggered 2 ZombieWoman + 1 ZombieMan).
+   * Triggers a specific Wave number (Wave 1 triggers Tutorial Wave; 2+ triggers Horde N-1).
    */
-  triggerWave1() {
-    this.triggerWave(1);
+  triggerWave(waveNumber = 1) {
+    if (waveNumber <= 1) {
+      this.triggerTutorialWave();
+      return;
+    }
+    this.triggerHorde(waveNumber - 1);
   }
 
   /**
-   * Starts Wave 2 featuring the Radioactive Hazmat Boss Tank (ZombieHazmat).
+   * Backward-compatible alias for triggering the Tutorial Wave.
    */
-  triggerWave2() {
-    this.triggerWave(2);
+  triggerWave1() {
+    this.triggerTutorialWave();
+  }
+
+  /**
+   * Begins the infinite Horde survival loop starting at HORDA 1 (10s countdown).
+   */
+  startInfiniteHordes() {
+    this.initWavePool();
+    this.infiniteHordesEnabled = true;
+    this.isTutorialWave = false;
+    this._lastHordeCounts = { woman: 0, man: 0, hazmat: 0, total: 0 };
+    this.currentHorde = 0;
+    this._hordeClearedScheduled = false;
+    this.scheduleNextHorde(1);
+  }
+
+  /**
+   * Cancels infinite horde progression and hides the countdown banner.
+   */
+  stopInfiniteHordes(immediate = true) {
+    this.infiniteHordesEnabled = false;
+    this.hordeCountdownActive = false;
+    this.hordeCountdownTimer = 0;
+    this._lastHordeCountdownSec = -1;
+    this._hordeClearedScheduled = false;
+    this.onHordeCountdownChange?.({ active: false, hordeNumber: this.currentHorde, secondsRemaining: 0, immediate });
+  }
+
+  /**
+   * Starts the 10-second red HUD countdown for Horde `hordeNumber`.
+   */
+  scheduleNextHorde(hordeNumber = 1) {
+    const num = Math.max(1, Math.floor(hordeNumber));
+    this.currentHorde = num;
+    this.hordeCountdownActive = true;
+    this.hordeCountdownTimer = HORDE_COUNTDOWN_SECONDS;
+    this._lastHordeCountdownSec = HORDE_COUNTDOWN_SECONDS;
+    this._hordeClearedScheduled = false;
+    this.onHordeCountdownChange?.({
+      active: true,
+      hordeNumber: num,
+      secondsRemaining: HORDE_COUNTDOWN_SECONDS,
+    });
+  }
+
+  /**
+   * Spawns Horde `hordeNumber` immediately up the stairwell.
+   */
+  triggerHorde(hordeNumber = 1, { keepInfinite = true } = {}) {
+    this.initWavePool();
+    this.sound?.stopAllZombieVocals?.();
+    const num = Math.max(1, Math.floor(hordeNumber));
+    this.waveMode = 'HORDE';
+    this.isTutorialWave = false;
+    this.currentHorde = num;
+    this.currentWave = num + 1;
+    this.infiniteHordesEnabled = keepInfinite;
+    this.hordeCountdownActive = false;
+    this.hordeCountdownTimer = 0;
+    this._lastHordeCountdownSec = -1;
+    this._hordeClearedScheduled = false;
+    this.onHordeCountdownChange?.({ active: false, hordeNumber: num, secondsRemaining: 0, immediate: false });
+
+    const specs = this.generateHordeSpecs(num, true);
+    this._bindWaveSpecs(specs);
+
+    this.waveActive = true;
+    this._waveElapsed = 0;
+    this.wave1Cleared = false;
+    this._wave1ClearedTimer = 0;
+    this._wave1ClearedNotified = false;
+
+    if (this.waveEntries[0]) {
+      this._activateStairClimb(this.waveEntries[0]);
+    }
+    this.onHordeStarted?.({
+      hordeNumber: num,
+      counts: { ...this._lastHordeCounts },
+    });
   }
 
   /**
@@ -546,6 +766,9 @@ export class ZombieManager {
   triggerHazmatAlone() {
     this.initWavePool();
     this.sound?.stopAllZombieVocals?.();
+    this.stopInfiniteHordes(true);
+    this.waveMode = 'SOLO_HAZMAT';
+    this.isTutorialWave = false;
     this.currentWave = 2;
     this._bindWaveSpecs([
       {
@@ -634,14 +857,19 @@ export class ZombieManager {
   }
 
   /**
-   * Resets & hides Wave-1 zombies cleanly (used on EXIT to menu or re-triggering Wave 1).
+   * Resets & hides Tutorial/Horde stairwell zombies cleanly (used on EXIT to menu or re-triggering waves).
    */
-  resetWave1() {
+  resetWaves() {
     this.waveActive = false;
+    this.waveMode = 'IDLE';
+    this.isTutorialWave = false;
     this._waveElapsed = 0;
     this.wave1Cleared = false;
     this._wave1ClearedTimer = 0;
     this._wave1ClearedNotified = false;
+    this.stopInfiniteHordes(true);
+    this.currentHorde = 0;
+    this._lastHordeCounts = { woman: 0, man: 0, hazmat: 0, total: 0 };
     this.isWorldPaused = false;
     this.isPlayerInSafeZone = false;
     this._wasRadiationExposed = false;
@@ -671,10 +899,17 @@ export class ZombieManager {
   }
 
   /**
-   * Resets all zombies (Wave 1 + Wave 2+ + test showcase zombies).
+   * Backward-compatible alias for resetting active stairwell waves.
+   */
+  resetWave1() {
+    this.resetWaves();
+  }
+
+  /**
+   * Resets all zombies (Tutorial Wave + Infinite Hordes + test showcase zombies).
    */
   resetAll() {
-    this.resetWave1();
+    this.resetWaves();
     this.playerKills = 0;
     if (this.womanTemplate) this.womanTemplate.reset();
     if (this.manTemplate) this.manTemplate.reset();
@@ -912,8 +1147,9 @@ export class ZombieManager {
       const isHazmat = zombie.archetype === 'hazmat' || !!zombie.isHazmat;
       const isMan = zombie.archetype === 'man';
       const isHead = !!result?.headshot || part === 'head';
-      const baseReward = isHazmat ? 600 : (isMan ? 200 : 100);
-      const bonusReward = isHead ? (isHazmat ? 150 : (isMan ? 50 : 25)) : 0;
+      // Grind-focused economy: makes saving for Medkit ($1k) and higher-tier guns ($3.5k-$60k) reward multiple hordes & headshots
+      const baseReward = isHazmat ? 220 : (isMan ? 70 : 35);
+      const bonusReward = isHead ? (isHazmat ? 80 : (isMan ? 25 : 15)) : 0;
       const reward = baseReward + bonusReward;
       this.sound?.playRewardTick?.(isHead);
       if (typeof this.onZombieKilled === 'function') {
@@ -997,7 +1233,7 @@ export class ZombieManager {
     entry.sidestepTimer = 0;
     entry.attackSwungThisCycle = false;
     entry.prevAttackNorm = 0;
-    entry.zombie.playAnimation('Attack', 0.15);
+    entry.zombie.playAnimation('Attack', 0.08);
     if (this.sound && typeof this.sound.playZombieVocal === 'function') {
       this.sound.playZombieVocal(entry.zombie, 'attack');
     }
@@ -1903,7 +2139,11 @@ export class ZombieManager {
           this._enterSkillCast(entry);
           return;
         }
-      } else if (distToPlayer <= 1.30 && zombieInOffice === playerInOffice && Math.abs(pPos.y - pos.y) < 1.2) {
+      } else if (
+        distToPlayer <= 1.55 &&
+        (zombieInOffice === playerInOffice || (distToPlayer <= 1.35 && this._hasLineOfSightToPlayer(zom, pPos))) &&
+        Math.abs(pPos.y - pos.y) < 1.25
+      ) {
         this._enterAttack(entry);
         return;
       }
@@ -1935,7 +2175,7 @@ export class ZombieManager {
 
       const chaseSpeed = zom.isHazmat
         ? (typeof zom.getDesiredRunSpeed === 'function' ? zom.getDesiredRunSpeed() : 2.45)
-        : 3.10;
+        : (zom.archetype === 'woman' ? 4.35 : 4.05);
       if (zom.isHazmat && distToPlayer <= 1.45) {
         this._rotateYawToward(entry, Math.atan2(pPos.x - pos.x, pPos.z - pos.z), 6.0, delta);
       } else {
@@ -2007,7 +2247,6 @@ export class ZombieManager {
       const dx = pPos.x - pos.x;
       const dz = pPos.z - pos.z;
       const dist = Math.hypot(dx, dz);
-      this._rotateYawToward(entry, Math.atan2(dx, dz), 11.0, delta);
 
       const attackAction = zom.actions.Attack;
       const attackClip = zom.clips.Attack;
@@ -2023,18 +2262,32 @@ export class ZombieManager {
       }
       entry.prevAttackNorm = normTime;
 
-      // Strike impact trigger at ~45% through Attack clip (once per swing cycle, ~1.2s cooldown)
-      if (!entry.attackSwungThisCycle && normTime >= 0.45 && entry.attackCooldown <= 0) {
-        entry.attackSwungThisCycle = true;
-        entry.attackCooldown = 1.2;
+      // Lunge/step forward during the windup instead of freezing on concrete, so moving players still get swiped
+      if (!entry.attackSwungThisCycle && normTime < 0.44 && dist > 0.90) {
+        const lungeSpeed = zom.archetype === 'woman' ? 3.55 : 3.25;
+        this._moveZombieWithObstacles(entry, pPos.x, pPos.z, lungeSpeed, delta, false);
+      }
+      this._rotateYawToward(entry, Math.atan2(dx, dz), 14.0, delta);
 
-        if (dist <= 1.65 && typeof this.onPlayerHit === 'function') {
+      const postDx = pPos.x - pos.x;
+      const postDz = pPos.z - pos.z;
+      const postDist = Math.hypot(postDx, postDz);
+
+      // Fast strike impact trigger at ~24% through sped-up (1.65x) Attack clip (~0.50s cadence)
+      if (!entry.attackSwungThisCycle && normTime >= 0.24 && entry.attackCooldown <= 0) {
+        entry.attackSwungThisCycle = true;
+        entry.attackCooldown = 0.50;
+
+        if (postDist <= 1.90 && Math.abs(pPos.y - pos.y) < 1.35 && typeof this.onPlayerHit === 'function') {
           this.onPlayerHit(zom);
         }
       }
 
-      // If Roc moved out of strike range (> 1.65m) after swing completes, resume chasing
-      if (dist > 1.65 && (normTime >= 0.78 || entry.attackSwungThisCycle)) {
+      // Immediately resume chasing if the player sprints out of reach before impact or during follow-through
+      if (
+        (!entry.attackSwungThisCycle && postDist > 2.15) ||
+        (postDist > 1.85 && (normTime >= 0.52 || entry.attackSwungThisCycle))
+      ) {
         this._enterChase(entry);
       }
     }
@@ -2107,6 +2360,31 @@ export class ZombieManager {
       }
     }
 
+    // Tick active Infinite Horde countdown ("HORDA N: 10..0") while actively playing
+    if (gameState === 'PLAYING' && this.hordeCountdownActive) {
+      this.hordeCountdownTimer = Math.max(0, this.hordeCountdownTimer - delta);
+      const displaySec = Math.ceil(this.hordeCountdownTimer);
+      if (this.hordeCountdownTimer <= 0) {
+        const hordeToLaunch = this.currentHorde || 1;
+        this.hordeCountdownActive = false;
+        this._lastHordeCountdownSec = 0;
+        this.onHordeCountdownChange?.({
+          active: false,
+          hordeNumber: hordeToLaunch,
+          secondsRemaining: 0,
+          immediate: false,
+        });
+        this.triggerHorde(hordeToLaunch, { keepInfinite: true });
+      } else if (displaySec !== this._lastHordeCountdownSec) {
+        this._lastHordeCountdownSec = displaySec;
+        this.onHordeCountdownChange?.({
+          active: true,
+          hordeNumber: this.currentHorde || 1,
+          secondsRemaining: displaySec,
+        });
+      }
+    }
+
     if (this.waveActive) {
       this._waveElapsed += delta;
 
@@ -2137,35 +2415,52 @@ export class ZombieManager {
       if (gameState === 'PLAYING') {
         this._resolveDynamicSeparations();
 
-        // Track Wave 1 cleared (all Wave-1 zombies spawned and dead) -> trigger Jório's 2nd phone call after 3.0s
-        if (
-          this.currentWave === 1 &&
-          !this._wave1ClearedNotified &&
-          this.waveEntries.length >= WAVE_1_SPAWN_SPECS.length
-        ) {
-          let allSpawned = true;
-          let allDead = true;
-          for (let i = 0; i < this.waveEntries.length; i++) {
-            const e = this.waveEntries[i];
-            if (!e.spawned) {
-              allSpawned = false;
-              break;
-            }
-            if (!e.zombie || !e.zombie.isDead) {
-              allDead = false;
-              break;
-            }
+        let allSpawned = this.waveEntries.length > 0;
+        let allDead = this.waveEntries.length > 0;
+        for (let i = 0; i < this.waveEntries.length; i++) {
+          const e = this.waveEntries[i];
+          if (!e.spawned) {
+            allSpawned = false;
+            break;
           }
+          if (!e.zombie || !e.zombie.isDead) {
+            allDead = false;
+            break;
+          }
+        }
+
+        // Track Tutorial Wave cleared (all tutorial zombies spawned and dead) -> trigger Jório's 2nd phone call after 3.0s
+        if (
+          this.waveMode === 'TUTORIAL' &&
+          !this._wave1ClearedNotified &&
+          this.waveEntries.length >= TUTORIAL_WAVE_SPAWN_SPECS.length
+        ) {
           if (allSpawned && allDead) {
             this.wave1Cleared = true;
             this._wave1ClearedTimer += delta;
             if (this._wave1ClearedTimer >= 3.0) {
               this._wave1ClearedNotified = true;
-              if (typeof this.onWave1Cleared === 'function') {
+              if (typeof this.onTutorialWaveCleared === 'function') {
+                this.onTutorialWaveCleared();
+              } else if (typeof this.onWave1Cleared === 'function') {
                 this.onWave1Cleared();
               }
             }
           }
+        }
+
+        // Track Infinite Horde cleared -> immediately schedule HORDA N+1: 10 countdown
+        if (
+          this.waveMode === 'HORDE' &&
+          this.infiniteHordesEnabled &&
+          !this.hordeCountdownActive &&
+          !this._hordeClearedScheduled &&
+          allSpawned &&
+          allDead
+        ) {
+          this._hordeClearedScheduled = true;
+          this.onHordeCleared?.({ hordeNumber: this.currentHorde });
+          this.scheduleNextHorde((this.currentHorde || 1) + 1);
         }
       }
     }

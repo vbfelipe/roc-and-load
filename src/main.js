@@ -166,6 +166,8 @@ window.addEventListener('DOMContentLoaded', () => {
 
   window.__rocAddTestMoney = (amount = 50000) => addMoney(amount, { playSound: true });
 
+  let hasTriggeredFirstCrateHorde = false;
+
   const gunShop = new GunShopHUD({
     weaponSystem,
     sound,
@@ -192,6 +194,10 @@ window.addEventListener('DOMContentLoaded', () => {
       }
       sound.playCrateClose();
       warehouse.startMilitaryCrateClose();
+      if (gameState === 'PLAYING' && !hasTriggeredFirstCrateHorde) {
+        hasTriggeredFirstCrateHorde = true;
+        zombieManager.startInfiniteHordes();
+      }
     },
   });
   window.__rocGunShop = gunShop;
@@ -298,24 +304,43 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   };
 
-  zombieManager.onWave1Cleared = () => {
+  zombieManager.onTutorialWaveCleared = () => {
     introSequence.triggerSecondPhoneCall();
+  };
+  zombieManager.onWave1Cleared = zombieManager.onTutorialWaveCleared;
+
+  zombieManager.onHordeCountdownChange = ({ active, hordeNumber, secondsRemaining, immediate }) => {
+    if (active) {
+      hud.setHordeCountdown?.(hordeNumber, secondsRemaining);
+    } else {
+      hud.hideHordeCountdown?.(Boolean(immediate));
+    }
   };
 
   function handlePlayerFatalDamage() {
     deathCollapseElapsed = 0;
     gameOverShown = false;
     hud.resetRadiationWarning?.();
+    hud.hideHordeCountdown?.(true);
     player.startDeathCollapse();
     setGameState('GAME_OVER');
     if (document.pointerLockElement) {
-      try { document.exitPointerLock(); } catch (e) {}
+      try { document.exitPointerLock(); } catch (e) { }
     }
   }
 
-  zombieManager.onPlayerHit = () => {
-    if (gameState !== 'PLAYING') return;
-    const remainingHp = player.takeDamage(33.34);
+  let lastMeleeHitAt = -Infinity;
+  const MELEE_HIT_GRACE_MS = 320;
+
+  zombieManager.onPlayerHit = (attacker) => {
+    if (gameState !== 'PLAYING' || player.hp <= 0) return;
+    const now = performance.now();
+    if (now - lastMeleeHitAt < MELEE_HIT_GRACE_MS) return;
+    lastMeleeHitAt = now;
+
+    const arch = String(attacker?.archetype || '').toLowerCase();
+    const hitDamage = arch === 'man' ? 26 : (arch === 'woman' ? 18 : 25);
+    const remainingHp = player.takeDamage(hitDamage);
     if (typeof hud.setHealth === 'function') {
       hud.setHealth(remainingHp, player.maxHp);
     }
@@ -495,9 +520,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // 3c. Parallel loading: First Aid Medkit GLB (downscales >1024px maps -> 1024px)
     const medkitPromise = gunShop && typeof gunShop.loadMedkitModel === 'function'
       ? gunShop.loadMedkitModel((fraction) => {
-          medkitFrac = fraction;
-          syncAssetProgress('LOADING MEDICAL SUPPLIES...');
-        })
+        medkitFrac = fraction;
+        syncAssetProgress('LOADING MEDICAL SUPPLIES...');
+      })
       : Promise.resolve(null);
 
     // 4. Parallel loading: WebP UI hero portraits
@@ -788,6 +813,8 @@ window.addEventListener('DOMContentLoaded', () => {
     sound.playExitClick();
     deathCollapseElapsed = 0;
     gameOverShown = false;
+    hasTriggeredFirstCrateHorde = false;
+    lastMeleeHitAt = -Infinity;
     playerMoney = 0;
     player.resetHealth();
     hud.resetDamageVignette();
@@ -905,7 +932,7 @@ window.addEventListener('DOMContentLoaded', () => {
   input.onLock(() => {
     if (gameState === 'GAME_OVER') {
       if (document.pointerLockElement) {
-        try { document.exitPointerLock(); } catch (e) {}
+        try { document.exitPointerLock(); } catch (e) { }
       }
       return;
     }

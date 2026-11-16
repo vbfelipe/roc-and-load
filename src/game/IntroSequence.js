@@ -140,6 +140,7 @@ export class IntroSequence {
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
     this._wave1Triggered = false;
+    this._tutorialWaveTriggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;
@@ -549,6 +550,7 @@ export class IntroSequence {
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
     this._wave1Triggered = false;
+    this._tutorialWaveTriggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;
@@ -953,6 +955,7 @@ export class IntroSequence {
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
     this._wave1Triggered = false;
+    this._tutorialWaveTriggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;
@@ -1387,9 +1390,12 @@ export class IntroSequence {
         this.sound.stopBuildingExplosion();
       }
     }
-    if (!this._wave1Triggered && this._explosionTimer >= BUILDING_EXPLOSION_DURATION_SECONDS) {
+    if (!this._tutorialWaveTriggered && this._explosionTimer >= BUILDING_EXPLOSION_DURATION_SECONDS) {
+      this._tutorialWaveTriggered = true;
       this._wave1Triggered = true;
-      if (this.zombieManager && typeof this.zombieManager.triggerWave1 === 'function') {
+      if (this.zombieManager && typeof this.zombieManager.triggerTutorialWave === 'function') {
+        this.zombieManager.triggerTutorialWave();
+      } else if (this.zombieManager && typeof this.zombieManager.triggerWave1 === 'function') {
         this.zombieManager.triggerWave1();
       }
     }
@@ -1796,6 +1802,7 @@ export class IntroSequence {
     this._explosionAudioStopped = false;
     this._stanchionClatterPlayed = false;
     this._wave1Triggered = false;
+    this._tutorialWaveTriggered = false;
     this._combatUnlocked = false;
     this._combatTutorialVisible = false;
     this._combatTutorialTimer = 0;

@@ -515,10 +515,11 @@ export class DevToolsModal {
             <div class="devtools-card">
               <div class="devtools-card-title">
                 <span>STAIRWELL HORDE WAVES</span>
-                <span id="dt-zt-wave-info" class="devtools-status-pill" style="color:#cbd5e1;">Wave 1: Standby</span>
+                <span id="dt-zt-wave-info" class="devtools-status-pill" style="color:#cbd5e1;">Standby</span>
               </div>
               <div class="devtools-btn-row">
-                <button type="button" id="dt-zt-wave1-btn" class="devtools-btn is-danger">Wave 1</button>
+                <button type="button" id="dt-zt-tutorial-wave-btn" class="devtools-btn is-danger">Tutorial Wave</button>
+                <button type="button" id="dt-zt-horde1-btn" class="devtools-btn is-danger">Horda 1</button>
                 <button type="button" id="dt-zt-hazmat-wave-btn" class="devtools-btn is-amber">Hazmat Alone</button>
                 <button type="button" id="dt-zt-wave-reset-btn" class="devtools-btn">Reset</button>
               </div>
@@ -899,8 +900,12 @@ export class DevToolsModal {
       this.refreshZombiesTab();
     });
 
-    this.overlay.querySelector('#dt-zt-wave1-btn').onclick = () => {
-      this.zombieManager?.triggerWave1?.();
+    this.overlay.querySelector('#dt-zt-tutorial-wave-btn').onclick = () => {
+      this.zombieManager?.triggerTutorialWave?.();
+      this.refreshZombiesTab();
+    };
+    this.overlay.querySelector('#dt-zt-horde1-btn').onclick = () => {
+      this.zombieManager?.startInfiniteHordes?.();
       this.refreshZombiesTab();
     };
     this.overlay.querySelector('#dt-zt-hazmat-wave-btn').onclick = () => {
@@ -908,7 +913,7 @@ export class DevToolsModal {
       this.refreshZombiesTab();
     };
     this.overlay.querySelector('#dt-zt-wave-reset-btn').onclick = () => {
-      this.zombieManager?.resetWave1?.();
+      this.zombieManager?.resetWaves?.();
       this.refreshZombiesTab();
     };
   }
@@ -1515,12 +1520,24 @@ export class DevToolsModal {
     if (!this.overlay || !this.zombieManager) return;
     const info = this.overlay.querySelector('#dt-zt-wave-info');
     if (!info) return;
+    if (this.zombieManager.hordeCountdownActive) {
+      const sec = Math.max(0, Math.ceil(this.zombieManager.hordeCountdownTimer || 0));
+      info.textContent = `Horda ${this.zombieManager.currentHorde || 1}: ${sec}s`;
+      return;
+    }
+    const label = this.zombieManager.waveMode === 'TUTORIAL'
+      ? 'Tutorial'
+      : this.zombieManager.waveMode === 'HORDE'
+        ? `Horda ${this.zombieManager.currentHorde || 1}`
+        : this.zombieManager.waveMode === 'SOLO_HAZMAT'
+          ? 'Hazmat Solo'
+          : 'Tutorial Wave';
     if (!this.zombieManager.waveActive) {
-      info.textContent = `Wave ${this.zombieManager.currentWave || 1}: Standby`;
+      info.textContent = `${label}: Standby`;
     } else {
       const total = this.zombieManager.waveZombies.length;
       const alive = this.zombieManager.waveZombies.filter((z) => z && !z.isDead).length;
-      info.textContent = `Wave ${this.zombieManager.currentWave || 1}: ${alive}/${total} Alive`;
+      info.textContent = `${label}: ${alive}/${total} Alive`;
     }
   }
 

@@ -202,9 +202,73 @@ export class HUD {
           <circle cx="12" cy="12" r="10.4" fill="none" stroke="currentColor" stroke-width="1.2" opacity="0.55"/>
         </svg>
       </span>
-      <span>ALERTA DE RADIAÇÃO — AFESTE-SE!</span>
+      <span>ALERTA DE RADIAÇÃO — AFASTE-SE!</span>
     `;
     uiLayer.appendChild(this.radiationWarningEl);
+
+    this.hordeBannerEl = document.createElement('div');
+    this.hordeBannerEl.id = 'hud-horde-countdown';
+    this.hordeBannerEl.className = 'hud-horde-banner hidden';
+    this.hordeBannerEl.innerHTML = `
+      <span class="hud-horde-skull-icon" aria-hidden="true">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2C7.03 2 3 5.82 3 10.5c0 2.86 1.48 5.39 3.74 6.95V20c0 .55.45 1 1 1h8.52c.55 0 1-.45 1-1v-2.55C19.52 15.89 21 13.36 21 10.5 21 5.82 16.97 2 12 2zm-3.2 10.5a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm6.4 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm-2.2 6h-2v-2.2h2v2.2z"/>
+        </svg>
+      </span>
+      <span id="hud-horde-label">HORDA 1: 10</span>
+    `;
+    this.hordeLabelEl = this.hordeBannerEl.querySelector('#hud-horde-label');
+    this._hordeHideTimeout = null;
+    uiLayer.appendChild(this.hordeBannerEl);
+  }
+
+  /**
+   * Shows and updates the red infinite horde countdown banner ("HORDA N: SS").
+   * Uses the same smooth fade/scale transition curve as the status HUD pills.
+   */
+  setHordeCountdown(hordeNum, secondsRemaining) {
+    if (!this.hordeBannerEl || !this.hordeLabelEl) return;
+    if (this._hordeHideTimeout) {
+      clearTimeout(this._hordeHideTimeout);
+      this._hordeHideTimeout = null;
+    }
+
+    const sec = Math.max(0, Math.ceil(Number(secondsRemaining) || 0));
+    const num = Math.max(1, Math.floor(Number(hordeNum) || 1));
+    this.hordeLabelEl.textContent = `HORDA ${num}: ${sec}`;
+    this.hordeBannerEl.classList.toggle('is-urgent', sec <= 3);
+
+    const wasHidden = this.hordeBannerEl.classList.contains('hidden');
+    if (wasHidden) {
+      this.hordeBannerEl.classList.remove('hidden');
+      // Force layout before adding is-visible so CSS opacity/transform fade-in plays smoothly
+      void this.hordeBannerEl.offsetWidth;
+    }
+    this.hordeBannerEl.classList.add('is-visible');
+  }
+
+  /**
+   * Smoothly fades out the horde countdown HUD (or hides immediately on reset).
+   */
+  hideHordeCountdown(immediate = false) {
+    if (!this.hordeBannerEl) return;
+    if (this._hordeHideTimeout) {
+      clearTimeout(this._hordeHideTimeout);
+      this._hordeHideTimeout = null;
+    }
+    this.hordeBannerEl.classList.remove('is-urgent');
+    if (immediate) {
+      this.hordeBannerEl.classList.remove('is-visible');
+      this.hordeBannerEl.classList.add('hidden');
+      return;
+    }
+    this.hordeBannerEl.classList.remove('is-visible');
+    this._hordeHideTimeout = setTimeout(() => {
+      if (this.hordeBannerEl && !this.hordeBannerEl.classList.contains('is-visible')) {
+        this.hordeBannerEl.classList.add('hidden');
+      }
+      this._hordeHideTimeout = null;
+    }, 440);
   }
 
   /**
@@ -785,7 +849,7 @@ export class HUD {
     if (!this.hpBarFillEl) return;
     const pct = (safeHp / safeMax) * 100;
     this.hpBarFillEl.style.width = `${pct.toFixed(2)}%`;
-    this.hpBarFillEl.classList.toggle('is-critical', safeHp > 0 && pct <= 34.0);
+    this.hpBarFillEl.classList.toggle('is-critical', safeHp > 0 && pct <= 28.0);
   }
 
   setMoney(money, deltaAmount = 0) {
@@ -1175,6 +1239,7 @@ export class HUD {
     this.setObjectiveVisible(false);
     this.setInteractVisible(false);
     this.setSafeZoneVisible(false);
+    this.hideHordeCountdown(true);
     this.setStatusHudVisible(false, true);
     this.setHealth(100, 100);
     this._displayMoney = 0;

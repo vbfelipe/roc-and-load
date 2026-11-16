@@ -1962,7 +1962,7 @@ export class ZombieEnemy {
       this.actions.Run.setEffectiveTimeScale(ts);
       return;
     }
-    const ts = THREE.MathUtils.clamp(actualMovedSpeed / 2.95, 0.85, 1.25);
+    const ts = THREE.MathUtils.clamp(actualMovedSpeed / 3.20, 0.85, 1.32);
     this.actions.Run.setEffectiveTimeScale(ts);
   }
 
@@ -1997,7 +1997,8 @@ export class ZombieEnemy {
     } else {
       baseTimeScale =
         resolvedState === 'Walk' ? WALK_CALIBRATION.walkTimeScale :
-          resolvedState === 'Run' ? THREE.MathUtils.clamp(3.10 / 2.95, 0.85, 1.25) : 1.0;
+          resolvedState === 'Run' ? THREE.MathUtils.clamp(4.20 / 3.20, 0.85, 1.32) :
+            resolvedState === 'Attack' ? 1.65 : 1.0;
     }
 
     if (resolvedState === 'Walk' && !this.isHazmat) {

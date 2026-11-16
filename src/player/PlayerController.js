@@ -115,7 +115,7 @@ export class PlayerController {
     return true;
   }
 
-  takeDamage(amount = 33.34, options = {}) {
+  takeDamage(amount = 25, options = {}) {
     if (this.hp <= 0) return 0;
     const dmg = Math.max(0, Number(amount) || 0);
     this.hp = Math.max(0, this.hp - dmg);
