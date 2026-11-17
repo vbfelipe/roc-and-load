@@ -30,6 +30,7 @@ const SHELL_EJECTION_PROFILES = {
   desert_eagle: { pool: 'casingPool', right: [2.2, 0.6], up: [1.55, 0.5], fwd: [0.35, 0.25] },
   hk_mp5: { pool: 'casing9mmPool', right: [2.8, 0.7], up: [1.25, 0.45], fwd: [0.65, 0.30] },
   akms_gold: { pool: 'casingPool', right: [2.9, 0.8], up: [1.3, 0.5], fwd: [0.70, 0.35] },
+  m134_minigun: { pool: 'casingPool', right: [3.2, 0.9], up: [1.35, 0.55], fwd: [-0.35, 0.30] },
   shotgun: { pool: 'shotgunShellPool', right: [2.6, 0.5], up: [1.0, 0.4], fwd: [0.32, 0.22] },
 };
 
@@ -637,11 +638,28 @@ export class WeaponSystem {
         isRare: true,
         isSlideLocked: false,
       },
+      m134_minigun: {
+        name: 'M134 MINIGUN',
+        currentAmmo: 200,
+        maxAmmo: 200,
+        reserveAmmo: 400,
+        defaultReserveAmmo: 400,
+        infiniteReserve: false,
+        fireRate: 0.045,
+        reloadTime: 2.6,
+        isAutomatic: true,
+        isRare: true,
+        isSlideLocked: false,
+      },
     };
 
     this.fireRate = 0.18;
     this.fireTimer = 0;
     this.wasMouseDown0 = false;
+    this.minigunSpinProgress = 0;
+    this.minigunSpinUpTime = 0.68;
+    this.minigunSpinDownTime = 1.15;
+    this._minigunAudioState = 'idle';
 
     this.maxAmmo = 12;
     this.currentAmmo = 12;
@@ -786,6 +804,7 @@ export class WeaponSystem {
     if (w === 'colt' || w === 'peacemaker' || w === 'colt_peacemaker' || w === '5') return 'colt_peacemaker';
     if (w === 'glock' || w === 'glock_flamengo' || w === '6') return 'glock_flamengo';
     if (w === 'akms' || w === 'akms_gold' || w === '7') return 'akms_gold';
+    if (w === 'minigun' || w === 'm134' || w === 'm134_minigun' || w === '8') return 'm134_minigun';
     return weaponType;
   }
 
@@ -838,6 +857,22 @@ export class WeaponSystem {
     this.unlockedWeapons.add('colt_peacemaker');
     this.unlockedWeapons.add('glock_flamengo');
     this.unlockedWeapons.add('akms_gold');
+    this.unlockedWeapons.add('m134_minigun');
+  }
+
+  _stopMinigunSpin(playSpinDown = false) {
+    if (this._minigunAudioState !== 'idle' || this.minigunSpinProgress > 0) {
+      if (this.sound && typeof this.sound.stopMinigunSpin === 'function') {
+        this.sound.stopMinigunSpin(playSpinDown && this.minigunSpinProgress > 0.15, this.minigunSpinProgress);
+      }
+    }
+    this._minigunAudioState = 'idle';
+    if (!playSpinDown) {
+      this.minigunSpinProgress = 0;
+      if (this.viewmodel && typeof this.viewmodel.setMinigunSpin === 'function') {
+        this.viewmodel.setMinigunSpin(0);
+      }
+    }
   }
 
   isWeaponUnlocked(weaponType) {
@@ -1104,6 +1139,7 @@ export class WeaponSystem {
 
     // 2. Cancel any active reload and load target weapon state
     this.isReloading = false;
+    this._stopMinigunSpin(false);
     if (this.sound && typeof this.sound.stopActionSounds === 'function') {
       this.sound.stopActionSounds();
     }
@@ -1169,6 +1205,7 @@ export class WeaponSystem {
     if (shellsNeeded <= 0) return;
 
     this.isReloading = true;
+    this._stopMinigunSpin(false);
     if (!window.isViewmodelTunerOpen) {
       this.viewmodel.setADS(false);
     }
@@ -1351,6 +1388,7 @@ export class WeaponSystem {
     }
     if (this.isUnarmed || this.isControlsLocked()) {
       this.isAiming = false;
+      this._stopMinigunSpin(false);
       this.input.consumeKeyJustPressed('KeyR');
       this.input.consumeKeyJustPressed('r');
       this.wasMouseDown0 = true;
@@ -1380,6 +1418,15 @@ export class WeaponSystem {
 
     if (!isArmed) {
       this.wasMouseDown0 = true; // Prevents click-bleed
+      if (this._minigunAudioState !== 'idle') {
+        this._stopMinigunSpin(true);
+      }
+      if (this.minigunSpinProgress > 0) {
+        this.minigunSpinProgress = Math.max(0, this.minigunSpinProgress - delta / this.minigunSpinDownTime);
+        if (this.viewmodel && typeof this.viewmodel.setMinigunSpin === 'function') {
+          this.viewmodel.setMinigunSpin(this.minigunSpinProgress);
+        }
+      }
       if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
         this.viewmodel.setTriggerHeld(false);
       }
@@ -1410,27 +1457,71 @@ export class WeaponSystem {
     this.isAiming = isRightDown;
     this.viewmodel.setADS(isRightDown);
 
-    // Fade crosshair during ADS for authentic iron sights alignment (dirty checked)
+    // Fade crosshair during ADS for iron-sight weapons (keep visible on Minigun hip-brace)
+    const hideCrosshair = isRightDown && this.currentWeapon !== 'm134_minigun';
     if (!this.crosshairEl) {
       this.crosshairEl = document.getElementById('crosshair-container');
       if (this.crosshairEl) this.crosshairEl.style.transition = 'opacity 0.12s ease-out';
     }
-    if (this.crosshairEl && this._lastCrosshairHidden !== isRightDown) {
-      this._lastCrosshairHidden = isRightDown;
-      this.crosshairEl.style.opacity = isRightDown ? '0' : '1';
+    if (this.crosshairEl && this._lastCrosshairHidden !== hideCrosshair) {
+      this._lastCrosshairHidden = hideCrosshair;
+      this.crosshairEl.style.opacity = hideCrosshair ? '0' : '1';
     }
 
-    // Smooth camera FOV zoom during ADS (only recalculate matrix when FOV changes)
-    const targetFOV = isRightDown ? 60 : 75;
+    // Smooth camera FOV zoom during ADS (subtle hip-brace zoom on M134 Minigun)
+    const targetFOV = isRightDown ? (this.currentWeapon === 'm134_minigun' ? 68 : 60) : 75;
     if (Math.abs(targetFOV - this.camera.fov) > 0.05) {
       this.camera.fov += (targetFOV - this.camera.fov) * Math.min(delta * 14.0, 1.0);
       this.camera.updateProjectionMatrix();
     }
 
-    // 6. Trigger handling: Full-Auto for MP5, Glock Auto, and AKMS Gold; Semi-Auto for USP, Pistol, Shotgun, Colt Peacemaker
+    // 6. Trigger handling: M134 rotary spin-up/firing loop + Full-Auto / Semi-Auto trigger control
     const isLeftDown = this.input.isMouseDown(0);
     const justClicked = isLeftDown && !this.wasMouseDown0;
     this.wasMouseDown0 = isLeftDown;
+
+    if (this.currentWeapon === 'm134_minigun') {
+      const canSpool = isLeftDown && !this.isReloading && this.currentAmmo > 0;
+      if (canSpool) {
+        if (this._minigunAudioState === 'idle') {
+          this._minigunAudioState = 'spinup';
+          if (this.sound && typeof this.sound.startMinigunSpin === 'function') {
+            this.sound.startMinigunSpin(this.minigunSpinProgress);
+          }
+        }
+        this.minigunSpinProgress = Math.min(1, this.minigunSpinProgress + delta / this.minigunSpinUpTime);
+        if (this.minigunSpinProgress >= 1 && this._minigunAudioState !== 'firing') {
+          this._minigunAudioState = 'firing';
+          if (this.sound && typeof this.sound.setMinigunFiring === 'function') {
+            this.sound.setMinigunFiring(true);
+          }
+        }
+      } else {
+        if (this._minigunAudioState !== 'idle') {
+          this._stopMinigunSpin(true);
+        }
+        if (this.minigunSpinProgress > 0) {
+          this.minigunSpinProgress = Math.max(0, this.minigunSpinProgress - delta / this.minigunSpinDownTime);
+        }
+        if (justClicked && this.currentAmmo <= 0 && !this.isReloading && this.fireTimer <= 0) {
+          this.fire();
+        }
+      }
+
+      if (this.viewmodel) {
+        if (typeof this.viewmodel.setMinigunSpin === 'function') {
+          this.viewmodel.setMinigunSpin(this.minigunSpinProgress);
+        }
+        if (typeof this.viewmodel.setTriggerHeld === 'function') {
+          this.viewmodel.setTriggerHeld(canSpool && this.minigunSpinProgress >= 1);
+        }
+      }
+
+      if (canSpool && this.minigunSpinProgress >= 1 && this.fireTimer <= 0) {
+        this.fire();
+      }
+      return;
+    }
 
     const isFullAuto = !!(this.weapons[this.currentWeapon] && this.weapons[this.currentWeapon].isAutomatic);
     if (this.viewmodel && typeof this.viewmodel.setTriggerHeld === 'function') {
@@ -1604,9 +1695,12 @@ export class WeaponSystem {
     const isColt = this.currentWeapon === 'colt_peacemaker';
     const isGlock = this.currentWeapon === 'glock_flamengo';
     const isAkms = this.currentWeapon === 'akms_gold';
+    const isMinigun = this.currentWeapon === 'm134_minigun';
 
     if (this.sound) {
-      if (isMP5 && typeof this.sound.playMP5Gunshot === 'function') {
+      if (isMinigun) {
+        // Continuous rotary roar loop is driven smoothly in SoundManager.setMinigunFiring(true)
+      } else if (isMP5 && typeof this.sound.playMP5Gunshot === 'function') {
         this.sound.playMP5Gunshot();
       } else if (isGlock && typeof this.sound.playGlockGunshot === 'function') {
         this.sound.playGlockGunshot();
@@ -1631,6 +1725,7 @@ export class WeaponSystem {
       if (isShotgun) pitchKick = isADS ? 0.036 : 0.062;
       else if (isColt) pitchKick = isADS ? 0.026 : 0.048;
       else if (isAkms) pitchKick = isADS ? 0.012 : 0.024;
+      else if (isMinigun) pitchKick = isADS ? 0.004 : 0.007;
       else if (isUSP) pitchKick = isADS ? 0.012 : 0.022;
       else if (isGlock) pitchKick = isADS ? 0.0065 : 0.012;
       else if (isMP5) pitchKick = isADS ? 0.007 : 0.013;
@@ -1639,8 +1734,8 @@ export class WeaponSystem {
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this._flashPeakIntensity = isShotgun ? 4.8 : (isColt ? 3.8 : (isAkms ? 3.5 : ((isUSP || isGlock) ? 2.4 : (isMP5 ? 2.2 : 3.4))));
-    this._flashMaxDuration = (isMP5 || isGlock) ? 0.035 : 0.045;
+    this._flashPeakIntensity = isShotgun ? 4.8 : (isMinigun ? 4.4 : (isColt ? 3.8 : (isAkms ? 3.5 : ((isUSP || isGlock) ? 2.4 : (isMP5 ? 2.2 : 3.4)))));
+    this._flashMaxDuration = isMinigun ? 0.032 : ((isMP5 || isGlock) ? 0.035 : 0.045);
     this.muzzleLight.intensity = this._flashPeakIntensity;
     this.flashDuration = this._flashMaxDuration;
 
@@ -1665,6 +1760,9 @@ export class WeaponSystem {
       this._performHitscan();
 
       if (this.currentAmmo === 0) {
+        if (isMinigun) {
+          this._stopMinigunSpin(true);
+        }
         if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'desert_eagle') {
           this.isSlideLocked = true;
           this.weapons[this.currentWeapon].isSlideLocked = true;
@@ -2000,9 +2098,10 @@ export class WeaponSystem {
 
     // Ray direction: camera world forward + subtle spread if not in ADS
     this.camera.getWorldDirection(_rayDirection);
-    if (!this.viewmodel.isADS) {
+    const isMinigun = this.currentWeapon === 'm134_minigun';
+    if (!this.viewmodel.isADS || isMinigun) {
       const isAuto = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
-      const spread = isAuto ? 0.012 : 0.008;
+      const spread = isMinigun ? (this.viewmodel.isADS ? 0.011 : 0.022) : (isAuto ? 0.012 : 0.008);
       _rayDirection.x += (Math.random() - 0.5) * spread;
       _rayDirection.y += (Math.random() - 0.5) * spread;
       _rayDirection.z += (Math.random() - 0.5) * spread;
@@ -2184,7 +2283,7 @@ export class WeaponSystem {
     decal.material.opacity = 1.0;
 
     const activeWeapon = isPellet ? 'shotgun' : (weaponId || this.currentWeapon);
-    const isHeavyCal = activeWeapon === 'desert_eagle' || activeWeapon === 'pistol' || activeWeapon === 'colt_peacemaker' || activeWeapon === 'akms_gold';
+    const isHeavyCal = activeWeapon === 'desert_eagle' || activeWeapon === 'pistol' || activeWeapon === 'colt_peacemaker' || activeWeapon === 'akms_gold' || activeWeapon === 'm134_minigun';
 
     // Select pre-warmed texture map (zero material.needsUpdate shader rebuilds!)
     let targetMap = (isHeavyCal && this.heavyGlassDecalTexture)
@@ -2275,6 +2374,10 @@ export class WeaponSystem {
     this.weapons.akms_gold.currentAmmo = 30;
     this.weapons.akms_gold.reserveAmmo = 120;
     this.weapons.akms_gold.isSlideLocked = false;
+    this.weapons.m134_minigun.currentAmmo = 200;
+    this.weapons.m134_minigun.reserveAmmo = 400;
+    this.weapons.m134_minigun.isSlideLocked = false;
+    this._stopMinigunSpin(false);
 
     this.maxAmmo = 12;
     this.currentAmmo = 12;

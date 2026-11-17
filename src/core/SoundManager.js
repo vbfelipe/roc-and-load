@@ -70,7 +70,21 @@ export class SoundManager {
       glock_flamengo: { key: '9mm_reload', playbackRate: 1.80, volume: 0.95, fallbackMs: 1248 },
       colt_peacemaker: { key: 'revolver_spin', playbackRate: 1.0, volume: 1.05, fallbackMs: 3344 },
       akms_gold: { key: 'akms_reload', playbackRate: 1.0, volume: 1.02, fallbackMs: 1646 },
+      m134_minigun: { key: '9mm_reload', playbackRate: 0.72, volume: 1.05, fallbackMs: 2600 },
     };
+    this._minigunSegments = {
+      spinUpStart: 0.04,
+      spinUpEnd: 1.08,
+      loopStart: 1.32,
+      loopEnd: 5.05,
+      spinDownStart: 5.42,
+      spinDownEnd: 8.78,
+    };
+    this._minigunSpinNode = null;
+    this._minigunFireNode = null;
+    this._minigunTailNode = null;
+    this._minigunMode = 'idle';
+    this._minigunPeakSpin = 0;
     this.lastDryFireTime = -Infinity;
     this.isPreloading = true;
     this._buildingExplosion = null;
@@ -176,6 +190,9 @@ export class SoundManager {
   setSfxEnabled(enabled) {
     this.isSfxEnabled = !!enabled;
     this.isMuted = !this.isSfxEnabled;
+    if (!this.isSfxEnabled) {
+      this.stopMinigunSpin(false);
+    }
     if (this.masterGain && this.ctx) {
       this.masterGain.gain.setValueAtTime(this.isSfxEnabled ? 0.75 : 0.0, this.ctx.currentTime);
     }
@@ -278,6 +295,254 @@ export class SoundManager {
   }
 
   /**
+   * M134 Minigun RMS envelope calibration & 3-stage state machine:
+   * spinUp (motor spool) -> continuous firing loop -> spinDown (coasting whine).
+   */
+  _calibrateMinigunSegments(audioBuffer) {
+    if (!audioBuffer || !audioBuffer.duration) return;
+    const ch = audioBuffer.getChannelData(0);
+    const sr = audioBuffer.sampleRate;
+    const winSamples = Math.max(1, Math.floor(sr * 0.025));
+    const numWins = Math.floor(ch.length / winSamples);
+    if (numWins < 40) return;
+
+    const rms = new Float32Array(numWins);
+    let maxRms = 0;
+    for (let w = 0; w < numWins; w++) {
+      let sum = 0;
+      const base = w * winSamples;
+      for (let i = 0; i < winSamples; i++) {
+        const s = ch[base + i];
+        sum += s * s;
+      }
+      const val = Math.sqrt(sum / winSamples);
+      rms[w] = val;
+      if (val > maxRms) maxRms = val;
+    }
+
+    if (maxRms <= 0.001) return;
+
+    // Sustained full-auto fire sits at high RMS (>0.42 peak) in the middle body
+    const fireThreshold = maxRms * 0.42;
+    let firstFireIdx = -1;
+    let lastFireIdx = -1;
+    for (let w = 0; w < numWins; w++) {
+      if (rms[w] >= fireThreshold) {
+        if (firstFireIdx === -1) firstFireIdx = w;
+        lastFireIdx = w;
+      }
+    }
+
+    const dur = audioBuffer.duration;
+    let spinUpEnd = firstFireIdx > 4 ? firstFireIdx * 0.025 : Math.min(1.12, dur * 0.14);
+    let fireEnd = lastFireIdx > firstFireIdx + 12 ? (lastFireIdx + 1) * 0.025 : Math.min(5.32, dur * 0.62);
+
+    // Clamp to sane bounds in case of transient spikes before firing
+    spinUpEnd = Math.max(0.45, Math.min(1.45, spinUpEnd));
+    fireEnd = Math.max(spinUpEnd + 1.5, Math.min(dur - 0.8, fireEnd));
+
+    const loopStart = Math.min(spinUpEnd + 0.18, fireEnd - 0.8);
+    const loopEnd = Math.max(loopStart + 0.6, fireEnd - 0.16);
+    const spinDownStart = Math.min(fireEnd + 0.06, dur - 0.35);
+
+    this._minigunSegments = {
+      spinUpStart: 0.03,
+      spinUpEnd,
+      loopStart,
+      loopEnd,
+      spinDownStart,
+      spinDownEnd: Math.max(spinDownStart + 0.25, dur - 0.04),
+    };
+  }
+
+  _stopMinigunChannel(nodeRef, now, fadeSec = 0.035) {
+    if (!nodeRef) return null;
+    const { source, gain } = nodeRef;
+    this._fadeOutAndStopSource(source, gain, now, fadeSec);
+    return null;
+  }
+
+  /**
+   * Starts M134 barrel spin-up sound (accelerates cleanly into full firing speed).
+   */
+  startMinigunSpin(spinProgress = 0) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    if (this._minigunMode === 'spinup' || this._minigunMode === 'firing') return;
+
+    const buffer = this.audioBuffers.get('minigun_fire');
+    if (!buffer) return;
+
+    const now = this.ctx.currentTime;
+    this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.03);
+    this._minigunFireNode = this._stopMinigunChannel(this._minigunFireNode, now, 0.03);
+    this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.02);
+
+    const seg = this._minigunSegments;
+    const clampedProgress = Math.max(0, Math.min(0.9, Number(spinProgress) || 0));
+    const segSpan = Math.max(0.25, seg.spinUpEnd - seg.spinUpStart);
+    const offset = seg.spinUpStart + segSpan * clampedProgress;
+    const remainingAudio = Math.max(0.15, seg.spinUpEnd - offset);
+    // Match playback speed so the entire spin-up turbine whine completes within ~0.68s full spool time
+    const desiredRemainingSec = Math.max(0.12, (1 - clampedProgress) * 0.68);
+    const playbackRate = Math.max(0.85, Math.min(1.85, remainingAudio / desiredRemainingSec));
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.playbackRate.setValueAtTime(playbackRate, now);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.92, now + 0.03);
+
+    source.connect(gain);
+    gain.connect(this.masterGain);
+    source.start(now, offset, remainingAudio + 0.15);
+
+    this._minigunSpinNode = { source, gain };
+    this._minigunMode = 'spinup';
+    this._minigunPeakSpin = Math.max(this._minigunPeakSpin, clampedProgress);
+
+    source.onended = () => {
+      if (this._minigunSpinNode?.source === source) {
+        this._minigunSpinNode = null;
+      }
+      try {
+        source.disconnect();
+        gain.disconnect();
+      } catch (e) { }
+    };
+  }
+
+  /**
+   * Transitions seamlessly from spin-up into the continuous full-auto M134 rotary roar loop.
+   */
+  setMinigunFiring(active) {
+    if (!active) {
+      if (this._minigunMode === 'firing') {
+        this.stopMinigunSpin(true);
+      }
+      return;
+    }
+
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    if (this._minigunMode === 'firing' && this._minigunFireNode) return;
+
+    const buffer = this.audioBuffers.get('minigun_fire');
+    if (!buffer) return;
+
+    this.resume();
+    const now = this.ctx.currentTime;
+    const seg = this._minigunSegments;
+
+    // Crossfade out spin-up motor whine into sustained firing loop
+    this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.045);
+    this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.03);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.loopStart = seg.loopStart;
+    source.loopEnd = seg.loopEnd;
+    source.playbackRate.setValueAtTime(1.0, now);
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.94, now + 0.035);
+
+    source.connect(gain);
+    gain.connect(this.masterGain);
+    source.start(now, seg.loopStart);
+
+    this._minigunFireNode = { source, gain };
+    this._minigunMode = 'firing';
+    this._minigunPeakSpin = 1.0;
+
+    source.onended = () => {
+      if (this._minigunFireNode?.source === source) {
+        this._minigunFireNode = null;
+      }
+      try {
+        source.disconnect();
+        gain.disconnect();
+      } catch (e) { }
+    };
+  }
+
+  /**
+   * Stops spin-up or active firing and optionally plays the rotary barrel spin-down tail.
+   */
+  stopMinigunSpin(playSpinDown = true, spinLevel = null) {
+    if (!this.ctx) {
+      this._minigunMode = 'idle';
+      this._minigunPeakSpin = 0;
+      return;
+    }
+
+    const wasActive = this._minigunMode !== 'idle' || this._minigunSpinNode || this._minigunFireNode;
+    if (typeof spinLevel === 'number') {
+      this._minigunPeakSpin = Math.max(this._minigunPeakSpin, spinLevel);
+    }
+    const now = this.ctx.currentTime;
+
+    this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.035);
+    this._minigunFireNode = this._stopMinigunChannel(this._minigunFireNode, now, 0.04);
+
+    if (!playSpinDown) {
+      this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.03);
+      this._minigunMode = 'idle';
+      this._minigunPeakSpin = 0;
+      return;
+    }
+
+    this._minigunMode = 'idle';
+    if (!wasActive || this.isPreloading || this.isMuted || !this.isSfxEnabled) {
+      this._minigunPeakSpin = 0;
+      return;
+    }
+
+    const buffer = this.audioBuffers.get('minigun_fire');
+    if (!buffer) {
+      this._minigunPeakSpin = 0;
+      return;
+    }
+
+    const seg = this._minigunSegments;
+    const totalTail = Math.max(0.4, seg.spinDownEnd - seg.spinDownStart);
+    // If released mid spin-up, start deeper into the coast-down so the tail matches barrel RPM
+    const peak = Math.max(0.35, Math.min(1.0, this._minigunPeakSpin || 1.0));
+    const offset = seg.spinDownStart + (1.0 - peak) * (totalTail * 0.45);
+    const playLen = Math.max(0.25, seg.spinDownEnd - offset);
+    this._minigunPeakSpin = 0;
+
+    this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.025);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.01, now);
+    gain.gain.linearRampToValueAtTime(0.88, now + 0.03);
+    gain.gain.setValueAtTime(0.88, Math.max(now + 0.035, now + playLen - 0.12));
+    gain.gain.linearRampToValueAtTime(0.001, now + playLen);
+
+    source.connect(gain);
+    gain.connect(this.masterGain);
+    source.start(now, offset, playLen);
+
+    this._minigunTailNode = { source, gain };
+    source.onended = () => {
+      if (this._minigunTailNode?.source === source) {
+        this._minigunTailNode = null;
+      }
+      try {
+        source.disconnect();
+        gain.disconnect();
+      } catch (e) { }
+    };
+  }
+
+  /**
    * Gold-Plated AKMS 7.62x39 Assault Rifle Gunshot (RARE).
    * Polyphonic 7.62x39 bark with subtle pitch variation.
    */
@@ -311,6 +576,7 @@ export class SoundManager {
       'akms_reload': './sounds/akms_reload.mp3',
       'revolver_shot': './sounds/revolver_shot.mp3',
       'revolver_spin': './sounds/revolver_spin.mp3',
+      'minigun_fire': './sounds/minigun_fire.mp3',
       'building_explosions': './sounds/building_explosions.mp3',
     };
 
@@ -355,6 +621,9 @@ export class SoundManager {
             audioBuffer._attackOffset = firstSample / audioBuffer.sampleRate;
           } else {
             audioBuffer._attackOffset = 0;
+          }
+          if (key === 'minigun_fire') {
+            this._calibrateMinigunSegments(audioBuffer);
           }
           this.audioBuffers.set(key, audioBuffer);
         }
@@ -471,6 +740,7 @@ export class SoundManager {
    */
   stopActionSounds() {
     this.isSampleReloadActive = false;
+    this.stopMinigunSpin(false);
     const now = this.ctx ? this.ctx.currentTime : 0;
 
     if (this.activeReloadSource) {

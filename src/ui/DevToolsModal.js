@@ -10,6 +10,7 @@ const WEAPON_SLOTS = [
   { id: 'colt_peacemaker', label: '5: Colt', legendary: false },
   { id: 'glock_flamengo', label: '6: Glock 18 ★', legendary: true },
   { id: 'akms_gold', label: '7: AKMS ★', legendary: true },
+  { id: 'm134_minigun', label: '8: Minigun ★', legendary: true },
 ];
 
 const LIGHTING_SLIDERS = [
@@ -1087,6 +1088,19 @@ export class DevToolsModal {
           hipRot: vm.akmsHipRotation,
           adsPos: vm.akmsAdsPosition,
           adsRot: vm.akmsAdsRotation,
+        };
+      case 'm134_minigun':
+        return {
+          label: 'M134 MINIGUN (7.62 ROTARY) ★',
+          group: vm.minigunGroup,
+          handPivot: vm.minigunHandPivot,
+          wrist: vm.minigunWristBone,
+          elbow: vm.minigunElbowBone,
+          triggerFinger: null,
+          hipPos: vm.minigunHipPosition,
+          hipRot: vm.minigunHipRotation,
+          adsPos: vm.minigunAdsPosition,
+          adsRot: vm.minigunAdsRotation,
         };
       case 'desert_eagle':
       case 'pistol':

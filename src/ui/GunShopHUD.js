@@ -179,6 +179,26 @@ export const GUN_SHOP_CATALOG = Object.freeze([
       capPct: 88,
     },
   },
+  {
+    id: 'm134_minigun',
+    name: 'M134 MINIGUN',
+    caliber: '7.62×51MM ROTARY',
+    price: 100000,
+    isLegendary: true,
+    infiniteAmmo: false,
+    ammoPackSize: 200,
+    ammoPackPrice: 2000,
+    stats: {
+      headDamage: '62 / 40',
+      headPct: 86,
+      bodyDamage: '32 / 18',
+      bodyPct: 68,
+      fireRate: 'Rotary (1333 RPM)',
+      ratePct: 100,
+      capacity: '200 + 400',
+      capPct: 100,
+    },
+  },
 ]);
 
 function formatMoney(n) {

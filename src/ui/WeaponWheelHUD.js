@@ -1,11 +1,13 @@
-// GTA V-Style 8-Wedge Radial Weapon Wheel HUD (Hold TAB, Move Mouse or Scroll Wheel, Release TAB to Equip)
+// GTA V-Style 9-Wedge Radial Weapon Wheel HUD (Hold TAB, Move Mouse or Scroll Wheel, Release TAB to Equip)
+
+const WHEEL_STEP_DEG = 360 / 9;
 
 export const WHEEL_SLOTS = [
   {
     index: 0,
     id: 'hk_usp',
     name: 'HK USP',
-    angleDeg: -90, // 12:00 Top
+    angleDeg: -90, // Top (0 * 40 - 90)
     isRare: false,
     alwaysUnlocked: false,
   },
@@ -13,7 +15,7 @@ export const WHEEL_SLOTS = [
     index: 1,
     id: 'desert_eagle',
     name: 'DESERT EAGLE',
-    angleDeg: -45, // 1:30 Top-Right
+    angleDeg: -90 + WHEEL_STEP_DEG * 1,
     isRare: false,
     alwaysUnlocked: false,
   },
@@ -21,7 +23,7 @@ export const WHEEL_SLOTS = [
     index: 2,
     id: 'hk_mp5',
     name: 'HK MP5',
-    angleDeg: 0, // 3:00 Right
+    angleDeg: -90 + WHEEL_STEP_DEG * 2,
     isRare: false,
     alwaysUnlocked: false,
   },
@@ -29,7 +31,7 @@ export const WHEEL_SLOTS = [
     index: 3,
     id: 'shotgun',
     name: 'REMINGTON 870',
-    angleDeg: 45, // 4:30 Bottom-Right
+    angleDeg: -90 + WHEEL_STEP_DEG * 3,
     isRare: false,
     alwaysUnlocked: false,
   },
@@ -37,7 +39,7 @@ export const WHEEL_SLOTS = [
     index: 4,
     id: 'unarmed',
     name: 'DESARMADO',
-    angleDeg: 90, // 6:00 Bottom
+    angleDeg: -90 + WHEEL_STEP_DEG * 4,
     isRare: false,
     alwaysUnlocked: true,
   },
@@ -45,7 +47,7 @@ export const WHEEL_SLOTS = [
     index: 5,
     id: 'colt_peacemaker',
     name: 'COLT PEACEMAKER',
-    angleDeg: 135, // 7:30 Bottom-Left
+    angleDeg: -90 + WHEEL_STEP_DEG * 5,
     isRare: false,
     alwaysUnlocked: false,
   },
@@ -53,7 +55,7 @@ export const WHEEL_SLOTS = [
     index: 6,
     id: 'glock_flamengo',
     name: 'GLOCK 18 CUSTOM',
-    angleDeg: 180, // 9:00 Left
+    angleDeg: -90 + WHEEL_STEP_DEG * 6,
     isRare: true,
     alwaysUnlocked: false,
   },
@@ -61,7 +63,15 @@ export const WHEEL_SLOTS = [
     index: 7,
     id: 'akms_gold',
     name: 'AKMS GOLD',
-    angleDeg: -135, // 10:30 Top-Left
+    angleDeg: -90 + WHEEL_STEP_DEG * 7,
+    isRare: true,
+    alwaysUnlocked: false,
+  },
+  {
+    index: 8,
+    id: 'm134_minigun',
+    name: 'M134 MINIGUN',
+    angleDeg: -90 + WHEEL_STEP_DEG * 8,
     isRare: true,
     alwaysUnlocked: false,
   },
@@ -399,6 +409,30 @@ function getSlotWeaponSilhouetteSVG(slotId) {
         </g>
       `;
 
+    case 'm134_minigun':
+      // 9. M134 MINIGUN (Wedge 8 — LENDÁRIA): Iconic 6-barrel rotary gatling cluster, clamp collar,
+      // heavy motor housing, top tubular carry handle, and rear spade/pistol trigger grip.
+      return `
+        <g transform="translate(0, 3) scale(0.92)" stroke="#090d14" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round">
+          <!-- Rear Pistol/Spade Trigger Grip & Motor Shroud -->
+          <path d="M -52 -15 L -46 -15 L -46 -4 L -52 -4 Z" fill="${darkFill}" />
+          <path d="M -48 -5 L -22 -7 L -22 10 L -48 8 Z" fill="${frameFill}" />
+          <rect x="-42" y="7" width="20" height="9" rx="2.5" fill="${subFill}" />
+          <!-- Top Frame Rail & Tubular Forward Carry Handle -->
+          <path d="M -46 -11 L -2 -11 L -2 -6 L -46 -6 Z" fill="${darkFill}" />
+          <path d="M -18 -23 L 0 -23 L 0 -10 L -5 -10 L -5 -18 L -13 -18 L -13 -10 L -18 -10 Z" fill="${subFill}" />
+          <!-- Side Rotary Drive Motor Pod & Ammo Chute -->
+          <rect x="-32" y="-5" width="24" height="17" rx="3" fill="${darkFill}" />
+          <!-- 6-Barrel Rotary Cluster & Forward Barrel Clamps -->
+          <rect x="-2" y="-8.5" width="58" height="3.2" fill="${fillGrad}" stroke-width="1.5" />
+          <rect x="-2" y="-3.2" width="58" height="3.4" fill="${fillGrad}" stroke-width="1.6" />
+          <rect x="-2" y="2.2" width="58" height="3.2" fill="${subFill}" stroke-width="1.5" />
+          <!-- Mid & Forward Rotor Clamp Rings -->
+          <rect x="26" y="-10" width="6" height="17" rx="1" fill="${darkFill}" stroke-width="1.7" />
+          <rect x="49" y="-9.5" width="4.5" height="16" rx="0.8" fill="${subFill}" stroke-width="1.6" />
+        </g>
+      `;
+
     default:
       return '';
   }
@@ -451,7 +485,7 @@ export class WeaponWheelHUD {
     const rArcIn = 210;
     const rArcOut = 221;
     const rIcon = 164;
-    const halfSpan = 22.5;
+    const halfSpan = WHEEL_STEP_DEG * 0.5;
     const gapDeg = 0.9;
 
     let wedgesSvg = '';
@@ -545,12 +579,13 @@ export class WeaponWheelHUD {
   }
 
   _getEquippedIndex() {
+    const unarmedIdx = Math.max(0, WHEEL_SLOTS.findIndex((s) => s.id === 'unarmed'));
     if (!this.weaponSystem || this.weaponSystem.isUnarmed) {
-      return 4; // Unarmed (Bottom 6:00)
+      return unarmedIdx;
     }
     const activeId = this.weaponSystem.currentWeapon;
     const found = WHEEL_SLOTS.findIndex((s) => s.id === activeId);
-    return found !== -1 ? found : 4;
+    return found !== -1 ? found : unarmedIdx;
   }
 
   _isSlotUnlocked(slot) {
@@ -712,10 +747,10 @@ export class WeaponWheelHUD {
     this._updateCursorVisual();
 
     if (dist > this.deadzoneRadius) {
-      // atan2(y, x) where Top (0, -1) is -90 deg -> maps to Wedge 0, clockwise 0..7
+      // atan2(y, x) where Top (0, -1) is -90 deg -> maps to Wedge 0, clockwise 0..N-1
       const rawDeg = (Math.atan2(this.cursorY, this.cursorX) * 180) / Math.PI;
       const degFromTop = (rawDeg + 90 + 360) % 360;
-      const newIndex = Math.floor(((degFromTop + 22.5) % 360) / 45);
+      const newIndex = Math.floor(((degFromTop + WHEEL_STEP_DEG * 0.5) % 360) / WHEEL_STEP_DEG) % WHEEL_SLOTS.length;
 
       if (newIndex !== this.hoveredIndex) {
         this.hoveredIndex = newIndex;

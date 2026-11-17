@@ -24,6 +24,7 @@ export function normalizeWeaponId(weaponId = 'hk_usp') {
   if (id === 'colt_peacemaker' || id === 'colt' || id === 'peacemaker') return 'colt_peacemaker';
   if (id === 'glock_flamengo' || id === 'glock') return 'glock_flamengo';
   if (id === 'akms_gold' || id === 'akms' || id === 'ak47') return 'akms_gold';
+  if (id === 'm134_minigun' || id === 'minigun' || id === 'm134') return 'm134_minigun';
   if (id === 'pistol' || id === 'deagle' || id === 'desert_eagle') return 'deagle';
   if (id === 'shotgun' || id === 'remington_870') return 'shotgun';
   if (id === 'hk_mp5' || id === 'mp5') return 'hk_mp5';
@@ -59,6 +60,12 @@ export function getWeaponZombieDamage(weaponId = 'hk_usp', archetype = 'woman', 
   if (weapon === 'akms_gold') {
     if (isMan) return isHead ? 80 : 35;
     return isHead ? 100 : 55;
+  }
+
+  if (weapon === 'm134_minigun') {
+    const falloff = dist > 20.0 ? 0.8 : 1.0;
+    const base = isMan ? (isHead ? 40 : 18) : (isHead ? 62 : 32);
+    return Math.round(base * falloff);
   }
 
   if (weapon === 'hk_usp') {

@@ -89,6 +89,18 @@ const AKMS_LEFT_HAND_POSE = {
   wristRoll: 0.02,
 };
 
+const MINIGUN_LEFT_HAND_POSE = {
+  ...DEFAULT_LEFT_SUPPORT_POSE,
+  pos: [0.0, 0.152, 0.065],
+  rot: [0.2, 2.4, 0.8],
+  scale: 0.94,
+  wristPitch: -0.08,
+  wristRoll: 0.02,
+  elbowBend: -0.22,
+  armPitch: 0.45,
+  centerAfterRig: true,
+};
+
 // Cached singleton procedural flame starburst texture
 let _cachedFlashTexture = null;
 
@@ -411,6 +423,12 @@ export class WeaponViewmodel {
     this.akmsHipRotation = new THREE.Euler(0.1, 0, 0);
     this.akmsAdsRotation = new THREE.Euler(0, 0, 0);
 
+    // Slot 8 (M134 Minigun 7.62 Rotary - LEGENDARY) Hip & Braced Carry Transforms
+    this.minigunHipPosition = new THREE.Vector3(0.14, -0.19, -0.22);
+    this.minigunAdsPosition = new THREE.Vector3(0.09, -0.15, -0.26);
+    this.minigunHipRotation = new THREE.Euler(0.04, 0.08, 0.0);
+    this.minigunAdsRotation = new THREE.Euler(0.02, 0.06, 0.0);
+
     // Dynamic targets pointing to current active weapon transforms
     this.hipPosition = this.uspHipPosition;
     this.adsPosition = this.uspAdsPosition;
@@ -440,6 +458,8 @@ export class WeaponViewmodel {
     this.glockMuzzleSocket.name = 'GlockMuzzleSocket';
     this.akmsMuzzleSocket = new THREE.Object3D();
     this.akmsMuzzleSocket.name = 'AKMSMuzzleSocket';
+    this.minigunMuzzleSocket = new THREE.Object3D();
+    this.minigunMuzzleSocket.name = 'MinigunMuzzleSocket';
     this.muzzleAnchor = this.uspMuzzleSocket;
 
     this.uspEjectionAnchor = new THREE.Group();
@@ -456,6 +476,8 @@ export class WeaponViewmodel {
     this.glockEjectionAnchor.name = 'GlockEjectionAnchor';
     this.akmsEjectionAnchor = new THREE.Group();
     this.akmsEjectionAnchor.name = 'AKMSEjectionAnchor';
+    this.minigunEjectionAnchor = new THREE.Group();
+    this.minigunEjectionAnchor.name = 'MinigunEjectionAnchor';
 
     this.muzzleWorldPos = new THREE.Vector3();
     this.ejectionWorldPos = new THREE.Vector3();
@@ -581,6 +603,18 @@ export class WeaponViewmodel {
     this.akmsBoltMesh = null;
     this.akmsBoltRestX = 0;
 
+    // M134 Minigun Sub-assemblies & rotating barrel cluster (single left support arm)
+    this.minigunGroup = null;
+    this.minigunModelGroup = null;
+    this.minigunLeftHandGroup = null;
+    this.minigunHandsClone = null;
+    this.minigunHandPivot = null;
+    this.minigunWristBone = null;
+    this.minigunElbowBone = null;
+    this.minigunBarrelNodes = [];
+    this.minigunSpinSpeed = 0;
+    this.minigunMaxSpinRadPerSec = 36.0;
+
     this.shotgunPumpMesh = null;
     this.shotgunPumpRodsMesh = null;
     this.shotgunSlideLRodsMesh = null;
@@ -631,6 +665,7 @@ export class WeaponViewmodel {
     this._buildColtMesh();
     this._buildGlockMesh();
     this._buildAkmsMesh();
+    this._buildMinigunMesh();
     this._buildUnarmedMesh();
     this._buildMuzzleFlashRig();
 
@@ -883,6 +918,29 @@ export class WeaponViewmodel {
     this.akmsGroup.add(this.akmsEjectionAnchor);
   }
 
+  _buildMinigunMesh() {
+    this.minigunGroup = new THREE.Group();
+    this.minigunGroup.name = 'M134_Minigun';
+    this.minigunGroup.visible = false;
+    this.root.add(this.minigunGroup);
+
+    this.minigunModelGroup = new THREE.Group();
+    this.minigunModelGroup.name = 'MinigunModelContainer';
+    this.minigunGroup.add(this.minigunModelGroup);
+
+    this.minigunLeftHandGroup = new THREE.Group();
+    this.minigunLeftHandGroup.name = 'MinigunLeftHandContainer';
+    this.minigunGroup.add(this.minigunLeftHandGroup);
+
+    // Muzzle sits cleanly at tips of the 6-barrel cluster (centered along -Z after PI Y flip)
+    this.minigunMuzzleSocket.position.set(0, 0, -0.534);
+    this.minigunGroup.add(this.minigunMuzzleSocket);
+
+    // Right-side casing chute discharge port
+    this.minigunEjectionAnchor.position.set(0.075, -0.01, -0.02);
+    this.minigunGroup.add(this.minigunEjectionAnchor);
+  }
+
   // ===========================================================================
   // 3D GLTF ASSET PIPELINE LOADER
   // ===========================================================================
@@ -911,6 +969,7 @@ export class WeaponViewmodel {
       { key: 'colt_peacemaker', url: './models/colt_peacemaker.glb', bytes: 937652, setup: (gltf) => this._setupColtModel(gltf) },
       { key: 'glock_flamengo', url: './models/glock_flamengo.glb', bytes: 828512, setup: (gltf) => this._setupGlockModel(gltf) },
       { key: 'akms_gold', url: './models/akms_gold.glb', bytes: 667536, setup: (gltf) => this._setupAkmsModel(gltf) },
+      { key: 'm134_minigun', url: './models/m134_minigun.glb', bytes: 29418744, setup: (gltf) => this._setupMinigunModel(gltf) },
       { key: 'fps_hands', url: './models/fps_hands.glb', bytes: 827564, setup: (gltf) => this._setupHandsModel(gltf) },
     ];
 
@@ -1809,6 +1868,58 @@ export class WeaponViewmodel {
     this.akmsModelGroup.add(akmsScene);
   }
 
+  _setupMinigunModel(gltf) {
+    const minigunScene = gltf.scene;
+    minigunScene.name = 'M134MinigunGLTF';
+
+    const rotorCandidates = new Set(['stvol_low', 'kozhuh_low', 'block_stvolov_low']);
+    const rotorNodes = [];
+
+    const hasRotorAncestor = (node) => {
+      let cur = node.parent;
+      while (cur && cur !== minigunScene) {
+        if (rotorNodes.includes(cur)) return true;
+        cur = cur.parent;
+      }
+      return false;
+    };
+
+    minigunScene.traverse((child) => {
+      const n = String(child.name || '');
+      const baseName = n.replace(/_m134_0$/i, '');
+      if ((rotorCandidates.has(n) || rotorCandidates.has(baseName)) && !hasRotorAncestor(child)) {
+        rotorNodes.push(child);
+      }
+
+      if (child.isMesh) {
+        child.frustumCulled = false;
+        child.castShadow = false;
+        child.receiveShadow = false;
+        const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
+        for (const m of mats) {
+          if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
+          if (m.isMeshStandardMaterial) {
+            if (m.metalnessMap) m.metalness = 1.0;
+            if (m.roughness === 0) m.roughness = 0.55;
+            m.userData.vmEnvIntensity = 0.95;
+            m.needsUpdate = true;
+          }
+        }
+      }
+    });
+
+    this.minigunBarrelNodes = rotorNodes;
+
+    // GLTF scene root has muzzle facing +Z (due to baked node transforms); rotate PI around Y so barrels point forward (-Z)
+    // and shift so barrel cluster centerline (X=-2.89, Y=76.30) sits centered on local (0, 0).
+    const s = 0.00112;
+    minigunScene.scale.setScalar(s);
+    minigunScene.rotation.set(0, Math.PI, 0);
+    minigunScene.position.set(-0.0032, -0.0855, 0.08);
+
+    this.minigunModelGroup.add(minigunScene);
+  }
+
   _setupHandsModel(gltf) {
     gltf.scene.traverse((child) => {
       if (child.isMesh || child.isSkinnedMesh) {
@@ -1837,6 +1948,7 @@ export class WeaponViewmodel {
     this._buildColtHand();
     this._buildGlockHand();
     this._buildAkmsHand();
+    this._buildMinigunHand();
     this._buildUnarmedHands();
 
     this._syncTuner();
@@ -1889,6 +2001,7 @@ export class WeaponViewmodel {
     const prevColtVis = this.coltGroup ? this.coltGroup.visible : false;
     const prevGlockVis = this.glockGroup ? this.glockGroup.visible : false;
     const prevAkmsVis = this.akmsGroup ? this.akmsGroup.visible : false;
+    const prevMinigunVis = this.minigunGroup ? this.minigunGroup.visible : false;
     const prevUnarmedVis = this.unarmedGroup ? this.unarmedGroup.visible : false;
     const prevMuzzleVis = this.muzzleFlashGroup ? this.muzzleFlashGroup.visible : false;
     const prevShellVis = this.shotgunReloadShell ? this.shotgunReloadShell.visible : false;
@@ -1908,6 +2021,7 @@ export class WeaponViewmodel {
     if (this.coltGroup) this.coltGroup.visible = true;
     if (this.glockGroup) this.glockGroup.visible = true;
     if (this.akmsGroup) this.akmsGroup.visible = true;
+    if (this.minigunGroup) this.minigunGroup.visible = true;
     if (this.unarmedGroup) this.unarmedGroup.visible = true;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = true;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = true;
@@ -1952,6 +2066,7 @@ export class WeaponViewmodel {
     if (this.coltGroup) this.coltGroup.visible = this.isUnarmed ? false : prevColtVis;
     if (this.glockGroup) this.glockGroup.visible = this.isUnarmed ? false : prevGlockVis;
     if (this.akmsGroup) this.akmsGroup.visible = this.isUnarmed ? false : prevAkmsVis;
+    if (this.minigunGroup) this.minigunGroup.visible = this.isUnarmed ? false : prevMinigunVis;
     if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed ? true : prevUnarmedVis;
     if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = prevMuzzleVis;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = prevShellVis;
@@ -2386,6 +2501,14 @@ export class WeaponViewmodel {
       armL.rotation.x = pose.armPitch;
     }
 
+    if (pose.centerAfterRig && handData.palmBone) {
+      clone.position.set(0, 0, 0);
+      clone.updateMatrixWorld(true);
+      const palmWorld = new THREE.Vector3();
+      handData.palmBone.getWorldPosition(palmWorld);
+      clone.position.copy(palmWorld).multiplyScalar(-1);
+    }
+
     pivotGroup.userData.defaultPos = pivotGroup.position.clone();
     pivotGroup.userData.defaultRot = pivotGroup.rotation.clone();
     pivotGroup.userData.defaultScale = pivotGroup.scale.clone();
@@ -2513,6 +2636,19 @@ export class WeaponViewmodel {
     this.akmsElbowBone = rig.elbowBone;
   }
 
+  /**
+   * Builds Slot 8 (M134 Minigun) Single Left Support Arm reaching onto carry handle (right arm omitted).
+   */
+  _buildMinigunHand() {
+    const rig = this._buildLeftSupportHandRig(this.minigunLeftHandGroup, MINIGUN_LEFT_HAND_POSE);
+    if (!rig) return;
+
+    this.minigunHandPivot = rig.pivotGroup;
+    this.minigunHandsClone = rig.clone;
+    this.minigunWristBone = rig.wristBone;
+    this.minigunElbowBone = rig.elbowBone;
+  }
+
   _buildUnarmedMesh() {
     this.unarmedGroup = new THREE.Group();
     this.unarmedGroup.name = 'UnarmedHands';
@@ -2633,6 +2769,8 @@ export class WeaponViewmodel {
       if (this.coltGroup) this.coltGroup.visible = false;
       if (this.glockGroup) this.glockGroup.visible = false;
       if (this.akmsGroup) this.akmsGroup.visible = false;
+      if (this.minigunGroup) this.minigunGroup.visible = false;
+      this.minigunSpinSpeed = 0;
       if (this.muzzleFlashGroup) this.muzzleFlashGroup.visible = false;
       if (this.unarmedGroup) this.unarmedGroup.visible = true;
 
@@ -2686,6 +2824,7 @@ export class WeaponViewmodel {
     const isColt = w === 'colt_peacemaker';
     const isGlock = w === 'glock_flamengo';
     const isAkms = w === 'akms_gold';
+    const isMinigun = w === 'm134_minigun';
 
     let target = this.pistolHandPivot;
     let wrist = this.pistolWristBone;
@@ -2697,6 +2836,7 @@ export class WeaponViewmodel {
     else if (isColt) { target = this.coltHandPivot; wrist = this.coltWristBone; elbow = this.coltElbowBone; triggerFinger = this.coltTriggerFinger; }
     else if (isGlock) { target = this.glockHandPivot; wrist = this.glockWristBone; elbow = this.glockElbowBone; triggerFinger = this.glockTriggerFinger; }
     else if (isAkms) { target = this.akmsHandPivot; wrist = this.akmsWristBone; elbow = this.akmsElbowBone; triggerFinger = null; }
+    else if (isMinigun) { target = this.minigunHandPivot; wrist = this.minigunWristBone; elbow = this.minigunElbowBone; triggerFinger = null; }
 
     if (target && target.userData.defaultPos) {
       target.position.copy(target.userData.defaultPos);
@@ -2704,9 +2844,9 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
 
-    const defaultPitch = isGlock ? 0.4 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : (isAkms ? -0.06 : (isShotgun ? -0.08 : -0.02)))));
-    const defaultRoll = isGlock ? 0.34 : ((isUSP || isColt || isAkms) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02)));
-    const defaultBend = (isUSP || isColt || isGlock) ? 0 : ((isShotgun || isMP5 || isAkms) ? -0.22 : -0.02);
+    const defaultPitch = isGlock ? 0.4 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : ((isAkms || isMinigun) ? -0.06 : (isShotgun ? -0.08 : -0.02)))));
+    const defaultRoll = isGlock ? 0.34 : ((isUSP || isColt || isAkms || isMinigun) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02)));
+    const defaultBend = (isUSP || isColt || isGlock) ? 0 : ((isShotgun || isMP5 || isAkms || isMinigun) ? -0.22 : -0.02);
     const pitch = wrist?.userData?.defaultPitch ?? defaultPitch;
     const roll = wrist?.userData?.defaultRoll ?? defaultRoll;
     const bend = elbow?.userData?.defaultBend ?? defaultBend;
@@ -2733,6 +2873,9 @@ export class WeaponViewmodel {
       } else if (isAkms) {
         this.akmsHipPosition.set(0.1, -0.13, -0.1);
         this.akmsHipRotation.set(0.1, 0, 0);
+      } else if (isMinigun) {
+        this.minigunHipPosition.set(0.14, -0.19, -0.22);
+        this.minigunHipRotation.set(0.04, 0.08, 0.0);
       } else {
         this.pistolHipPosition.set(0.1, -0.1, -0.4);
         this.pistolHipRotation.set(0.1, 0, 0.1);
@@ -2760,6 +2903,9 @@ export class WeaponViewmodel {
       } else if (isAkms) {
         this.akmsAdsPosition.set(0.008, -0.083, -0.094);
         this.akmsAdsRotation.set(0, 0, 0);
+      } else if (isMinigun) {
+        this.minigunAdsPosition.set(0.09, -0.15, -0.26);
+        this.minigunAdsRotation.set(0.02, 0.06, 0.0);
       } else {
         this.pistolAdsPosition.set(0.000, -0.104, -0.345);
         this.pistolAdsRotation.set(-0.017, 0, 0);
@@ -2794,7 +2940,7 @@ export class WeaponViewmodel {
     this.isPumping = false;
     this._updateShotgunPumpVisuals(0);
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
-    for (const leftGroup of [this.shotgunLeftHandGroup, this.mp5LeftHandGroup, this.akmsLeftHandGroup]) {
+    for (const leftGroup of [this.shotgunLeftHandGroup, this.mp5LeftHandGroup, this.akmsLeftHandGroup, this.minigunLeftHandGroup]) {
       if (leftGroup) {
         leftGroup.position.set(0, 0, 0);
         leftGroup.rotation.set(0, 0, 0);
@@ -2833,6 +2979,10 @@ export class WeaponViewmodel {
     }
     this._resetColtMechState();
     this._resetAkmsMechState();
+    this.minigunSpinSpeed = 0;
+    if (this.minigunModelGroup) {
+      this.minigunModelGroup.position.set(0, 0, 0);
+    }
     if (this.magGroup) {
       this.magGroup.position.set(0, 0, 0);
       this.magGroup.visible = true;
@@ -2840,6 +2990,7 @@ export class WeaponViewmodel {
     this._updateDesertEagleMagVisuals(0, true);
 
     this.currentWeapon = weaponType;
+    this.minigunSpinSpeed = 0;
     const isUSP = weaponType === 'hk_usp';
     const isShotgun = weaponType === 'shotgun';
     const isMP5 = weaponType === 'hk_mp5';
@@ -2847,6 +2998,7 @@ export class WeaponViewmodel {
     const isColt = weaponType === 'colt_peacemaker';
     const isGlock = weaponType === 'glock_flamengo';
     const isAkms = weaponType === 'akms_gold';
+    const isMinigun = weaponType === 'm134_minigun';
 
     this._syncTuner();
 
@@ -2857,6 +3009,7 @@ export class WeaponViewmodel {
     if (this.coltGroup) this.coltGroup.visible = isColt;
     if (this.glockGroup) this.glockGroup.visible = isGlock;
     if (this.akmsGroup) this.akmsGroup.visible = isAkms;
+    if (this.minigunGroup) this.minigunGroup.visible = isMinigun;
 
     if (isUSP) {
       this.hipPosition = this.uspHipPosition;
@@ -2894,6 +3047,12 @@ export class WeaponViewmodel {
       this.hipRotation = this.akmsHipRotation;
       this.adsRotation = this.akmsAdsRotation;
       this.muzzleAnchor = this.akmsMuzzleSocket;
+    } else if (isMinigun) {
+      this.hipPosition = this.minigunHipPosition;
+      this.adsPosition = this.minigunAdsPosition;
+      this.hipRotation = this.minigunHipRotation;
+      this.adsRotation = this.minigunAdsRotation;
+      this.muzzleAnchor = this.minigunMuzzleSocket;
     } else {
       this.hipPosition = this.pistolHipPosition;
       this.adsPosition = this.pistolAdsPosition;
@@ -3042,6 +3201,7 @@ export class WeaponViewmodel {
     if (this.currentWeapon === 'shotgun') baseScale = 1.25;
     else if (this.currentWeapon === 'colt_peacemaker') baseScale = 1.05;
     else if (this.currentWeapon === 'akms_gold') baseScale = 0.95;
+    else if (this.currentWeapon === 'm134_minigun') baseScale = 1.32;
     else if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'glock_flamengo') baseScale = 0.65;
     else if (this.currentWeapon === 'hk_mp5') baseScale = 0.70;
     const s = baseScale + Math.random() * 0.40;
@@ -3058,7 +3218,25 @@ export class WeaponViewmodel {
     this.isTriggerHeld = !!held;
   }
 
+  setMinigunSpin(speed) {
+    this.minigunSpinSpeed = Math.max(0, Math.min(1, Number(speed) || 0));
+  }
+
   applyRecoil() {
+    if (this.currentWeapon === 'm134_minigun') {
+      const recoilKick = this.isADS ? 0.012 : 0.018;
+      const recoilPitch = (this.isADS ? 0.010 : 0.016) + (Math.random() - 0.35) * 0.010;
+      const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.014 : 0.022);
+      const rollTorque = (Math.random() - 0.5) * 0.012;
+
+      this.posSpring.impulse((Math.random() - 0.5) * 0.004, recoilKick * 0.16, recoilKick);
+      this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
+      this.isTriggerHeld = true;
+
+      this.triggerMuzzleFlash();
+      return;
+    }
+
     if (this.currentWeapon === 'shotgun') {
       const recoilKick = this.isADS ? 0.082 : 0.135;
       const recoilPitch = this.isADS ? 0.115 : 0.235;
@@ -3396,6 +3574,24 @@ export class WeaponViewmodel {
       if (this.coltHammerRecoil > 0.001) {
         this.coltHammerRecoil = THREE.MathUtils.lerp(this.coltHammerRecoil, 0, Math.min(delta * 20.0, 1.0));
       }
+    } else if (this.currentWeapon === 'm134_minigun') {
+      if (!this.isReloading && this.minigunSpinSpeed > 0.001) {
+        const dt = Math.min(delta, 0.05);
+        const spinStep = this.minigunSpinSpeed * this.minigunMaxSpinRadPerSec * dt;
+        for (let i = 0; i < this.minigunBarrelNodes.length; i++) {
+          this.minigunBarrelNodes[i].rotateZ(spinStep);
+        }
+        if (this.minigunModelGroup) {
+          const jitter = 0.0016 * this.minigunSpinSpeed;
+          this.minigunModelGroup.position.set(
+            (Math.random() - 0.5) * jitter,
+            (Math.random() - 0.5) * jitter,
+            0
+          );
+        }
+      } else if (this.minigunModelGroup && (this.minigunModelGroup.position.x !== 0 || this.minigunModelGroup.position.y !== 0)) {
+        this.minigunModelGroup.position.set(0, 0, 0);
+      }
     } else if (this.currentWeapon === 'akms_gold') {
       if (!this.isReloading) {
         if (this.akmsBoltHold > 0) {
@@ -3587,6 +3783,7 @@ export class WeaponViewmodel {
     if (this.currentWeapon === 'colt_peacemaker') return this.coltMuzzleSocket;
     if (this.currentWeapon === 'glock_flamengo') return this.glockMuzzleSocket;
     if (this.currentWeapon === 'akms_gold') return this.akmsMuzzleSocket;
+    if (this.currentWeapon === 'm134_minigun') return this.minigunMuzzleSocket;
     return this.muzzleSocket;
   }
 
@@ -3597,6 +3794,7 @@ export class WeaponViewmodel {
     if (this.currentWeapon === 'colt_peacemaker') return this.coltEjectionAnchor;
     if (this.currentWeapon === 'glock_flamengo') return this.glockEjectionAnchor;
     if (this.currentWeapon === 'akms_gold') return this.akmsEjectionAnchor;
+    if (this.currentWeapon === 'm134_minigun') return this.minigunEjectionAnchor;
     return this.ejectionAnchor;
   }
 
@@ -3685,6 +3883,11 @@ export class WeaponViewmodel {
 
     if (this.currentWeapon === 'akms_gold') {
       this._startAkmsReloadAnimation(onComplete);
+      return;
+    }
+
+    if (this.currentWeapon === 'm134_minigun') {
+      this._startMinigunReloadAnimation(onComplete);
       return;
     }
 
@@ -4435,6 +4638,68 @@ export class WeaponViewmodel {
     this.reloadTimers.push(magDropTimer);
   }
 
+  _startMinigunReloadAnimation(onComplete) {
+    this.minigunSpinSpeed = 0;
+    if (this.minigunModelGroup) {
+      this.minigunModelGroup.position.set(0, 0, 0);
+    }
+
+    if (this.sound && typeof this.sound.playReloadSound === 'function') {
+      this.sound.playReloadSound('m134_minigun');
+    } else if (this.sound) {
+      this.sound.playMagOut();
+    }
+
+    const totalMs = (this.sound && typeof this.sound.getReloadDurationMs === 'function')
+      ? this.sound.getReloadDurationMs('m134_minigun', 2600)
+      : 2600;
+    const scale = Math.max(0.6, totalMs / 2600);
+    const ms = (v) => Math.max(25, Math.round(v * scale));
+
+    // STAGE 1: Lower heavy rotary assembly and tilt left to expose ammo feed box
+    const tiltDown = new TWEEN.Tween(this.reloadTilt, true)
+      .to({ roll: 0.24, pitch: -0.26, yaw: 0.14, y: -0.068, x: 0.025 }, ms(420))
+      .easing(TWEEN.Easing.Cubic.Out);
+    this.reloadTweens.push(tiltDown);
+    tiltDown.start();
+
+    // STAGE 2: Unlatch spent ammo drum & heave up to feed fresh 200rd belt
+    const swapTimer = setTimeout(() => {
+      if (!this.isReloading || this.currentWeapon !== 'm134_minigun') return;
+      this.posSpring.impulse(0, -0.024, 0.018);
+      this.rotSpring.impulse(-0.04, 0.02, 0.03);
+
+      const loadTimer = setTimeout(() => {
+        if (!this.isReloading || this.currentWeapon !== 'm134_minigun') return;
+        this.posSpring.impulse(0, 0.045, -0.015);
+        this.rotSpring.impulse(0.055, -0.02, -0.045);
+        if (this.sound) this.sound.playMagIn();
+
+        const rackTimer = setTimeout(() => {
+          if (!this.isReloading || this.currentWeapon !== 'm134_minigun') return;
+          this.posSpring.impulse(0, -0.012, -0.032);
+          this.rotSpring.impulse(-0.04, 0, -0.02);
+          if (this.sound && typeof this.sound.playSlideRelease === 'function') {
+            this.sound.playSlideRelease();
+          }
+
+          const tiltUp = new TWEEN.Tween(this.reloadTilt, true)
+            .to({ roll: 0, pitch: 0, yaw: 0, y: 0, x: 0, z: 0 }, ms(460))
+            .easing(TWEEN.Easing.Cubic.Out)
+            .onComplete(() => {
+              this.isReloading = false;
+              if (typeof onComplete === 'function') onComplete();
+            });
+          this.reloadTweens.push(tiltUp);
+          tiltUp.start();
+        }, ms(760));
+        this.reloadTimers.push(rackTimer);
+      }, ms(820));
+      this.reloadTimers.push(loadTimer);
+    }, ms(460));
+    this.reloadTimers.push(swapTimer);
+  }
+
   reset() {
     this._clearReloadTimersAndTweens();
 
@@ -4457,6 +4722,8 @@ export class WeaponViewmodel {
     this.glockSlideCycle = 0;
     this._glockShotJustTriggered = false;
     this.isTriggerHeld = false;
+    this.minigunSpinSpeed = 0;
+    if (this.minigunModelGroup) this.minigunModelGroup.position.set(0, 0, 0);
     this.flashTimer = 0;
 
     // Restore 3D weapon group visibilities to Slot 1 (H&K USP 9mm)
@@ -4467,6 +4734,7 @@ export class WeaponViewmodel {
     if (this.coltGroup) this.coltGroup.visible = false;
     if (this.glockGroup) this.glockGroup.visible = false;
     if (this.akmsGroup) this.akmsGroup.visible = false;
+    if (this.minigunGroup) this.minigunGroup.visible = false;
     if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed;
 
     // Restore active hip/ADS transform pointers & muzzle socket
@@ -4502,7 +4770,7 @@ export class WeaponViewmodel {
     if (this.shotgunCarrierGroup) this.shotgunCarrierGroup.rotation.x = 0;
     if (this.shotgunTriggerMesh) this.shotgunTriggerMesh.rotation.x = 0;
     if (this.shotgunReloadShell) this.shotgunReloadShell.visible = false;
-    for (const leftGroup of [this.shotgunLeftHandGroup, this.mp5LeftHandGroup, this.akmsLeftHandGroup]) {
+    for (const leftGroup of [this.shotgunLeftHandGroup, this.mp5LeftHandGroup, this.akmsLeftHandGroup, this.minigunLeftHandGroup]) {
       if (leftGroup) {
         leftGroup.position.set(0, 0, 0);
         leftGroup.rotation.set(0, 0, 0);
@@ -4533,6 +4801,10 @@ export class WeaponViewmodel {
     }
     this._resetColtMechState();
     this._resetAkmsMechState();
+    this.minigunSpinSpeed = 0;
+    if (this.minigunModelGroup) {
+      this.minigunModelGroup.position.set(0, 0, 0);
+    }
 
     this._syncTuner();
 
@@ -4567,6 +4839,7 @@ export class WeaponViewmodel {
       hk_mp5: this.mp5ModelGroup,
       glock_flamengo: this.glockModelGroup,
       akms_gold: this.akmsModelGroup,
+      m134_minigun: this.minigunModelGroup,
     };
     const src = sourceMap[weaponId];
     if (!src) return null;

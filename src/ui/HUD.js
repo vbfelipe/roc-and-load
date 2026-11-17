@@ -379,12 +379,16 @@ export class HUD {
         this.caliberTextEl.textContent = 'GLOCK 18 CUSTOM';
       } else if (weaponType === 'akms_gold') {
         this.caliberTextEl.textContent = 'AKMS GOLD';
+      } else if (weaponType === 'm134_minigun') {
+        this.caliberTextEl.textContent = 'M134 MINIGUN';
       } else {
         this.caliberTextEl.textContent = 'DESERT EAGLE';
       }
     }
     if (this.modeTagEl) {
-      if (weaponType === 'hk_mp5' || weaponType === 'glock_flamengo' || weaponType === 'akms_gold') {
+      if (weaponType === 'm134_minigun') {
+        this.modeTagEl.textContent = 'ROTARY';
+      } else if (weaponType === 'hk_mp5' || weaponType === 'glock_flamengo' || weaponType === 'akms_gold') {
         this.modeTagEl.textContent = 'FULL-AUTO';
       } else if (weaponType === 'shotgun') {
         this.modeTagEl.textContent = 'PUMP-ACTION';
@@ -404,16 +408,22 @@ export class HUD {
     this.pipsContainerEl.innerHTML = '';
 
     const isShotgun = this.currentWeapon === 'shotgun';
+    const isMinigun = this.currentWeapon === 'm134_minigun';
     const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
     const is9mm = this.currentWeapon === 'hk_usp' || is30Rd;
 
-    if (is30Rd) {
+    if (isMinigun) {
+      this.pipsContainerEl.classList.remove('rack-mp5');
+      this.pipsContainerEl.classList.add('rack-minigun');
+    } else if (is30Rd) {
+      this.pipsContainerEl.classList.remove('rack-minigun');
       this.pipsContainerEl.classList.add('rack-mp5');
     } else {
-      this.pipsContainerEl.classList.remove('rack-mp5');
+      this.pipsContainerEl.classList.remove('rack-mp5', 'rack-minigun');
     }
 
-    for (let i = 0; i < this.maxAmmo; i++) {
+    const visualPipCount = isMinigun ? 40 : this.maxAmmo;
+    for (let i = 0; i < visualPipCount; i++) {
       const pip = document.createElement('div');
       if (isShotgun) {
         pip.className = 'bullet-pip shotshell-pip';
@@ -423,8 +433,8 @@ export class HUD {
           <div class="shell-brass"></div>
           <div class="shell-rim"></div>
         `;
-      } else if (is9mm) {
-        pip.className = is30Rd ? 'bullet-pip pip-9mm pip-mp5' : 'bullet-pip pip-9mm';
+      } else if (is9mm || isMinigun) {
+        pip.className = (is30Rd || isMinigun) ? 'bullet-pip pip-9mm pip-mp5' : 'bullet-pip pip-9mm';
         pip.innerHTML = `
           <div class="pip-9mm-ogive"></div>
           <div class="pip-9mm-casing"></div>
@@ -483,8 +493,12 @@ export class HUD {
         .start();
     }
 
-    // Update bullet pips state (delta-only when possible to avoid 30-element DOM thrashing)
-    if (!force && prevAmmo !== null && current === prevAmmo - 1 && this.bulletPips[current]) {
+    // Update bullet pips state (delta-only when 1:1, proportional belt scaling for high-capacity weapons)
+    const activePips = this.bulletPips.length === max
+      ? current
+      : (current <= 0 ? 0 : Math.ceil((current / Math.max(1, max)) * this.bulletPips.length));
+
+    if (!force && this.bulletPips.length === max && prevAmmo !== null && current === prevAmmo - 1 && this.bulletPips[current]) {
       const pip = this.bulletPips[current];
       pip.classList.add('spent');
       pip.style.opacity = '';
@@ -492,7 +506,7 @@ export class HUD {
     } else {
       for (let i = 0; i < this.bulletPips.length; i++) {
         const pip = this.bulletPips[i];
-        if (i < current) {
+        if (i < activePips) {
           pip.classList.remove('spent');
         } else {
           pip.classList.add('spent');
@@ -512,8 +526,9 @@ export class HUD {
     // Reset warning classes
     this.ammoPanelEl.classList.remove('warning-low', 'warning-empty');
 
+    const isMinigun = this.currentWeapon === 'm134_minigun';
     const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
-    const lowThreshold = is30Rd ? 6 : 2;
+    const lowThreshold = isMinigun ? 30 : (is30Rd ? 6 : 2);
 
     if (this.currentAmmo === 0) {
       this.ammoPanelEl.classList.add('warning-empty');
