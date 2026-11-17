@@ -161,6 +161,9 @@ const FLOOR_OBSTACLES = [
   { minX: -9.82, maxX: -8.78, minZ: 6.32, maxZ: 8.30, isDesk: false },
   // East wall enterprise printer & trash bin
   { minX: 9.05, maxX: 10.00, minZ: 0.35, maxZ: 2.35, isDesk: false },
+  // Vestibule north wall flanking the Elevator Doorway (open doorway X = -13.14..-11.76, Z = 11.30..11.55)
+  { minX: -14.20, maxX: -13.14, minZ: 11.25, maxZ: 11.55, isDesk: false, isDoorJamb: true },
+  { minX: -11.76, maxX: -10.05, minZ: 11.25, maxZ: 11.55, isDesk: false, isDoorJamb: true },
   // Vestibule janitor cart & corner plant
   { minX: -14.20, maxX: -13.10, minZ: 9.05, maxZ: 11.30, isDesk: false },
   // Row 1 ('close') Desks (Z = -2.70)
@@ -192,8 +195,8 @@ const ZOMBIE_BODY_RADIUS = 0.38;
 const WHISKER_PROBE_PAD = ZOMBIE_BODY_RADIUS + 0.14; // 0.52m
 const DOOR_PROBE_PAD = ZOMBIE_BODY_RADIUS + 0.04;    // 0.42m around 1.1m aperture jambs
 
-// Keep grounded zombies on Y=0 out of the stairwell pit opening once they've climbed up
-const STAIRWELL_PIT_AABB = { minX: -14.00, maxX: -11.30, minZ: 2.05, maxZ: 7.45, isDesk: false };
+// Keep grounded zombies on Y=0 out of the stairwell pit opening & chrome guardrails once they've climbed up
+const STAIRWELL_PIT_AABB = { minX: -14.00, maxX: -11.36, minZ: 2.12, maxZ: 7.42, isDesk: false, isDoorJamb: true };
 
 const _losOrigin = new THREE.Vector3();
 const _losTarget = new THREE.Vector3();
@@ -961,6 +964,11 @@ export class ZombieManager {
     entry.stateTimer = randRange(3.5, 6.0);
     entry.walkVocalTimer = randRange(1.0, 3.2);
 
+    if (zom.root.position.x <= -9.55) {
+      zom.hasExitedVestibule = false;
+      entry.portalIndex = 0;
+    }
+
     const activePortal = this._getActivePortalGoal(entry);
     if (activePortal) {
       entry.targetX = activePortal.x;
@@ -1183,6 +1191,8 @@ export class ZombieManager {
     if (!this.player || this.player.hp <= 0) return false;
     const zom = entry.zombie;
     if (zom.tookDamageAggro) return true;
+    // Active Horde waves always hunt the player anywhere outside the Safe Zone (prevents elevator/corner camping)
+    if (this.waveMode === 'HORDE') return true;
 
     const pPos = this.player.position;
     const zPos = zom.root.position;
@@ -1190,12 +1200,13 @@ export class ZombieManager {
     const dz = pPos.z - zPos.z;
     const dist = Math.hypot(dx, dz);
 
-    if (dist <= 2.8) return true;
-    if (dist > 6.2) return false;
-
     const zombieInOffice = zPos.x > -10.05;
     const playerInOffice = pPos.x > -10.05;
     const inSameRoom = zombieInOffice === playerInOffice;
+
+    if (dist <= 2.8) return true;
+    const maxDetectDist = (!zombieInOffice && !playerInOffice) ? 10.5 : 6.2;
+    if (dist > maxDetectDist) return false;
 
     if (inSameRoom) return true;
     return this._hasLineOfSightToPlayer(zom, pPos);
@@ -1388,23 +1399,32 @@ export class ZombieManager {
     }
 
     const pit = STAIRWELL_PIT_AABB;
+    const pitPad = pit.isDoorJamb ? DOOR_PROBE_PAD : WHISKER_PROBE_PAD;
     if (
-      px > pit.minX - WHISKER_PROBE_PAD &&
-      px < pit.maxX + WHISKER_PROBE_PAD &&
-      pz > pit.minZ - WHISKER_PROBE_PAD &&
-      pz < pit.maxZ + WHISKER_PROBE_PAD
+      px > pit.minX - pitPad &&
+      px < pit.maxX + pitPad &&
+      pz > pit.minZ - pitPad &&
+      pz < pit.maxZ + pitPad
     ) {
       return true;
     }
 
-    // Room & vestibule exterior walls
+    // Room & vestibule exterior walls (with open elevator doorway & cab interior at X = -13.425..-11.475, Z = 11.30..13.30)
     if (px <= -10.05) {
       if (
         px < -14.20 + WHISKER_PROBE_PAD ||
-        pz < 1.25 + WHISKER_PROBE_PAD ||
-        pz > 11.25 - WHISKER_PROBE_PAD
+        pz < 1.22 + DOOR_PROBE_PAD
       ) {
         return true;
+      }
+      if (pz > 11.25) {
+        if (
+          px < -13.425 + DOOR_PROBE_PAD ||
+          px > -11.475 - DOOR_PROBE_PAD ||
+          pz > 13.300 - DOOR_PROBE_PAD
+        ) {
+          return true;
+        }
       }
     } else {
       if (
@@ -1778,19 +1798,29 @@ export class ZombieManager {
         pushOutOfAabb(STAIRWELL_PIT_AABB);
       }
 
-      // Exterior room & vestibule boundary clamps
+      // Exterior room, vestibule & elevator cab boundary clamps
       if (pos.x <= -10.05) {
         if (pos.x < -14.20 + r) {
           pos.x = -14.20 + r;
           if (recordNormals) { sumNx += 1; hitCount++; }
         }
-        if (pos.z < 1.25 + r) {
-          pos.z = 1.25 + r;
+        if (pos.z < 1.22 + r) {
+          pos.z = 1.22 + r;
           if (recordNormals) { sumNz += 1; hitCount++; }
         }
-        if (pos.z > 11.25 - r) {
-          pos.z = 11.25 - r;
-          if (recordNormals) { sumNz -= 1; hitCount++; }
+        if (pos.z > 11.25) {
+          if (pos.x < -13.425 + r) {
+            pos.x = -13.425 + r;
+            if (recordNormals) { sumNx += 1; hitCount++; }
+          }
+          if (pos.x > -11.475 - r) {
+            pos.x = -11.475 - r;
+            if (recordNormals) { sumNx -= 1; hitCount++; }
+          }
+          if (pos.z > 13.300 - r) {
+            pos.z = 13.300 - r;
+            if (recordNormals) { sumNz -= 1; hitCount++; }
+          }
         }
       } else {
         if (pos.x > 9.95 - r) {
@@ -2011,13 +2041,16 @@ export class ZombieManager {
         }
       }
 
-      // Interrupt sprint ONLY if player is standing right in front of the zombie along the path (or already in main room with aggro)
-      if (!this.isPlayerInSafeZone && pos.y >= -0.35 && pPos) {
+      // Interrupt sprint if player is right in front, anywhere in the vestibule/elevator once off the stairs, or already aggroed
+      if (!this.isPlayerInSafeZone && pos.y >= -0.15 && pPos) {
         const distToPlayer = Math.hypot(pPos.x - pos.x, pPos.z - pos.z);
+        const playerInOffice = pPos.x > -10.05;
         const directFrontAggro =
           distToPlayer <= 2.4 && this._hasLineOfSightToPlayer(zom, pPos);
+        const vestibuleAggro =
+          stage >= 1 && !playerInOffice && this._canDetectPlayer(entry);
         const postDoorAggro = zom.hasExitedVestibule && this._canDetectPlayer(entry);
-        if (directFrontAggro || postDoorAggro) {
+        if (directFrontAggro || vestibuleAggro || postDoorAggro || (stage >= 1 && zom.tookDamageAggro)) {
           this._enterChase(entry);
           return;
         }
@@ -2189,13 +2222,71 @@ export class ZombieManager {
         return;
       }
 
-      // Force position-gated portal exit if zombie is still in vestibule/doorway while Roc is in main office
+      // Route cleanly across the vestibule/office glass doorway, around the stairwell pit, and into/out of the elevator cab
       let goalX = pPos.x;
       let goalZ = pPos.z;
-      const activePortal = this._getActivePortalGoal(entry);
-      if (activePortal && (playerInOffice || distToPlayer > 1.65)) {
+      const activePortal = playerInOffice ? this._getActivePortalGoal(entry) : null;
+      if (activePortal) {
         goalX = activePortal.x;
         goalZ = activePortal.z;
+      } else if (!zombieInOffice && playerInOffice) {
+        if (pos.z < 7.45) {
+          if (pos.z <= 2.15 && pos.x < -11.00) {
+            goalX = -10.80;
+            goalZ = 1.67;
+          } else {
+            goalX = -10.80;
+            goalZ = 7.85;
+          }
+        } else if (pos.z > 11.25) {
+          goalX = -12.45;
+          goalZ = 10.75;
+        } else {
+          goalX = -9.55;
+          goalZ = 10.22;
+        }
+      } else if (zombieInOffice && !playerInOffice) {
+        goalX = -10.55;
+        goalZ = 10.22;
+      } else if (!zombieInOffice && !playerInOffice) {
+        const playerInSouth = pPos.z <= 2.25;
+        const playerInEastWalkway = pPos.x >= -11.36 && pPos.z > 2.12 && pPos.z < 7.42;
+        const zombieNorthOfPit = pos.z >= 7.35;
+        const zombieSouthOfPit = pos.z <= 2.15;
+        const zombieInEastWalkway = pos.x >= -11.36 && pos.z > 2.15 && pos.z < 7.35;
+
+        if (playerInSouth && (zombieNorthOfPit || zombieInEastWalkway)) {
+          // Route from north vestibule -> NE walkway corner (-10.80, 7.65) -> SE corner (-10.80, 1.67) -> player
+          if (pos.x < -11.00 && pos.z >= 7.35) {
+            goalX = -10.80;
+            goalZ = 7.65;
+          } else if (pos.z > 1.82) {
+            goalX = -10.80;
+            goalZ = 1.67;
+          }
+        } else if (playerInEastWalkway && (zombieNorthOfPit || zombieSouthOfPit)) {
+          if (zombieNorthOfPit && pos.x < -11.00) {
+            goalX = -10.80;
+            goalZ = 7.65;
+          } else if (zombieSouthOfPit && pos.x < -11.00) {
+            goalX = -10.80;
+            goalZ = 1.67;
+          }
+        } else if (!playerInSouth && !playerInEastWalkway && (zombieSouthOfPit || zombieInEastWalkway)) {
+          // Player ran back north/elevator while zombie is south of pit or on East Walkway
+          if (pos.z <= 2.15 && pos.x < -11.00) {
+            goalX = -10.80;
+            goalZ = 1.67;
+          } else if (pos.z < 7.80) {
+            goalX = -10.80;
+            goalZ = 7.85;
+          }
+        } else if (pPos.z > 11.28 && pos.z < 11.20) {
+          if (pos.x < -12.82 || pos.x > -12.08 || pos.z < 10.45) {
+            goalX = -12.45;
+            goalZ = 11.45;
+          }
+        }
       }
 
       const chaseSpeed = zom.isHazmat
