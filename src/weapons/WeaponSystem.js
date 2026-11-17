@@ -1486,7 +1486,7 @@ export class WeaponSystem {
         if (this._minigunAudioState === 'idle') {
           this._minigunAudioState = 'spinup';
           if (this.sound && typeof this.sound.startMinigunSpin === 'function') {
-            this.sound.startMinigunSpin(this.minigunSpinProgress);
+            this.sound.startMinigunSpin(this.minigunSpinProgress, this.minigunSpinUpTime);
           }
         }
         this.minigunSpinProgress = Math.min(1, this.minigunSpinProgress + delta / this.minigunSpinUpTime);

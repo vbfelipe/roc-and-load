@@ -73,12 +73,12 @@ export class SoundManager {
       m134_minigun: { key: '9mm_reload', playbackRate: 0.72, volume: 1.05, fallbackMs: 2600 },
     };
     this._minigunSegments = {
-      spinUpStart: 0.04,
-      spinUpEnd: 1.08,
-      loopStart: 1.32,
-      loopEnd: 5.05,
-      spinDownStart: 5.42,
-      spinDownEnd: 8.78,
+      spinUpStart: 0.28,
+      spinUpEnd: 1.66,
+      loopStart: 1.81,
+      loopEnd: 5.495,
+      spinDownStart: 5.77,
+      spinDownEnd: 7.27,
     };
     this._minigunSpinNode = null;
     this._minigunFireNode = null;
@@ -302,12 +302,13 @@ export class SoundManager {
     if (!audioBuffer || !audioBuffer.duration) return;
     const ch = audioBuffer.getChannelData(0);
     const sr = audioBuffer.sampleRate;
-    const winSamples = Math.max(1, Math.floor(sr * 0.025));
+    const dur = audioBuffer.duration;
+    const winSec = 0.01;
+    const winSamples = Math.max(1, Math.floor(sr * winSec));
     const numWins = Math.floor(ch.length / winSamples);
-    if (numWins < 40) return;
+    if (numWins < 100) return;
 
     const rms = new Float32Array(numWins);
-    let maxRms = 0;
     for (let w = 0; w < numWins; w++) {
       let sum = 0;
       const base = w * winSamples;
@@ -315,43 +316,116 @@ export class SoundManager {
         const s = ch[base + i];
         sum += s * s;
       }
-      const val = Math.sqrt(sum / winSamples);
-      rms[w] = val;
-      if (val > maxRms) maxRms = val;
+      rms[w] = Math.sqrt(sum / winSamples);
     }
 
-    if (maxRms <= 0.001) return;
-
-    // Sustained full-auto fire sits at high RMS (>0.42 peak) in the middle body
-    const fireThreshold = maxRms * 0.42;
-    let firstFireIdx = -1;
-    let lastFireIdx = -1;
+    // 150ms moving average prevents brief inter-shot valleys or spin-up/spin-down peaks from splitting the plateau
+    const smooth = new Float32Array(numWins);
+    let maxSmooth = 0;
     for (let w = 0; w < numWins; w++) {
-      if (rms[w] >= fireThreshold) {
-        if (firstFireIdx === -1) firstFireIdx = w;
-        lastFireIdx = w;
+      let sum = 0;
+      let cnt = 0;
+      for (let k = -7; k <= 7; k++) {
+        const idx = w + k;
+        if (idx >= 0 && idx < numWins) {
+          sum += rms[idx];
+          cnt++;
+        }
+      }
+      const val = sum / cnt;
+      smooth[w] = val;
+      if (val > maxSmooth) maxSmooth = val;
+    }
+
+    if (maxSmooth <= 0.001) return;
+
+    // Locate the longest contiguous sustained full-auto firing plateau (>= 0.68 * maxSmooth)
+    const plateauThresh = maxSmooth * 0.68;
+    let bestStart = 0;
+    let bestEnd = 0;
+    let curStart = -1;
+    for (let w = 0; w < numWins; w++) {
+      if (smooth[w] >= plateauThresh) {
+        if (curStart === -1) curStart = w;
+        if (w - curStart > bestEnd - bestStart) {
+          bestStart = curStart;
+          bestEnd = w;
+        }
+      } else {
+        curStart = -1;
       }
     }
 
-    const dur = audioBuffer.duration;
-    let spinUpEnd = firstFireIdx > 4 ? firstFireIdx * 0.025 : Math.min(1.12, dur * 0.14);
-    let fireEnd = lastFireIdx > firstFireIdx + 12 ? (lastFireIdx + 1) * 0.025 : Math.min(5.32, dur * 0.62);
+    if (bestEnd - bestStart < 80) return;
 
-    // Clamp to sane bounds in case of transient spikes before firing
-    spinUpEnd = Math.max(0.45, Math.min(1.45, spinUpEnd));
-    fireEnd = Math.max(spinUpEnd + 1.5, Math.min(dur - 0.8, fireEnd));
+    // Refine exact first gunshot onset & last gunshot end on unsmoothed 10ms RMS
+    const onsetThresh = maxSmooth * 0.80;
+    let fireStartWin = bestStart;
+    while (fireStartWin < bestEnd && rms[fireStartWin] < onsetThresh) fireStartWin++;
+    let fireEndWin = bestEnd;
+    while (fireEndWin > fireStartWin && rms[fireEndWin] < onsetThresh) fireEndWin--;
 
-    const loopStart = Math.min(spinUpEnd + 0.18, fireEnd - 0.8);
-    const loopEnd = Math.max(loopStart + 0.6, fireEnd - 0.16);
-    const spinDownStart = Math.min(fireEnd + 0.06, dur - 0.35);
+    const fireStart = fireStartWin * winSec;
+    const fireEnd = (fireEndWin + 1) * winSec;
+
+    // Walk backward from fireStartWin to skip the initial near-silent motor hum so spooling feels immediate
+    let spinUpStartWin = 0;
+    const quietFloor = maxSmooth * 0.20;
+    for (let w = Math.max(0, fireStartWin - 15); w >= 0; w--) {
+      if (smooth[w] < quietFloor) {
+        spinUpStartWin = Math.min(fireStartWin - 25, w + 1);
+        break;
+      }
+    }
+    const spinUpStart = Math.max(0.03, Math.min(fireStart - 0.5, spinUpStartWin * winSec));
+    const spinUpEnd = Math.max(spinUpStart + 0.35, fireStart - 0.03);
+
+    // Pick positive-going zero-crossing loop boundaries strictly inside the sustained gunfire plateau
+    const rawLoopStart = Math.min(fireStart + 0.12, fireEnd - 1.0);
+    const rawLoopEndMax = Math.max(rawLoopStart + 0.8, fireEnd - 0.12);
+    const rawLoopEndMin = Math.max(rawLoopStart + 0.6, rawLoopEndMax - 0.35);
+
+    const findZeroCrossing = (sec) => {
+      const idx = Math.max(1, Math.min(ch.length - 2, Math.floor(sec * sr)));
+      const limit = Math.min(ch.length - 1, idx + 2000);
+      for (let i = idx; i < limit; i++) {
+        if (ch[i - 1] <= 0 && ch[i] > 0) return i;
+      }
+      return idx;
+    };
+
+    const lsIdx = findZeroCrossing(rawLoopStart);
+    let bestLeIdx = findZeroCrossing(rawLoopEndMax);
+    let bestErr = Infinity;
+    const minCand = Math.max(lsIdx + Math.floor(sr * 0.5), Math.floor(rawLoopEndMin * sr));
+    const maxCand = Math.min(ch.length - 513, Math.floor(rawLoopEndMax * sr));
+    for (let cand = minCand; cand <= maxCand; cand++) {
+      if (ch[cand - 1] <= 0 && ch[cand] > 0) {
+        let err = 0;
+        for (let k = 0; k < 512; k += 4) {
+          const d = ch[lsIdx + k] - ch[cand + k];
+          err += d * d;
+        }
+        if (err < bestErr) {
+          bestErr = err;
+          bestLeIdx = cand;
+        }
+      }
+    }
+
+    const spinDownStart = Math.min(fireEnd + 0.04, dur - 0.35);
+    let tailEndWin = numWins - 1;
+    for (let w = Math.floor(spinDownStart / winSec); w < numWins; w++) {
+      if (smooth[w] >= 0.005) tailEndWin = w;
+    }
 
     this._minigunSegments = {
-      spinUpStart: 0.03,
+      spinUpStart,
       spinUpEnd,
-      loopStart,
-      loopEnd,
+      loopStart: lsIdx / sr,
+      loopEnd: bestLeIdx / sr,
       spinDownStart,
-      spinDownEnd: Math.max(spinDownStart + 0.25, dur - 0.04),
+      spinDownEnd: Math.max(spinDownStart + 0.35, Math.min(dur - 0.02, (tailEndWin + 1) * winSec)),
     };
   }
 
@@ -365,7 +439,7 @@ export class SoundManager {
   /**
    * Starts M134 barrel spin-up sound (accelerates cleanly into full firing speed).
    */
-  startMinigunSpin(spinProgress = 0) {
+  startMinigunSpin(spinProgress = 0, spinUpDuration = 0.68) {
     if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
     if (this._minigunMode === 'spinup' || this._minigunMode === 'firing') return;
@@ -379,13 +453,14 @@ export class SoundManager {
     this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.02);
 
     const seg = this._minigunSegments;
-    const clampedProgress = Math.max(0, Math.min(0.9, Number(spinProgress) || 0));
+    const clampedProgress = Math.max(0, Math.min(0.92, Number(spinProgress) || 0));
     const segSpan = Math.max(0.25, seg.spinUpEnd - seg.spinUpStart);
     const offset = seg.spinUpStart + segSpan * clampedProgress;
-    const remainingAudio = Math.max(0.15, seg.spinUpEnd - offset);
-    // Match playback speed so the entire spin-up turbine whine completes within ~0.68s full spool time
-    const desiredRemainingSec = Math.max(0.12, (1 - clampedProgress) * 0.68);
-    const playbackRate = Math.max(0.85, Math.min(1.85, remainingAudio / desiredRemainingSec));
+    const remainingAudio = Math.max(0.12, seg.spinUpEnd - offset);
+    // Match playback speed so spin-up turbine whine completes right as WeaponSystem hits spinProgress = 1.0
+    const spoolSec = Math.max(0.25, Number(spinUpDuration) || 0.68);
+    const desiredRemainingSec = Math.max(0.08, (1 - clampedProgress) * spoolSec);
+    const playbackRate = Math.max(0.85, Math.min(2.6, remainingAudio / desiredRemainingSec));
 
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
@@ -393,11 +468,11 @@ export class SoundManager {
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.92, now + 0.03);
+    gain.gain.linearRampToValueAtTime(0.92, now + 0.025);
 
     source.connect(gain);
     gain.connect(this.masterGain);
-    source.start(now, offset, remainingAudio + 0.15);
+    source.start(now, offset, remainingAudio);
 
     this._minigunSpinNode = { source, gain };
     this._minigunMode = 'spinup';
@@ -435,8 +510,8 @@ export class SoundManager {
     const now = this.ctx.currentTime;
     const seg = this._minigunSegments;
 
-    // Crossfade out spin-up motor whine into sustained firing loop
-    this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.045);
+    // Crossfade out any remaining spin-up motor whine into sustained firing loop
+    this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.035);
     this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.03);
 
     const source = this.ctx.createBufferSource();
@@ -448,7 +523,7 @@ export class SoundManager {
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.94, now + 0.035);
+    gain.gain.linearRampToValueAtTime(0.94, now + 0.02);
 
     source.connect(gain);
     gain.connect(this.masterGain);
@@ -513,18 +588,21 @@ export class SoundManager {
     const peak = Math.max(0.35, Math.min(1.0, this._minigunPeakSpin || 1.0));
     const offset = seg.spinDownStart + (1.0 - peak) * (totalTail * 0.45);
     const playLen = Math.max(0.25, seg.spinDownEnd - offset);
+    const tailRate = 1.1 + (1.0 - peak) * 0.25;
+    const realDur = playLen / tailRate;
     this._minigunPeakSpin = 0;
 
     this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.025);
 
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
+    source.playbackRate.setValueAtTime(tailRate, now);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.88, now + 0.03);
-    gain.gain.setValueAtTime(0.88, Math.max(now + 0.035, now + playLen - 0.12));
-    gain.gain.linearRampToValueAtTime(0.001, now + playLen);
+    gain.gain.linearRampToValueAtTime(0.88, now + 0.025);
+    gain.gain.setValueAtTime(0.88, Math.max(now + 0.03, now + realDur - 0.12));
+    gain.gain.linearRampToValueAtTime(0.001, now + realDur);
 
     source.connect(gain);
     gain.connect(this.masterGain);

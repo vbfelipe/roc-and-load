@@ -91,12 +91,12 @@ const AKMS_LEFT_HAND_POSE = {
 
 const MINIGUN_LEFT_HAND_POSE = {
   ...DEFAULT_LEFT_SUPPORT_POSE,
-  pos: [0.0, 0.152, 0.065],
-  rot: [0.2, 2.4, 0.8],
-  scale: 0.94,
-  wristPitch: -0.08,
-  wristRoll: 0.02,
-  elbowBend: -0.22,
+  pos: [-0.03, 0.136, 0.12],
+  rot: [0.56, 3.14, 1.7],
+  scale: 1,
+  wristPitch: -0.2,
+  wristRoll: 0,
+  elbowBend: -0.08,
   armPitch: 0.45,
   centerAfterRig: true,
 };
@@ -424,10 +424,10 @@ export class WeaponViewmodel {
     this.akmsAdsRotation = new THREE.Euler(0, 0, 0);
 
     // Slot 8 (M134 Minigun 7.62 Rotary - LEGENDARY) Hip & Braced Carry Transforms
-    this.minigunHipPosition = new THREE.Vector3(0.14, -0.19, -0.22);
-    this.minigunAdsPosition = new THREE.Vector3(0.09, -0.15, -0.26);
-    this.minigunHipRotation = new THREE.Euler(0.04, 0.08, 0.0);
-    this.minigunAdsRotation = new THREE.Euler(0.02, 0.06, 0.0);
+    this.minigunHipPosition = new THREE.Vector3(0.15, -0.23, -0.26);
+    this.minigunAdsPosition = new THREE.Vector3(0, -0.2, -0.1);
+    this.minigunHipRotation = new THREE.Euler(0.16, 0.1, 0.1);
+    this.minigunAdsRotation = new THREE.Euler(0.175, 0, 0);
 
     // Dynamic targets pointing to current active weapon transforms
     this.hipPosition = this.uspHipPosition;
@@ -2482,9 +2482,6 @@ export class WeaponViewmodel {
     if (!handData) return null;
 
     const { pivotGroup, clone, wristBone, elbowBone } = handData;
-    pivotGroup.position.set(...pose.pos);
-    pivotGroup.rotation.set(...pose.rot);
-    pivotGroup.scale.setScalar(pose.scale);
 
     if (wristBone) {
       wristBone.userData.defaultPitch = pose.wristPitch;
@@ -2501,13 +2498,22 @@ export class WeaponViewmodel {
       armL.rotation.x = pose.armPitch;
     }
 
+    // Center clone around the posed palm BEFORE setting pivotGroup position/rotation/scale
+    // so palmBone lands on pivotGroup's local (0,0,0) instead of inheriting pivotGroup's transform.
     if (pose.centerAfterRig && handData.palmBone) {
+      pivotGroup.position.set(0, 0, 0);
+      pivotGroup.rotation.set(0, 0, 0);
+      pivotGroup.scale.set(1, 1, 1);
       clone.position.set(0, 0, 0);
-      clone.updateMatrixWorld(true);
-      const palmWorld = new THREE.Vector3();
-      handData.palmBone.getWorldPosition(palmWorld);
-      clone.position.copy(palmWorld).multiplyScalar(-1);
+      pivotGroup.updateMatrixWorld(true);
+      const palmLocal = new THREE.Vector3();
+      handData.palmBone.getWorldPosition(palmLocal);
+      clone.position.copy(palmLocal).multiplyScalar(-1);
     }
+
+    pivotGroup.position.set(...pose.pos);
+    pivotGroup.rotation.set(...pose.rot);
+    pivotGroup.scale.setScalar(pose.scale);
 
     pivotGroup.userData.defaultPos = pivotGroup.position.clone();
     pivotGroup.userData.defaultRot = pivotGroup.rotation.clone();
@@ -2844,9 +2850,9 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
 
-    const defaultPitch = isGlock ? 0.4 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : ((isAkms || isMinigun) ? -0.06 : (isShotgun ? -0.08 : -0.02)))));
-    const defaultRoll = isGlock ? 0.34 : ((isUSP || isColt || isAkms || isMinigun) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02)));
-    const defaultBend = (isUSP || isColt || isGlock) ? 0 : ((isShotgun || isMP5 || isAkms || isMinigun) ? -0.22 : -0.02);
+    const defaultPitch = isGlock ? 0.4 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : (isMinigun ? -0.2 : (isAkms ? -0.06 : (isShotgun ? -0.08 : -0.02))))));
+    const defaultRoll = isGlock ? 0.34 : (isMinigun ? 0 : ((isUSP || isColt || isAkms) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02))));
+    const defaultBend = (isUSP || isColt || isGlock) ? 0 : (isMinigun ? -0.08 : ((isShotgun || isMP5 || isAkms) ? -0.22 : -0.02));
     const pitch = wrist?.userData?.defaultPitch ?? defaultPitch;
     const roll = wrist?.userData?.defaultRoll ?? defaultRoll;
     const bend = elbow?.userData?.defaultBend ?? defaultBend;
@@ -2874,8 +2880,8 @@ export class WeaponViewmodel {
         this.akmsHipPosition.set(0.1, -0.13, -0.1);
         this.akmsHipRotation.set(0.1, 0, 0);
       } else if (isMinigun) {
-        this.minigunHipPosition.set(0.14, -0.19, -0.22);
-        this.minigunHipRotation.set(0.04, 0.08, 0.0);
+        this.minigunHipPosition.set(0.15, -0.23, -0.26);
+        this.minigunHipRotation.set(0.16, 0.1, 0.1);
       } else {
         this.pistolHipPosition.set(0.1, -0.1, -0.4);
         this.pistolHipRotation.set(0.1, 0, 0.1);
@@ -2904,8 +2910,8 @@ export class WeaponViewmodel {
         this.akmsAdsPosition.set(0.008, -0.083, -0.094);
         this.akmsAdsRotation.set(0, 0, 0);
       } else if (isMinigun) {
-        this.minigunAdsPosition.set(0.09, -0.15, -0.26);
-        this.minigunAdsRotation.set(0.02, 0.06, 0.0);
+        this.minigunAdsPosition.set(0, -0.2, -0.1);
+        this.minigunAdsRotation.set(0.175, 0, 0);
       } else {
         this.pistolAdsPosition.set(0.000, -0.104, -0.345);
         this.pistolAdsRotation.set(-0.017, 0, 0);
