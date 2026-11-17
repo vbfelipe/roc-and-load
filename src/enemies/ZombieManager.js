@@ -1163,6 +1163,7 @@ export class ZombieManager {
       if (typeof this.onZombieKilled === 'function') {
         this.onZombieKilled({
           zombie,
+          archetype: isHazmat ? 'hazmat' : (isMan ? 'man' : 'woman'),
           isHeadshot: isHead,
           reward,
           kills: this.playerKills,

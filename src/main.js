@@ -7,6 +7,7 @@ import { PlayerController } from './player/PlayerController.js';
 import { WeaponViewmodel } from './weapons/WeaponViewmodel.js';
 import { WeaponSystem } from './weapons/WeaponSystem.js';
 import { HUD } from './ui/HUD.js';
+import { GameOverHUD } from './ui/GameOverHUD.js';
 import { WeaponWheelHUD } from './ui/WeaponWheelHUD.js';
 import { GunShopHUD } from './ui/GunShopHUD.js';
 import { DevToolsModal } from './ui/DevToolsModal.js';
@@ -137,9 +138,36 @@ window.addEventListener('DOMContentLoaded', () => {
 
   let playerMoney = 0;
 
+  const runStats = {
+    womanKills: 0,
+    manKills: 0,
+    hazmatKills: 0,
+    headshots: 0,
+    totalKills: 0,
+    totalMoneyEarned: 0,
+    hordesSurvived: 0,
+    currentHordeReached: 0,
+    survivalSeconds: 0,
+  };
+
+  function resetRunStats() {
+    runStats.womanKills = 0;
+    runStats.manKills = 0;
+    runStats.hazmatKills = 0;
+    runStats.headshots = 0;
+    runStats.totalKills = 0;
+    runStats.totalMoneyEarned = 0;
+    runStats.hordesSurvived = 0;
+    runStats.currentHordeReached = 0;
+    runStats.survivalSeconds = 0;
+  }
+
   function addMoney(amount, { playSound = false } = {}) {
     const delta = Math.round(amount || 0);
     if (delta === 0) return playerMoney;
+    if (delta > 0 && gameState === 'PLAYING') {
+      runStats.totalMoneyEarned += delta;
+    }
     playerMoney = Math.max(0, playerMoney + delta);
     if (typeof hud.setMoney === 'function') {
       hud.setMoney(playerMoney, delta);
@@ -298,8 +326,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
-  zombieManager.onZombieKilled = ({ kills, reward, isHeadshot }) => {
+  zombieManager.onZombieKilled = ({ kills, reward, isHeadshot, archetype }) => {
     const isHead = Boolean(isHeadshot);
+    if (archetype === 'hazmat') runStats.hazmatKills += 1;
+    else if (archetype === 'man') runStats.manKills += 1;
+    else runStats.womanKills += 1;
+    if (isHead) runStats.headshots += 1;
+    runStats.totalKills = runStats.womanKills + runStats.manKills + runStats.hazmatKills;
+
     if (typeof hud.setKills === 'function') {
       hud.setKills(kills);
     }
@@ -322,7 +356,15 @@ window.addEventListener('DOMContentLoaded', () => {
   const HORDE_CLEAR_HEAL_AMOUNT = 25;
   const HORDE_CLEAR_HEAL_CAP = 75;
 
+  zombieManager.onHordeStarted = ({ hordeNumber } = {}) => {
+    const num = Math.max(1, Math.floor(Number(hordeNumber) || 1));
+    if (num > runStats.currentHordeReached) {
+      runStats.currentHordeReached = num;
+    }
+  };
+
   zombieManager.onHordeCleared = () => {
+    runStats.hordesSurvived += 1;
     if (gameState !== 'PLAYING' || player.hp <= 0) return;
     const healed = player.heal(HORDE_CLEAR_HEAL_AMOUNT, HORDE_CLEAR_HEAL_CAP);
     if (healed > 0) {
@@ -735,7 +777,11 @@ window.addEventListener('DOMContentLoaded', () => {
         player.updateDeathCollapse(deathCollapseElapsed);
         if (!gameOverShown && deathCollapseElapsed >= 0.60) {
           gameOverShown = true;
-          hud.setGameOverVisible(true);
+          gameOverHud.show({
+            ...runStats,
+            currentMoney: playerMoney,
+            unlockedWeapons: Array.from(weaponSystem.unlockedWeapons || []),
+          });
         }
         zombieManager.update(delta, gameState);
         decalManager.update(delta);
@@ -744,6 +790,9 @@ window.addEventListener('DOMContentLoaded', () => {
         TWEEN.update();
         return;
       }
+
+      // Track active survival clock strictly during live gameplay
+      runStats.survivalSeconds += delta;
 
       // Playing state: ensure viewmodel is visible
       viewmodel.root.visible = true;
@@ -844,19 +893,17 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  const gameOverExitBtn = document.getElementById('game-over-exit-btn');
-
-  function returnToMainMenu() {
-    sound.playExitClick();
+  function resetRunSession() {
     deathCollapseElapsed = 0;
     gameOverShown = false;
     hasTriggeredFirstCrateHorde = false;
     firstCrateHordeDelayTimer = 0;
     lastMeleeHitAt = -Infinity;
     playerMoney = 0;
+    resetRunStats();
     player.resetHealth();
     hud.resetDamageVignette();
-    hud.setGameOverVisible(false);
+    gameOverHud.hide();
     if (gunShop && gunShop.isOpen) gunShop.close(false);
     if (gunShop && typeof gunShop.resetStock === 'function') gunShop.resetStock();
     if (weaponWheel && weaponWheel.isOpen) weaponWheel.close(false);
@@ -871,8 +918,30 @@ window.addEventListener('DOMContentLoaded', () => {
     zombieManager.resetAll();
     if (typeof engine.setTestZombiesVisible === 'function') engine.setTestZombiesVisible(false);
     introSequence.reset();
+  }
+
+  function returnToMainMenu() {
+    sound.playExitClick();
+    resetRunSession();
     setGameState('MAIN_MENU');
   }
+
+  function restartRunFromGameOver() {
+    if (isPreloading) return;
+    resetRunSession();
+    introSequence.onGameStartPressed();
+    sound.resume();
+    setGameState('PLAYING');
+    input.requestLock();
+    weaponSystem.playInitialEquip();
+  }
+
+  const gameOverHud = new GameOverHUD({
+    sound,
+    onRetry: restartRunFromGameOver,
+    onMainMenu: returnToMainMenu,
+  });
+  window.__rocGameOverHud = gameOverHud;
 
   if (exitBtn) {
     exitBtn.addEventListener('pointerenter', () => {
@@ -884,21 +953,6 @@ window.addEventListener('DOMContentLoaded', () => {
     exitBtn.addEventListener('mousedown', (e) => e.stopPropagation());
     exitBtn.addEventListener('mouseup', (e) => e.stopPropagation());
     exitBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      returnToMainMenu();
-    });
-  }
-
-  if (gameOverExitBtn) {
-    gameOverExitBtn.addEventListener('pointerenter', () => {
-      if (gameOverExitBtn.offsetParent !== null) {
-        sound.playButtonHover();
-      }
-    });
-
-    gameOverExitBtn.addEventListener('mousedown', (e) => e.stopPropagation());
-    gameOverExitBtn.addEventListener('mouseup', (e) => e.stopPropagation());
-    gameOverExitBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       returnToMainMenu();
     });

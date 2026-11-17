@@ -104,8 +104,7 @@ function createAnnularSectorPath(cx, cy, rIn, rOut, startDeg, endDeg) {
  * High-Detail GTA V-Style side-profile firearm illustrations centered at (0, 0)
  * for each of the 8 equipment slots (all sharing a uniform metallic silver/gunmetal/slate palette).
  */
-function getSlotWeaponSilhouetteSVG(slotId) {
-  const fillGrad = 'url(#ww-metal-grad)';
+export function getSlotWeaponSilhouetteSVG(slotId, fillGrad = 'url(#ww-metal-grad)') {
   const frameFill = '#475569';
   const subFill = '#94a3b8';
   const darkFill = '#1e293b';
