@@ -299,12 +299,18 @@ window.addEventListener('DOMContentLoaded', () => {
   }
 
   zombieManager.onZombieKilled = ({ kills, reward, isHeadshot }) => {
+    const isHead = Boolean(isHeadshot);
     if (typeof hud.setKills === 'function') {
       hud.setKills(kills);
     }
     addMoney(reward, { playSound: false });
-    if (typeof sound.playRewardTick === 'function') {
-      sound.playRewardTick(Boolean(isHeadshot));
+    if (typeof hud.triggerKillFeedback === 'function') {
+      hud.triggerKillFeedback(reward, isHead);
+    }
+    if (typeof sound.playKillConfirmSound === 'function') {
+      sound.playKillConfirmSound(isHead);
+    } else if (typeof sound.playRewardTick === 'function') {
+      sound.playRewardTick(isHead);
     }
   };
 
@@ -312,6 +318,25 @@ window.addEventListener('DOMContentLoaded', () => {
     introSequence.triggerSecondPhoneCall();
   };
   zombieManager.onWave1Cleared = zombieManager.onTutorialWaveCleared;
+
+  const HORDE_CLEAR_HEAL_AMOUNT = 25;
+  const HORDE_CLEAR_HEAL_CAP = 75;
+
+  zombieManager.onHordeCleared = () => {
+    if (gameState !== 'PLAYING' || player.hp <= 0) return;
+    const healed = player.heal(HORDE_CLEAR_HEAL_AMOUNT, HORDE_CLEAR_HEAL_CAP);
+    if (healed > 0) {
+      if (typeof hud.setHealth === 'function') {
+        hud.setHealth(player.hp, player.maxHp);
+      }
+      if (typeof hud.triggerHealVignette === 'function') {
+        hud.triggerHealVignette();
+      }
+      if (typeof sound.playMedkitHealSound === 'function') {
+        sound.playMedkitHealSound();
+      }
+    }
+  };
 
   zombieManager.onHordeCountdownChange = ({ active, hordeNumber, secondsRemaining, immediate }) => {
     if (active) {

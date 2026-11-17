@@ -1149,11 +1149,10 @@ export class ZombieManager {
       const isHazmat = zombie.archetype === 'hazmat' || !!zombie.isHazmat;
       const isMan = zombie.archetype === 'man';
       const isHead = !!result?.headshot || part === 'head';
-      // Grind-focused economy: makes saving for Medkit ($1k) and higher-tier guns ($3.5k-$60k) reward multiple hordes & headshots
-      const baseReward = isHazmat ? 220 : (isMan ? 70 : 35);
-      const bonusReward = isHead ? (isHazmat ? 80 : (isMan ? 25 : 15)) : 0;
+      // Balanced wave economy: unlocks Remington after Wave 2 (Horde 1), scales into mid-tier grind, keeps Legendaries ($35k/$60k) hard
+      const baseReward = isHazmat ? 700 : (isMan ? 320 : 180);
+      const bonusReward = isHead ? (isHazmat ? 250 : (isMan ? 120 : 70)) : 0;
       const reward = baseReward + bonusReward;
-      this.sound?.playRewardTick?.(isHead);
       if (typeof this.onZombieKilled === 'function') {
         this.onZombieKilled({
           zombie,

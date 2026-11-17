@@ -3645,7 +3645,7 @@ export class SoundManager {
   }
 
   /**
-   * Subtle crisp cash/kill reward chime when eliminating a zombie.
+   * Subtle crisp cash/kill reward chime when adding money directly.
    */
   playRewardTick(isHeadshot = false) {
     if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
@@ -3679,6 +3679,159 @@ export class SoundManager {
     g2.connect(this.masterGain);
     osc2.start(now + 0.04);
     osc2.stop(now + 0.16);
+  }
+
+  /**
+   * Visceral, punchy kill confirmation & reward audio:
+   * - Body kill: chesty confirm thud + crisp cash-register chime
+   * - Headshot: wet cranial bone-crunch + sharp metallic "dink" + ascending serotonin cash shimmer
+   */
+  playKillConfirmSound(isHeadshot = false) {
+    if (this.isPreloading || !this.ctx || this.isMuted || !this.isSfxEnabled) return;
+    this.resume();
+    const now = this.ctx.currentTime;
+
+    if (isHeadshot) {
+      // 1. Meaty skull-pop sub transient
+      const pop = this.ctx.createOscillator();
+      const popG = this.ctx.createGain();
+      pop.type = 'triangle';
+      pop.frequency.setValueAtTime(245, now);
+      pop.frequency.exponentialRampToValueAtTime(58, now + 0.068);
+      popG.gain.setValueAtTime(0.001, now);
+      popG.gain.linearRampToValueAtTime(0.36, now + 0.004);
+      popG.gain.exponentialRampToValueAtTime(0.001, now + 0.085);
+      pop.connect(popG);
+      popG.connect(this.masterGain);
+      pop.start(now);
+      pop.stop(now + 0.095);
+
+      // 2. Wet cranial bone-crunch noise sweep
+      const crunchBuf = this._noiseBufferCache.get(0.05) || this._createNoiseBuffer(0.05);
+      if (crunchBuf) {
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = crunchBuf;
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(2700, now);
+        bp.frequency.exponentialRampToValueAtTime(720, now + 0.048);
+        bp.Q.setValueAtTime(1.5, now);
+        const ng = this.ctx.createGain();
+        ng.gain.setValueAtTime(0.001, now);
+        ng.gain.linearRampToValueAtTime(0.34, now + 0.003);
+        ng.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+        noise.connect(bp);
+        bp.connect(ng);
+        ng.connect(this.masterGain);
+        noise.start(now);
+        noise.stop(now + 0.055);
+      }
+
+      // 3. Sharp high-frequency crack transient
+      const snapBuf = this._noiseBufferCache.get(0.015) || this._createNoiseBuffer(0.015);
+      if (snapBuf) {
+        const snap = this.ctx.createBufferSource();
+        snap.buffer = snapBuf;
+        const hp = this.ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.setValueAtTime(3400, now);
+        const sg = this.ctx.createGain();
+        sg.gain.setValueAtTime(0.24, now);
+        sg.gain.exponentialRampToValueAtTime(0.001, now + 0.015);
+        snap.connect(hp);
+        hp.connect(sg);
+        sg.connect(this.masterGain);
+        snap.start(now);
+        snap.stop(now + 0.018);
+      }
+
+      // 4. Vicious metallic headshot "DINK!" harmonic ring
+      const dink1 = this.ctx.createOscillator();
+      const dink2 = this.ctx.createOscillator();
+      const dg = this.ctx.createGain();
+      dink1.type = 'sine';
+      dink2.type = 'triangle';
+      dink1.frequency.setValueAtTime(2220, now + 0.008);
+      dink1.frequency.exponentialRampToValueAtTime(2080, now + 0.14);
+      dink2.frequency.setValueAtTime(3330, now + 0.008);
+      dink2.frequency.exponentialRampToValueAtTime(3120, now + 0.12);
+      dg.gain.setValueAtTime(0.001, now + 0.008);
+      dg.gain.linearRampToValueAtTime(0.18, now + 0.013);
+      dg.gain.exponentialRampToValueAtTime(0.001, now + 0.155);
+      dink1.connect(dg);
+      dink2.connect(dg);
+      dg.connect(this.masterGain);
+      dink1.start(now + 0.008);
+      dink2.start(now + 0.008);
+      dink1.stop(now + 0.165);
+      dink2.stop(now + 0.165);
+
+      // 5. Ascending serotonin cash shimmer
+      const shimmerNotes = [1318.5, 1975.5];
+      shimmerNotes.forEach((freq, idx) => {
+        const t = now + 0.048 + idx * 0.042;
+        const osc = this.ctx.createOscillator();
+        const g = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        g.gain.setValueAtTime(0.001, t);
+        g.gain.linearRampToValueAtTime(0.12, t + 0.005);
+        g.gain.exponentialRampToValueAtTime(0.001, t + 0.15);
+        osc.connect(g);
+        g.connect(this.masterGain);
+        osc.start(t);
+        osc.stop(t + 0.16);
+      });
+      return;
+    }
+
+    // Normal body kill: crisp confirm thud + snap + clean two-tone cash ping
+    const thud = this.ctx.createOscillator();
+    const thudG = this.ctx.createGain();
+    thud.type = 'sine';
+    thud.frequency.setValueAtTime(140, now);
+    thud.frequency.exponentialRampToValueAtTime(52, now + 0.055);
+    thudG.gain.setValueAtTime(0.001, now);
+    thudG.gain.linearRampToValueAtTime(0.20, now + 0.004);
+    thudG.gain.exponentialRampToValueAtTime(0.001, now + 0.065);
+    thud.connect(thudG);
+    thudG.connect(this.masterGain);
+    thud.start(now);
+    thud.stop(now + 0.07);
+
+    const tickBuf = this._noiseBufferCache.get(0.025) || this._createNoiseBuffer(0.025);
+    if (tickBuf) {
+      const tick = this.ctx.createBufferSource();
+      tick.buffer = tickBuf;
+      const bp = this.ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.setValueAtTime(1750, now);
+      bp.Q.setValueAtTime(1.8, now);
+      const tg = this.ctx.createGain();
+      tg.gain.setValueAtTime(0.16, now);
+      tg.gain.exponentialRampToValueAtTime(0.001, now + 0.024);
+      tick.connect(bp);
+      bp.connect(tg);
+      tg.connect(this.masterGain);
+      tick.start(now);
+      tick.stop(now + 0.028);
+    }
+
+    const notes = [1046.5, 1567.98];
+    notes.forEach((freq, idx) => {
+      const t = now + 0.015 + idx * 0.038;
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = idx === 0 ? 'triangle' : 'sine';
+      osc.frequency.setValueAtTime(freq, t);
+      g.gain.setValueAtTime(0.001, t);
+      g.gain.linearRampToValueAtTime(0.13, t + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.135);
+      osc.connect(g);
+      g.connect(this.masterGain);
+      osc.start(t);
+      osc.stop(t + 0.145);
+    });
   }
 
   /**

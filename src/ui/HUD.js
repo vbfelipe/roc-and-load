@@ -143,6 +143,73 @@ export class HUD {
     // Build initial cartridge pips
     this._buildBulletPips();
     this._initStatusHudElements(uiLayer);
+    this._initKillFeedbackElements(uiLayer);
+  }
+
+  _initKillFeedbackElements(uiLayer) {
+    this.killMarkerEl = document.createElement('div');
+    this.killMarkerEl.id = 'hud-kill-marker';
+    this.killMarkerEl.innerHTML = `
+      <span class="kill-marker-tick tl"></span>
+      <span class="kill-marker-tick tr"></span>
+      <span class="kill-marker-tick bl"></span>
+      <span class="kill-marker-tick br"></span>
+    `;
+    uiLayer.appendChild(this.killMarkerEl);
+
+    this.headshotBannerEl = document.createElement('div');
+    this.headshotBannerEl.id = 'hud-headshot-banner';
+    this.headshotBannerEl.innerHTML = `
+      <span class="headshot-skull-icon" aria-hidden="true">
+        <svg viewBox="0 0 38 28" width="32" height="24" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="hs-skull-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#fca5a5"/>
+              <stop offset="48%" stop-color="#ef4444"/>
+              <stop offset="100%" stop-color="#991b1b"/>
+            </linearGradient>
+            <linearGradient id="hs-bullet-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#d97706"/>
+              <stop offset="55%" stop-color="#fde047"/>
+              <stop offset="100%" stop-color="#ffffff"/>
+            </linearGradient>
+          </defs>
+          <!-- Boxy-jawed crimson skull (eye sockets, nose, teeth, left-temple entry hole + cracks) -->
+          <g transform="translate(3, 2)">
+            <path d="M12 1.5C6.8 1.5 2.8 5.4 2.8 10.2c0 2.7 1.3 5.0 3.3 6.5V21.5h11.8v-4.8c2-1.5 3.3-3.8 3.3-6.5 0-4.8-4-8.7-9.2-8.7z" fill="url(#hs-skull-grad)" stroke="#1f0507" stroke-width="1.4" stroke-linejoin="round"/>
+            <circle cx="8.6" cy="10.4" r="2.1" fill="#1a0406"/>
+            <circle cx="15.4" cy="10.4" r="2.1" fill="#1a0406"/>
+            <path d="M12 12.6 L10.7 15.2 L13.3 15.2 Z" fill="#1a0406"/>
+            <line x1="9.2" y1="18.2" x2="9.2" y2="21.5" stroke="#1a0406" stroke-width="1.3"/>
+            <line x1="12.0" y1="18.2" x2="12.0" y2="21.5" stroke="#1a0406" stroke-width="1.3"/>
+            <line x1="14.8" y1="18.2" x2="14.8" y2="21.5" stroke="#1a0406" stroke-width="1.3"/>
+            <circle cx="5.2" cy="7.2" r="1.45" fill="#1a0406" stroke="#fecaca" stroke-width="0.6"/>
+            <path d="M5.2 7.2 L2.5 5.2 M5.2 7.2 L3.0 9.0 M5.2 7.2 L7.2 5.4" stroke="#1a0406" stroke-width="1.0" stroke-linecap="round"/>
+          </g>
+          <!-- Exit shatter sparks -->
+          <path d="M22.8 7.0 L25.6 4.8 M23.4 9.5 L26.2 9.5 M22.6 11.8 L25.4 13.4" stroke="#fca5a5" stroke-width="1.3" stroke-linecap="round"/>
+          <!-- Thick horizontal ballistic bullet bursting out right side -->
+          <path d="M25.5 7.3 L31.2 7.3 C33.8 7.3 36.2 8.4 37.2 9.5 C36.2 10.6 33.8 11.7 31.2 11.7 L25.5 11.7 Z" fill="url(#hs-bullet-grad)" stroke="#1f0507" stroke-width="1.0" stroke-linejoin="round"/>
+        </svg>
+      </span>
+      <span class="headshot-label-text">HEADSHOT!</span>
+    `;
+    uiLayer.appendChild(this.headshotBannerEl);
+
+    this.killRewardLayerEl = document.createElement('div');
+    this.killRewardLayerEl.id = 'hud-kill-reward-layer';
+    uiLayer.appendChild(this.killRewardLayerEl);
+
+    this._killCashPool = [];
+    this._killCashPoolIdx = 0;
+    this._lastKillPopTime = 0;
+    this._killStreakStagger = 0;
+    for (let i = 0; i < 6; i++) {
+      const pop = document.createElement('div');
+      pop.className = 'kill-cash-pop';
+      this.killRewardLayerEl.appendChild(pop);
+      this._killCashPool.push(pop);
+    }
   }
 
   _initStatusHudElements(uiLayer) {
@@ -159,7 +226,6 @@ export class HUD {
       <div class="status-pill status-pill-wide" aria-label="Cash">
         <div class="status-badge-icon"><span class="money-dollar-icon">$</span></div>
         <span id="hud-money-value" class="money-value-text">$ 0</span>
-        <span id="hud-money-float" class="money-float-delta">+$100</span>
       </div>
       <div class="status-pill status-pill-compact" aria-label="Kills">
         <div class="status-badge-icon">
@@ -176,7 +242,6 @@ export class HUD {
 
     this.hpBarFillEl = this.topRightStatusEl.querySelector('#hud-hp-bar-fill');
     this.moneyValueEl = this.topRightStatusEl.querySelector('#hud-money-value');
-    this.moneyFloatEl = this.topRightStatusEl.querySelector('#hud-money-float');
     this.killsValueEl = this.topRightStatusEl.querySelector('#hud-kills-value');
 
     // Safe-zone badge shown while player is inside the Maintenance Closet
@@ -872,12 +937,7 @@ export class HUD {
     const next = Math.max(0, Math.floor(Number(money) || 0));
     this._targetMoney = next;
 
-    if (deltaAmount > 0 && this.moneyFloatEl) {
-      this.moneyFloatEl.textContent = `+$${Math.floor(deltaAmount).toLocaleString('en-US')}`;
-      this.moneyFloatEl.classList.remove('is-animating');
-      void this.moneyFloatEl.offsetWidth;
-      this.moneyFloatEl.classList.add('is-animating');
-    } else if (deltaAmount < 0 || next === 0) {
+    if (deltaAmount < 0 || next === 0) {
       // Snap down smoothly/quickly on spend or reset
       if (next === 0) {
         this._displayMoney = 0;
@@ -900,6 +960,50 @@ export class HUD {
     this._killsCount = k;
     if (this.killsValueEl) {
       this.killsValueEl.textContent = String(k);
+    }
+  }
+
+  /**
+   * Triggers center-screen kill confirmation: crosshair X snap, floating +$XXX cash pop,
+   * and the bullet-pierced crimson skull HEADSHOT emblem on headshots.
+   */
+  triggerKillFeedback(rewardAmount = 0, isHeadshot = false) {
+    const amount = Math.max(0, Math.floor(Number(rewardAmount) || 0));
+
+    if (this.killMarkerEl) {
+      this.killMarkerEl.classList.remove('is-active', 'is-headshot');
+      void this.killMarkerEl.offsetWidth;
+      if (isHeadshot) {
+        this.killMarkerEl.classList.add('is-headshot');
+      }
+      this.killMarkerEl.classList.add('is-active');
+    }
+
+    if (amount > 0 && this._killCashPool && this._killCashPool.length > 0) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const rapid = now - this._lastKillPopTime < 460;
+      this._lastKillPopTime = now;
+
+      const staggerOffsets = [0, -28, 28, -16, 16];
+      this._killStreakStagger = rapid ? (this._killStreakStagger + 1) % staggerOffsets.length : 0;
+      const offsetX = staggerOffsets[this._killStreakStagger];
+
+      const pop = this._killCashPool[this._killCashPoolIdx];
+      this._killCashPoolIdx = (this._killCashPoolIdx + 1) % this._killCashPool.length;
+      pop.textContent = `+$${amount.toLocaleString('en-US')}`;
+      pop.style.setProperty('--pop-x', `${offsetX}px`);
+      pop.classList.remove('is-animating', 'is-headshot');
+      void pop.offsetWidth;
+      if (isHeadshot) {
+        pop.classList.add('is-headshot');
+      }
+      pop.classList.add('is-animating');
+    }
+
+    if (isHeadshot && this.headshotBannerEl) {
+      this.headshotBannerEl.classList.remove('is-active');
+      void this.headshotBannerEl.offsetWidth;
+      this.headshotBannerEl.classList.add('is-active');
     }
   }
 
@@ -1262,8 +1366,16 @@ export class HUD {
     this._targetMoney = 0;
     this._renderMoneyText(0);
     this.setKills(0);
-    if (this.moneyFloatEl) {
-      this.moneyFloatEl.classList.remove('is-animating');
+    if (this.killMarkerEl) {
+      this.killMarkerEl.classList.remove('is-active', 'is-headshot');
+    }
+    if (this.headshotBannerEl) {
+      this.headshotBannerEl.classList.remove('is-active');
+    }
+    if (this._killCashPool) {
+      for (let i = 0; i < this._killCashPool.length; i++) {
+        this._killCashPool[i].classList.remove('is-animating', 'is-headshot');
+      }
     }
     this.resetPhoneDialogueImmediate('jorio');
 

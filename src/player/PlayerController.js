@@ -115,6 +115,20 @@ export class PlayerController {
     return true;
   }
 
+  /**
+   * Restores up to `amount` HP without exceeding `maxCap` (clamped to `maxHp`).
+   * Returns the actual amount healed.
+   */
+  heal(amount, maxCap = this.maxHp) {
+    if (this.hp <= 0) return 0;
+    const amt = Math.max(0, Number(amount) || 0);
+    const cap = Math.min(this.maxHp, Math.max(0, Number(maxCap) || this.maxHp));
+    if (amt <= 0 || this.hp >= cap) return 0;
+    const prevHp = this.hp;
+    this.hp = Math.min(cap, this.hp + amt);
+    return this.hp - prevHp;
+  }
+
   takeDamage(amount = 25, options = {}) {
     if (this.hp <= 0) return 0;
     const dmg = Math.max(0, Number(amount) || 0);
