@@ -62,7 +62,7 @@ export const WHEEL_SLOTS = [
   {
     index: 7,
     id: 'akms_gold',
-    name: 'AKMS GOLD',
+    name: 'AK 47 GOLD',
     angleDeg: -90 + WHEEL_STEP_DEG * 7,
     isRare: true,
     alwaysUnlocked: false,
@@ -366,46 +366,43 @@ function getSlotWeaponSilhouetteSVG(slotId) {
       `;
 
     case 'akms_gold':
-      // 8. AKMS GOLD (Wedge 7 — Top-Left — LENDÁRIA): Unmistakable Kalashnikov silhouette with
-      // angled front sight post + slanted muzzle brake, upper gas tube above barrel, ribbed
-      // handguard, sharply curved 7.62x39 banana magazine, pistol grip, underfolding stock struts.
+      // 8. AK 47 GOLD (Wedge 7 — Top-Left — LENDÁRIA): Classic fixed-stock AK-47 silhouette with
+      // solid angled paddle buttstock, contoured handguard, pistol grip, sharply curved 7.62x39
+      // ribbed banana magazine, ribbed dust cover, 45° gas block, and front sight tower.
       return `
         <g transform="scale(0.88)" stroke="#090d14" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
-          <!-- Underfolding Skeletal Stock Struts & Shoulder Piece -->
-          <path d="M -58 -8 L -52 -8 L -52 10 L -57 12 Z" fill="${subFill}" />
-          <path d="M -52 -3 L -29 -5 L -29 -1.5 L -52 0.5 Z" fill="${fillGrad}" stroke-width="1.8" />
-          <circle cx="-29" cy="-4" r="2.4" fill="${subFill}" stroke-width="1.5" />
+          <!-- Classic Fixed AK-47 Solid Buttstock & Buttplate -->
+          <path d="M -61 -10 L -31 -13 L -29 -1 L -59 11 L -61 10 Z" fill="${subFill}" />
+          <path d="M -61 -10 L -57 -10.5 L -57 10.5 L -61 10 Z" fill="${frameFill}" stroke-width="1.6" />
           <!-- Sharply Curved 7.62x39 Ribbed Banana Magazine -->
-          <path d="M -3 -1 L 9 -1 C 13 13 21 24 31 32 L 20 37 C 9 28 0 15 -3 -1 Z" fill="${subFill}" />
-          <path d="M 3 5 C 7 15 13 23 21 30" fill="none" stroke="${frameFill}" stroke-width="1.6" />
-          <path d="M 6 4 C 10 14 16 22 24 29" fill="none" stroke="#090d14" stroke-width="1.3" />
-          <!-- Angled Kalashnikov Pistol Grip & Trigger Guard -->
-          <path d="M -23 -1 L -13 -1 L -19 20 L -29 19 Z" fill="${frameFill}" />
-          <path d="M -13 -1 L -4 -1 L -5 6 L -13 6 Z" fill="${deepCut}" stroke="none" />
-          <path d="M -13 -1 L -4 -1 L -5 6 L -13 6 Z" fill="none" stroke="#090d14" stroke-width="1.7" />
-          <path d="M -8 -1 Q -6.5 2.5 -9.5 4.8" fill="none" stroke="#e2e8f0" stroke-width="1.7" />
-          <!-- Stamped AK Receiver & Ribbed Top Dust Cover -->
-          <path d="M -31 -14 L 5 -14 L 6 -1 L -29 -1 Z" fill="${fillGrad}" />
-          <path d="M -30 -14 C -20 -16.5 -6 -16 4 -14 Z" fill="${subFill}" stroke-width="1.6" />
-          <!-- AK Receiver Dimple & Long Safety Selector Lever -->
-          <rect x="-6" y="-6.5" width="7" height="2.6" rx="1.2" fill="${frameFill}" stroke-width="1.2" />
-          <line x1="-22" y1="-7" x2="-6" y2="-8.5" stroke="#090d14" stroke-width="2.0" />
+          <path d="M -2 -1 L 10 -1 C 14 13 21 24 31 32 L 20 37 C 9 28 1 15 -2 -1 Z" fill="${fillGrad}" />
+          <path d="M 3 5 C 7 15 13 23 21 30" fill="none" stroke="${frameFill}" stroke-width="1.5" />
+          <path d="M 6.5 4 C 10.5 14 16.5 22 24.5 29" fill="none" stroke="#090d14" stroke-width="1.3" />
+          <!-- Contoured AK-47 Pistol Grip & Trigger Guard -->
+          <path d="M -24 -1 L -14 -1 L -20 20 L -29 18.5 Z" fill="${subFill}" />
+          <path d="M -14 -1 L -4 -1 L -5 6 L -14 6 Z" fill="${deepCut}" stroke="none" />
+          <path d="M -14 -1 L -4 -1 L -5 6 L -14 6 Z" fill="none" stroke="#090d14" stroke-width="1.7" />
+          <path d="M -9 -1 Q -7.5 2.5 -10.5 4.8" fill="none" stroke="#e2e8f0" stroke-width="1.7" />
+          <!-- Stamped AK-47 Receiver & Ribbed Dust Cover -->
+          <path d="M -31 -14 L 6 -14 L 7 -1 L -30 -1 Z" fill="${fillGrad}" />
+          <path d="M -30 -14 C -20 -17 -6 -16.5 5 -14 Z" fill="${subFill}" stroke-width="1.6" />
+          <!-- Charging Handle & Selector Lever -->
+          <rect x="-5" y="-12" width="10" height="3.2" rx="1.2" fill="${darkFill}" stroke-width="1.3" />
+          <line x1="-22" y1="-6.5" x2="-6" y2="-8" stroke="#090d14" stroke-width="1.9" />
           <!-- Rear Tangent Sight Block -->
-          <rect x="2" y="-17.5" width="6" height="3.5" rx="0.6" fill="${subFill}" stroke-width="1.5" />
-          <!-- Upper Gas Tube & Ribbed Lower Handguard with Vent Slots -->
-          <rect x="6" y="-15.5" width="20" height="4.2" rx="1" fill="${subFill}" stroke-width="1.8" />
-          <path d="M 6 -11 L 28 -11 L 27 -2 L 6 -1 Z" fill="${frameFill}" stroke-width="1.9" />
-          <rect x="12" y="-11.5" width="5" height="2.2" rx="0.8" fill="${deepCut}" stroke="none" />
-          <rect x="19" y="-11.5" width="5" height="2.2" rx="0.8" fill="${deepCut}" stroke="none" />
+          <rect x="2" y="-17.5" width="6" height="3.5" rx="0.6" fill="${darkFill}" stroke-width="1.5" />
+          <!-- Upper Gas Tube & Contoured AK-47 Lower Handguard -->
+          <path d="M 6 -15.5 L 26 -15 L 26 -10.5 L 6 -10.5 Z" fill="${subFill}" stroke-width="1.8" />
+          <path d="M 6 -10.5 L 28 -10.5 L 26 -1.5 L 6 -1 Z" fill="${subFill}" stroke-width="1.9" />
           <!-- 45-Degree AK Gas Block -->
-          <path d="M 26 -15.5 L 31 -15.5 L 33 -10 L 26 -10 Z" fill="${fillGrad}" stroke-width="1.7" />
+          <path d="M 26 -15 L 31 -15 L 33 -9.5 L 26 -9.5 Z" fill="${fillGrad}" stroke-width="1.7" />
           <!-- Long 7.62 Barrel & Under-Barrel Cleaning Rod -->
-          <rect x="27" y="-10" width="27" height="3.8" fill="${fillGrad}" stroke-width="1.8" />
-          <line x1="27" y1="-5.2" x2="51" y2="-5.2" stroke="${subFill}" stroke-width="1.5" />
-          <!-- Iconic Triangular AK Front Sight Tower & Slanted Muzzle Brake -->
-          <path d="M 44 -21.5 L 49 -21.5 L 51 -10 L 43 -10 Z" fill="${fillGrad}" stroke-width="1.8" />
-          <circle cx="47" cy="-18" r="1.4" fill="${deepCut}" stroke="none" />
-          <path d="M 54 -10.2 L 60 -11.2 L 58 -5.8 L 54 -6.0 Z" fill="${subFill}" stroke-width="1.7" />
+          <rect x="27" y="-9.8" width="28" height="3.8" fill="${fillGrad}" stroke-width="1.8" />
+          <line x1="27" y1="-5.0" x2="52" y2="-5.0" stroke="${subFill}" stroke-width="1.5" />
+          <!-- Iconic AK-47 Front Sight Tower & Crowned Muzzle -->
+          <path d="M 45 -21.5 L 50 -21.5 L 51.5 -9.8 L 44 -9.8 Z" fill="${fillGrad}" stroke-width="1.8" />
+          <circle cx="47.8" cy="-18" r="1.4" fill="${deepCut}" stroke="none" />
+          <path d="M 55 -10 L 60 -10.6 L 59 -5.8 L 55 -6 Z" fill="${subFill}" stroke-width="1.6" />
         </g>
       `;
 

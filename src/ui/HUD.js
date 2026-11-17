@@ -378,7 +378,7 @@ export class HUD {
       } else if (weaponType === 'glock_flamengo') {
         this.caliberTextEl.textContent = 'GLOCK 18 CUSTOM';
       } else if (weaponType === 'akms_gold') {
-        this.caliberTextEl.textContent = 'AKMS GOLD';
+        this.caliberTextEl.textContent = 'AK 47 GOLD';
       } else if (weaponType === 'm134_minigun') {
         this.caliberTextEl.textContent = 'M134 MINIGUN';
       } else {

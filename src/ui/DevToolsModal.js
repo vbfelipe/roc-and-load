@@ -9,7 +9,7 @@ const WEAPON_SLOTS = [
   { id: 'hk_mp5', label: '4: MP5', legendary: false },
   { id: 'colt_peacemaker', label: '5: Colt', legendary: false },
   { id: 'glock_flamengo', label: '6: Glock 18 ★', legendary: true },
-  { id: 'akms_gold', label: '7: AKMS ★', legendary: true },
+  { id: 'akms_gold', label: '7: AK 47 ★', legendary: true },
   { id: 'm134_minigun', label: '8: Minigun ★', legendary: true },
 ];
 
@@ -1078,7 +1078,7 @@ export class DevToolsModal {
         };
       case 'akms_gold':
         return {
-          label: 'AKMS GOLD (7.62) ★',
+          label: 'AK 47 GOLD (7.62) ★',
           group: vm.akmsGroup,
           handPivot: vm.akmsHandPivot,
           wrist: vm.akmsWristBone,

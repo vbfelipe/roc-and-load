@@ -417,9 +417,9 @@ export class WeaponViewmodel {
     this.glockHipRotation = new THREE.Euler(0.1, 0.1, 0.1);
     this.glockAdsRotation = new THREE.Euler(0.0025, 0.0784, 0.0204);
 
-    // Slot 7 (AKMS Gold 7.62 Rifle - RARE) Hip & ADS Transforms
+    // Slot 7 (AK 47 Gold 7.62 Rifle - RARE) Hip & ADS Transforms
     this.akmsHipPosition = new THREE.Vector3(0.1, -0.13, -0.1);
-    this.akmsAdsPosition = new THREE.Vector3(0.008, -0.083, -0.094);
+    this.akmsAdsPosition = new THREE.Vector3(0.008, -0.088, -0.09);
     this.akmsHipRotation = new THREE.Euler(0.1, 0, 0);
     this.akmsAdsRotation = new THREE.Euler(0, 0, 0);
 
@@ -911,10 +911,10 @@ export class WeaponViewmodel {
     this.akmsLeftHandGroup.name = 'AKMSLeftHandContainer';
     this.akmsGroup.add(this.akmsLeftHandGroup);
 
-    this.akmsMuzzleSocket.position.set(0, 0.048, -0.415);
+    this.akmsMuzzleSocket.position.set(-0.008, 0.045, -0.417);
     this.akmsGroup.add(this.akmsMuzzleSocket);
 
-    this.akmsEjectionAnchor.position.set(0.010, 0.060, -0.050);
+    this.akmsEjectionAnchor.position.set(0.008, 0.057, -0.075);
     this.akmsGroup.add(this.akmsEjectionAnchor);
   }
 
@@ -968,7 +968,7 @@ export class WeaponViewmodel {
       { key: 'hk_mp5', url: './models/hk_mp5.glb', bytes: 3069496, setup: (gltf) => this._setupMP5Model(gltf) },
       { key: 'colt_peacemaker', url: './models/colt_peacemaker.glb', bytes: 937652, setup: (gltf) => this._setupColtModel(gltf) },
       { key: 'glock_flamengo', url: './models/glock_flamengo.glb', bytes: 828512, setup: (gltf) => this._setupGlockModel(gltf) },
-      { key: 'akms_gold', url: './models/akms_gold.glb', bytes: 667536, setup: (gltf) => this._setupAkmsModel(gltf) },
+      { key: 'akms_gold', url: './models/ak47_gold.glb', bytes: 4923288, setup: (gltf) => this._setupAkmsModel(gltf) },
       { key: 'm134_minigun', url: './models/m134_minigun.glb', bytes: 29418744, setup: (gltf) => this._setupMinigunModel(gltf) },
       { key: 'fps_hands', url: './models/fps_hands.glb', bytes: 827564, setup: (gltf) => this._setupHandsModel(gltf) },
     ];
@@ -1461,105 +1461,6 @@ export class WeaponViewmodel {
     return mesh;
   }
 
-  /**
-   * Builds a clean curved 30-round stamped-steel AKMS magazine in `akms_magazine` local space
-   * with continuous side ribs and a solid floorplate cuff to replace the corrupted GLB geometry.
-   */
-  _createAkmsMagazineGeometry(invMagMatrix) {
-    const centerX = -0.0077;
-    const pivotZ = -0.265;
-    const pivotY = 0.075;
-    const midRadius = 0.235;
-    const posArr = [];
-    const uvArr = [];
-    const idxArr = [];
-    const pt = new THREE.Vector3();
-
-    const pushCappedEnd = (startIdx, count, reverseWinding) => {
-      let cx = 0;
-      let cy = 0;
-      let cz = 0;
-      for (let r = 0; r < count; r++) {
-        const off = (startIdx + r) * 3;
-        cx += posArr[off];
-        cy += posArr[off + 1];
-        cz += posArr[off + 2];
-      }
-      const centerIdx = posArr.length / 3;
-      posArr.push(cx / count, cy / count, cz / count);
-      uvArr.push(0.30, 0.30);
-      for (let r = 0; r < count; r++) {
-        const nextR = (r + 1) % count;
-        if (reverseWinding) {
-          idxArr.push(centerIdx, startIdx + nextR, startIdx + r);
-        } else {
-          idxArr.push(centerIdx, startIdx + r, startIdx + nextR);
-        }
-      }
-    };
-
-    const sweepSection = (ring, thetaStart, thetaEnd, segments) => {
-      const ringLen = ring.length;
-      const base = posArr.length / 3;
-      for (let s = 0; s <= segments; s++) {
-        const t = s / segments;
-        const th = thetaStart + (thetaEnd - thetaStart) * t;
-        const sinTh = Math.sin(th);
-        const cosTh = Math.cos(th);
-        for (let r = 0; r < ringLen; r++) {
-          const [ds, dx] = ring[r];
-          const rad = midRadius + ds;
-          pt.set(centerX + dx, pivotY - rad * sinTh, pivotZ + rad * cosTh).applyMatrix4(invMagMatrix);
-          posArr.push(pt.x, pt.y, pt.z);
-          const u = THREE.MathUtils.clamp(0.10 + ((ds + 0.026) / 0.052) * 0.42, 0.10, 0.52);
-          uvArr.push(u, 0.92 - t * 0.62);
-        }
-      }
-      for (let s = 0; s < segments; s++) {
-        for (let r = 0; r < ringLen; r++) {
-          const nr = (r + 1) % ringLen;
-          const a = base + s * ringLen + r;
-          const b = base + s * ringLen + nr;
-          const c = base + (s + 1) * ringLen + nr;
-          const d = base + (s + 1) * ringLen + r;
-          idxArr.push(a, b, c, a, c, d);
-        }
-      }
-      pushCappedEnd(base, ringLen, false);
-      pushCappedEnd(base + segments * ringLen, ringLen, true);
-    };
-
-    const mirrorRing = (halfProfile) => [
-      ...halfProfile,
-      ...halfProfile.slice(1, -1).reverse().map(([s, x]) => [s, -x]),
-    ];
-
-    const halfX = 0.0085;
-    const ribIn = 0.0070;
-    const spineW = 0.0046;
-    const rearW = 0.0058;
-    const bodyRing = mirrorRing([
-      [-0.0255, 0.0000], [-0.0245, spineW], [-0.0175, spineW], [-0.0145, halfX],
-      [-0.0080, halfX], [-0.0055, ribIn], [-0.0010, ribIn], [0.0015, halfX],
-      [0.0045, halfX], [0.0070, ribIn], [0.0125, ribIn], [0.0150, halfX],
-      [0.0200, halfX], [0.0225, rearW], [0.0255, rearW * 0.65], [0.0260, 0.0000],
-    ]);
-    const plateRing = mirrorRing([
-      [-0.0268, 0.0000], [-0.0260, spineW * 1.15], [-0.0210, halfX * 1.08],
-      [0.0000, halfX * 1.08], [0.0210, halfX * 1.08], [0.0260, rearW * 1.12], [0.0270, 0.0000],
-    ]);
-
-    sweepSection(bodyRing, 0.16, 0.74, 20);
-    sweepSection(plateRing, 0.73, 0.79, 2);
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
-    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvArr, 2));
-    geo.setIndex(idxArr);
-    geo.computeVertexNormals();
-    return geo;
-  }
-
   _setupColtModel(gltf) {
     const coltScene = gltf.scene;
     coltScene.name = 'ColtPeacemakerGLTF';
@@ -1760,10 +1661,10 @@ export class WeaponViewmodel {
   }
 
   _setupAkmsModel(gltf) {
-    const akmsScene = gltf.scene;
-    akmsScene.name = 'AKMSGoldGLTF';
+    const ak47Scene = gltf.scene;
+    ak47Scene.name = 'AK47GoldGLTF';
 
-    akmsScene.traverse((child) => {
+    ak47Scene.traverse((child) => {
       if (child.isMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
@@ -1771,101 +1672,98 @@ export class WeaponViewmodel {
         const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
         for (const m of mats) {
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
-          // Restore metallicFactor=1.0 where metallicRoughnessTexture is present so 24K Gold PBR reflections shine
           if (m.isMeshStandardMaterial) {
-            if (m.metalnessMap) m.metalness = 1.0;
-            if (m.roughness === 0 || m.roughness === 1) m.roughness = 0.72;
-            m.userData.vmEnvIntensity = 1.15;
+            if (m.metalnessMap) {
+              m.metalness = 1.0;
+              m.userData.vmEnvIntensity = 0.95;
+            } else {
+              // Tame ivory stock/grip specular glare under RoomEnvironment IBL
+              m.roughness = Math.max(m.roughness || 0.25, 0.24);
+              m.userData.vmEnvIntensity = 0.72;
+            }
             m.needsUpdate = true;
           }
         }
       }
     });
 
-    akmsScene.scale.setScalar(0.76);
-    akmsScene.rotation.set(0, Math.PI / 2, 0);
-    akmsScene.position.set(-0.006, -0.022, 0.072);
+    // Align barrel forward (-Z), iron sights centered on (-0.008, +0.083) to match akmsAdsPosition,
+    // and handguard centered in AKMS_LEFT_HAND_POSE (z = -0.174).
+    ak47Scene.scale.setScalar(0.188);
+    ak47Scene.rotation.set(0, Math.PI / 2, 0);
+    ak47Scene.position.set(-0.0078, 0.002, 0.07);
 
-    this.akmsMagMesh = akmsScene.getObjectByName('akms_magazine') || akmsScene.getObjectByName('Object_2');
-    if (this.akmsMagMesh) {
-      // Replace the corrupted lower-half GLB magazine mesh with a clean swept ribbed steel curve
-      // sharing the golden PBR material, mapped cleanly from akmsGroup space into magMesh local space.
-      const magMesh = this.akmsMagMesh;
-      if (magMesh.isMesh && magMesh.geometry) {
-        akmsScene.updateMatrix();
-        const magToGroup = new THREE.Matrix4().copy(akmsScene.matrix);
-        const parentChain = [];
-        for (let node = magMesh; node && node !== akmsScene; node = node.parent) {
-          node.updateMatrix();
-          parentChain.push(node.matrix);
-        }
-        for (let i = parentChain.length - 1; i >= 0; i--) {
-          magToGroup.multiply(parentChain[i]);
-        }
-        const oldMagGeo = magMesh.geometry;
-        magMesh.geometry = this._createAkmsMagazineGeometry(magToGroup.invert());
-        oldMagGeo.dispose();
-      }
-      this.akmsMagRestX = this.akmsMagMesh.position.x;
-      this.akmsMagRestY = this.akmsMagMesh.position.y;
-      this.akmsMagRestZ = this.akmsMagMesh.position.z;
-    }
+    this.akmsMagMesh = null;
+    this.akmsBoltMesh = null;
 
-    // Separate the AKMS bolt carrier & right-side charging handle from the static receiver
-    // (Object_3) so it cycles backward/forward on every shot and during reload.
-    const akmsBodyMesh = akmsScene.getObjectByName('Object_3');
-    if (akmsBodyMesh && akmsBodyMesh.isMesh && akmsBodyMesh.geometry) {
-      const origGeo = akmsBodyMesh.geometry;
-      const bodyIslands = decomposeMeshIslands(origGeo);
+    const akBodyMesh = ak47Scene.getObjectByName('Object_4');
+    if (akBodyMesh && akBodyMesh.isMesh && akBodyMesh.geometry) {
+      const origGeo = akBodyMesh.geometry;
+      const islands = decomposeMeshIslands(origGeo);
       const staticTris = [];
+      const magTris = [];
       const boltTris = [];
-      for (const isl of bodyIslands) {
+
+      for (const isl of islands) {
         const b = isl.box;
-        // Charging handle (x: 0.200..0.209) + bolt carrier body (x: 0.113..0.209);
-        // excludes front trunnion rivet (x: 0.212..0.220) cleanly via max.x <= 0.211.
-        const isBoltPart =
-          isl.triList.length < 150 &&
-          b.min.x >= 0.10 && b.max.x <= 0.211 &&
-          b.min.z >= 0.088 && b.max.z <= 0.122 &&
-          b.max.y <= 0.012 && b.min.y < -0.01;
-        if (isBoltPart) {
+        const isBolt = b.max.z > 10;
+        const isMagOrRound =
+          b.min.y < -15 ||
+          (b.min.x >= 49 && b.max.x <= 80 && b.max.y <= 22 && b.min.z >= -4.5 && b.max.z <= 4.5);
+
+        if (isBolt) {
           boltTris.push(...isl.triList);
+        } else if (isMagOrRound) {
+          magTris.push(...isl.triList);
         } else {
           staticTris.push(...isl.triList);
         }
       }
 
-      if (boltTris.length > 0 && staticTris.length > 0) {
-        akmsBodyMesh.geometry = buildSubGeometryFromTriangles(origGeo, staticTris);
-        const boltGeo = buildSubGeometryFromTriangles(origGeo, boltTris);
+      if (staticTris.length > 0 && (boltTris.length > 0 || magTris.length > 0)) {
+        akBodyMesh.geometry = buildSubGeometryFromTriangles(origGeo, staticTris);
+
+        if (boltTris.length > 0) {
+          const boltMesh = new THREE.Mesh(
+            buildSubGeometryFromTriangles(origGeo, boltTris),
+            akBodyMesh.material
+          );
+          boltMesh.name = 'ak47_bolt_carrier';
+          boltMesh.frustumCulled = false;
+          boltMesh.castShadow = false;
+          boltMesh.receiveShadow = false;
+          akBodyMesh.parent.add(boltMesh);
+          this.akmsBoltMesh = boltMesh;
+          this.akmsBoltRestX = boltMesh.position.x;
+        }
+
+        if (magTris.length > 0) {
+          const magPivot = new THREE.Group();
+          magPivot.name = 'ak47_mag_pivot';
+          magPivot.position.set(75, 15, 0);
+          const magMesh = new THREE.Mesh(
+            buildSubGeometryFromTriangles(origGeo, magTris),
+            akBodyMesh.material
+          );
+          magMesh.name = 'ak47_magazine';
+          magMesh.position.set(-75, -15, 0);
+          magMesh.frustumCulled = false;
+          magMesh.castShadow = false;
+          magMesh.receiveShadow = false;
+          magPivot.add(magMesh);
+          akBodyMesh.parent.add(magPivot);
+
+          this.akmsMagMesh = magPivot;
+          this.akmsMagRestX = magPivot.position.x;
+          this.akmsMagRestY = magPivot.position.y;
+          this.akmsMagRestZ = magPivot.position.z;
+        }
+
         origGeo.dispose();
-
-        const boltMesh = new THREE.Mesh(boltGeo, akmsBodyMesh.material);
-        boltMesh.name = 'akms_bolt_carrier';
-        boltMesh.position.copy(akmsBodyMesh.position);
-        boltMesh.rotation.copy(akmsBodyMesh.rotation);
-        boltMesh.scale.copy(akmsBodyMesh.scale);
-        boltMesh.frustumCulled = false;
-        boltMesh.castShadow = false;
-        boltMesh.receiveShadow = false;
-        akmsBodyMesh.parent.add(boltMesh);
-
-        this.akmsBoltMesh = boltMesh;
-        this.akmsBoltRestX = boltMesh.position.x;
-
-        // Matte dark receiver interior baffle behind ejection port so sliding the bolt back reveals a dark breech
-        const chamberBaffle = new THREE.Mesh(
-          new THREE.BoxGeometry(0.085, 0.008, 0.022),
-          new THREE.MeshStandardMaterial({ color: 0x0e0e0e, roughness: 0.92, metalness: 0.1 })
-        );
-        chamberBaffle.name = 'akms_chamber_baffle';
-        chamberBaffle.position.set(0.168, 0.003, 0.103);
-        chamberBaffle.frustumCulled = false;
-        akmsBodyMesh.parent.add(chamberBaffle);
       }
     }
 
-    this.akmsModelGroup.add(akmsScene);
+    this.akmsModelGroup.add(ak47Scene);
   }
 
   _setupMinigunModel(gltf) {
@@ -2907,7 +2805,7 @@ export class WeaponViewmodel {
         this.glockAdsPosition.set(-0.0014, -0.0596, -0.14);
         this.glockAdsRotation.set(0.0025, 0.0784, 0.0204);
       } else if (isAkms) {
-        this.akmsAdsPosition.set(0.008, -0.083, -0.094);
+        this.akmsAdsPosition.set(0.008, -0.088, -0.09);
         this.akmsAdsRotation.set(0, 0, 0);
       } else if (isMinigun) {
         this.minigunAdsPosition.set(0, -0.2, -0.1);
@@ -3311,7 +3209,7 @@ export class WeaponViewmodel {
       this.posSpring.impulse(0, recoilKick * 0.25, recoilZ);
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
-      this.akmsBoltBlowback = 0.078;
+      this.akmsBoltBlowback = 40.0;
       this.akmsBoltHold = 0.025;
       if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
         this.akmsBoltMesh.position.x = this.akmsBoltRestX - this.akmsBoltBlowback;
@@ -3605,10 +3503,10 @@ export class WeaponViewmodel {
           if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
             this.akmsBoltMesh.position.x = this.akmsBoltRestX - this.akmsBoltBlowback;
           }
-        } else if (this.akmsBoltBlowback > 0.0005) {
+        } else if (this.akmsBoltBlowback > 0.25) {
           const dt = Math.min(delta, 0.033);
           this.akmsBoltBlowback *= Math.exp(-38.0 * dt);
-          if (this.akmsBoltBlowback <= 0.0005) this.akmsBoltBlowback = 0;
+          if (this.akmsBoltBlowback <= 0.25) this.akmsBoltBlowback = 0;
           if (this.akmsBoltMesh && this.akmsBoltRestX !== undefined) {
             this.akmsBoltMesh.position.x = this.akmsBoltRestX - this.akmsBoltBlowback;
           }
@@ -4544,31 +4442,31 @@ export class WeaponViewmodel {
     this.reloadTweens.push(tiltIn);
     tiltIn.start();
 
-    // STAGE 2: Rock magazine forward (-Y rot) and pull downward (-Z, +X in Sketchfab local coords)
+    // STAGE 2: Rock magazine forward (-Z rot) and pull downward (-Y in AK_47_0 local coords)
     const magDropTimer = setTimeout(() => {
       if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
       if (this.akmsMagMesh) {
         const dropPos = new TWEEN.Tween(this.akmsMagMesh.position, true)
-          .to({ z: this.akmsMagRestZ - 0.19, x: this.akmsMagRestX + 0.032 }, ms(240))
+          .to({ y: this.akmsMagRestY - 105, x: this.akmsMagRestX + 12 }, ms(240))
           .easing(TWEEN.Easing.Quadratic.In)
           .onComplete(() => {
             if (this.akmsMagMesh) this.akmsMagMesh.visible = false;
           });
         const dropRot = new TWEEN.Tween(this.akmsMagMesh.rotation, true)
-          .to({ y: -0.36 }, ms(190))
+          .to({ z: -0.34 }, ms(190))
           .easing(TWEEN.Easing.Cubic.Out);
         this.reloadTweens.push(dropPos, dropRot);
         dropPos.start();
         dropRot.start();
       }
 
-      // STAGE 3: Insert fresh magazine upward (+Z) and rock back to lock upright into receiver
+      // STAGE 3: Insert fresh magazine upward (+Y) and rock back to lock upright into receiver
       const magInTimer = setTimeout(() => {
         if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;
         if (this.akmsMagMesh) {
           this.akmsMagMesh.visible = true;
-          this.akmsMagMesh.position.set(this.akmsMagRestX + 0.032, this.akmsMagRestY, this.akmsMagRestZ - 0.19);
-          this.akmsMagMesh.rotation.set(0, -0.36, 0);
+          this.akmsMagMesh.position.set(this.akmsMagRestX + 12, this.akmsMagRestY - 105, this.akmsMagRestZ);
+          this.akmsMagMesh.rotation.set(0, 0, -0.34);
           const insertPos = new TWEEN.Tween(this.akmsMagMesh.position, true)
             .to({ x: this.akmsMagRestX, y: this.akmsMagRestY, z: this.akmsMagRestZ }, ms(240))
             .easing(TWEEN.Easing.Cubic.Out)
@@ -4583,7 +4481,7 @@ export class WeaponViewmodel {
               tiltCharge.start();
             });
           const insertRot = new TWEEN.Tween(this.akmsMagMesh.rotation, true)
-            .to({ y: 0 }, ms(240))
+            .to({ z: 0 }, ms(240))
             .easing(TWEEN.Easing.Quadratic.Out);
           this.reloadTweens.push(insertPos, insertRot);
           insertPos.start();
@@ -4616,7 +4514,7 @@ export class WeaponViewmodel {
             this.posSpring.impulse(0, 0.012, 0.025);
             this.rotSpring.impulse(0.025, 0, -0.015);
             const pullBolt = new TWEEN.Tween(this.akmsBoltMesh.position, true)
-              .to({ x: this.akmsBoltRestX - 0.080 }, ms(150))
+              .to({ x: this.akmsBoltRestX - 42.0 }, ms(150))
               .easing(TWEEN.Easing.Cubic.Out)
               .onComplete(() => {
                 if (!this.isReloading || this.currentWeapon !== 'akms_gold') return;

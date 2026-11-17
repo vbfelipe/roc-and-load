@@ -626,7 +626,7 @@ export class WeaponSystem {
         isSlideLocked: false,
       },
       akms_gold: {
-        name: 'AKMS GOLD',
+        name: 'AK 47 GOLD',
         currentAmmo: 30,
         maxAmmo: 30,
         reserveAmmo: 120,

@@ -161,9 +161,9 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   },
   {
     id: 'akms_gold',
-    name: 'AKMS GOLD',
+    name: 'AK 47 GOLD',
     caliber: '7.62×39MM SOVIET',
-    price: 60000,
+    price: 75000,
     isLegendary: true,
     infiniteAmmo: false,
     ammoPackSize: 60,
@@ -885,14 +885,7 @@ export class GunShopHUD {
       this.detailLegendaryEl.style.display = sel.isLegendary ? 'inline-flex' : 'none';
     }
     if (this.detailCaliberEl) {
-      if (!isConsumable && owned && !sel.infiniteAmmo) {
-        const wState = this.weaponSystem?.weapons?.[sel.id];
-        const mag = wState?.currentAmmo ?? 0;
-        const res = wState?.reserveAmmo ?? 0;
-        this.detailCaliberEl.textContent = `${sel.caliber} • MUNIÇÃO ATUAL: ${mag} / ${res}`;
-      } else {
-        this.detailCaliberEl.textContent = sel.caliber;
-      }
+      this.detailCaliberEl.textContent = sel.caliber;
     }
 
     if (isConsumable) {
