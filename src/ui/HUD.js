@@ -215,19 +215,30 @@ export class HUD {
           <path d="M12 2C7.03 2 3 5.82 3 10.5c0 2.86 1.48 5.39 3.74 6.95V20c0 .55.45 1 1 1h8.52c.55 0 1-.45 1-1v-2.55C19.52 15.89 21 13.36 21 10.5 21 5.82 16.97 2 12 2zm-3.2 10.5a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm6.4 0a1.8 1.8 0 1 1 0-3.6 1.8 1.8 0 0 1 0 3.6zm-2.2 6h-2v-2.2h2v2.2z"/>
         </svg>
       </span>
-      <span id="hud-horde-label">HORDA 1: 10</span>
+      <span class="hud-horde-identity">
+        <span class="hud-horde-title">HORDA</span>
+        <span id="hud-horde-num" class="hud-horde-num">1</span>
+      </span>
+      <span class="hud-horde-timer-chip">
+        <span id="hud-horde-sec" class="hud-horde-sec-val">10</span><span class="hud-horde-sec-unit">s</span>
+      </span>
+      <div class="hud-horde-progress-track">
+        <div id="hud-horde-progress" class="hud-horde-progress-fill" style="width: 100%;"></div>
+      </div>
     `;
-    this.hordeLabelEl = this.hordeBannerEl.querySelector('#hud-horde-label');
+    this.hordeNumEl = this.hordeBannerEl.querySelector('#hud-horde-num');
+    this.hordeSecEl = this.hordeBannerEl.querySelector('#hud-horde-sec');
+    this.hordeProgressEl = this.hordeBannerEl.querySelector('#hud-horde-progress');
     this._hordeHideTimeout = null;
     uiLayer.appendChild(this.hordeBannerEl);
   }
 
   /**
-   * Shows and updates the red infinite horde countdown banner ("HORDA N: SS").
+   * Shows and updates the red infinite horde countdown banner ("HORDA N | SSs").
    * Uses the same smooth fade/scale transition curve as the status HUD pills.
    */
   setHordeCountdown(hordeNum, secondsRemaining) {
-    if (!this.hordeBannerEl || !this.hordeLabelEl) return;
+    if (!this.hordeBannerEl || !this.hordeNumEl || !this.hordeSecEl) return;
     if (this._hordeHideTimeout) {
       clearTimeout(this._hordeHideTimeout);
       this._hordeHideTimeout = null;
@@ -235,7 +246,12 @@ export class HUD {
 
     const sec = Math.max(0, Math.ceil(Number(secondsRemaining) || 0));
     const num = Math.max(1, Math.floor(Number(hordeNum) || 1));
-    this.hordeLabelEl.textContent = `HORDA ${num}: ${sec}`;
+    this.hordeNumEl.textContent = String(num);
+    this.hordeSecEl.textContent = String(sec);
+    if (this.hordeProgressEl) {
+      const pct = Math.max(0, Math.min(100, (sec / 10) * 100));
+      this.hordeProgressEl.style.width = `${pct}%`;
+    }
     this.hordeBannerEl.classList.toggle('is-urgent', sec <= 3);
 
     const wasHidden = this.hordeBannerEl.classList.contains('hidden');

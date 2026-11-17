@@ -167,6 +167,7 @@ window.addEventListener('DOMContentLoaded', () => {
   window.__rocAddTestMoney = (amount = 50000) => addMoney(amount, { playSound: true });
 
   let hasTriggeredFirstCrateHorde = false;
+  let firstCrateHordeDelayTimer = 0;
 
   const gunShop = new GunShopHUD({
     weaponSystem,
@@ -196,7 +197,7 @@ window.addEventListener('DOMContentLoaded', () => {
       warehouse.startMilitaryCrateClose();
       if (gameState === 'PLAYING' && !hasTriggeredFirstCrateHorde) {
         hasTriggeredFirstCrateHorde = true;
-        zombieManager.startInfiniteHordes();
+        firstCrateHordeDelayTimer = 2.0;
       }
     },
   });
@@ -752,6 +753,14 @@ window.addEventListener('DOMContentLoaded', () => {
       // 4b. Opening gameplay sequence state machine (tutorial fade-in, phone ringing, proximity pickup)
       introSequence.update(delta, gameState);
 
+      if (firstCrateHordeDelayTimer > 0) {
+        firstCrateHordeDelayTimer -= delta;
+        if (firstCrateHordeDelayTimer <= 0) {
+          firstCrateHordeDelayTimer = 0;
+          zombieManager.startInfiniteHordes();
+        }
+      }
+
       // 4c. Wave zombie AI, radiation aura, blood decals/droplets & edge vignette pulse (always live at 60 FPS)
       zombieManager.update(delta, gameState, isPlayerInSafeZone);
       decalManager.update(delta);
@@ -817,6 +826,7 @@ window.addEventListener('DOMContentLoaded', () => {
     deathCollapseElapsed = 0;
     gameOverShown = false;
     hasTriggeredFirstCrateHorde = false;
+    firstCrateHordeDelayTimer = 0;
     lastMeleeHitAt = -Infinity;
     playerMoney = 0;
     player.resetHealth();
