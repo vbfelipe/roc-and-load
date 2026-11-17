@@ -726,7 +726,9 @@ export class WeaponSystem {
     this.gameState = 'MENU';
     this.armedAt = 0;
     this.isUnarmed = false;
+    this.hasEquippedFirstWeapon = false;
     this.isSafeZoneLocked = false;
+    this._weaponBeforeSafeZone = null;
     this.isAiming = false;
     this.unlockedWeapons = new Set(['hk_usp', 'desert_eagle', 'shotgun', 'hk_mp5']);
 
@@ -769,6 +771,8 @@ export class WeaponSystem {
 
   lockAllWeapons() {
     this.unlockedWeapons.clear();
+    this.hasEquippedFirstWeapon = false;
+    this._weaponBeforeSafeZone = null;
   }
 
   _normalizeWeaponSlotKey(weaponType) {
@@ -861,6 +865,9 @@ export class WeaponSystem {
   }
 
   onEnterSafeZone() {
+    if (!this.isSafeZoneLocked) {
+      this._weaponBeforeSafeZone = (!this.isUnarmed && this.currentWeapon) ? this.currentWeapon : null;
+    }
     this.isSafeZoneLocked = true;
     this.isAiming = false;
     this.isReloading = false;
@@ -888,6 +895,16 @@ export class WeaponSystem {
 
   onExitSafeZone() {
     this.isSafeZoneLocked = false;
+    const restoreWeapon = this._weaponBeforeSafeZone;
+    this._weaponBeforeSafeZone = null;
+    if (
+      restoreWeapon &&
+      this.isUnarmed &&
+      this.gameState === 'PLAYING' &&
+      this.isWeaponUnlocked(restoreWeapon)
+    ) {
+      this.equipUnlockedWeaponFromUnarmed(restoreWeapon);
+    }
   }
 
   setSafeZoneLocked(locked) {
@@ -912,6 +929,10 @@ export class WeaponSystem {
       return false;
     }
     if (key === 'unarmed') {
+      // Once the player equips their first firearm, bare-hands can only be entered automatically via Safe Zone
+      if (this.hasEquippedFirstWeapon) {
+        return false;
+      }
       if (!this.isUnarmed) {
         this.setUnarmed(true);
         if (this.sound && typeof this.sound.playWeaponSwitch === 'function') {
@@ -936,7 +957,7 @@ export class WeaponSystem {
   }
 
   /**
-   * Transitions out of unarmed bare-hands mode into an unlocked weapon (e.g. pressing 1 for USP),
+   * Transitions out of unarmed bare-hands mode into an unlocked weapon (e.g. USP),
    * reveals the ammo HUD, and triggers its tactical draw animation and equip sound.
    */
   equipUnlockedWeaponFromUnarmed(weaponType = 'hk_usp') {
@@ -952,6 +973,10 @@ export class WeaponSystem {
     this.fireRate = targetState.fireRate;
     this.isSlideLocked = targetState.isSlideLocked;
     this.isReloading = false;
+
+    if (!window.isViewmodelTunerOpen) {
+      this.hasEquippedFirstWeapon = true;
+    }
 
     if (this.viewmodel) {
       this.viewmodel.currentWeapon = weaponType;
@@ -1083,6 +1108,9 @@ export class WeaponSystem {
       this.sound.stopActionSounds();
     }
     this.currentWeapon = weaponType;
+    if (!window.isViewmodelTunerOpen) {
+      this.hasEquippedFirstWeapon = true;
+    }
     const nextState = this.weapons[weaponType];
     this.currentAmmo = nextState.currentAmmo;
     this.maxAmmo = nextState.maxAmmo;
@@ -2253,7 +2281,9 @@ export class WeaponSystem {
     this.fireRate = 0.18;
     this.isReloading = false;
     this.isSlideLocked = false;
+    this.hasEquippedFirstWeapon = false;
     this.isSafeZoneLocked = false;
+    this._weaponBeforeSafeZone = null;
     this.isAiming = false;
     this.fireTimer = 0;
     this.wasMouseDown0 = true;

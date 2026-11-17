@@ -174,29 +174,23 @@ const FLOOR_OBSTACLES = [
   { minX: 0.85, maxX: 4.15, minZ: 4.08, maxZ: 5.32, isDesk: true },
 ];
 
-// Precomputed 7-angle whisker table [0°, +24°, -24°, +50°, -50°, +80°, -80°]
+// Precomputed 9-angle whisker table [0°, +18°, -18°, +38°, -38°, +60°, -60°, +82°, -82°]
 const WHISKER_ANGLES = [
   0,
-  (24 * Math.PI) / 180,
-  (-24 * Math.PI) / 180,
-  (50 * Math.PI) / 180,
-  (-50 * Math.PI) / 180,
-  (80 * Math.PI) / 180,
-  (-80 * Math.PI) / 180,
+  (18 * Math.PI) / 180,
+  (-18 * Math.PI) / 180,
+  (38 * Math.PI) / 180,
+  (-38 * Math.PI) / 180,
+  (60 * Math.PI) / 180,
+  (-60 * Math.PI) / 180,
+  (82 * Math.PI) / 180,
+  (-82 * Math.PI) / 180,
 ];
 const WHISKER_COS = WHISKER_ANGLES.map((a) => Math.cos(a));
 const WHISKER_SIN = WHISKER_ANGLES.map((a) => Math.sin(a));
 const ZOMBIE_BODY_RADIUS = 0.38;
 const WHISKER_PROBE_PAD = ZOMBIE_BODY_RADIUS + 0.14; // 0.52m
 const DOOR_PROBE_PAD = ZOMBIE_BODY_RADIUS + 0.04;    // 0.42m around 1.1m aperture jambs
-const CHASE_FLANK_ANGLES = [
-  0,
-  (24 * Math.PI) / 180,
-  (-24 * Math.PI) / 180,
-  (48 * Math.PI) / 180,
-  (-48 * Math.PI) / 180,
-  (14 * Math.PI) / 180,
-];
 
 // Keep grounded zombies on Y=0 out of the stairwell pit opening once they've climbed up
 const STAIRWELL_PIT_AABB = { minX: -14.00, maxX: -11.30, minZ: 2.05, maxZ: 7.45, isDesk: false };
@@ -1384,7 +1378,7 @@ export class ZombieManager {
     entry.zombie.root.rotation.y = entry.yaw;
   }
 
-  _isProbeBlocked(entry, px, pz, includeOtherZombies) {
+  _isStaticProbeBlocked(entry, px, pz) {
     for (let i = 0; i < FLOOR_OBSTACLES.length; i++) {
       const b = FLOOR_OBSTACLES[i];
       const pad = b.isDoorJamb ? DOOR_PROBE_PAD : WHISKER_PROBE_PAD;
@@ -1430,20 +1424,28 @@ export class ZombieManager {
       }
     }
 
-    if (includeOtherZombies) {
-      const minDistSq = 0.76 * 0.76;
-      for (let i = 0; i < this.waveEntries.length; i++) {
-        const other = this.waveEntries[i];
-        if (other === entry || !other.spawned || other.aiState === 'DEAD') continue;
-        if (!other.zombie.isSolidForPlayer()) continue;
-        const oPos = other.zombie.root.position;
-        if (Math.abs(oPos.y - entry.zombie.root.position.y) > 1.2) continue;
-        const dx = px - oPos.x;
-        const dz = pz - oPos.z;
-        if (dx * dx + dz * dz < minDistSq) return true;
-      }
-    }
+    return false;
+  }
 
+  _isZombieProbeBlocked(entry, px, pz, minDistSq = 0.60 * 0.60) {
+    for (let i = 0; i < this.waveEntries.length; i++) {
+      const other = this.waveEntries[i];
+      if (other === entry || !other.spawned || other.aiState === 'DEAD') continue;
+      if (!other.zombie.isSolidForPlayer()) continue;
+      const oPos = other.zombie.root.position;
+      if (Math.abs(oPos.y - entry.zombie.root.position.y) > 1.2) continue;
+      const dx = px - oPos.x;
+      const dz = pz - oPos.z;
+      if (dx * dx + dz * dz < minDistSq) return true;
+    }
+    return false;
+  }
+
+  _isProbeBlocked(entry, px, pz, includeOtherZombies) {
+    if (this._isStaticProbeBlocked(entry, px, pz)) return true;
+    if (includeOtherZombies && this._isZombieProbeBlocked(entry, px, pz, 0.62 * 0.62)) {
+      return true;
+    }
     return false;
   }
 
@@ -1455,14 +1457,19 @@ export class ZombieManager {
 
     const zPos = entry.zombie.root.position;
     const includeZombies = entry.zombie.hasExitedVestibule && zPos.x >= -8.0;
-    const dNear = distToGoal > 0.30 ? Math.min(distToGoal, 0.65) : distToGoal;
-    const dFar = distToGoal > 0.30 ? Math.min(distToGoal, 1.30) : distToGoal;
+    // Cap far probe short of the goal center so obstacles behind/beside the player don't trigger false turns
+    const probeMax = distToGoal > 0.35 ? Math.min(1.25, Math.max(0.35, distToGoal - 0.30)) : distToGoal;
+    const dNear = Math.min(probeMax, 0.58);
+    const dFar = probeMax;
 
-    const near0Blocked = this._isProbeBlocked(entry, zPos.x + ux * dNear, zPos.z + uz * dNear, includeZombies);
-    const far0Blocked = this._isProbeBlocked(entry, zPos.x + ux * dFar, zPos.z + uz * dFar, includeZombies);
+    const near0Static = this._isStaticProbeBlocked(entry, zPos.x + ux * dNear, zPos.z + uz * dNear);
+    const far0Static = this._isStaticProbeBlocked(entry, zPos.x + ux * dFar, zPos.z + uz * dFar);
+    const near0Zombie = includeZombies && this._isZombieProbeBlocked(entry, zPos.x + ux * dNear, zPos.z + uz * dNear);
+    const far0Zombie = includeZombies && this._isZombieProbeBlocked(entry, zPos.x + ux * dFar, zPos.z + uz * dFar);
 
-    // Straight line is clear (unless we are finishing a brief committed turn near a corner)
-    if (!near0Blocked && !far0Blocked) {
+    if (!near0Static && !far0Static && !near0Zombie && !far0Zombie) {
+      entry.steerCommitTimer = 0;
+      entry.steerCommitSign = 0;
       return { ux, uz };
     }
 
@@ -1476,28 +1483,47 @@ export class ZombieManager {
       const s = WHISKER_SIN[i];
       const wx = ux * c - uz * s;
       const wz = ux * s + uz * c;
+      const absAngle = Math.abs(WHISKER_ANGLES[i]);
 
-      const nearBlocked = i === 0
-        ? near0Blocked
-        : this._isProbeBlocked(entry, zPos.x + wx * dNear, zPos.z + wz * dNear, includeZombies);
-      const farBlocked = i === 0
-        ? far0Blocked
-        : this._isProbeBlocked(entry, zPos.x + wx * dFar, zPos.z + wz * dFar, includeZombies);
+      const nearPx = zPos.x + wx * dNear;
+      const nearPz = zPos.z + wz * dNear;
+      const farPx = zPos.x + wx * dFar;
+      const farPz = zPos.z + wz * dFar;
+
+      const nearStatic = i === 0 ? near0Static : this._isStaticProbeBlocked(entry, nearPx, nearPz);
+      const farStatic = i === 0 ? far0Static : this._isStaticProbeBlocked(entry, farPx, farPz);
+      const nearZombie = i === 0
+        ? near0Zombie
+        : (includeZombies && !nearStatic && this._isZombieProbeBlocked(entry, nearPx, nearPz));
+      const farZombie = i === 0
+        ? far0Zombie
+        : (includeZombies && !farStatic && this._isZombieProbeBlocked(entry, farPx, farPz));
 
       let score;
-      if (!nearBlocked && !farBlocked) {
-        score = 100 - Math.abs(WHISKER_ANGLES[i]) * 18;
-      } else if (!nearBlocked) {
-        score = 35 - Math.abs(WHISKER_ANGLES[i]) * 10;
+      if (!nearStatic && !farStatic) {
+        score = 100 - absAngle * 18;
+      } else if (!nearStatic) {
+        score = i === 0 ? 35 : (28 - absAngle * 10);
       } else {
-        score = -50 - Math.abs(WHISKER_ANGLES[i]) * 10;
+        score = -50 - absAngle * 10;
       }
 
-      // Apply turn-side commitment hysteresis so zombies commit around a corner instead of dithering
+      // Treat other zombies as a soft crowd penalty so packs peel smoothly (±18°/±38°) instead of circling at ±82°
+      if (nearZombie) {
+        score -= 18;
+      } else if (farZombie) {
+        score -= 12;
+      }
+
+      // Small tie-breaker around static corners without overriding clear smaller angles or straight far-clear paths
       if (entry.steerCommitTimer > 0 && entry.steerCommitSign !== 0 && i > 0) {
         const angleSign = (i % 2 === 1) ? 1 : -1;
         if (angleSign === entry.steerCommitSign) {
-          score += 22;
+          if (!nearStatic && !farStatic) {
+            score += 8;
+          } else if (!nearStatic && near0Static) {
+            score += 4;
+          }
         }
       }
 
@@ -1509,12 +1535,15 @@ export class ZombieManager {
       }
     }
 
-    if (bestIdx > 0 && (near0Blocked || far0Blocked)) {
+    if (bestIdx > 0 && (near0Static || far0Static)) {
       const chosenSign = (bestIdx % 2 === 1) ? 1 : -1;
       if (entry.steerCommitTimer <= 0 || entry.steerCommitSign === 0) {
         entry.steerCommitSign = chosenSign;
-        entry.steerCommitTimer = 0.65;
+        entry.steerCommitTimer = 0.40;
       }
+    } else if (!near0Static && !far0Static) {
+      entry.steerCommitTimer = 0;
+      entry.steerCommitSign = 0;
     }
 
     return { ux: bestWx, uz: bestWz };
@@ -1576,13 +1605,25 @@ export class ZombieManager {
       zom.playAnimation(resumeAnim, 0.18);
     }
 
-    // 2. Steer direction: anti-stuck perpendicular sidestep override OR 7-angle whisker feelers
+    // 2. Steer direction: anti-stuck perpendicular sidestep override OR 9-angle whisker feelers
     let steerX;
     let steerZ;
     if (entry.sidestepTimer > 0) {
-      entry.sidestepTimer = Math.max(0, entry.sidestepTimer - delta);
-      steerX = entry.sidestepDirX;
-      steerZ = entry.sidestepDirZ;
+      const probeMax = dist > 0.35 ? Math.min(1.15, Math.max(0.35, dist - 0.30)) : dist;
+      const straightClear =
+        !this._isStaticProbeBlocked(entry, pos.x + toGoalX * Math.min(probeMax, 0.58), pos.z + toGoalZ * Math.min(probeMax, 0.58)) &&
+        !this._isStaticProbeBlocked(entry, pos.x + toGoalX * probeMax, pos.z + toGoalZ * probeMax) &&
+        !this._findClosestObstacleNormal(pos.x, pos.z, 0.48);
+      if (straightClear) {
+        entry.sidestepTimer = 0;
+        const steered = this._computeWhiskerDirection(entry, toGoalX, toGoalZ, dist, delta);
+        steerX = steered.ux;
+        steerZ = steered.uz;
+      } else {
+        entry.sidestepTimer = Math.max(0, entry.sidestepTimer - delta);
+        steerX = entry.sidestepDirX;
+        steerZ = entry.sidestepDirZ;
+      }
     } else {
       const steered = this._computeWhiskerDirection(entry, toGoalX, toGoalZ, dist, delta);
       steerX = steered.ux;
@@ -1617,8 +1658,8 @@ export class ZombieManager {
     const desiredYaw = Math.atan2(steerX, steerZ);
     this._rotateYawToward(entry, desiredYaw, turnRate, delta);
 
-    // 3. Anti-stuck watchdog (0.55s moving window, minimum 0.12m XZ progress)
-    if (entry.sidestepTimer <= 0) {
+    // 3. Anti-stuck watchdog (0.55s moving window, minimum 0.12m XZ progress when not intentionally queued/close)
+    if (entry.sidestepTimer <= 0 && dist > 1.65 && effectiveSpeed >= 0.40) {
       entry.watchdogTimer += delta;
       if (entry.watchdogTimer >= 0.55) {
         const progressed = Math.hypot(pos.x - entry.watchdogLastX, pos.z - entry.watchdogLastZ);
@@ -1630,7 +1671,7 @@ export class ZombieManager {
           if (entry.aiState === 'WANDER_IDLE' && zom.hasExitedVestibule) {
             this._pickNextOfficeWaypoint(entry, 2.5);
           } else {
-            // Trigger 0.85s perpendicular sidestep toward the clearer +/-90 deg side
+            // Trigger brief 0.38s perpendicular sidestep toward the clearer +/-90 deg side
             const includeZombies = zom.hasExitedVestibule && pos.x >= -8.0;
             const leftX = -toGoalZ;
             const leftZ = toGoalX;
@@ -1655,7 +1696,7 @@ export class ZombieManager {
               entry.sidestepDirX = side > 0 ? leftX : rightX;
               entry.sidestepDirZ = side > 0 ? leftZ : rightZ;
             }
-            entry.sidestepTimer = 0.85;
+            entry.sidestepTimer = 0.38;
 
             const pushNormal = this._findClosestObstacleNormal(pos.x, pos.z, 0.60);
             if (pushNormal) {
@@ -2155,22 +2196,6 @@ export class ZombieManager {
       if (activePortal && (playerInOffice || distToPlayer > 1.65)) {
         goalX = activePortal.x;
         goalZ = activePortal.z;
-      } else if (zom.hasExitedVestibule && pos.x >= -8.0 && distToPlayer > 2.2) {
-        // Coordinated chase flank offset [0°, +30°, -30°] tapering smoothly to 0° near Roc
-        const baseAngle = CHASE_FLANK_ANGLES[entry.index % CHASE_FLANK_ANGLES.length];
-        if (baseAngle !== 0) {
-          const taper = Math.min(1.0, (distToPlayer - 2.2) / 2.0);
-          const angle = baseAngle * taper;
-          const dx = pPos.x - pos.x;
-          const dz = pPos.z - pos.z;
-          const c = Math.cos(angle);
-          const s = Math.sin(angle);
-          const stepLen = Math.min(distToPlayer, 2.4);
-          const ux = dx / distToPlayer;
-          const uz = dz / distToPlayer;
-          goalX = pos.x + (ux * c - uz * s) * stepLen;
-          goalZ = pos.z + (ux * s + uz * c) * stepLen;
-        }
       }
 
       const chaseSpeed = zom.isHazmat

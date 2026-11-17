@@ -286,6 +286,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (weaponSystem && typeof weaponSystem.onExitSafeZone === 'function') {
       weaponSystem.onExitSafeZone();
     }
+    if (weaponWheel && typeof weaponWheel.refreshVisuals === 'function') {
+      weaponWheel.refreshVisuals();
+    }
     if (hud && typeof hud.setSafeZoneVisible === 'function') {
       hud.setSafeZoneVisible(false);
     }
@@ -989,7 +992,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // Suppress outside weapon switching (wheel, TAB & 1-8) whenever inside Safe Zone, pointer lock is inactive,
+  // Suppress outside weapon switching (wheel & TAB) whenever inside Safe Zone, pointer lock is inactive,
   // gun shop / military crate is open or animating, or a dialogue/tuner modal is active.
   const isOutsideWeaponSwitchBlocked = () =>
     gameState !== 'PLAYING' ||
@@ -1009,7 +1012,7 @@ window.addEventListener('DOMContentLoaded', () => {
     Boolean(window.isLightingTunerOpen) ||
     Boolean(window.isZombieTunerOpen);
 
-  // GTA V-style 8-Wedge Radial Weapon Wheel (TAB Hold & Release), 1-8 Quick-Select & KeyR Reload
+  // GTA V-style 8-Wedge Radial Weapon Wheel (TAB Hold & Release) & KeyR Reload
   window.addEventListener('keydown', (e) => {
     if (e.code === 'Tab' || e.key === 'Tab') {
       e.preventDefault();
@@ -1018,20 +1021,6 @@ window.addEventListener('DOMContentLoaded', () => {
         return;
       }
       weaponWheel.open();
-      return;
-    }
-
-    // Number keys 1-8: completely locked inside Safe Zone / Shop; switches unlocked weapons outside
-    const digitMatch = /^Digit([1-8])$/.exec(e.code) || /^Numpad([1-8])$/.exec(e.code);
-    const numKey = digitMatch ? digitMatch[1] : (/^[1-8]$/.test(e.key) ? e.key : null);
-    if (numKey && !e.repeat) {
-      if (isOutsideWeaponSwitchBlocked() || window.isWeaponWheelOpen) {
-        return;
-      }
-      const slotTarget = numKey === '8' ? 'unarmed' : numKey;
-      if (weaponSystem.selectWheelSlot(slotTarget) && weaponWheel) {
-        weaponWheel.refreshVisuals();
-      }
       return;
     }
 

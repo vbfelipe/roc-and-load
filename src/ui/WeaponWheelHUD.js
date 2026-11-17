@@ -554,7 +554,10 @@ export class WeaponWheelHUD {
   }
 
   _isSlotUnlocked(slot) {
-    if (slot.alwaysUnlocked || slot.id === 'unarmed') return true;
+    if (slot.id === 'unarmed') {
+      return !(this.weaponSystem && this.weaponSystem.hasEquippedFirstWeapon);
+    }
+    if (slot.alwaysUnlocked) return true;
     if (!this.weaponSystem) return false;
     return this.weaponSystem.isWeaponUnlocked(slot.id);
   }
@@ -684,7 +687,9 @@ export class WeaponWheelHUD {
 
     const equippedIdx = this._getEquippedIndex();
     if (this.hoveredIndex !== equippedIdx) {
-      this.weaponSystem.selectWheelSlot(hoveredSlot.id);
+      if (this.weaponSystem.selectWheelSlot(hoveredSlot.id)) {
+        this.refreshVisuals();
+      }
     }
   }
 
