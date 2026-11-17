@@ -38,6 +38,8 @@ export class SoundManager {
     this.isBgmEnabled = true;
     this.isSfxEnabled = true;
     this.masterGain = null;
+    this.masterLimiter = null;
+    this._softClipCurve = null;
 
     this.menuMusic = null;
     this.menuMusicTargetVolume = 0.40;
@@ -67,7 +69,7 @@ export class SoundManager {
       desert_eagle: { key: '9mm_reload', playbackRate: 0.90, volume: 1.05, fallbackMs: 2497 },
       pistol: { key: '9mm_reload', playbackRate: 0.90, volume: 1.05, fallbackMs: 2497 },
       hk_mp5: { key: '9mm_reload', playbackRate: 1.65, volume: 0.95, fallbackMs: 1362 },
-      glock_flamengo: { key: '9mm_reload', playbackRate: 1.80, volume: 0.95, fallbackMs: 1248 },
+      mac_10: { key: '9mm_reload', playbackRate: 1.66, volume: 0.96, fallbackMs: 1350 },
       colt_peacemaker: { key: 'revolver_spin', playbackRate: 1.0, volume: 1.05, fallbackMs: 3344 },
       akms_gold: { key: 'akms_reload', playbackRate: 1.0, volume: 1.02, fallbackMs: 1646 },
       m134_minigun: { key: '9mm_reload', playbackRate: 0.72, volume: 1.05, fallbackMs: 2600 },
@@ -194,7 +196,7 @@ export class SoundManager {
       this.stopMinigunSpin(false);
     }
     if (this.masterGain && this.ctx) {
-      this.masterGain.gain.setValueAtTime(this.isSfxEnabled ? 0.75 : 0.0, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(this.isSfxEnabled ? 0.80 : 0.0, this.ctx.currentTime);
     }
   }
 
@@ -204,8 +206,19 @@ export class SoundManager {
 
     this.ctx = new AudioContext();
     this.masterGain = this.ctx.createGain();
-    this.masterGain.gain.setValueAtTime(0.75, this.ctx.currentTime);
-    this.masterGain.connect(this.ctx.destination);
+    this.masterGain.gain.setValueAtTime(0.80, this.ctx.currentTime);
+
+    // Fast soft-knee peak limiter protects the output from harsh digital clipping
+    // while giving rifles, magnum handguns, shotgun blasts, and the minigun realistic headroom.
+    this.masterLimiter = this.ctx.createDynamicsCompressor();
+    this.masterLimiter.threshold.setValueAtTime(-2.5, this.ctx.currentTime);
+    this.masterLimiter.knee.setValueAtTime(6.0, this.ctx.currentTime);
+    this.masterLimiter.ratio.setValueAtTime(10.0, this.ctx.currentTime);
+    this.masterLimiter.attack.setValueAtTime(0.001, this.ctx.currentTime);
+    this.masterLimiter.release.setValueAtTime(0.08, this.ctx.currentTime);
+
+    this.masterGain.connect(this.masterLimiter);
+    this.masterLimiter.connect(this.ctx.destination);
 
     // Auto-resume audio on first user gesture
     const resumeOnGesture = () => {
@@ -229,7 +242,11 @@ export class SoundManager {
 
     if (this.audioBuffers.has('9mm_fire')) {
       const playbackRate = 1.05 + (Math.random() - 0.5) * 0.08;
-      this._playSoundBuffer('9mm_fire', { volume: 0.90, playbackRate });
+      this._playSoundBuffer('9mm_fire', {
+        volume: 0.41,
+        playbackRate,
+        eq: [{ type: 'lowshelf', freq: 160, gain: -3.0 }],
+      });
       return;
     }
 
@@ -270,7 +287,15 @@ export class SoundManager {
 
     if (this.audioBuffers.has('revolver_shot')) {
       const playbackRate = 0.98 + Math.random() * 0.04;
-      this._playSoundBuffer('revolver_shot', { volume: 0.96, playbackRate });
+      this._playSoundBuffer('revolver_shot', {
+        volume: 1.55,
+        playbackRate,
+        drive: true,
+        eq: [
+          { type: 'lowshelf', freq: 200, gain: 5.0 },
+          { type: 'peaking', freq: 1900, q: 0.8, gain: 2.0 },
+        ],
+      });
       return;
     }
 
@@ -278,16 +303,16 @@ export class SoundManager {
   }
 
   /**
-   * Full-Auto Custom Glock (30rd Extended Mag) Gunshot (RARE).
-   * Ultra-fast snappy 9mm full-auto crack (~880 RPM) with crisp overlap headroom.
+   * Suppressed Ingram MAC-10 .45 ACP Machine Pistol Gunshot (RARE).
+   * Ultra-rapid open-bolt full-auto bark (~1,090 RPM) with organic pitch variance.
    */
-  playGlockGunshot() {
+  playMac10Gunshot() {
     if (!this.ctx || this.isMuted || !this.isSfxEnabled) return;
     this.resume();
 
-    if (this.audioBuffers.has('9mm_fire')) {
-      const playbackRate = 1.02 + Math.random() * 0.04;
-      this._playSoundBuffer('9mm_fire', { volume: 0.78, playbackRate });
+    if (this.audioBuffers.has('mac10_fire')) {
+      const playbackRate = 0.98 + Math.random() * 0.05;
+      this._playSoundBuffer('mac10_fire', { volume: 1.0, playbackRate });
       return;
     }
 
@@ -523,9 +548,15 @@ export class SoundManager {
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(0.01, now);
-    gain.gain.linearRampToValueAtTime(0.94, now + 0.02);
+    gain.gain.linearRampToValueAtTime(1.65, now + 0.02);
 
-    source.connect(gain);
+    const nodes = this._connectDspChain(source, gain, {
+      drive: true,
+      eq: [
+        { type: 'lowshelf', freq: 220, gain: 4.5 },
+        { type: 'peaking', freq: 2000, q: 0.8, gain: 5.0 },
+      ],
+    });
     gain.connect(this.masterGain);
     source.start(now, seg.loopStart);
 
@@ -537,10 +568,9 @@ export class SoundManager {
       if (this._minigunFireNode?.source === source) {
         this._minigunFireNode = null;
       }
-      try {
-        source.disconnect();
-        gain.disconnect();
-      } catch (e) { }
+      for (const n of nodes) {
+        try { n.disconnect(); } catch (e) { }
+      }
     };
   }
 
@@ -630,7 +660,15 @@ export class SoundManager {
 
     if (this.audioBuffers.has('akms_shot')) {
       const playbackRate = 0.98 + Math.random() * 0.05;
-      this._playSoundBuffer('akms_shot', { volume: 0.92, playbackRate });
+      this._playSoundBuffer('akms_shot', {
+        volume: 2.25,
+        playbackRate,
+        drive: true,
+        eq: [
+          { type: 'lowshelf', freq: 160, gain: 6.0 },
+          { type: 'peaking', freq: 2300, q: 0.75, gain: 5.5 },
+        ],
+      });
       return;
     }
 
@@ -645,6 +683,7 @@ export class SoundManager {
     if (!this.ctx) return;
     const soundFiles = {
       '9mm_fire': './sounds/9mm_fire.mp3',
+      'mac10_fire': './sounds/mac10_fire.mp3',
       '9mm_reload': './sounds/9mm_reload.mp3',
       '9mm_dryfire': './sounds/9mm_dryfire.mp3',
       'desert_eagle_fire': './sounds/desert_eagle_fire.mp3',
@@ -678,7 +717,20 @@ export class SoundManager {
           const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
           // Automatically detect & trim leading MP3 encoder/pre-attack silence on immediate weapon sounds
           // so gunshots fire at 0.0ms on click and never lag behind impact effects!
-          if (
+          if (key === 'mac10_fire') {
+            // mac10_fire.mp3 has ~45ms of low-level bolt pre-noise (0.22 peak at 10ms) before the real ~50ms transient;
+            // seek the real blast (>= 0.25) and back up 3ms into the quiet ~49ms saddle.
+            const ch0 = audioBuffer.getChannelData(0);
+            let firstSample = 0;
+            const maxScan = Math.min(ch0.length, Math.floor(audioBuffer.sampleRate * 0.25));
+            for (let i = 0; i < maxScan; i++) {
+              if (Math.abs(ch0[i]) >= 0.25) {
+                firstSample = Math.max(0, i - Math.floor(audioBuffer.sampleRate * 0.003));
+                break;
+              }
+            }
+            audioBuffer._attackOffset = firstSample / audioBuffer.sampleRate;
+          } else if (
             key === '9mm_fire' ||
             key === 'desert_eagle_fire' ||
             key === 'remington_870_fire' ||
@@ -747,8 +799,59 @@ export class SoundManager {
     return this.preloadAllAudio();
   }
 
+  _getSoftClipCurve() {
+    if (this._softClipCurve) return this._softClipCurve;
+    const n = 2048;
+    const k = 1.8;
+    const norm = Math.tanh(k);
+    const curve = new Float32Array(n);
+    for (let i = 0; i < n; i++) {
+      const x = (i * 2) / n - 1;
+      curve[i] = Math.tanh(x * k) / norm;
+    }
+    this._softClipCurve = curve;
+    return curve;
+  }
+
   /**
-   * Helper to play an AudioBuffer with pitch randomization and gain staging.
+   * Connects source -> optional Biquad EQ filters -> gainNode -> optional soft-clipper.
+   * Returns all created nodes for cleanup onended.
+   */
+  _connectDspChain(source, gainNode, { eq = [], drive = false } = {}) {
+    const t = this.ctx.currentTime;
+    const nodes = [source, gainNode];
+    let head = source;
+
+    for (const band of eq) {
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = band.type;
+      filter.frequency.setValueAtTime(band.freq, t);
+      if (band.q) filter.Q.setValueAtTime(band.q, t);
+      filter.gain.setValueAtTime(band.gain, t);
+      head.connect(filter);
+      head = filter;
+      nodes.push(filter);
+    }
+
+    head.connect(gainNode);
+    head = gainNode;
+
+    if (drive) {
+      const shaper = this.ctx.createWaveShaper();
+      shaper.curve = this._getSoftClipCurve();
+      shaper.oversample = '2x';
+      head.connect(shaper);
+      head = shaper;
+      nodes.push(shaper);
+    }
+
+    head._chainOut = true;
+    nodes._outputNode = head;
+    return nodes;
+  }
+
+  /**
+   * Helper to play an AudioBuffer with pitch randomization, calibrated EQ/drive, and gain staging.
    * If isAction = true, tracked so it can be interrupted/cancelled on weapon switch.
    */
   _playSoundBuffer(bufferKey, options = {}) {
@@ -762,31 +865,41 @@ export class SoundManager {
       volume = 1.0,
       playbackRate = 1.0,
       isAction = false,
+      eq = null,
+      drive = false,
     } = options;
 
     const source = this.ctx.createBufferSource();
     source.buffer = buffer;
     source.playbackRate.setValueAtTime(playbackRate, this.ctx.currentTime);
 
+    const startOffset = !isAction && buffer._attackOffset ? buffer._attackOffset : 0;
     const gainNode = this.ctx.createGain();
-    gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+    if (startOffset > 0.01) {
+      // Micro 2ms fade-in prevents click when starting past leading pre-noise
+      const t0 = this.ctx.currentTime;
+      gainNode.gain.setValueAtTime(0.001, t0);
+      gainNode.gain.linearRampToValueAtTime(volume, t0 + 0.002);
+    } else {
+      gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+    }
 
-    source.connect(gainNode);
-    gainNode.connect(this.masterGain);
+    const nodes = this._connectDspChain(source, gainNode, { eq: eq || [], drive });
+    nodes._outputNode.connect(this.masterGain);
     source._gainNode = gainNode;
 
     if (isAction) {
       this.activeActionSources.add(source);
-      source.onended = () => {
-        this.activeActionSources.delete(source);
-        try {
-          source.disconnect();
-          gainNode.disconnect();
-        } catch (e) { }
-      };
     }
+    source.onended = () => {
+      if (isAction) {
+        this.activeActionSources.delete(source);
+      }
+      for (const n of nodes) {
+        try { n.disconnect(); } catch (e) { }
+      }
+    };
 
-    const startOffset = !isAction && buffer._attackOffset ? buffer._attackOffset : 0;
     source.start(0, startOffset);
     return source;
   }
@@ -951,7 +1064,11 @@ export class SoundManager {
     // Authentic sample playback (.50 AE Desert Eagle)
     if (this.audioBuffers.has('desert_eagle_fire')) {
       const playbackRate = 0.95 + Math.random() * 0.08; // 0.95 to 1.03
-      this._playSoundBuffer('desert_eagle_fire', { volume: 1.18, playbackRate });
+      this._playSoundBuffer('desert_eagle_fire', {
+        volume: 1.15,
+        playbackRate,
+        eq: [{ type: 'lowshelf', freq: 140, gain: 2.0 }],
+      });
       return;
     }
 
@@ -1035,7 +1152,11 @@ export class SoundManager {
     // Authentic sample playback (9mm H&K USP)
     if (this.audioBuffers.has('9mm_fire')) {
       const playbackRate = 0.96 + Math.random() * 0.08; // 0.96 to 1.04
-      this._playSoundBuffer('9mm_fire', { volume: 0.95, playbackRate });
+      this._playSoundBuffer('9mm_fire', {
+        volume: 0.46,
+        playbackRate,
+        eq: [{ type: 'lowshelf', freq: 160, gain: -2.5 }],
+      });
       return;
     }
 
@@ -1278,7 +1399,7 @@ export class SoundManager {
         colt_peacemaker: 0.88,
         akms_gold: 0.95,
         hk_mp5: 1.05,
-        glock_flamengo: 1.04,
+        mac_10: 1.02,
       };
       const playbackRate = dryFireRates[weaponType] ?? 1.0;
       this._playSoundBuffer('9mm_dryfire', { volume: 0.85, playbackRate });
@@ -2253,7 +2374,11 @@ export class SoundManager {
     // Authentic sample playback (Remington 870 12-gauge blast)
     if (this.audioBuffers.has('remington_870_fire')) {
       const playbackRate = 0.96 + Math.random() * 0.08; // 0.96 to 1.04
-      this._playSoundBuffer('remington_870_fire', { volume: 1.10, playbackRate });
+      this._playSoundBuffer('remington_870_fire', {
+        volume: 1.08,
+        playbackRate,
+        eq: [{ type: 'lowshelf', freq: 130, gain: 2.2 }],
+      });
       return;
     }
 

@@ -411,11 +411,11 @@ export class WeaponViewmodel {
     this.coltHipRotation = new THREE.Euler(0.03, 0, 0.1);
     this.coltAdsRotation = new THREE.Euler(-0.004, 0, 0);
 
-    // Slot 6 (Glock Auto 30rd Flamengo - RARE) Hip & ADS Transforms
-    this.glockHipPosition = new THREE.Vector3(0.1, -0.08, -0.22);
-    this.glockAdsPosition = new THREE.Vector3(-0.0014, -0.0596, -0.14);
-    this.glockHipRotation = new THREE.Euler(0.1, 0.1, 0.1);
-    this.glockAdsRotation = new THREE.Euler(0.0025, 0.0784, 0.0204);
+    // Slot 6 (Ingram MAC-10 .45 ACP Suppressed - RARE) Hip & ADS Transforms
+    this.mac10HipPosition = new THREE.Vector3(0.1, -0.15, -0.25);
+    this.mac10AdsPosition = new THREE.Vector3(0, -0.075, -0.08);
+    this.mac10HipRotation = new THREE.Euler(0, 0, 0);
+    this.mac10AdsRotation = new THREE.Euler(0.02, 0, 0);
 
     // Slot 7 (AK 47 Gold 7.62 Rifle - RARE) Hip & ADS Transforms
     this.akmsHipPosition = new THREE.Vector3(0.1, -0.13, -0.1);
@@ -454,8 +454,8 @@ export class WeaponViewmodel {
     this.mp5MuzzleSocket.name = 'MP5MuzzleSocket';
     this.coltMuzzleSocket = new THREE.Object3D();
     this.coltMuzzleSocket.name = 'ColtMuzzleSocket';
-    this.glockMuzzleSocket = new THREE.Object3D();
-    this.glockMuzzleSocket.name = 'GlockMuzzleSocket';
+    this.mac10MuzzleSocket = new THREE.Object3D();
+    this.mac10MuzzleSocket.name = 'Mac10MuzzleSocket';
     this.akmsMuzzleSocket = new THREE.Object3D();
     this.akmsMuzzleSocket.name = 'AKMSMuzzleSocket';
     this.minigunMuzzleSocket = new THREE.Object3D();
@@ -472,8 +472,8 @@ export class WeaponViewmodel {
     this.mp5EjectionAnchor.name = 'MP5EjectionAnchor';
     this.coltEjectionAnchor = new THREE.Group();
     this.coltEjectionAnchor.name = 'ColtEjectionAnchor';
-    this.glockEjectionAnchor = new THREE.Group();
-    this.glockEjectionAnchor.name = 'GlockEjectionAnchor';
+    this.mac10EjectionAnchor = new THREE.Group();
+    this.mac10EjectionAnchor.name = 'Mac10EjectionAnchor';
     this.akmsEjectionAnchor = new THREE.Group();
     this.akmsEjectionAnchor.name = 'AKMSEjectionAnchor';
     this.minigunEjectionAnchor = new THREE.Group();
@@ -490,7 +490,7 @@ export class WeaponViewmodel {
     this.hammerRestAngle = 0;
     this.coltHammerRecoil = 0;
     this.coltCylinderSpin = 0;
-    this.glockSlideBlowback = 0;
+    this.mac10BoltBlowback = 0;
     this.akmsBoltBlowback = 0;
     this.akmsBoltHold = 0;
     this.isSlideLocked = false;
@@ -562,30 +562,26 @@ export class WeaponViewmodel {
     this.coltHammerMesh = null;
     this.coltTriggerMesh = null;
 
-    // Glock Flamengo Sub-assemblies & references
-    this.glockGroup = null;
-    this.glockModelGroup = null;
-    this.glockHandGroup = null;
-    this.glockHandsClone = null;
-    this.glockHandPivot = null;
-    this.glockWristBone = null;
-    this.glockElbowBone = null;
-    this.glockTriggerFinger = null;
-    this.glockSlideMesh = null;
-    this.glockSlideRestY = 0;
-    this.glockSlideRestZ = 0;
-    this.glockSlideCycle = 0;
-    this.glockSlideCycleDuration = 0.050;
-    this.glockSlideMaxStroke = 0.088;
-    this._glockShotJustTriggered = false;
-    this.glockSelectorMesh = null;
-    this.glockSelectorRestY = 0;
-    this.glockSelectorRestZ = 0;
-    this.glockTriggerMesh = null;
-    this.glockTriggerRestZ = 0;
-    this.glockMagMesh = null;
-    this.glockMagRestY = 0;
-    this.glockMagRestZ = 0;
+    // Ingram MAC-10 Sub-assemblies & rigged armature bone references
+    this.mac10Group = null;
+    this.mac10ModelGroup = null;
+    this.mac10HandGroup = null;
+    this.mac10HandsClone = null;
+    this.mac10HandPivot = null;
+    this.mac10WristBone = null;
+    this.mac10ElbowBone = null;
+    this.mac10TriggerFinger = null;
+    this.mac10BoltBone = null;
+    this.mac10BoltRestZ = 0;
+    this.mac10BoltCycle = 0;
+    this.mac10BoltCycleDuration = 0.048;
+    this.mac10BoltMaxStroke = 0.045;
+    this._mac10ShotJustTriggered = false;
+    this.mac10TriggerBone = null;
+    this.mac10TriggerRestRotX = 0;
+    this.mac10MagBone = null;
+    this.mac10MagRestY = 0;
+    this.mac10MagRestZ = 0;
     this.isTriggerHeld = false;
 
     // AKMS Gold Sub-assemblies & references (single left support arm, matching 12-gauge)
@@ -663,7 +659,7 @@ export class WeaponViewmodel {
     this._buildShotgunMesh();
     this._buildMP5Mesh();
     this._buildColtMesh();
-    this._buildGlockMesh();
+    this._buildMac10Mesh();
     this._buildAkmsMesh();
     this._buildMinigunMesh();
     this._buildUnarmedMesh();
@@ -875,26 +871,26 @@ export class WeaponViewmodel {
     this.coltGroup.add(this.coltEjectionAnchor);
   }
 
-  _buildGlockMesh() {
-    this.glockGroup = new THREE.Group();
-    this.glockGroup.name = 'Glock_Flamengo';
-    this.glockGroup.visible = false;
-    this.root.add(this.glockGroup);
+  _buildMac10Mesh() {
+    this.mac10Group = new THREE.Group();
+    this.mac10Group.name = 'Ingram_MAC10';
+    this.mac10Group.visible = false;
+    this.root.add(this.mac10Group);
 
-    this.glockModelGroup = new THREE.Group();
-    this.glockModelGroup.name = 'GlockModelContainer';
-    this.glockGroup.add(this.glockModelGroup);
+    this.mac10ModelGroup = new THREE.Group();
+    this.mac10ModelGroup.name = 'Mac10ModelContainer';
+    this.mac10Group.add(this.mac10ModelGroup);
 
-    this.glockHandGroup = new THREE.Group();
-    this.glockHandGroup.name = 'GlockHandContainer';
-    this.glockGroup.add(this.glockHandGroup);
+    this.mac10HandGroup = new THREE.Group();
+    this.mac10HandGroup.name = 'Mac10HandContainer';
+    this.mac10Group.add(this.mac10HandGroup);
 
-    this.glockMuzzleSocket.position.set(0.0089, 0.041, -0.089);
-    this.glockMuzzleSocket.rotation.set(-0.0025, -0.0784, -0.0204);
-    this.glockGroup.add(this.glockMuzzleSocket);
+    this.mac10MuzzleSocket.position.set(0, 0.0364, -0.39);
+    this.mac10MuzzleSocket.rotation.set(0, 0, 0);
+    this.mac10Group.add(this.mac10MuzzleSocket);
 
-    this.glockEjectionAnchor.position.set(0.021, 0.050, 0.018);
-    this.glockGroup.add(this.glockEjectionAnchor);
+    this.mac10EjectionAnchor.position.set(0.024, 0.054, -0.02);
+    this.mac10Group.add(this.mac10EjectionAnchor);
   }
 
   _buildAkmsMesh() {
@@ -967,7 +963,7 @@ export class WeaponViewmodel {
       { key: 'remington_870', url: './models/remington_870.glb', bytes: 2620892, setup: (gltf) => this._setupShotgunModel(gltf) },
       { key: 'hk_mp5', url: './models/hk_mp5.glb', bytes: 3069496, setup: (gltf) => this._setupMP5Model(gltf) },
       { key: 'colt_peacemaker', url: './models/colt_peacemaker.glb', bytes: 937652, setup: (gltf) => this._setupColtModel(gltf) },
-      { key: 'glock_flamengo', url: './models/glock_flamengo.glb', bytes: 828512, setup: (gltf) => this._setupGlockModel(gltf) },
+      { key: 'mac_10', url: './models/mac_10.glb', bytes: 6313280, setup: (gltf) => this._setupMac10Model(gltf) },
       { key: 'akms_gold', url: './models/ak47_gold.glb', bytes: 4923288, setup: (gltf) => this._setupAkmsModel(gltf) },
       { key: 'm134_minigun', url: './models/m134_minigun.glb', bytes: 29418744, setup: (gltf) => this._setupMinigunModel(gltf) },
       { key: 'fps_hands', url: './models/fps_hands.glb', bytes: 827564, setup: (gltf) => this._setupHandsModel(gltf) },
@@ -1498,166 +1494,47 @@ export class WeaponViewmodel {
     this.coltModelGroup.add(coltScene);
   }
 
-  _setupGlockModel(gltf) {
-    const glockScene = gltf.scene;
-    glockScene.name = 'GlockFlamengoGLTF';
+  _setupMac10Model(gltf) {
+    const macScene = gltf.scene;
+    macScene.name = 'IngramMAC10GLTF';
 
-    glockScene.traverse((child) => {
-      if (child.isMesh) {
+    macScene.traverse((child) => {
+      if (child.isMesh || child.isSkinnedMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
         child.receiveShadow = false;
         const mats = Array.isArray(child.material) ? child.material : (child.material ? [child.material] : []);
         for (const m of mats) {
           if (m.map) m.map.colorSpace = THREE.SRGBColorSpace;
-          // Fix GLTF roughnessFactor=0 so RoomEnvironment IBL doesn't create a blinding mirror glare over Flamengo colors
           if (m.isMeshStandardMaterial) {
-            m.roughness = 0.38;
-            m.metalness = 0.18;
-            m.userData.vmEnvIntensity = 0.80;
+            m.userData.vmEnvIntensity = 0.85;
             m.needsUpdate = true;
           }
         }
       }
     });
 
-    const s = 0.118;
-    glockScene.scale.setScalar(s);
-    glockScene.rotation.set(0, 0, 0);
-    glockScene.position.set(-0.2810 * s, -3.3924 * s + 0.077, 0.015);
+    // GLTFLoader already normalizes mac_10.glb to real meters (~26.5 cm receiver, 66.8 cm suppressed) at scale 1.0.
+    // Front sight blade rests at Y = +0.0570 m -> yOffset = +0.020 aligns sightline at +0.0770 m (matching USP reference).
+    macScene.scale.setScalar(1.0);
+    macScene.rotation.set(0, 0, 0);
+    macScene.position.set(0, 0.020, 0);
 
-    this.glockSlideMesh = glockScene.getObjectByName('cima_glock_5') || glockScene.getObjectByName('Object_8');
-    if (this.glockSlideMesh) {
-      this.glockSlideRestY = this.glockSlideMesh.position.y;
-      this.glockSlideRestZ = this.glockSlideMesh.position.z;
+    this.mac10BoltBone = macScene.getObjectByName('Bolt_06') || null;
+    if (this.mac10BoltBone) {
+      this.mac10BoltRestZ = this.mac10BoltBone.position.z;
     }
-    this.glockSelectorMesh = glockScene.getObjectByName('seletor_3') || glockScene.getObjectByName('Object_12');
-    if (this.glockSelectorMesh) {
-      this.glockSelectorRestY = this.glockSelectorMesh.position.y;
-      this.glockSelectorRestZ = this.glockSelectorMesh.position.z;
+    this.mac10TriggerBone = macScene.getObjectByName('Trigger_04') || null;
+    if (this.mac10TriggerBone) {
+      this.mac10TriggerRestRotX = this.mac10TriggerBone.rotation.x;
     }
-    this.glockMagMesh = glockScene.getObjectByName('tambor_2') || glockScene.getObjectByName('Object_14');
-    if (this.glockMagMesh) {
-      this.glockMagRestY = this.glockMagMesh.position.y;
-      this.glockMagRestZ = this.glockMagMesh.position.z;
-    }
-
-    // Separate slide-mounted black components (front sight post, rear sight U-notch, rear slide cover plate,
-    // selector insert, and extractor claw) plus the 3D trigger from corpo_4 (Object_10) so the sights and
-    // backplate reciprocate 1:1 with cima_glock_5 instead of staying frozen in mid-air during blowback.
-    const corpoNode = glockScene.getObjectByName('corpo_4');
-    const corpoMesh = glockScene.getObjectByName('Object_10') || (corpoNode && corpoNode.children && corpoNode.children[0]);
-    if (corpoMesh && corpoMesh.isMesh && corpoMesh.geometry && corpoMesh.geometry.index) {
-      const geo = corpoMesh.geometry;
-      const posAttr = geo.attributes.position;
-      const idxAttr = geo.index;
-      const posArr = posAttr.array;
-      const idxArr = idxAttr.array;
-      const nVerts = posAttr.count;
-
-      const parent = new Int32Array(nVerts);
-      for (let i = 0; i < nVerts; i++) parent[i] = i;
-      const find = (x) => {
-        while (parent[x] !== x) {
-          parent[x] = parent[parent[x]];
-          x = parent[x];
-        }
-        return x;
-      };
-      const union = (a, b) => {
-        a = find(a);
-        b = find(b);
-        if (a !== b) parent[a] = b;
-      };
-
-      const vMap = new Map();
-      for (let i = 0; i < nVerts; i++) {
-        const k = `${posArr[i * 3].toFixed(5)},${posArr[i * 3 + 1].toFixed(5)},${posArr[i * 3 + 2].toFixed(5)}`;
-        if (vMap.has(k)) union(i, vMap.get(k));
-        else vMap.set(k, i);
-      }
-      for (let i = 0; i < idxArr.length; i += 3) {
-        union(idxArr[i], idxArr[i + 1]);
-        union(idxArr[i], idxArr[i + 2]);
-      }
-
-      const comps = new Map();
-      for (let i = 0; i < nVerts; i++) {
-        const r = find(i);
-        let c = comps.get(r);
-        if (!c) {
-          c = { count: 0, minY: 1e9, maxY: -1e9, minZ: 1e9, maxZ: -1e9, role: 0 };
-          comps.set(r, c);
-        }
-        c.count++;
-        const y = posArr[i * 3 + 1];
-        const z = posArr[i * 3 + 2];
-        if (y < c.minY) c.minY = y;
-        if (y > c.maxY) c.maxY = y;
-        if (z < c.minZ) c.minZ = z;
-        if (z > c.maxZ) c.maxZ = z;
-      }
-
-      for (const c of comps.values()) {
-        if (
-          c.count < 1000 &&
-          ((c.maxY < -0.50 && c.minZ > 0.15) ||
-            (c.maxY < -0.10 && c.minZ < -0.92) ||
-            (c.maxY < -0.17 && c.minZ > -0.42 && c.maxZ < -0.36))
-        ) {
-          c.role = 1; // Slide-mounted part (front sight, rear sight, backplate, extractor)
-        } else if (c.count < 1000 && c.minY > -0.165 && c.maxY < 0.11 && c.minZ > -0.64 && c.maxZ < -0.38) {
-          c.role = 2; // Trigger & trigger safety blade
-        }
-      }
-
-      const frameTris = [];
-      const slideTris = [];
-      const triggerTris = [];
-      for (let i = 0; i < idxArr.length; i += 3) {
-        const triIdx = (i / 3) | 0;
-        const a = idxArr[i];
-        const role = comps.get(find(a)).role;
-        if (role === 1) slideTris.push(triIdx);
-        else if (role === 2) triggerTris.push(triIdx);
-        else frameTris.push(triIdx);
-      }
-
-      if (frameTris.length > 0) {
-        corpoMesh.geometry = buildSubGeometryFromTriangles(geo, frameTris);
-      }
-
-      if (slideTris.length > 0 && this.glockSlideMesh) {
-        const slideBlackMesh = new THREE.Mesh(
-          buildSubGeometryFromTriangles(geo, slideTris),
-          corpoMesh.material
-        );
-        slideBlackMesh.name = 'GlockSlideBlackParts';
-        slideBlackMesh.frustumCulled = false;
-        slideBlackMesh.castShadow = false;
-        slideBlackMesh.receiveShadow = false;
-        this.glockSlideMesh.add(slideBlackMesh);
-      }
-
-      if (triggerTris.length > 0 && corpoNode) {
-        this.glockTriggerMesh = new THREE.Mesh(
-          buildSubGeometryFromTriangles(geo, triggerTris),
-          corpoMesh.material
-        );
-        this.glockTriggerMesh.name = 'GlockTriggerMesh';
-        this.glockTriggerMesh.frustumCulled = false;
-        this.glockTriggerMesh.castShadow = false;
-        this.glockTriggerMesh.receiveShadow = false;
-        this.glockTriggerRestZ = 0;
-        corpoNode.add(this.glockTriggerMesh);
-      }
-
-      if (corpoMesh.geometry !== geo) {
-        geo.dispose();
-      }
+    this.mac10MagBone = macScene.getObjectByName('Mag_01') || null;
+    if (this.mac10MagBone) {
+      this.mac10MagRestY = this.mac10MagBone.position.y;
+      this.mac10MagRestZ = this.mac10MagBone.position.z;
     }
 
-    this.glockModelGroup.add(glockScene);
+    this.mac10ModelGroup.add(macScene);
   }
 
   _setupAkmsModel(gltf) {
@@ -1844,7 +1721,7 @@ export class WeaponViewmodel {
     this._buildShotgunHands();
     this._buildMP5Hand();
     this._buildColtHand();
-    this._buildGlockHand();
+    this._buildMac10Hand();
     this._buildAkmsHand();
     this._buildMinigunHand();
     this._buildUnarmedHands();
@@ -1897,7 +1774,7 @@ export class WeaponViewmodel {
     const prevShotgunVis = this.shotgunGroup ? this.shotgunGroup.visible : false;
     const prevMp5Vis = this.mp5Group ? this.mp5Group.visible : false;
     const prevColtVis = this.coltGroup ? this.coltGroup.visible : false;
-    const prevGlockVis = this.glockGroup ? this.glockGroup.visible : false;
+    const prevMac10Vis = this.mac10Group ? this.mac10Group.visible : false;
     const prevAkmsVis = this.akmsGroup ? this.akmsGroup.visible : false;
     const prevMinigunVis = this.minigunGroup ? this.minigunGroup.visible : false;
     const prevUnarmedVis = this.unarmedGroup ? this.unarmedGroup.visible : false;
@@ -1917,7 +1794,7 @@ export class WeaponViewmodel {
     if (this.shotgunGroup) this.shotgunGroup.visible = true;
     if (this.mp5Group) this.mp5Group.visible = true;
     if (this.coltGroup) this.coltGroup.visible = true;
-    if (this.glockGroup) this.glockGroup.visible = true;
+    if (this.mac10Group) this.mac10Group.visible = true;
     if (this.akmsGroup) this.akmsGroup.visible = true;
     if (this.minigunGroup) this.minigunGroup.visible = true;
     if (this.unarmedGroup) this.unarmedGroup.visible = true;
@@ -1962,7 +1839,7 @@ export class WeaponViewmodel {
     if (this.shotgunGroup) this.shotgunGroup.visible = this.isUnarmed ? false : prevShotgunVis;
     if (this.mp5Group) this.mp5Group.visible = this.isUnarmed ? false : prevMp5Vis;
     if (this.coltGroup) this.coltGroup.visible = this.isUnarmed ? false : prevColtVis;
-    if (this.glockGroup) this.glockGroup.visible = this.isUnarmed ? false : prevGlockVis;
+    if (this.mac10Group) this.mac10Group.visible = this.isUnarmed ? false : prevMac10Vis;
     if (this.akmsGroup) this.akmsGroup.visible = this.isUnarmed ? false : prevAkmsVis;
     if (this.minigunGroup) this.minigunGroup.visible = this.isUnarmed ? false : prevMinigunVis;
     if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed ? true : prevUnarmedVis;
@@ -2215,7 +2092,7 @@ export class WeaponViewmodel {
       this.uspTriggerFinger,
       this.pistolTriggerFinger,
       this.coltTriggerFinger,
-      this.glockTriggerFinger,
+      this.mac10TriggerFinger,
     ]) {
       if (tf && tf.squeeze !== 0) {
         tf.squeeze = 0;
@@ -2229,7 +2106,7 @@ export class WeaponViewmodel {
       hk_usp: this.uspTriggerFinger,
       desert_eagle: this.pistolTriggerFinger,
       colt_peacemaker: this.coltTriggerFinger,
-      glock_flamengo: this.glockTriggerFinger,
+      mac_10: this.mac10TriggerFinger,
     };
     const tf = map[weaponType];
     if (!tf) return;
@@ -2486,45 +2363,51 @@ export class WeaponViewmodel {
     this.coltHandGroup.add(this.coltHandPivot);
   }
 
-  _buildGlockHand() {
-    if (!this.glockHandGroup) return;
-    while (this.glockHandGroup.children.length > 0) {
-      this.glockHandGroup.remove(this.glockHandGroup.children[0]);
+  /**
+   * Builds Slot 6 (Ingram MAC-10 .45 ACP) Single Right Rigged Hand from HK USP baseline reference.
+   */
+  _buildMac10Hand() {
+    if (!this.mac10HandGroup) return;
+    while (this.mac10HandGroup.children.length > 0) {
+      this.mac10HandGroup.remove(this.mac10HandGroup.children[0]);
     }
 
     const handData = this._createPalmCenteredHandClone('R');
     if (!handData) return;
 
-    this.glockHandPivot = handData.pivotGroup;
-    this.glockHandsClone = handData.clone;
-    this.glockWristBone = handData.wristBone;
-    this.glockElbowBone = handData.elbowBone;
+    this.mac10HandPivot = handData.pivotGroup;
+    this.mac10HandsClone = handData.clone;
+    this.mac10WristBone = handData.wristBone;
+    this.mac10ElbowBone = handData.elbowBone;
 
-    this.glockHandPivot.position.set(0.024, -0.034, 0.114);
-    this.glockHandPivot.rotation.set(0.28, -3.0, 0.28);
-    this.glockHandPivot.scale.setScalar(1.0);
+    this.mac10HandPivot.position.set(0.02, -0.042, 0.115);
+    this.mac10HandPivot.rotation.set(0.52, -3.0, 0.22);
+    this.mac10HandPivot.scale.setScalar(1.0);
 
-    if (this.glockWristBone) {
-      this.glockWristBone.userData.pitch = 0.4;
-      this.glockWristBone.userData.roll = 0.34;
-      this.glockWristBone.quaternion.copy(this.glockWristBone.userData.restQuat);
-      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.4, 0, 0.34, 'XYZ'));
-      this.glockWristBone.quaternion.multiply(qDelta);
+    if (this.mac10WristBone) {
+      this.mac10WristBone.userData.pitch = 0.24;
+      this.mac10WristBone.userData.roll = 0.02;
+      this.mac10WristBone.userData.defaultPitch = 0.24;
+      this.mac10WristBone.userData.defaultRoll = 0.02;
+      this.mac10WristBone.quaternion.copy(this.mac10WristBone.userData.restQuat);
+      const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0.24, 0, 0.02, 'XYZ'));
+      this.mac10WristBone.quaternion.multiply(qDelta);
     }
-    if (this.glockElbowBone) {
-      this.glockElbowBone.userData.bend = 0;
-      this.glockElbowBone.quaternion.copy(this.glockElbowBone.userData.restQuat);
+    if (this.mac10ElbowBone) {
+      this.mac10ElbowBone.userData.bend = 0;
+      this.mac10ElbowBone.userData.defaultBend = 0;
+      this.mac10ElbowBone.quaternion.copy(this.mac10ElbowBone.userData.restQuat);
       const qDelta = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, 0, 'XYZ'));
-      this.glockElbowBone.quaternion.multiply(qDelta);
+      this.mac10ElbowBone.quaternion.multiply(qDelta);
     }
 
-    this.glockHandPivot.userData.defaultPos = this.glockHandPivot.position.clone();
-    this.glockHandPivot.userData.defaultRot = this.glockHandPivot.rotation.clone();
-    this.glockHandPivot.userData.defaultScale = this.glockHandPivot.scale.clone();
+    this.mac10HandPivot.userData.defaultPos = this.mac10HandPivot.position.clone();
+    this.mac10HandPivot.userData.defaultRot = this.mac10HandPivot.rotation.clone();
+    this.mac10HandPivot.userData.defaultScale = this.mac10HandPivot.scale.clone();
 
-    this.glockTriggerFinger = this._initTriggerFingerDefaults(handData.triggerFinger, 0.14, 0.12, 0);
+    this.mac10TriggerFinger = this._initTriggerFingerDefaults(handData.triggerFinger, -0.06, -0.06, 0);
 
-    this.glockHandGroup.add(this.glockHandPivot);
+    this.mac10HandGroup.add(this.mac10HandPivot);
   }
 
   /**
@@ -2671,7 +2554,7 @@ export class WeaponViewmodel {
       if (this.shotgunGroup) this.shotgunGroup.visible = false;
       if (this.mp5Group) this.mp5Group.visible = false;
       if (this.coltGroup) this.coltGroup.visible = false;
-      if (this.glockGroup) this.glockGroup.visible = false;
+      if (this.mac10Group) this.mac10Group.visible = false;
       if (this.akmsGroup) this.akmsGroup.visible = false;
       if (this.minigunGroup) this.minigunGroup.visible = false;
       this.minigunSpinSpeed = 0;
@@ -2726,7 +2609,7 @@ export class WeaponViewmodel {
     const isShotgun = w === 'shotgun';
     const isMP5 = w === 'hk_mp5';
     const isColt = w === 'colt_peacemaker';
-    const isGlock = w === 'glock_flamengo';
+    const isMac10 = w === 'mac_10';
     const isAkms = w === 'akms_gold';
     const isMinigun = w === 'm134_minigun';
 
@@ -2738,7 +2621,7 @@ export class WeaponViewmodel {
     else if (isShotgun) { target = this.shotgunHandPivot; wrist = this.shotgunWristBone; elbow = this.shotgunElbowBone; triggerFinger = null; }
     else if (isMP5) { target = this.mp5HandPivot; wrist = this.mp5WristBone; elbow = this.mp5ElbowBone; triggerFinger = null; }
     else if (isColt) { target = this.coltHandPivot; wrist = this.coltWristBone; elbow = this.coltElbowBone; triggerFinger = this.coltTriggerFinger; }
-    else if (isGlock) { target = this.glockHandPivot; wrist = this.glockWristBone; elbow = this.glockElbowBone; triggerFinger = this.glockTriggerFinger; }
+    else if (isMac10) { target = this.mac10HandPivot; wrist = this.mac10WristBone; elbow = this.mac10ElbowBone; triggerFinger = this.mac10TriggerFinger; }
     else if (isAkms) { target = this.akmsHandPivot; wrist = this.akmsWristBone; elbow = this.akmsElbowBone; triggerFinger = null; }
     else if (isMinigun) { target = this.minigunHandPivot; wrist = this.minigunWristBone; elbow = this.minigunElbowBone; triggerFinger = null; }
 
@@ -2748,9 +2631,9 @@ export class WeaponViewmodel {
       target.scale.copy(target.userData.defaultScale);
     }
 
-    const defaultPitch = isGlock ? 0.4 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : (isMinigun ? -0.2 : (isAkms ? -0.06 : (isShotgun ? -0.08 : -0.02))))));
-    const defaultRoll = isGlock ? 0.34 : (isMinigun ? 0 : ((isUSP || isColt || isAkms) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02))));
-    const defaultBend = (isUSP || isColt || isGlock) ? 0 : (isMinigun ? -0.08 : ((isShotgun || isMP5 || isAkms) ? -0.22 : -0.02));
+    const defaultPitch = isMac10 ? 0.24 : (isColt ? 0.3 : (isUSP ? 0.24 : (isMP5 ? 0.04 : (isMinigun ? -0.2 : (isAkms ? -0.06 : (isShotgun ? -0.08 : -0.02))))));
+    const defaultRoll = isMinigun ? 0 : ((isUSP || isMac10 || isColt || isAkms) ? 0.02 : (isMP5 ? 0.04 : (isShotgun ? -0.1 : -0.02)));
+    const defaultBend = (isUSP || isMac10 || isColt) ? 0 : (isMinigun ? -0.08 : ((isShotgun || isMP5 || isAkms) ? -0.22 : -0.02));
     const pitch = wrist?.userData?.defaultPitch ?? defaultPitch;
     const roll = wrist?.userData?.defaultRoll ?? defaultRoll;
     const bend = elbow?.userData?.defaultBend ?? defaultBend;
@@ -2771,9 +2654,9 @@ export class WeaponViewmodel {
       } else if (isColt) {
         this.coltHipPosition.set(0.1, -0.1, -0.22);
         this.coltHipRotation.set(0.03, 0, 0.1);
-      } else if (isGlock) {
-        this.glockHipPosition.set(0.1, -0.08, -0.22);
-        this.glockHipRotation.set(0.1, 0.1, 0.1);
+      } else if (isMac10) {
+        this.mac10HipPosition.set(0.1, -0.15, -0.25);
+        this.mac10HipRotation.set(0, 0, 0);
       } else if (isAkms) {
         this.akmsHipPosition.set(0.1, -0.13, -0.1);
         this.akmsHipRotation.set(0.1, 0, 0);
@@ -2801,9 +2684,9 @@ export class WeaponViewmodel {
       } else if (isColt) {
         this.coltAdsPosition.set(0, -0.0793, -0.16);
         this.coltAdsRotation.set(-0.004, 0, 0);
-      } else if (isGlock) {
-        this.glockAdsPosition.set(-0.0014, -0.0596, -0.14);
-        this.glockAdsRotation.set(0.0025, 0.0784, 0.0204);
+      } else if (isMac10) {
+        this.mac10AdsPosition.set(0, -0.075, -0.08);
+        this.mac10AdsRotation.set(0.02, 0, 0);
       } else if (isAkms) {
         this.akmsAdsPosition.set(0.008, -0.088, -0.09);
         this.akmsAdsRotation.set(0, 0, 0);
@@ -2851,7 +2734,6 @@ export class WeaponViewmodel {
       }
     }
     this._resetAllTriggerFingers();
-    if (this.glockTriggerMesh) this.glockTriggerMesh.position.z = this.glockTriggerRestZ || 0;
     this.mp5BoltBlowback = 0;
     if (this.mp5BoltMesh && this.mp5BoltRestZ !== undefined) {
       this.mp5BoltMesh.position.z = this.mp5BoltRestZ;
@@ -2862,25 +2744,7 @@ export class WeaponViewmodel {
     }
     if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
     this.isTriggerHeld = false;
-    this.glockSlideBlowback = 0;
-    this.glockSlideCycle = 0;
-    this._glockShotJustTriggered = false;
-    if (this.glockTriggerMesh) {
-      this.glockTriggerMesh.position.z = this.glockTriggerRestZ || 0;
-    }
-    if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
-      this.glockSlideMesh.position.y = this.glockSlideRestY;
-      this.glockSlideMesh.position.z = this.glockSlideRestZ;
-    }
-    if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
-      this.glockSelectorMesh.position.y = this.glockSelectorRestY;
-      this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
-    }
-    if (this.glockMagMesh && this.glockMagRestY !== undefined) {
-      this.glockMagMesh.visible = true;
-      this.glockMagMesh.position.y = this.glockMagRestY;
-      this.glockMagMesh.position.z = this.glockMagRestZ;
-    }
+    this._resetMac10MechState();
     this._resetColtMechState();
     this._resetAkmsMechState();
     this.minigunSpinSpeed = 0;
@@ -2900,7 +2764,7 @@ export class WeaponViewmodel {
     const isMP5 = weaponType === 'hk_mp5';
     const isPistol = weaponType === 'desert_eagle' || weaponType === 'pistol';
     const isColt = weaponType === 'colt_peacemaker';
-    const isGlock = weaponType === 'glock_flamengo';
+    const isMac10 = weaponType === 'mac_10';
     const isAkms = weaponType === 'akms_gold';
     const isMinigun = weaponType === 'm134_minigun';
 
@@ -2911,7 +2775,7 @@ export class WeaponViewmodel {
     if (this.shotgunGroup) this.shotgunGroup.visible = isShotgun;
     if (this.mp5Group) this.mp5Group.visible = isMP5;
     if (this.coltGroup) this.coltGroup.visible = isColt;
-    if (this.glockGroup) this.glockGroup.visible = isGlock;
+    if (this.mac10Group) this.mac10Group.visible = isMac10;
     if (this.akmsGroup) this.akmsGroup.visible = isAkms;
     if (this.minigunGroup) this.minigunGroup.visible = isMinigun;
 
@@ -2939,12 +2803,12 @@ export class WeaponViewmodel {
       this.hipRotation = this.coltHipRotation;
       this.adsRotation = this.coltAdsRotation;
       this.muzzleAnchor = this.coltMuzzleSocket;
-    } else if (isGlock) {
-      this.hipPosition = this.glockHipPosition;
-      this.adsPosition = this.glockAdsPosition;
-      this.hipRotation = this.glockHipRotation;
-      this.adsRotation = this.glockAdsRotation;
-      this.muzzleAnchor = this.glockMuzzleSocket;
+    } else if (isMac10) {
+      this.hipPosition = this.mac10HipPosition;
+      this.adsPosition = this.mac10AdsPosition;
+      this.hipRotation = this.mac10HipRotation;
+      this.adsRotation = this.mac10AdsRotation;
+      this.muzzleAnchor = this.mac10MuzzleSocket;
     } else if (isAkms) {
       this.hipPosition = this.akmsHipPosition;
       this.adsPosition = this.akmsAdsPosition;
@@ -3106,7 +2970,8 @@ export class WeaponViewmodel {
     else if (this.currentWeapon === 'colt_peacemaker') baseScale = 1.05;
     else if (this.currentWeapon === 'akms_gold') baseScale = 0.95;
     else if (this.currentWeapon === 'm134_minigun') baseScale = 1.32;
-    else if (this.currentWeapon === 'hk_usp' || this.currentWeapon === 'glock_flamengo') baseScale = 0.65;
+    else if (this.currentWeapon === 'hk_usp') baseScale = 0.65;
+    else if (this.currentWeapon === 'mac_10') baseScale = 0.48;
     else if (this.currentWeapon === 'hk_mp5') baseScale = 0.70;
     const s = baseScale + Math.random() * 0.40;
     this.muzzleFlashGroup.scale.set(s, s, s);
@@ -3179,20 +3044,20 @@ export class WeaponViewmodel {
       return;
     }
 
-    if (this.currentWeapon === 'glock_flamengo') {
-      const recoilKick = this.isADS ? 0.016 : 0.030;
-      const recoilZ = this.isADS ? 0.004 : 0.022;
-      const recoilPitch = this.isADS ? 0.024 : 0.048;
+    if (this.currentWeapon === 'mac_10') {
+      const recoilKick = this.isADS ? 0.014 : 0.026;
+      const recoilZ = this.isADS ? 0.004 : 0.020;
+      const recoilPitch = this.isADS ? 0.020 : 0.042;
       const recoilYaw = (Math.random() - 0.5) * (this.isADS ? 0.005 : 0.011);
-      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.006 : 0.014);
+      const rollTorque = (Math.random() > 0.5 ? 1 : -1) * (this.isADS ? 0.005 : 0.012);
 
       this.posSpring.impulse(0, recoilKick * 0.22, recoilZ);
       this.rotSpring.impulse(recoilPitch, recoilYaw, rollTorque);
 
-      this.glockSlideCycle = 0.0001;
-      this.glockSlideCycleDuration = 0.050;
-      this.glockSlideMaxStroke = this.isADS ? 0.068 : 0.088;
-      this._glockShotJustTriggered = true;
+      this.mac10BoltCycle = 0.0001;
+      this.mac10BoltCycleDuration = 0.048;
+      this.mac10BoltMaxStroke = this.isADS ? 0.038 : 0.045;
+      this._mac10ShotJustTriggered = true;
       this.isTriggerHeld = true;
 
       this.triggerMuzzleFlash();
@@ -3437,42 +3302,29 @@ export class WeaponViewmodel {
       targetRot.z + this.reloadTilt.roll
     );
 
-    // 2. Slide Blowback & Reciprocation
-    if (this.currentWeapon === 'glock_flamengo') {
-      if (this.glockSlideCycle > 0) {
-        if (this._glockShotJustTriggered) {
-          this._glockShotJustTriggered = false;
-          this.glockSlideCycle = 0.24;
+    // 2. Bolt / Slide Blowback & Reciprocation
+    if (this.currentWeapon === 'mac_10') {
+      if (this.mac10BoltCycle > 0) {
+        if (this._mac10ShotJustTriggered) {
+          this._mac10ShotJustTriggered = false;
+          this.mac10BoltCycle = 0.24;
         } else {
-          this.glockSlideCycle += delta / (this.glockSlideCycleDuration || 0.052);
+          this.mac10BoltCycle += delta / (this.mac10BoltCycleDuration || 0.048);
         }
 
-        if (this.glockSlideCycle >= 1.0) {
-          this.glockSlideCycle = 0;
-          this.glockSlideBlowback = 0;
+        if (this.mac10BoltCycle >= 1.0) {
+          this.mac10BoltCycle = 0;
+          this.mac10BoltBlowback = 0;
         } else {
-          this.glockSlideBlowback = Math.sin(this.glockSlideCycle * Math.PI) * (this.glockSlideMaxStroke || 0.088);
+          this.mac10BoltBlowback = Math.sin(this.mac10BoltCycle * Math.PI) * (this.mac10BoltMaxStroke || 0.045);
         }
 
-        const d = this.glockSlideBlowback;
-        // Translate strictly along the Glock frame rail slope (dy = +d, dz = +0.0562 * d)
-        if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
-          this.glockSlideMesh.position.y = this.glockSlideRestY + d;
-          this.glockSlideMesh.position.z = this.glockSlideRestZ + d * 0.0562;
+        // Bolt_06 local +Z is forward (-Z world); translating along -Z moves bolt rearward during blowback.
+        if (this.mac10BoltBone && this.mac10BoltRestZ !== undefined) {
+          this.mac10BoltBone.position.z = this.mac10BoltRestZ - this.mac10BoltBlowback;
         }
-        if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
-          this.glockSelectorMesh.position.y = this.glockSelectorRestY + d;
-          this.glockSelectorMesh.position.z = this.glockSelectorRestZ + d * 0.0562;
-        }
-      } else {
-        if (this.glockSlideMesh && this.glockSlideRestY !== undefined && this.glockSlideMesh.position.y !== this.glockSlideRestY) {
-          this.glockSlideMesh.position.y = this.glockSlideRestY;
-          this.glockSlideMesh.position.z = this.glockSlideRestZ;
-        }
-        if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined && this.glockSelectorMesh.position.y !== this.glockSelectorRestY) {
-          this.glockSelectorMesh.position.y = this.glockSelectorRestY;
-          this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
-        }
+      } else if (this.mac10BoltBone && this.mac10BoltRestZ !== undefined && this.mac10BoltBone.position.z !== this.mac10BoltRestZ) {
+        this.mac10BoltBone.position.z = this.mac10BoltRestZ;
       }
     } else if (this.currentWeapon === 'colt_peacemaker') {
       if (this.coltHammerRecoil > 0.001) {
@@ -3584,7 +3436,7 @@ export class WeaponViewmodel {
     const isFullAutoHeld =
       this.isTriggerHeld &&
       !this.isReloading &&
-      (this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'akms_gold');
+      (this.currentWeapon === 'mac_10' || this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'akms_gold');
 
     if (this.triggerMesh && this.triggerMesh.rotation.x > 0.001) {
       this.triggerMesh.rotation.x = THREE.MathUtils.lerp(this.triggerMesh.rotation.x, 0, Math.min(delta * 20.0, 1.0));
@@ -3603,7 +3455,7 @@ export class WeaponViewmodel {
       }
     }
 
-    // Full-Auto Trigger Lock for MP5 and Glock
+    // Full-Auto Trigger Lock for MP5 and MAC-10
     const mp5Held = isFullAutoHeld && this.currentWeapon === 'hk_mp5';
     if (this.mp5TriggerMesh) {
       const targetRot = mp5Held ? 0.16 : 0;
@@ -3614,19 +3466,19 @@ export class WeaponViewmodel {
       }
     }
 
-    const glockHeld = isFullAutoHeld && this.currentWeapon === 'glock_flamengo';
-    if (this.glockTriggerMesh) {
-      const targetZ = glockHeld ? -0.045 : 0;
-      if (Math.abs(this.glockTriggerMesh.position.z - targetZ) > 0.0005) {
-        this.glockTriggerMesh.position.z = THREE.MathUtils.lerp(this.glockTriggerMesh.position.z, targetZ, Math.min(delta * 26.0, 1.0));
+    const mac10Held = isFullAutoHeld && this.currentWeapon === 'mac_10';
+    if (this.mac10TriggerBone) {
+      const targetRot = (this.mac10TriggerRestRotX || 0) - (mac10Held ? 0.28 : 0);
+      if (Math.abs(this.mac10TriggerBone.rotation.x - targetRot) > 0.001) {
+        this.mac10TriggerBone.rotation.x = THREE.MathUtils.lerp(this.mac10TriggerBone.rotation.x, targetRot, Math.min(delta * 26.0, 1.0));
       } else {
-        this.glockTriggerMesh.position.z = targetZ;
+        this.mac10TriggerBone.rotation.x = targetRot;
       }
     }
 
-    // Only Glock renders a right trigger arm; MP5 and AKMS render only the left support arm.
+    // Only MAC-10 renders a right trigger arm; MP5 and AKMS render only the left support arm.
     const fullAutoFingers = [
-      [this.glockTriggerFinger, glockHeld, 26.0],
+      [this.mac10TriggerFinger, mac10Held, 26.0],
     ];
     for (const [tf, held, speed] of fullAutoFingers) {
       if (!tf) continue;
@@ -3685,7 +3537,7 @@ export class WeaponViewmodel {
     if (this.currentWeapon === 'shotgun') return this.shotgunMuzzleSocket;
     if (this.currentWeapon === 'hk_mp5') return this.mp5MuzzleSocket;
     if (this.currentWeapon === 'colt_peacemaker') return this.coltMuzzleSocket;
-    if (this.currentWeapon === 'glock_flamengo') return this.glockMuzzleSocket;
+    if (this.currentWeapon === 'mac_10') return this.mac10MuzzleSocket;
     if (this.currentWeapon === 'akms_gold') return this.akmsMuzzleSocket;
     if (this.currentWeapon === 'm134_minigun') return this.minigunMuzzleSocket;
     return this.muzzleSocket;
@@ -3696,7 +3548,7 @@ export class WeaponViewmodel {
     if (this.currentWeapon === 'shotgun') return this.shotgunEjectionAnchor;
     if (this.currentWeapon === 'hk_mp5') return this.mp5EjectionAnchor;
     if (this.currentWeapon === 'colt_peacemaker') return this.coltEjectionAnchor;
-    if (this.currentWeapon === 'glock_flamengo') return this.glockEjectionAnchor;
+    if (this.currentWeapon === 'mac_10') return this.mac10EjectionAnchor;
     if (this.currentWeapon === 'akms_gold') return this.akmsEjectionAnchor;
     if (this.currentWeapon === 'm134_minigun') return this.minigunEjectionAnchor;
     return this.ejectionAnchor;
@@ -3780,8 +3632,8 @@ export class WeaponViewmodel {
       return;
     }
 
-    if (this.currentWeapon === 'glock_flamengo') {
-      this._startGlockReloadAnimation(onComplete);
+    if (this.currentWeapon === 'mac_10') {
+      this._startMac10ReloadAnimation(onComplete);
       return;
     }
 
@@ -4320,17 +4172,34 @@ export class WeaponViewmodel {
     this.reloadTimers.push(lockTimer);
   }
 
-  _startGlockReloadAnimation(onComplete) {
+  _resetMac10MechState() {
+    this.mac10BoltBlowback = 0;
+    this.mac10BoltCycle = 0;
+    this._mac10ShotJustTriggered = false;
+    if (this.mac10TriggerBone && this.mac10TriggerRestRotX !== undefined) {
+      this.mac10TriggerBone.rotation.x = this.mac10TriggerRestRotX;
+    }
+    if (this.mac10BoltBone && this.mac10BoltRestZ !== undefined) {
+      this.mac10BoltBone.position.z = this.mac10BoltRestZ;
+    }
+    if (this.mac10MagBone && this.mac10MagRestY !== undefined) {
+      this.mac10MagBone.scale.setScalar(1);
+      this.mac10MagBone.position.y = this.mac10MagRestY;
+      this.mac10MagBone.position.z = this.mac10MagRestZ;
+    }
+  }
+
+  _startMac10ReloadAnimation(onComplete) {
     if (this.sound && typeof this.sound.playReloadSound === 'function') {
-      this.sound.playReloadSound('glock_flamengo');
+      this.sound.playReloadSound('mac_10');
     } else if (this.sound) {
       this.sound.playMagOut();
     }
 
-    if (this.glockMagMesh) {
-      this.glockMagMesh.visible = true;
-      this.glockMagMesh.position.y = this.glockMagRestY;
-      this.glockMagMesh.position.z = this.glockMagRestZ;
+    if (this.mac10MagBone) {
+      this.mac10MagBone.scale.setScalar(1);
+      this.mac10MagBone.position.y = this.mac10MagRestY;
+      this.mac10MagBone.position.z = this.mac10MagRestZ;
     }
 
     const tiltIn = new TWEEN.Tween(this.reloadTilt, true)
@@ -4340,28 +4209,26 @@ export class WeaponViewmodel {
     tiltIn.start();
 
     const magDropTimer = setTimeout(() => {
-      if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
-      if (this.glockMagMesh) {
-        // Scene_1 in glock_flamengo.glb has basis Z = downward (-Y in viewmodel) and basis Y = backward (+Z in viewmodel).
-        // Dropping the drum magazine down along the grip angle requires +Z (+1.35) and slightly +Y (+0.26).
-        const drop = new TWEEN.Tween(this.glockMagMesh.position, true)
-          .to({ y: this.glockMagRestY + 0.26, z: this.glockMagRestZ + 1.35 }, 210)
+      if (!this.isReloading || this.currentWeapon !== 'mac_10') return;
+      if (this.mac10MagBone) {
+        // Mag_01 sits inside MAC-10_00 where local +Y points straight downward (-Y in viewmodel).
+        const drop = new TWEEN.Tween(this.mac10MagBone.position, true)
+          .to({ y: this.mac10MagRestY + 0.24 }, 220)
           .easing(TWEEN.Easing.Quadratic.In)
           .onComplete(() => {
-            if (this.glockMagMesh) this.glockMagMesh.visible = false;
+            if (this.mac10MagBone) this.mac10MagBone.scale.setScalar(0.0001);
           });
         this.reloadTweens.push(drop);
         drop.start();
       }
 
       const magInTimer = setTimeout(() => {
-        if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
-        if (this.glockMagMesh) {
-          this.glockMagMesh.visible = true;
-          this.glockMagMesh.position.y = this.glockMagRestY + 0.26;
-          this.glockMagMesh.position.z = this.glockMagRestZ + 1.35;
-          const insert = new TWEEN.Tween(this.glockMagMesh.position, true)
-            .to({ y: this.glockMagRestY, z: this.glockMagRestZ }, 220)
+        if (!this.isReloading || this.currentWeapon !== 'mac_10') return;
+        if (this.mac10MagBone) {
+          this.mac10MagBone.scale.setScalar(1);
+          this.mac10MagBone.position.y = this.mac10MagRestY + 0.24;
+          const insert = new TWEEN.Tween(this.mac10MagBone.position, true)
+            .to({ y: this.mac10MagRestY }, 230)
             .easing(TWEEN.Easing.Back.Out)
             .onComplete(() => {
               this.posSpring.impulse(0, 0.048, 0);
@@ -4373,11 +4240,11 @@ export class WeaponViewmodel {
         }
 
         const rackTimer = setTimeout(() => {
-          if (!this.isReloading || this.currentWeapon !== 'glock_flamengo') return;
-          this.glockSlideCycle = 0.0001;
-          this.glockSlideCycleDuration = 0.13;
-          this.glockSlideMaxStroke = 0.115;
-          this._glockShotJustTriggered = true;
+          if (!this.isReloading || this.currentWeapon !== 'mac_10') return;
+          this.mac10BoltCycle = 0.0001;
+          this.mac10BoltCycleDuration = 0.15;
+          this.mac10BoltMaxStroke = 0.052;
+          this._mac10ShotJustTriggered = true;
           this.posSpring.impulse(0, -0.012, -0.032);
           this.rotSpring.impulse(-0.048, 0, -0.022);
           if (this.sound && typeof this.sound.play9mmSlideRack === 'function') {
@@ -4385,22 +4252,18 @@ export class WeaponViewmodel {
           }
 
           const tiltOut = new TWEEN.Tween(this.reloadTilt, true)
-            .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 190)
+            .to({ roll: 0, pitch: 0, yaw: 0, y: 0 }, 210)
             .easing(TWEEN.Easing.Cubic.Out)
             .onComplete(() => {
               this.isReloading = false;
-              if (this.glockMagMesh) {
-                this.glockMagMesh.visible = true;
-                this.glockMagMesh.position.y = this.glockMagRestY;
-                this.glockMagMesh.position.z = this.glockMagRestZ;
-              }
+              this._resetMac10MechState();
               if (typeof onComplete === 'function') onComplete();
             });
           this.reloadTweens.push(tiltOut);
           tiltOut.start();
-        }, 300);
+        }, 320);
         this.reloadTimers.push(rackTimer);
-      }, 240);
+      }, 250);
       this.reloadTimers.push(magInTimer);
     }, 220);
     this.reloadTimers.push(magDropTimer);
@@ -4622,9 +4485,9 @@ export class WeaponViewmodel {
     this.uspHammerRecoil = 0;
     this.mp5BoltBlowback = 0;
     this.coltHammerRecoil = 0;
-    this.glockSlideBlowback = 0;
-    this.glockSlideCycle = 0;
-    this._glockShotJustTriggered = false;
+    this.mac10BoltBlowback = 0;
+    this.mac10BoltCycle = 0;
+    this._mac10ShotJustTriggered = false;
     this.isTriggerHeld = false;
     this.minigunSpinSpeed = 0;
     if (this.minigunModelGroup) this.minigunModelGroup.position.set(0, 0, 0);
@@ -4636,7 +4499,7 @@ export class WeaponViewmodel {
     if (this.shotgunGroup) this.shotgunGroup.visible = false;
     if (this.mp5Group) this.mp5Group.visible = false;
     if (this.coltGroup) this.coltGroup.visible = false;
-    if (this.glockGroup) this.glockGroup.visible = false;
+    if (this.mac10Group) this.mac10Group.visible = false;
     if (this.akmsGroup) this.akmsGroup.visible = false;
     if (this.minigunGroup) this.minigunGroup.visible = false;
     if (this.unarmedGroup) this.unarmedGroup.visible = this.isUnarmed;
@@ -4689,20 +4552,7 @@ export class WeaponViewmodel {
     }
     if (this.mp5TriggerMesh) this.mp5TriggerMesh.rotation.x = 0;
     this._resetAllTriggerFingers();
-    if (this.glockTriggerMesh) this.glockTriggerMesh.position.z = this.glockTriggerRestZ || 0;
-    if (this.glockSlideMesh && this.glockSlideRestY !== undefined) {
-      this.glockSlideMesh.position.y = this.glockSlideRestY;
-      this.glockSlideMesh.position.z = this.glockSlideRestZ;
-    }
-    if (this.glockSelectorMesh && this.glockSelectorRestY !== undefined) {
-      this.glockSelectorMesh.position.y = this.glockSelectorRestY;
-      this.glockSelectorMesh.position.z = this.glockSelectorRestZ;
-    }
-    if (this.glockMagMesh && this.glockMagRestY !== undefined) {
-      this.glockMagMesh.visible = true;
-      this.glockMagMesh.position.y = this.glockMagRestY;
-      this.glockMagMesh.position.z = this.glockMagRestZ;
-    }
+    this._resetMac10MechState();
     this._resetColtMechState();
     this._resetAkmsMechState();
     this.minigunSpinSpeed = 0;
@@ -4741,14 +4591,18 @@ export class WeaponViewmodel {
       desert_eagle: this.pistolModelGroup,
       colt_peacemaker: this.coltModelGroup,
       hk_mp5: this.mp5ModelGroup,
-      glock_flamengo: this.glockModelGroup,
+      mac_10: this.mac10ModelGroup,
       akms_gold: this.akmsModelGroup,
       m134_minigun: this.minigunModelGroup,
     };
     const src = sourceMap[weaponId];
     if (!src) return null;
 
-    const clone = src.clone(true);
+    let hasSkinned = false;
+    src.traverse((child) => {
+      if (child.isSkinnedMesh) hasSkinned = true;
+    });
+    const clone = hasSkinned ? SkeletonUtils.clone(src) : src.clone(true);
     clone.visible = true;
     clone.position.set(0, 0, 0);
     clone.rotation.set(0, 0, 0);
@@ -4756,7 +4610,7 @@ export class WeaponViewmodel {
 
     const matClones = new Map();
     clone.traverse((child) => {
-      if (child.isMesh) {
+      if (child.isMesh || child.isSkinnedMesh) {
         child.frustumCulled = false;
         child.castShadow = false;
         child.receiveShadow = false;
@@ -4785,15 +4639,23 @@ export class WeaponViewmodel {
     clone.rotation.y = -Math.PI * 0.5;
     clone.updateMatrixWorld(true);
 
-    // Compute exact bounding box over visible meshes only
+    // Compute exact bounding box over visible meshes only (use skinned bounds when SkinnedMesh)
     const box = new THREE.Box3();
     const meshBox = new THREE.Box3();
     clone.traverse((child) => {
-      if (child.isMesh && child.visible && child.geometry) {
-        child.geometry.computeBoundingBox();
-        if (child.geometry.boundingBox) {
-          meshBox.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld);
-          box.union(meshBox);
+      if ((child.isMesh || child.isSkinnedMesh) && child.visible && child.geometry) {
+        if (child.isSkinnedMesh) {
+          child.computeBoundingBox();
+          if (child.boundingBox) {
+            meshBox.copy(child.boundingBox).applyMatrix4(child.matrixWorld);
+            box.union(meshBox);
+          }
+        } else {
+          child.geometry.computeBoundingBox();
+          if (child.geometry.boundingBox) {
+            meshBox.copy(child.geometry.boundingBox).applyMatrix4(child.matrixWorld);
+            box.union(meshBox);
+          }
         }
       }
     });

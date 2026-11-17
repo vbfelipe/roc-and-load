@@ -26,7 +26,7 @@ _raycaster.firstHitOnly = true;
 const DEFAULT_EJECTION_PROFILE = { pool: 'casingPool', right: [2.2, 0.6], up: [1.5, 0.5], fwd: [0.35, 0.25] };
 const SHELL_EJECTION_PROFILES = {
   hk_usp: { pool: 'casing9mmPool', right: [2.1, 0.6], up: [1.45, 0.45], fwd: [0.35, 0.22] },
-  glock_flamengo: { pool: 'casing9mmPool', right: [2.3, 0.6], up: [1.5, 0.5], fwd: [0.38, 0.25] },
+  mac_10: { pool: 'casingPool', right: [2.4, 0.6], up: [1.5, 0.5], fwd: [0.40, 0.25] },
   desert_eagle: { pool: 'casingPool', right: [2.2, 0.6], up: [1.55, 0.5], fwd: [0.35, 0.25] },
   hk_mp5: { pool: 'casing9mmPool', right: [2.8, 0.7], up: [1.25, 0.45], fwd: [0.65, 0.30] },
   akms_gold: { pool: 'casingPool', right: [2.9, 0.8], up: [1.3, 0.5], fwd: [0.70, 0.35] },
@@ -612,15 +612,15 @@ export class WeaponSystem {
         isRare: false,
         isSlideLocked: false,
       },
-      glock_flamengo: {
-        name: 'GLOCK 18 CUSTOM',
+      mac_10: {
+        name: 'INGRAM MAC-10',
         currentAmmo: 30,
         maxAmmo: 30,
         reserveAmmo: 150,
         defaultReserveAmmo: 150,
         infiniteReserve: false,
-        fireRate: 0.068,
-        reloadTime: 1.248,
+        fireRate: 0.055,
+        reloadTime: 1.35,
         isAutomatic: true,
         isRare: true,
         isSlideLocked: false,
@@ -802,7 +802,7 @@ export class WeaponSystem {
     if (w === 'shotgun' || w === 'remington_870' || w === '3') return 'shotgun';
     if (w === 'mp5' || w === 'hk_mp5' || w === '4') return 'hk_mp5';
     if (w === 'colt' || w === 'peacemaker' || w === 'colt_peacemaker' || w === '5') return 'colt_peacemaker';
-    if (w === 'glock' || w === 'glock_flamengo' || w === '6') return 'glock_flamengo';
+    if (w === 'mac10' || w === 'mac_10' || w === 'mac-10' || w === '6') return 'mac_10';
     if (w === 'akms' || w === 'akms_gold' || w === '7') return 'akms_gold';
     if (w === 'minigun' || w === 'm134' || w === 'm134_minigun' || w === '8') return 'm134_minigun';
     return weaponType;
@@ -855,7 +855,7 @@ export class WeaponSystem {
     this.unlockedWeapons.add('shotgun');
     this.unlockedWeapons.add('hk_mp5');
     this.unlockedWeapons.add('colt_peacemaker');
-    this.unlockedWeapons.add('glock_flamengo');
+    this.unlockedWeapons.add('mac_10');
     this.unlockedWeapons.add('akms_gold');
     this.unlockedWeapons.add('m134_minigun');
   }
@@ -1693,7 +1693,7 @@ export class WeaponSystem {
     const isUSP = this.currentWeapon === 'hk_usp';
     const isMP5 = this.currentWeapon === 'hk_mp5';
     const isColt = this.currentWeapon === 'colt_peacemaker';
-    const isGlock = this.currentWeapon === 'glock_flamengo';
+    const isMac10 = this.currentWeapon === 'mac_10';
     const isAkms = this.currentWeapon === 'akms_gold';
     const isMinigun = this.currentWeapon === 'm134_minigun';
 
@@ -1702,8 +1702,8 @@ export class WeaponSystem {
         // Continuous rotary roar loop is driven smoothly in SoundManager.setMinigunFiring(true)
       } else if (isMP5 && typeof this.sound.playMP5Gunshot === 'function') {
         this.sound.playMP5Gunshot();
-      } else if (isGlock && typeof this.sound.playGlockGunshot === 'function') {
-        this.sound.playGlockGunshot();
+      } else if (isMac10 && typeof this.sound.playMac10Gunshot === 'function') {
+        this.sound.playMac10Gunshot();
       } else if (isColt && typeof this.sound.playColtGunshot === 'function') {
         this.sound.playColtGunshot();
       } else if (isAkms && typeof this.sound.playAkmsGunshot === 'function') {
@@ -1727,15 +1727,15 @@ export class WeaponSystem {
       else if (isAkms) pitchKick = isADS ? 0.012 : 0.024;
       else if (isMinigun) pitchKick = isADS ? 0.004 : 0.007;
       else if (isUSP) pitchKick = isADS ? 0.012 : 0.022;
-      else if (isGlock) pitchKick = isADS ? 0.0065 : 0.012;
+      else if (isMac10) pitchKick = isADS ? 0.0065 : 0.012;
       else if (isMP5) pitchKick = isADS ? 0.007 : 0.013;
       this.player.applyCameraRecoil(pitchKick);
     }
 
     this.viewmodel.getMuzzleWorldPosition(_muzzlePos);
     this.muzzleLight.position.copy(_muzzlePos);
-    this._flashPeakIntensity = isShotgun ? 4.8 : (isMinigun ? 4.4 : (isColt ? 3.8 : (isAkms ? 3.5 : ((isUSP || isGlock) ? 2.4 : (isMP5 ? 2.2 : 3.4)))));
-    this._flashMaxDuration = isMinigun ? 0.032 : ((isMP5 || isGlock) ? 0.035 : 0.045);
+    this._flashPeakIntensity = isShotgun ? 4.8 : (isMinigun ? 4.4 : (isColt ? 3.8 : (isAkms ? 3.5 : (isUSP ? 2.4 : (isMP5 ? 2.2 : (isMac10 ? 1.55 : 3.4))))));
+    this._flashMaxDuration = isMinigun ? 0.032 : (isMac10 ? 0.028 : (isMP5 ? 0.035 : 0.045));
     this.muzzleLight.intensity = this._flashPeakIntensity;
     this.flashDuration = this._flashMaxDuration;
 
@@ -2100,7 +2100,7 @@ export class WeaponSystem {
     this.camera.getWorldDirection(_rayDirection);
     const isMinigun = this.currentWeapon === 'm134_minigun';
     if (!this.viewmodel.isADS || isMinigun) {
-      const isAuto = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+      const isAuto = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'mac_10' || this.currentWeapon === 'akms_gold';
       const spread = isMinigun ? (this.viewmodel.isADS ? 0.011 : 0.022) : (isAuto ? 0.012 : 0.008);
       _rayDirection.x += (Math.random() - 0.5) * spread;
       _rayDirection.y += (Math.random() - 0.5) * spread;
@@ -2328,7 +2328,7 @@ export class WeaponSystem {
       } else if (isHeavyCal) {
         s = 1.48 + Math.random() * 0.22;
       } else {
-        // 9mm ('hk_usp', 'hk_mp5', 'glock_flamengo')
+        // 9mm & .45 ACP ('hk_usp', 'hk_mp5', 'mac_10')
         s = 0.96 + Math.random() * 0.16;
       }
       decal.scale.set(s, s, 1.0);
@@ -2368,9 +2368,9 @@ export class WeaponSystem {
     this.weapons.colt_peacemaker.currentAmmo = 6;
     this.weapons.colt_peacemaker.reserveAmmo = 36;
     this.weapons.colt_peacemaker.isSlideLocked = false;
-    this.weapons.glock_flamengo.currentAmmo = 30;
-    this.weapons.glock_flamengo.reserveAmmo = 150;
-    this.weapons.glock_flamengo.isSlideLocked = false;
+    this.weapons.mac_10.currentAmmo = 30;
+    this.weapons.mac_10.reserveAmmo = 150;
+    this.weapons.mac_10.isSlideLocked = false;
     this.weapons.akms_gold.currentAmmo = 30;
     this.weapons.akms_gold.reserveAmmo = 120;
     this.weapons.akms_gold.isSlideLocked = false;

@@ -53,8 +53,8 @@ export const WHEEL_SLOTS = [
   },
   {
     index: 6,
-    id: 'glock_flamengo',
-    name: 'GLOCK 18 CUSTOM',
+    id: 'mac_10',
+    name: 'INGRAM MAC-10',
     angleDeg: -90 + WHEEL_STEP_DEG * 6,
     isRare: true,
     alwaysUnlocked: false,
@@ -320,48 +320,35 @@ function getSlotWeaponSilhouetteSVG(slotId) {
         </g>
       `;
 
-    case 'glock_flamengo':
-      // 7. GLOCK P. 30 FLAMENGO (Wedge 6 — Left — LENDÁRIA): True side-profile silhouette of
-      // glock_flamengo.glb — squared flat-top Glock slide with rear serrations & sights, angled
-      // finger-grooved grip, and a thick cylindrical DRUM MAGAZINE viewed from the SIDE PROFILE
-      // (wide vertical drum canister with horizontal facet bands & beveled front cover plate).
+    case 'mac_10':
+      // 7. INGRAM MAC-10 (Wedge 6 — Bottom-Left — LENDÁRIA): Side-profile silhouette of
+      // mac_10.glb — folding wire shoulder stock, boxy stamped steel receiver with top cocking knob,
+      // two-stage Sionics suppressor, vertical pistol grip housing & long 30-round straight box magazine.
       return `
-        <g transform="translate(2, -3.5) scale(1.02)" stroke="#090d14" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round">
-          <!-- Magazine Feed Neck Below Grip Base -->
-          <path d="M -19.5 8 L -8 8 L -8 12.5 L -20 12.5 Z" fill="${darkFill}" stroke-width="1.8" />
-          <!-- Side-Profile Cylindrical Drum Magazine Main Rear Canister Body -->
-          <path d="M -20.5 11.5 C -22.2 17 -22.2 28.5 -20.2 34.5 L -9.2 34.5 L -9.2 11.5 Z" fill="${darkFill}" stroke-width="2.0" />
-          <!-- Horizontal Cylindrical Facet Shading Bands on Drum Canister Wall -->
-          <path d="M -21.2 16.5 L -9.5 16.5 L -9.5 21.5 L -21.4 21.5 Z" fill="${frameFill}" stroke="none" />
-          <path d="M -21.2 26.2 L -9.5 26.2 L -9.5 30.2 L -20.8 30.2 Z" fill="#334155" stroke="none" />
-          <line x1="-21.0" y1="16.5" x2="-9.5" y2="16.5" stroke="#090d14" stroke-width="1.2" />
-          <line x1="-21.4" y1="21.5" x2="-9.5" y2="21.5" stroke="#090d14" stroke-width="1.2" />
-          <line x1="-21.2" y1="26.2" x2="-9.5" y2="26.2" stroke="#090d14" stroke-width="1.2" />
-          <line x1="-20.8" y1="30.2" x2="-9.5" y2="30.2" stroke="#090d14" stroke-width="1.2" />
-          <!-- Side-Profile Beveled Conical Front Cover of Drum Magazine -->
-          <path d="M -9.2 11.5 L -6.0 11.5 L -3.2 18.5 L -3.2 27.8 L -6.5 34.5 L -9.2 34.5 Z" fill="${subFill}" stroke-width="2.0" />
-          <!-- Upper Front Drum Latch / Feed Window Detail -->
-          <rect x="-8.8" y="12.8" width="2.8" height="3.2" rx="0.4" fill="${darkFill}" stroke-width="1.2" />
-          <!-- Bottom Drum Base Lug Tab -->
-          <path d="M -19.2 34.5 L -12.0 34.5 L -12.5 36.6 L -18.5 36.6 Z" fill="${darkFill}" stroke-width="1.6" />
-          <!-- Glock Polymer Lower Frame, Under-Barrel Accessory Rail & Finger-Grooved Grip -->
-          <path d="M -24 -12.5 L 25.5 -12.5 L 25.5 -8 L 19.5 -8 L 19.5 -9.8 L 17 -9.8 L 17 -8 L 9 -8 L 8.2 -0.5 L -2.5 -0.5 L -1.2 1.8 L -3.4 3.8 L -2.2 6.0 L -4.8 8.8 L -20.5 8.8 L -15 -6 L -21 -9 Z" fill="${frameFill}" />
-          <!-- Squared Glock Trigger Guard Cutout & Safety Trigger -->
-          <path d="M -2.2 -8 L 6.5 -8 L 5.6 -2.2 L -2.2 -2.2 Z" fill="${deepCut}" stroke="none" />
-          <path d="M -2.2 -8 L 6.5 -8 L 5.6 -2.2 L -2.2 -2.2 Z" fill="none" stroke="#090d14" stroke-width="1.7" />
-          <path d="M 2.5 -8 Q 4.2 -5.0 1.4 -3.0" fill="none" stroke="#e2e8f0" stroke-width="1.9" />
-          <!-- Textured Grip Side Panel Insert -->
-          <path d="M -14.5 -4.5 L -6.8 -4.5 L -9.5 6.5 L -17.5 6.5 Z" fill="${darkFill}" stroke-width="1.4" />
-          <!-- Squared Flat-Top Glock Slide -->
-          <rect x="-25" y="-23.5" width="51" height="11" rx="1.2" fill="${fillGrad}" />
-          <!-- Glock Iron Sights & Rectangular Ejection Port -->
-          <path d="M -23.5 -26.5 L -18.5 -26.5 L -18 -23.5 L -24 -23.5 Z M 21 -26.5 L 25 -26.5 L 25.5 -23.5 L 20.5 -23.5 Z" fill="${darkFill}" stroke-width="1.5" />
-          <rect x="-4" y="-22.2" width="9.5" height="4.2" fill="${darkFill}" stroke-width="1.5" />
-          <!-- Vertical Rear Glock Slide Serrations -->
-          <line x1="-21" y1="-21" x2="-21" y2="-15" stroke="${darkFill}" stroke-width="1.6" />
-          <line x1="-17.8" y1="-21" x2="-17.8" y2="-15" stroke="${darkFill}" stroke-width="1.6" />
-          <line x1="-14.6" y1="-21" x2="-14.6" y2="-15" stroke="${darkFill}" stroke-width="1.6" />
-          <line x1="-11.4" y1="-21" x2="-11.4" y2="-15" stroke="${darkFill}" stroke-width="1.6" />
+        <g transform="translate(0, -1) scale(0.95)" stroke="#090d14" stroke-width="2.1" stroke-linejoin="round" stroke-linecap="round">
+          <!-- Folding Wire Shoulder Stock (Rear Left) -->
+          <path d="M -21 -6.5 L -33.5 -3.5 L -34.5 -14.5 Q -37 -16 -37 -11.5 L -35.5 -1 L -21 -1" fill="none" stroke="${subFill}" stroke-width="2.4" />
+          <path d="M -22 -7.5 L -18 -7.5 L -18 1.5 L -22 1.5 Z" fill="${darkFill}" stroke-width="1.6" />
+          <!-- Long 30-Round Straight Box Magazine (.45 ACP) -->
+          <path d="M -11.8 11 L -4.2 11 L -4.8 30.5 L -12.4 30.5 Z" fill="${darkFill}" stroke-width="2.0" />
+          <line x1="-10.5" y1="26.5" x2="-6.0" y2="26.5" stroke="#475569" stroke-width="1.2" />
+          <!-- Vertical Pistol Grip Around Magazine Well -->
+          <path d="M -12.8 -3 L -3.2 -3 L -3.5 11.5 L -12.5 11.5 Z" fill="${frameFill}" />
+          <!-- Trigger Guard & Trigger -->
+          <path d="M -3.2 -3 L 4.5 -3 L 3.8 3.2 L -3.5 3.2 Z" fill="${deepCut}" stroke="none" />
+          <path d="M -3.2 -3 L 4.5 -3 L 3.8 3.2 L -3.5 3.2 Z" fill="none" stroke="#090d14" stroke-width="1.7" />
+          <path d="M 0.5 -3 Q 2.0 -0.2 -0.6 1.8" fill="none" stroke="#e2e8f0" stroke-width="1.8" />
+          <!-- Boxy Stamped-Steel MAC-10 Receiver Body -->
+          <rect x="-20" y="-14" width="27" height="11" rx="1.0" fill="${fillGrad}" />
+          <line x1="-17.5" y1="-9.5" x2="4.5" y2="-9.5" stroke="${darkFill}" stroke-width="1.3" />
+          <rect x="-5" y="-12.5" width="7.5" height="3.2" fill="${darkFill}" stroke-width="1.2" />
+          <!-- Top Bolt Charging Knob + Front/Rear Iron Sights -->
+          <rect x="-10.5" y="-17.2" width="4.2" height="3.2" rx="0.6" fill="${darkFill}" stroke-width="1.5" />
+          <path d="M -19.2 -16.8 L -15.5 -16.8 L -15 -14 L -19.5 -14 Z M 2.5 -16.8 L 5.8 -16.8 L 6.2 -14 L 2.2 -14 Z" fill="${darkFill}" stroke-width="1.4" />
+          <!-- Two-Stage Sionics Cylindrical Suppressor -->
+          <rect x="7" y="-13" width="13.5" height="8.8" rx="0.8" fill="${subFill}" />
+          <rect x="20.5" y="-12.2" width="16.5" height="7.2" rx="0.8" fill="${darkFill}" />
+          <line x1="20.5" y1="-12.6" x2="20.5" y2="-4.6" stroke="#090d14" stroke-width="1.6" />
         </g>
       `;
 

@@ -16,13 +16,13 @@ function randInt(min, max) {
 
 /**
  * Normalizes weapon identifiers ('hk_usp'/'usp', 'pistol'/'deagle'/'desert_eagle',
- * 'shotgun'/'remington_870', 'hk_mp5'/'mp5', 'colt_peacemaker', 'glock_flamengo', 'akms_gold')
+ * 'shotgun'/'remington_870', 'hk_mp5'/'mp5', 'colt_peacemaker', 'mac_10', 'akms_gold')
  * to canonical damage matrix keys.
  */
 export function normalizeWeaponId(weaponId = 'hk_usp') {
   const id = String(weaponId || 'hk_usp').toLowerCase();
   if (id === 'colt_peacemaker' || id === 'colt' || id === 'peacemaker') return 'colt_peacemaker';
-  if (id === 'glock_flamengo' || id === 'glock') return 'glock_flamengo';
+  if (id === 'mac_10' || id === 'mac10' || id === 'mac-10') return 'mac_10';
   if (id === 'akms_gold' || id === 'akms' || id === 'ak47') return 'akms_gold';
   if (id === 'm134_minigun' || id === 'minigun' || id === 'm134') return 'm134_minigun';
   if (id === 'pistol' || id === 'deagle' || id === 'desert_eagle') return 'deagle';
@@ -52,9 +52,9 @@ export function getWeaponZombieDamage(weaponId = 'hk_usp', archetype = 'woman', 
     return isHead ? 100 : 85;
   }
 
-  if (weapon === 'glock_flamengo') {
-    if (isMan) return isHead ? 36 : 15;
-    return isHead ? 60 : 28;
+  if (weapon === 'mac_10') {
+    if (isMan) return isHead ? 40 : 18;
+    return isHead ? 66 : 32;
   }
 
   if (weapon === 'akms_gold') {

@@ -8,7 +8,7 @@ const WEAPON_SLOTS = [
   { id: 'shotgun', label: '3: 12G', legendary: false },
   { id: 'hk_mp5', label: '4: MP5', legendary: false },
   { id: 'colt_peacemaker', label: '5: Colt', legendary: false },
-  { id: 'glock_flamengo', label: '6: Glock 18 ★', legendary: true },
+  { id: 'mac_10', label: '6: MAC-10 ★', legendary: true },
   { id: 'akms_gold', label: '7: AK 47 ★', legendary: true },
   { id: 'm134_minigun', label: '8: Minigun ★', legendary: true },
 ];
@@ -750,8 +750,8 @@ export class DevToolsModal {
           vm.sound.playShotgunBlast();
         } else if (vm.currentWeapon === 'colt_peacemaker' && vm.sound.playColtGunshot) {
           vm.sound.playColtGunshot();
-        } else if (vm.currentWeapon === 'glock_flamengo' && vm.sound.playGlockGunshot) {
-          vm.sound.playGlockGunshot();
+        } else if (vm.currentWeapon === 'mac_10' && vm.sound.playMac10Gunshot) {
+          vm.sound.playMac10Gunshot();
         } else if (vm.currentWeapon === 'akms_gold' && vm.sound.playAkmsGunshot) {
           vm.sound.playAkmsGunshot();
         } else {
@@ -1073,18 +1073,18 @@ export class DevToolsModal {
           adsPos: vm.coltAdsPosition,
           adsRot: vm.coltAdsRotation,
         };
-      case 'glock_flamengo':
+      case 'mac_10':
         return {
-          label: 'GLOCK AUTO (30RD) ★',
-          group: vm.glockGroup,
-          handPivot: vm.glockHandPivot,
-          wrist: vm.glockWristBone,
-          elbow: vm.glockElbowBone,
-          triggerFinger: vm.glockTriggerFinger,
-          hipPos: vm.glockHipPosition,
-          hipRot: vm.glockHipRotation,
-          adsPos: vm.glockAdsPosition,
-          adsRot: vm.glockAdsRotation,
+          label: 'INGRAM MAC-10 (.45) ★',
+          group: vm.mac10Group,
+          handPivot: vm.mac10HandPivot,
+          wrist: vm.mac10WristBone,
+          elbow: vm.mac10ElbowBone,
+          triggerFinger: vm.mac10TriggerFinger,
+          hipPos: vm.mac10HipPosition,
+          hipRot: vm.mac10HipRotation,
+          adsPos: vm.mac10AdsPosition,
+          adsRot: vm.mac10AdsRotation,
         };
       case 'akms_gold':
         return {

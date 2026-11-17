@@ -375,8 +375,8 @@ export class HUD {
         this.caliberTextEl.textContent = 'REMINGTON 870';
       } else if (weaponType === 'colt_peacemaker') {
         this.caliberTextEl.textContent = 'COLT PEACEMAKER';
-      } else if (weaponType === 'glock_flamengo') {
-        this.caliberTextEl.textContent = 'GLOCK 18 CUSTOM';
+      } else if (weaponType === 'mac_10') {
+        this.caliberTextEl.textContent = 'INGRAM MAC-10';
       } else if (weaponType === 'akms_gold') {
         this.caliberTextEl.textContent = 'AK 47 GOLD';
       } else if (weaponType === 'm134_minigun') {
@@ -388,7 +388,7 @@ export class HUD {
     if (this.modeTagEl) {
       if (weaponType === 'm134_minigun') {
         this.modeTagEl.textContent = 'ROTARY';
-      } else if (weaponType === 'hk_mp5' || weaponType === 'glock_flamengo' || weaponType === 'akms_gold') {
+      } else if (weaponType === 'hk_mp5' || weaponType === 'mac_10' || weaponType === 'akms_gold') {
         this.modeTagEl.textContent = 'FULL-AUTO';
       } else if (weaponType === 'shotgun') {
         this.modeTagEl.textContent = 'PUMP-ACTION';
@@ -409,7 +409,7 @@ export class HUD {
 
     const isShotgun = this.currentWeapon === 'shotgun';
     const isMinigun = this.currentWeapon === 'm134_minigun';
-    const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+    const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'mac_10' || this.currentWeapon === 'akms_gold';
     const is9mm = this.currentWeapon === 'hk_usp' || is30Rd;
 
     if (isMinigun) {
@@ -527,7 +527,7 @@ export class HUD {
     this.ammoPanelEl.classList.remove('warning-low', 'warning-empty');
 
     const isMinigun = this.currentWeapon === 'm134_minigun';
-    const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+    const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'mac_10' || this.currentWeapon === 'akms_gold';
     const lowThreshold = isMinigun ? 30 : (is30Rd ? 6 : 2);
 
     if (this.currentAmmo === 0) {
@@ -652,7 +652,7 @@ export class HUD {
       // Trigger crisp CSS animation
       pip.classList.remove('refilling');
       void pip.offsetWidth; // Force reflow
-      const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'glock_flamengo' || this.currentWeapon === 'akms_gold';
+      const is30Rd = this.currentWeapon === 'hk_mp5' || this.currentWeapon === 'mac_10' || this.currentWeapon === 'akms_gold';
       const delayStep = is30Rd ? 18 : 35;
       pip.style.animationDelay = `${(i - startIdx) * delayStep}ms`;
       pip.classList.add('refilling');
