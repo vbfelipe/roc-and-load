@@ -42,7 +42,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'hk_usp',
     name: 'HK USP',
-    caliber: '9×19MM PARABELLUM',
+    caliber: '9×19MM',
     price: 0,
     isLegendary: false,
     infiniteAmmo: true,
@@ -62,7 +62,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'shotgun',
     name: 'REMINGTON 870',
-    caliber: '12 GAUGE BUCKSHOT',
+    caliber: '12 GAUGE',
     price: 1500,
     isLegendary: false,
     infiniteAmmo: false,
@@ -82,7 +82,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'desert_eagle',
     name: 'DESERT EAGLE',
-    caliber: '.50 ACTION EXPRESS',
+    caliber: '.50',
     price: 3500,
     isLegendary: false,
     infiniteAmmo: false,
@@ -102,7 +102,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'colt_peacemaker',
     name: 'COLT PEACEMAKER',
-    caliber: '.45 LONG COLT',
+    caliber: '.45',
     price: 5500,
     isLegendary: false,
     infiniteAmmo: false,
@@ -122,7 +122,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'hk_mp5',
     name: 'HK MP5',
-    caliber: '9×19MM SUBMACHINE',
+    caliber: '9×19MM',
     price: 8500,
     isLegendary: false,
     infiniteAmmo: false,
@@ -142,7 +142,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'glock_flamengo',
     name: 'GLOCK 18 CUSTOM',
-    caliber: '9×19MM TAMBOR 30RD',
+    caliber: '9×19MM',
     price: 35000,
     isLegendary: true,
     infiniteAmmo: false,
@@ -162,7 +162,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'akms_gold',
     name: 'AK 47 GOLD',
-    caliber: '7.62×39MM SOVIET',
+    caliber: '7.62×39MM',
     price: 75000,
     isLegendary: true,
     infiniteAmmo: false,
@@ -182,7 +182,7 @@ export const GUN_SHOP_CATALOG = Object.freeze([
   {
     id: 'm134_minigun',
     name: 'M134 MINIGUN',
-    caliber: '7.62×51MM ROTARY',
+    caliber: '7.62×51MM',
     price: 100000,
     isLegendary: true,
     infiniteAmmo: false,
@@ -279,7 +279,7 @@ export class GunShopHUD {
               <div class="gunshop-viewport-overlay">
                 <div class="gunshop-detail-head">
                   <div id="gunshop-detail-title" class="gunshop-detail-title">REMINGTON 870</div>
-                  <div id="gunshop-detail-caliber" class="gunshop-detail-subtitle">12 GAUGE BUCKSHOT</div>
+                  <div id="gunshop-detail-caliber" class="gunshop-detail-subtitle">12 GAUGE</div>
                 </div>
               </div>
               <div id="gunshop-detail-legendary" class="gunshop-legendary-badge gunshop-detail-legendary" style="display: none;">★ LENDÁRIA</div>

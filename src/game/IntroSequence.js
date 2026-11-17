@@ -8,8 +8,6 @@ export const INTRO_STATES = Object.freeze({
   PHONE_ANSWERED: 'PHONE_ANSWERED',
   CALL_ENDED: 'CALL_ENDED',
   BUILDING_EXPLOSION: 'BUILDING_EXPLOSION',
-  SECOND_PHONE_RINGING: 'SECOND_PHONE_RINGING',
-  SECOND_PHONE_ANSWERED: 'SECOND_PHONE_ANSWERED',
   MAINTENANCE_DOOR_UNLOCKED: 'MAINTENANCE_DOOR_UNLOCKED',
   MAINTENANCE_OPEN: 'MAINTENANCE_OPEN',
 });
@@ -21,11 +19,6 @@ export const PHONE_DIALOGUE_SCRIPT = Object.freeze([
   { speaker: 'roc', text: 'Ah, pronto. Já começou a madrugada bebendo, né? Não vem inventar apocalipse pra faltar na segunda-feira.' },
   { speaker: 'jorio', text: 'Eu tô falando sério! O vigia da portaria nem responde no interfone... Pelo menos pega alguma coisa pra se defender antes de descer!' },
   { speaker: 'roc', text: 'Vai dormir, Jório. Se você atrasar meu relatório na segunda-feira, quem vai te morder sou eu.' },
-]);
-
-export const SECOND_PHONE_DIALOGUE_SCRIPT = Object.freeze([
-  { speaker: 'roc', text: 'JÓRIO!? Ok, você estava certo, AGORA ME DÁ UMA MÃO AQUI!' },
-  { speaker: 'jorio', text: 'Eu já pensei nisso! Enquanto você cuidava desses aí, eu consegui liberar remotamente a porta da manutenção! Dá uma olhada lá, pode ter algo útil!' },
 ]);
 
 export const ELEVATOR_SPAWN = Object.freeze({
@@ -48,7 +41,6 @@ const TUTORIAL_REVEAL_TIME_SECONDS = 2.45;
 const MAIN_ROOM_THRESHOLD_X = -9.8;
 const PHONE_RING_DELAY_AFTER_ENTRY_SECONDS = 6.0;
 const PHONE_INTERACT_RADIUS = 1.65;
-const SECOND_PHONE_INTERACT_RADIUS = 2.30;
 const MAINTENANCE_DOOR_INTERACT_RADIUS = 2.30;
 const MAINTENANCE_DOOR_OPEN_DURATION = 0.75;
 const CRATE_INTERACT_RADIUS = 1.60;
@@ -102,7 +94,7 @@ export class IntroSequence {
     this._enteredMainRoom = false;
     this._mainRoomRingTimer = 0;
 
-    // Post-Wave 1 progression state (2nd call, permanent maintenance door, Gun Shop trigger)
+    // Post-Tutorial Wave progression state (safe room unlock, permanent maintenance door, Gun Shop trigger)
     this._activeDialogueScript = PHONE_DIALOGUE_SCRIPT;
     this._dialogueTopSpeaker = 'jorio';
     this._showCallerRow = true;
@@ -594,7 +586,7 @@ export class IntroSequence {
   onGameStateChanged(nextState) {
     this._gameState = nextState;
     if (!this.sound) return;
-    if (this.state === INTRO_STATES.PHONE_RINGING || this.state === INTRO_STATES.SECOND_PHONE_RINGING) {
+    if (this.state === INTRO_STATES.PHONE_RINGING) {
       this.sound.setPhoneRingtonePaused(nextState !== 'PLAYING');
     } else if (this.state === INTRO_STATES.BUILDING_EXPLOSION) {
       if (typeof this.sound.setBuildingExplosionPaused === 'function') {
@@ -605,10 +597,7 @@ export class IntroSequence {
 
   _handleKeyDown(e) {
     if (!e || e.code !== 'Space') return;
-    const inDialogue =
-      this.state === INTRO_STATES.PHONE_ANSWERED ||
-      this.state === INTRO_STATES.SECOND_PHONE_ANSWERED;
-    if (!inDialogue || this._gameState !== 'PLAYING') return;
+    if (this.state !== INTRO_STATES.PHONE_ANSWERED || this._gameState !== 'PLAYING') return;
 
     if (typeof e.preventDefault === 'function') e.preventDefault();
     if (typeof e.stopPropagation === 'function') e.stopPropagation();
@@ -638,40 +627,22 @@ export class IntroSequence {
   }
 
   /**
-   * Starts Jório's 2nd phone call 3.0s after all 6 Wave-1 zombies are eliminated.
+   * Unlocks the maintenance safe room immediately after the tutorial wave is cleared.
    */
-  triggerSecondPhoneCall() {
+  unlockSafeRoom() {
     if (
-      this.state === INTRO_STATES.SECOND_PHONE_RINGING ||
-      this.state === INTRO_STATES.SECOND_PHONE_ANSWERED ||
       this.state === INTRO_STATES.MAINTENANCE_DOOR_UNLOCKED ||
       this.state === INTRO_STATES.MAINTENANCE_OPEN
     ) {
       return;
     }
-    this.state = INTRO_STATES.SECOND_PHONE_RINGING;
-    this._activeDialogueScript = SECOND_PHONE_DIALOGUE_SCRIPT;
-
-    this._resolvePhoneReference();
-    if (this.arrowMesh) {
-      this.arrowMesh.position.set(this._phoneWorldPos.x, this._arrowBaseY, this._phoneWorldPos.z);
-      this.arrowMesh.visible = true;
-    }
-    if (this.hud) {
-      this.hud.setObjectiveText('ATENDA O TELEFONE PARA CONTINUAR');
-      this.hud.setObjectiveVisible(true);
-    }
-    if (this.sound && typeof this.sound.startPhoneRingtone === 'function') {
-      this.sound.resume();
-      this.sound.startPhoneRingtone();
-    }
+    this._enterMaintenanceDoorUnlocked();
   }
 
   answerPhone() {
-    const isSecondCall = this.state === INTRO_STATES.SECOND_PHONE_RINGING;
-    if (this.state !== INTRO_STATES.PHONE_RINGING && !isSecondCall) return;
-    this.state = isSecondCall ? INTRO_STATES.SECOND_PHONE_ANSWERED : INTRO_STATES.PHONE_ANSWERED;
-    this._activeDialogueScript = isSecondCall ? SECOND_PHONE_DIALOGUE_SCRIPT : PHONE_DIALOGUE_SCRIPT;
+    if (this.state !== INTRO_STATES.PHONE_RINGING) return;
+    this.state = INTRO_STATES.PHONE_ANSWERED;
+    this._activeDialogueScript = PHONE_DIALOGUE_SCRIPT;
     this._gameState = 'PLAYING';
 
     if (typeof window !== 'undefined' && window.__rocWeaponWheel?.isOpen) {
@@ -699,10 +670,10 @@ export class IntroSequence {
     }
 
     this._setPhoneAnsweredVisuals();
-    this._startDialogueSequence(isSecondCall);
+    this._startDialogueSequence();
   }
 
-  _startDialogueSequence(isSecondCall = false) {
+  _startDialogueSequence() {
     this._dialogueActive = true;
     this._callStartDelay = CALL_PICKUP_DELAY_SECONDS;
     this._dialogueTurnIndex = 0;
@@ -712,9 +683,9 @@ export class IntroSequence {
     this._nonSpaceCharCount = 0;
     this._callerDisplayedText = '';
     this._playerDisplayedText = '';
-    this._dialogueTopSpeaker = isSecondCall ? 'roc' : 'jorio';
-    this._showCallerRow = !isSecondCall;
-    this._showPlayerRow = isSecondCall;
+    this._dialogueTopSpeaker = 'jorio';
+    this._showCallerRow = true;
+    this._showPlayerRow = false;
     if (this.hud && typeof this.hud.resetPhoneDialogueImmediate === 'function') {
       this.hud.resetPhoneDialogueImmediate(this._dialogueTopSpeaker);
     }
@@ -762,10 +733,7 @@ export class IntroSequence {
   }
 
   _handleDialogueSpaceSkip() {
-    const inDialogue =
-      this.state === INTRO_STATES.PHONE_ANSWERED ||
-      this.state === INTRO_STATES.SECOND_PHONE_ANSWERED;
-    if (!inDialogue || !this._dialogueActive) return;
+    if (this.state !== INTRO_STATES.PHONE_ANSWERED || !this._dialogueActive) return;
 
     // If skipped during the 0.3s pickup transition, open Turn 1 immediately
     if (this._callStartDelay > 0) {
@@ -864,7 +832,6 @@ export class IntroSequence {
   }
 
   _endPhoneCall() {
-    const isSecondCall = this.state === INTRO_STATES.SECOND_PHONE_ANSWERED;
     if (
       this.state === INTRO_STATES.CALL_ENDED ||
       this.state === INTRO_STATES.BUILDING_EXPLOSION ||
@@ -898,12 +865,7 @@ export class IntroSequence {
     }
 
     this._resetPhoneToIdle();
-
-    if (isSecondCall) {
-      this._enterMaintenanceDoorUnlocked();
-    } else {
-      this.state = INTRO_STATES.CALL_ENDED;
-    }
+    this.state = INTRO_STATES.CALL_ENDED;
   }
 
   _enterMaintenanceDoorUnlocked() {
@@ -925,6 +887,10 @@ export class IntroSequence {
       this.arrowMesh.position.copy(this._doorArrowPos);
       this.arrowMesh.visible = true;
     }
+    if (this.hud) {
+      this.hud.setObjectiveText('SALA SEGURA DESBLOQUEADA');
+      this.hud.setObjectiveVisible(true);
+    }
   }
 
   _openMaintenanceDoorPermanently() {
@@ -939,6 +905,7 @@ export class IntroSequence {
     }
     if (this.hud) {
       this.hud.setInteractVisible(false);
+      this.hud.setObjectiveVisible(false);
     }
     if (this.sound && typeof this.sound.playDoorUnlockAndOpen === 'function') {
       this.sound.playDoorUnlockAndOpen();
@@ -1649,10 +1616,6 @@ export class IntroSequence {
       }
     } else if (this.state === INTRO_STATES.BUILDING_EXPLOSION) {
       this._updateBuildingExplosion(delta);
-    } else if (this.state === INTRO_STATES.SECOND_PHONE_RINGING) {
-      this._updateRingingVisualsAndAudio(nowSec, SECOND_PHONE_INTERACT_RADIUS);
-    } else if (this.state === INTRO_STATES.SECOND_PHONE_ANSWERED) {
-      this._updateDialogue(delta);
     } else if (this.state === INTRO_STATES.MAINTENANCE_DOOR_UNLOCKED) {
       this._updateArrowHover(nowSec, this._doorArrowPos, this._doorArrowPos.y);
       const posRef = this.player ? this.player.position : this.camera?.position;
@@ -1732,10 +1695,10 @@ export class IntroSequence {
       }
     }
 
-    // Reveal Top-Right Status HUD smoothly 2.0s after Jório's 2nd phone call ends
+    // Reveal Top-Right Status HUD smoothly 0.8s after Safe Room unlocks
     if (this._statusHudRevealPending) {
       this._statusHudRevealTimer += delta;
-      if (this._statusHudRevealTimer >= 2.0) {
+      if (this._statusHudRevealTimer >= 0.8) {
         this._statusHudRevealPending = false;
         if (this.hud && typeof this.hud.setStatusHudVisible === 'function') {
           this.hud.setStatusHudVisible(true);
@@ -1769,7 +1732,7 @@ export class IntroSequence {
     this._enteredMainRoom = false;
     this._mainRoomRingTimer = 0;
 
-    // Post-Wave 1 progression state (2nd call, permanent maintenance door, Gun Shop trigger)
+    // Post-Tutorial Wave progression state (safe room unlock, permanent maintenance door, Gun Shop trigger)
     this._activeDialogueScript = PHONE_DIALOGUE_SCRIPT;
     this._dialogueTopSpeaker = 'jorio';
     this._showCallerRow = true;

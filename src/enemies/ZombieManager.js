@@ -2551,7 +2551,7 @@ export class ZombieManager {
           }
         }
 
-        // Track Tutorial Wave cleared (all tutorial zombies spawned and dead) -> trigger Jório's 2nd phone call after 3.0s
+        // Track Tutorial Wave cleared (all tutorial zombies spawned and dead) -> unlock safe room shortly after
         if (
           this.waveMode === 'TUTORIAL' &&
           !this._wave1ClearedNotified &&
@@ -2560,7 +2560,7 @@ export class ZombieManager {
           if (allSpawned && allDead) {
             this.wave1Cleared = true;
             this._wave1ClearedTimer += delta;
-            if (this._wave1ClearedTimer >= 3.0) {
+            if (this._wave1ClearedTimer >= 1.2) {
               this._wave1ClearedNotified = true;
               if (typeof this.onTutorialWaveCleared === 'function') {
                 this.onTutorialWaveCleared();

@@ -315,7 +315,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   zombieManager.onTutorialWaveCleared = () => {
-    introSequence.triggerSecondPhoneCall();
+    introSequence.unlockSafeRoom();
   };
   zombieManager.onWave1Cleared = zombieManager.onTutorialWaveCleared;
 
@@ -1038,10 +1038,7 @@ window.addEventListener('DOMContentLoaded', () => {
     Boolean(window.isGunShopOpen) ||
     Boolean(document.getElementById('hud-gun-shop')?.classList.contains('is-open')) ||
     Boolean(warehouse && warehouse.crateState && warehouse.crateState !== 'CLOSED') ||
-    Boolean(
-      introSequence &&
-      (introSequence.state === 'PHONE_ANSWERED' || introSequence.state === 'SECOND_PHONE_ANSWERED')
-    ) ||
+    Boolean(introSequence && introSequence.state === 'PHONE_ANSWERED') ||
     Boolean(window.isDevToolsModalOpen) ||
     Boolean(window.isViewmodelTunerOpen) ||
     Boolean(window.isLightingTunerOpen) ||

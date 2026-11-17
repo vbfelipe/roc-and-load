@@ -369,14 +369,24 @@ export class DevToolsModal {
     modal.innerHTML = `
       <div class="devtools-shell">
         <div class="devtools-header">
-          <div class="devtools-header-actions">
-            <button id="dt-unlock-all-btn" type="button" class="devtools-pill-btn is-gold">[Unlock All 7 Guns]</button>
-            <button id="dt-add-money-btn" type="button" class="devtools-pill-btn is-emerald">[+$100,000 Test Money]</button>
-            <button id="dt-restore-hp-btn" type="button" class="devtools-pill-btn is-hp">[Restore HP]</button>
-            <button id="dt-peek-btn" type="button" class="devtools-pill-btn">👁 Peek</button>
-            <button id="dt-dock-btn" type="button" class="devtools-pill-btn">◧ Side</button>
+          <div class="devtools-header-top">
+            <div class="devtools-title">DEV TOOLS <span class="devtools-title-key">[F9]</span></div>
+            <button id="dt-close-btn" type="button" class="gunshop-close-btn devtools-close-pin" aria-label="Fechar">✕</button>
           </div>
-          <button id="dt-close-btn" type="button" class="gunshop-close-btn devtools-close-pin" aria-label="Fechar">✕</button>
+          <div class="devtools-header-actions">
+            <div class="devtools-dropdown">
+              <button id="dt-cheats-btn" type="button" class="devtools-pill-btn" aria-haspopup="true">Cheats ▾</button>
+              <div class="devtools-dropdown-menu" role="menu">
+                <div class="devtools-dropdown-panel">
+                  <button id="dt-unlock-all-btn" type="button" class="devtools-dropdown-item is-gold" role="menuitem">All guns</button>
+                  <button id="dt-add-money-btn" type="button" class="devtools-dropdown-item is-emerald" role="menuitem">+ $100k</button>
+                  <button id="dt-restore-hp-btn" type="button" class="devtools-dropdown-item is-hp" role="menuitem">Restore HP</button>
+                </div>
+              </div>
+            </div>
+            <button id="dt-dock-btn" type="button" class="devtools-pill-btn">◧ Side</button>
+            <button id="dt-peek-btn" type="button" class="devtools-pill-btn">👁 Peek</button>
+          </div>
         </div>
 
         <div class="devtools-tabs" role="tablist">
@@ -608,7 +618,7 @@ export class DevToolsModal {
       if (window.__rocGunShop?.isOpen) {
         window.__rocGunShop.refreshUI();
       }
-      this._flashButtonSuccess(unlockBtn, '[Unlock All 7 Guns]', '✓ All 7 Guns Unlocked!');
+      this._flashButtonSuccess(unlockBtn, 'All guns', '✓ All guns unlocked!');
     };
 
     const moneyBtn = this.overlay.querySelector('#dt-add-money-btn');
@@ -616,7 +626,7 @@ export class DevToolsModal {
       if (typeof window.__rocAddTestMoney === 'function') {
         window.__rocAddTestMoney(100000);
       }
-      this._flashButtonSuccess(moneyBtn, '[+$100,000 Test Money]', '✓ +$100,000 Added!');
+      this._flashButtonSuccess(moneyBtn, '+ $100k', '✓ + $100k added!');
     };
 
     const restoreHpBtn = this.overlay.querySelector('#dt-restore-hp-btn');
@@ -633,7 +643,7 @@ export class DevToolsModal {
           h?.setHealth?.(p.hp, p.maxHp ?? 100);
         }
         h?.triggerHealVignette?.();
-        this._flashButtonSuccess(restoreHpBtn, '[Restore HP]', '✓ HP Restored!');
+        this._flashButtonSuccess(restoreHpBtn, 'Restore HP', '✓ HP restored!');
       };
     }
 
