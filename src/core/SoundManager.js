@@ -45,6 +45,27 @@ export class SoundManager {
     this.menuMusicTargetVolume = 0.40;
     this._fadeRaf = null;
 
+    // Horde Combat BGM ('alexgrohl_void_construct.mp3'):
+    // Plays 0.0s -> 14.5s intro on first horde countdown, then loops 14.5s -> end seamlessly.
+    this.hordeMusicTargetVolume = 0.22;
+    this._hordeMusicActive = false;
+    this._hordeMusicPlaying = false;
+    this._hordeMusicInSafeZone = false;
+    this._hordeMusicSource = null;
+    this._hordeMusicHpFilter = null;
+    this._hordeMusicEqFilter = null;
+    this._hordeMusicLpFilter = null;
+    this._hordeMusicDuckGain = null;
+    this._hordeMusicZoneGain = null;
+    this._hordeMusicMasterGain = null;
+    this._hordeMusicLoopStart = 14.5;
+    this._hordeMusicLoopEnd = 0;
+    this._hordeMusicStartCtxTime = 0;
+    this._hordeMusicStartOffset = 0;
+    this._hordeMusicPausedOffset = 0;
+    this._hordeMusicGen = 0;
+    this._hordeMusicStopTimer = null;
+
     this.audioBuffers = new Map();
     this.zombieBuffers = {
       attack: [],
@@ -184,9 +205,446 @@ export class SoundManager {
     this.isBgmEnabled = !!enabled;
     if (!this.isBgmEnabled) {
       this.fadeMenuMusicOut(180);
+      this.pauseHordeMusic(180);
     } else {
-      this.resumeMenuMusic(250);
+      const currentState = typeof window !== 'undefined' && typeof window.getGameState === 'function'
+        ? window.getGameState()
+        : null;
+      if (currentState === 'PLAYING') {
+        this.resumeHordeMusic(250);
+      } else {
+        this.resumeMenuMusic(250);
+      }
     }
+  }
+
+  /**
+   * Returns true if Horde combat music has been triggered in the current run.
+   */
+  isHordeMusicActive() {
+    return Boolean(this._hordeMusicActive);
+  }
+
+  /**
+   * Lazily builds the dedicated Horde BGM Web Audio DSP chain (bypassing masterGain/masterLimiter
+   * so BGM never eats gunshot headroom and respects BGM toggle independently of SFX toggle):
+   * Source -> HighPass (Safe-Zone sub-bass trim) -> Midrange Pocket EQ (-3.8dB @ 2.35kHz for gunshot clarity)
+   *        -> LowPass (Safe-Zone wall occlusion muffle) -> DuckGain (gunfire sidechain)
+   *        -> ZoneGain (Safe-Zone distance attenuation) -> HordeMasterGain -> destination.
+   */
+  _ensureHordeMusicBus() {
+    if (!this.ctx) return false;
+    if (this._hordeMusicMasterGain) return true;
+
+    const t = this.ctx.currentTime;
+
+    this._hordeMusicHpFilter = this.ctx.createBiquadFilter();
+    this._hordeMusicHpFilter.type = 'highpass';
+    this._hordeMusicHpFilter.frequency.setValueAtTime(this._hordeMusicInSafeZone ? 125 : 20, t);
+    this._hordeMusicHpFilter.Q.setValueAtTime(0.707, t);
+
+    // Carve a permanent midrange pocket around 2.35 kHz so gunshot cracks, reload clicks,
+    // headshot dings, and zombie vocals always cut cleanly over the background music.
+    this._hordeMusicEqFilter = this.ctx.createBiquadFilter();
+    this._hordeMusicEqFilter.type = 'peaking';
+    this._hordeMusicEqFilter.frequency.setValueAtTime(2350, t);
+    this._hordeMusicEqFilter.Q.setValueAtTime(0.75, t);
+    this._hordeMusicEqFilter.gain.setValueAtTime(-3.8, t);
+
+    this._hordeMusicLpFilter = this.ctx.createBiquadFilter();
+    this._hordeMusicLpFilter.type = 'lowpass';
+    this._hordeMusicLpFilter.frequency.setValueAtTime(this._hordeMusicInSafeZone ? 680 : 19000, t);
+    this._hordeMusicLpFilter.Q.setValueAtTime(0.75, t);
+
+    this._hordeMusicDuckGain = this.ctx.createGain();
+    this._hordeMusicDuckGain.gain.setValueAtTime(1.0, t);
+
+    this._hordeMusicZoneGain = this.ctx.createGain();
+    this._hordeMusicZoneGain.gain.setValueAtTime(this._hordeMusicInSafeZone ? 0.42 : 1.0, t);
+
+    this._hordeMusicMasterGain = this.ctx.createGain();
+    this._hordeMusicMasterGain.gain.setValueAtTime(0.0001, t);
+
+    this._hordeMusicHpFilter.connect(this._hordeMusicEqFilter);
+    this._hordeMusicEqFilter.connect(this._hordeMusicLpFilter);
+    this._hordeMusicLpFilter.connect(this._hordeMusicDuckGain);
+    this._hordeMusicDuckGain.connect(this._hordeMusicZoneGain);
+    this._hordeMusicZoneGain.connect(this._hordeMusicMasterGain);
+    this._hordeMusicMasterGain.connect(this.ctx.destination);
+    return true;
+  }
+
+  /**
+   * Calibrates the 14.5s intro-to-loop boundary and bakes a 0.36s equal-power cosine lead-in
+   * crossfade right before loopEnd so hardware AudioBufferSourceNode looping (14.5s -> end -> 14.5s)
+   * wraps with 100% phase, sample, and rhythmic continuity (zero clicks or seek gaps).
+   */
+  _prepareHordeMusicBuffer(audioBuffer) {
+    if (!audioBuffer || !audioBuffer.duration) return;
+    const sr = audioBuffer.sampleRate;
+    const numCh = audioBuffer.numberOfChannels;
+    const len = audioBuffer.length;
+    const dur = audioBuffer.duration;
+
+    if (dur <= 20.0) {
+      this._hordeMusicLoopStart = Math.min(14.5, dur * 0.25);
+      this._hordeMusicLoopEnd = dur;
+      return;
+    }
+
+    const ch0 = audioBuffer.getChannelData(0);
+    const findZeroCrossing = (targetIdx, radiusSamples = Math.floor(sr * 0.02)) => {
+      const minI = Math.max(1, targetIdx - radiusSamples);
+      const maxI = Math.min(len - 2, targetIdx + radiusSamples);
+      let bestI = targetIdx;
+      let bestDist = Infinity;
+      for (let i = minI; i <= maxI; i++) {
+        if (ch0[i - 1] <= 0 && ch0[i] > 0) {
+          const d = Math.abs(i - targetIdx);
+          if (d < bestDist) {
+            bestDist = d;
+            bestI = i;
+          }
+        }
+      }
+      return bestI;
+    };
+
+    const loopStartIdx = findZeroCrossing(Math.floor(14.5 * sr));
+
+    // Trim the final ~120ms MP3 encoder drop-off tail so energy never dips before the loop wrap
+    const winSamples = Math.max(1, Math.floor(sr * 0.025));
+    const numWins = Math.floor(len / winSamples);
+    let midRmsSum = 0;
+    let midRmsCnt = 0;
+    const midStartW = Math.floor((20.0 * sr) / winSamples);
+    const midEndW = Math.min(numWins - 10, Math.floor((120.0 * sr) / winSamples));
+    for (let w = midStartW; w < midEndW; w += 4) {
+      let s = 0;
+      const base = w * winSamples;
+      for (let i = 0; i < winSamples; i += 4) {
+        const v = ch0[base + i];
+        s += v * v;
+      }
+      midRmsSum += Math.sqrt(s / (winSamples / 4));
+      midRmsCnt++;
+    }
+    const avgRms = midRmsCnt > 0 ? midRmsSum / midRmsCnt : 0.15;
+    const tailFloor = avgRms * 0.62;
+
+    let activeEndWin = numWins - 1;
+    for (let w = numWins - 1; w >= Math.floor(numWins * 0.85); w--) {
+      let s = 0;
+      const base = w * winSamples;
+      for (let i = 0; i < winSamples; i += 4) {
+        const v = ch0[base + i];
+        s += v * v;
+      }
+      const rms = Math.sqrt(s / (winSamples / 4));
+      if (rms >= tailFloor) {
+        activeEndWin = w;
+        break;
+      }
+    }
+
+    const rawEndIdx = Math.min(len - 16, activeEndWin * winSamples);
+    const loopEndIdx = findZeroCrossing(rawEndIdx);
+
+    // Bake a smooth 360ms cosine crossfade at the end of the track [loopEndIdx - xfade, loopEndIdx]
+    // blending into the pre-14.5s lead-in [loopStartIdx - xfade, loopStartIdx].
+    // The intro [0..14.5s] remains 100% untouched, while sample (loopEndIdx - 1) seamlessly
+    // meets sample (loopStartIdx) at the loop boundary!
+    const xfadeSec = 0.36;
+    const xfadeSamples = Math.min(
+      Math.floor(sr * xfadeSec),
+      Math.floor(loopStartIdx * 0.5),
+      Math.floor((loopEndIdx - loopStartIdx) * 0.25)
+    );
+    if (xfadeSamples > 128) {
+      const startLeadInBase = loopStartIdx - xfadeSamples;
+      const endTailBase = loopEndIdx - xfadeSamples;
+      for (let c = 0; c < numCh; c++) {
+        const ch = audioBuffer.getChannelData(c);
+        for (let k = 0; k < xfadeSamples; k++) {
+          const prog = (k + 1) / xfadeSamples;
+          const wIn = 0.5 - 0.5 * Math.cos(Math.PI * prog);
+          const wOut = 1.0 - wIn;
+          ch[endTailBase + k] = ch[endTailBase + k] * wOut + ch[startLeadInBase + k] * wIn;
+        }
+      }
+    }
+
+    this._hordeMusicLoopStart = loopStartIdx / sr;
+    this._hordeMusicLoopEnd = loopEndIdx / sr;
+  }
+
+  /**
+   * Computes exact current playback offset within the Horde Music buffer (accounting for 14.5s -> end loops).
+   */
+  _getCurrentHordeMusicOffset() {
+    if (!this.ctx || !this._hordeMusicPlaying) {
+      return this._hordeMusicPausedOffset || 0;
+    }
+    const elapsed = Math.max(0, this.ctx.currentTime - this._hordeMusicStartCtxTime);
+    const rawPos = this._hordeMusicStartOffset + elapsed;
+    const loopStart = this._hordeMusicLoopStart || 14.5;
+    const loopEnd = this._hordeMusicLoopEnd || 148.45;
+    if (rawPos < loopEnd || loopEnd <= loopStart) {
+      return Math.max(0, rawPos);
+    }
+    const loopSpan = loopEnd - loopStart;
+    return loopStart + ((rawPos - loopStart) % loopSpan);
+  }
+
+  /**
+   * Starts the Horde Combat Music from 0.0s (playing the 0..14.5s intro once, then looping 14.5s..end).
+   * Triggered when the countdown to the first horde begins.
+   */
+  startHordeMusic(fadeDurationMs = 380) {
+    this._hordeMusicActive = true;
+    this._hordeMusicPausedOffset = 0;
+    this._hordeMusicStartOffset = 0;
+    if (this._hordeMusicSource) {
+      try {
+        this._hordeMusicSource.onended = null;
+        this._hordeMusicSource.stop();
+        this._hordeMusicSource.disconnect();
+      } catch (e) { }
+      this._hordeMusicSource = null;
+    }
+    this._hordeMusicPlaying = false;
+    this.resumeHordeMusic(fadeDurationMs);
+  }
+
+  /**
+   * Resumes Horde Combat Music from its exact paused offset with a smooth fade-in.
+   */
+  resumeHordeMusic(fadeDurationMs = 350) {
+    if (this.isPreloading || !this._hordeMusicActive || !this.ctx) return;
+    if (!this.isBgmEnabled) return;
+
+    const buffer = this.audioBuffers.get('horde_music');
+    if (!buffer) return;
+
+    this.resume();
+    this._ensureHordeMusicBus();
+
+    if (this._hordeMusicStopTimer) {
+      clearTimeout(this._hordeMusicStopTimer);
+      this._hordeMusicStopTimer = null;
+    }
+    this._hordeMusicGen++;
+
+    const now = this.ctx.currentTime;
+    const fadeSec = Math.max(0.02, (Number(fadeDurationMs) || 350) / 1000);
+
+    // Ensure low-pass and high-pass filters match current Safe Zone state (recovering from any death muffle)
+    const targetLp = this._hordeMusicInSafeZone ? 680 : 19000;
+    const targetHp = this._hordeMusicInSafeZone ? 125 : 20;
+    const targetZoneGain = this._hordeMusicInSafeZone ? 0.42 : 1.0;
+    this._hordeMusicLpFilter.frequency.cancelScheduledValues(now);
+    this._hordeMusicLpFilter.frequency.setTargetAtTime(targetLp, now, 0.08);
+    this._hordeMusicHpFilter.frequency.cancelScheduledValues(now);
+    this._hordeMusicHpFilter.frequency.setTargetAtTime(targetHp, now, 0.08);
+    this._hordeMusicZoneGain.gain.cancelScheduledValues(now);
+    this._hordeMusicZoneGain.gain.setTargetAtTime(targetZoneGain, now, 0.08);
+
+    // If source is still alive during an interrupted pause fade-out, simply ramp gain back up seamlessly
+    if (this._hordeMusicSource) {
+      this._hordeMusicPlaying = true;
+      const g = this._hordeMusicMasterGain.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(Math.max(0.0001, g.value), now);
+      g.linearRampToValueAtTime(this.hordeMusicTargetVolume, now + fadeSec);
+      return;
+    }
+
+    const loopStart = this._hordeMusicLoopStart || 14.5;
+    const loopEnd = this._hordeMusicLoopEnd || buffer.duration;
+    const startOffset = Math.max(0, Math.min(loopEnd - 0.05, this._hordeMusicPausedOffset || 0));
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+    source.loopStart = loopStart;
+    source.loopEnd = loopEnd;
+    source.connect(this._hordeMusicHpFilter);
+
+    const g = this._hordeMusicMasterGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(0.0001, now);
+    g.linearRampToValueAtTime(this.hordeMusicTargetVolume, now + fadeSec);
+
+    source.start(now, startOffset);
+    this._hordeMusicSource = source;
+    this._hordeMusicStartCtxTime = now;
+    this._hordeMusicStartOffset = startOffset;
+    this._hordeMusicPlaying = true;
+
+    source.onended = () => {
+      if (this._hordeMusicSource === source) {
+        this._hordeMusicSource = null;
+        this._hordeMusicPlaying = false;
+      }
+      try { source.disconnect(); } catch (e) { }
+    };
+  }
+
+  /**
+   * Smoothly fades out and pauses Horde Combat Music (preserving exact track offset for Pause Menu transitions).
+   */
+  pauseHordeMusic(fadeDurationMs = 280) {
+    if (!this._hordeMusicActive || !this.ctx || !this._hordeMusicMasterGain) return;
+    if (this._hordeMusicPlaying) {
+      this._hordeMusicPausedOffset = this._getCurrentHordeMusicOffset();
+      this._hordeMusicPlaying = false;
+    }
+    if (!this._hordeMusicSource) return;
+
+    if (this._hordeMusicStopTimer) {
+      clearTimeout(this._hordeMusicStopTimer);
+      this._hordeMusicStopTimer = null;
+    }
+    const gen = ++this._hordeMusicGen;
+    const srcToStop = this._hordeMusicSource;
+    const now = this.ctx.currentTime;
+    const fadeSec = Math.max(0.02, (Number(fadeDurationMs) || 280) / 1000);
+
+    const g = this._hordeMusicMasterGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0.0001, g.value), now);
+    g.linearRampToValueAtTime(0.0001, now + fadeSec);
+
+    this._hordeMusicStopTimer = setTimeout(() => {
+      if (this._hordeMusicGen !== gen) return;
+      this._hordeMusicStopTimer = null;
+      if (this._hordeMusicSource === srcToStop) {
+        this._hordeMusicSource = null;
+      }
+      try {
+        srcToStop.onended = null;
+        srcToStop.stop();
+        srcToStop.disconnect();
+      } catch (e) { }
+    }, Math.round(fadeSec * 1000) + 25);
+  }
+
+  /**
+   * Stops and resets Horde Combat Music (used on Game Over collapse and Run Reset / Main Menu exit).
+   */
+  stopHordeMusic({ fadeDurationMs = 500, muffle = false } = {}) {
+    this._hordeMusicActive = false;
+    this._hordeMusicPlaying = false;
+    this._hordeMusicPausedOffset = 0;
+    this._hordeMusicStartOffset = 0;
+
+    if (!this.ctx || !this._hordeMusicMasterGain || !this._hordeMusicSource) {
+      this._hordeMusicSource = null;
+      return;
+    }
+
+    if (this._hordeMusicStopTimer) {
+      clearTimeout(this._hordeMusicStopTimer);
+      this._hordeMusicStopTimer = null;
+    }
+    const gen = ++this._hordeMusicGen;
+    const srcToStop = this._hordeMusicSource;
+    const now = this.ctx.currentTime;
+    const fadeSec = Math.max(0.02, (Number(fadeDurationMs) || 500) / 1000);
+
+    if (muffle && this._hordeMusicLpFilter) {
+      this._hordeMusicLpFilter.frequency.cancelScheduledValues(now);
+      this._hordeMusicLpFilter.frequency.setValueAtTime(
+        Math.max(350, this._hordeMusicLpFilter.frequency.value || 19000),
+        now
+      );
+      this._hordeMusicLpFilter.frequency.exponentialRampToValueAtTime(360, now + fadeSec);
+    }
+
+    const g = this._hordeMusicMasterGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0.0001, g.value), now);
+    g.linearRampToValueAtTime(0.0001, now + fadeSec);
+
+    this._hordeMusicStopTimer = setTimeout(() => {
+      if (this._hordeMusicGen !== gen) return;
+      this._hordeMusicStopTimer = null;
+      if (this._hordeMusicSource === srcToStop) {
+        this._hordeMusicSource = null;
+      }
+      try {
+        srcToStop.onended = null;
+        srcToStop.stop();
+        srcToStop.disconnect();
+      } catch (e) { }
+    }, Math.round(fadeSec * 1000) + 25);
+  }
+
+  /**
+   * Muffles and attenuates the Horde Combat Music when the player enters the Maintenance Closet Safe-Zone
+   * so it sounds like it is playing from a distance out in the main office floor.
+   */
+  setHordeMusicSafeZone(inSafeZone) {
+    const nextState = Boolean(inSafeZone);
+    if (this._hordeMusicInSafeZone === nextState && this._hordeMusicMasterGain) return;
+    this._hordeMusicInSafeZone = nextState;
+
+    if (!this.ctx || !this._hordeMusicLpFilter || !this._hordeMusicHpFilter || !this._hordeMusicZoneGain) {
+      return;
+    }
+
+    const now = this.ctx.currentTime;
+    const lpFreq = nextState ? 680 : 19000;
+    const hpFreq = nextState ? 125 : 20;
+    const zoneGain = nextState ? 0.42 : 1.0;
+    const timeConstant = nextState ? 0.14 : 0.12;
+
+    this._hordeMusicLpFilter.frequency.cancelScheduledValues(now);
+    this._hordeMusicLpFilter.frequency.setValueAtTime(
+      Math.max(100, this._hordeMusicLpFilter.frequency.value || 19000),
+      now
+    );
+    this._hordeMusicLpFilter.frequency.setTargetAtTime(lpFreq, now, timeConstant);
+
+    this._hordeMusicHpFilter.frequency.cancelScheduledValues(now);
+    this._hordeMusicHpFilter.frequency.setValueAtTime(
+      Math.max(15, this._hordeMusicHpFilter.frequency.value || 20),
+      now
+    );
+    this._hordeMusicHpFilter.frequency.setTargetAtTime(hpFreq, now, timeConstant);
+
+    this._hordeMusicZoneGain.gain.cancelScheduledValues(now);
+    this._hordeMusicZoneGain.gain.setValueAtTime(
+      Math.max(0.01, this._hordeMusicZoneGain.gain.value || 1.0),
+      now
+    );
+    this._hordeMusicZoneGain.gain.setTargetAtTime(zoneGain, now, timeConstant);
+  }
+
+  /**
+   * Subtle sidechain gunfire ducking so weapon shots always punch cleanly over background music.
+   */
+  _triggerHordeMusicGunshotDuck(isSustained = false) {
+    if (!this._hordeMusicPlaying || !this._hordeMusicDuckGain || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const g = this._hordeMusicDuckGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0.55, g.value || 1.0), now);
+    if (isSustained) {
+      g.linearRampToValueAtTime(0.62, now + 0.025);
+    } else {
+      g.linearRampToValueAtTime(0.68, now + 0.012);
+      g.setTargetAtTime(1.0, now + 0.045, 0.085);
+    }
+  }
+
+  _releaseHordeMusicGunshotDuck() {
+    if (!this._hordeMusicDuckGain || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const g = this._hordeMusicDuckGain.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(Math.max(0.55, g.value || 1.0), now);
+    g.setTargetAtTime(1.0, now + 0.02, 0.09);
   }
 
   setSfxEnabled(enabled) {
@@ -563,6 +1021,7 @@ export class SoundManager {
     this._minigunFireNode = { source, gain };
     this._minigunMode = 'firing';
     this._minigunPeakSpin = 1.0;
+    this._triggerHordeMusicGunshotDuck(true);
 
     source.onended = () => {
       if (this._minigunFireNode?.source === source) {
@@ -592,6 +1051,7 @@ export class SoundManager {
 
     this._minigunSpinNode = this._stopMinigunChannel(this._minigunSpinNode, now, 0.035);
     this._minigunFireNode = this._stopMinigunChannel(this._minigunFireNode, now, 0.04);
+    this._releaseHordeMusicGunshotDuck();
 
     if (!playSpinDown) {
       this._minigunTailNode = this._stopMinigunChannel(this._minigunTailNode, now, 0.03);
@@ -695,6 +1155,7 @@ export class SoundManager {
       'revolver_spin': './sounds/revolver_spin.mp3',
       'minigun_fire': './sounds/minigun_fire.mp3',
       'building_explosions': './sounds/building_explosions.mp3',
+      'horde_music': './alexgrohl_void_construct.mp3',
     };
 
     const entries = Object.entries(soundFiles);
@@ -711,7 +1172,10 @@ export class SoundManager {
 
     const loadWeaponAudio = entries.map(async ([key, url]) => {
       try {
-        const resp = await fetch(url);
+        let resp = await fetch(url);
+        if (!resp.ok && key === 'horde_music') {
+          resp = await fetch('./sounds/alexgrohl_void_construct.mp3');
+        }
         if (resp.ok) {
           const arrayBuffer = await resp.arrayBuffer();
           const audioBuffer = await this.ctx.decodeAudioData(arrayBuffer);
@@ -754,6 +1218,8 @@ export class SoundManager {
           }
           if (key === 'minigun_fire') {
             this._calibrateMinigunSegments(audioBuffer);
+          } else if (key === 'horde_music') {
+            this._prepareHordeMusicBuffer(audioBuffer);
           }
           this.audioBuffers.set(key, audioBuffer);
         }
@@ -890,6 +1356,9 @@ export class SoundManager {
 
     if (isAction) {
       this.activeActionSources.add(source);
+    } else if (bufferKey !== '9mm_dryfire') {
+      // Sidechain-duck background Horde music slightly on every gunshot so weapons always cut through
+      this._triggerHordeMusicGunshotDuck(false);
     }
     source.onended = () => {
       if (isAction) {

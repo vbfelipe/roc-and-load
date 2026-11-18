@@ -303,6 +303,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (zombieManager && typeof zombieManager.setPlayerInSafeZone === 'function') {
       zombieManager.setPlayerInSafeZone(true);
     }
+    sound.setHordeMusicSafeZone?.(true);
   }
 
   function onExitSafeZone() {
@@ -325,6 +326,7 @@ window.addEventListener('DOMContentLoaded', () => {
     if (zombieManager && typeof zombieManager.setPlayerInSafeZone === 'function') {
       zombieManager.setPlayerInSafeZone(false);
     }
+    sound.setHordeMusicSafeZone?.(false);
   }
 
   zombieManager.onZombieKilled = ({ kills, reward, isHeadshot, archetype }) => {
@@ -362,6 +364,9 @@ window.addEventListener('DOMContentLoaded', () => {
     if (num > runStats.currentHordeReached) {
       runStats.currentHordeReached = num;
     }
+    if (!sound.isHordeMusicActive?.()) {
+      sound.startHordeMusic?.(380);
+    }
   };
 
   zombieManager.onHordeCleared = () => {
@@ -384,6 +389,9 @@ window.addEventListener('DOMContentLoaded', () => {
   zombieManager.onHordeCountdownChange = ({ active, hordeNumber, secondsRemaining, immediate }) => {
     if (active) {
       hud.setHordeCountdown?.(hordeNumber, secondsRemaining);
+      if (!sound.isHordeMusicActive?.() && Number(hordeNumber) === 1) {
+        sound.startHordeMusic?.(380);
+      }
     } else {
       hud.hideHordeCountdown?.(Boolean(immediate));
     }
@@ -499,7 +507,8 @@ window.addEventListener('DOMContentLoaded', () => {
       viewmodel.root.visible = true;
       engine.camera.rotation.order = 'YXZ';
       player.updateBobAndCamera(0);
-      sound.fadeMenuMusicOut(220);
+      sound.fadeMenuMusicOut(250);
+      sound.resumeHordeMusic?.(350);
     } else if (state === 'GAME_OVER') {
       startModal.classList.add('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
@@ -507,6 +516,7 @@ window.addEventListener('DOMContentLoaded', () => {
       input.clearInputs();
       if (window.isGunShopOpen) gunShop.close(false);
       if (window.isDevToolsModalOpen) devToolsModal.close();
+      sound.stopHordeMusic?.({ fadeDurationMs: 550, muffle: true });
     } else if (state === 'PAUSED') {
       startModal.classList.remove('hidden');
       if (uiLayer) uiLayer.classList.add('menu-hidden');
@@ -524,7 +534,8 @@ window.addEventListener('DOMContentLoaded', () => {
         statusVal.classList.add('paused');
         statusVal.style.color = '#f59e0b';
       }
-      sound.resumeMenuMusic(300);
+      sound.pauseHordeMusic?.(280);
+      sound.resumeMenuMusic(350);
     } else {
       // MAIN_MENU: restart showroom glide at the Monitors & Skyline showcase (s = 0)
       menuCameraElapsed = 0;
@@ -544,6 +555,7 @@ window.addEventListener('DOMContentLoaded', () => {
         statusVal.classList.remove('paused');
         statusVal.style.color = '';
       }
+      sound.stopHordeMusic?.({ fadeDurationMs: 220, muffle: false });
       // If returning from PAUSED (via EXIT), keep playing seamlessly without restarting;
       // if music was paused or not yet playing, resume it (only if preloading has completed)
       if (!isPreloading && sound.menuMusic && sound.menuMusic.paused) {
@@ -922,6 +934,7 @@ window.addEventListener('DOMContentLoaded', () => {
     firstCrateHordeDelayTimer = 0;
     lastMeleeHitAt = -Infinity;
     playerMoney = 0;
+    sound.stopHordeMusic?.({ fadeDurationMs: 180, muffle: false });
     resetRunStats();
     player.resetHealth();
     hud.resetDamageVignette();

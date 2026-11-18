@@ -644,6 +644,7 @@ export class ZombieManager {
   triggerTutorialWave() {
     this.initWavePool();
     this.sound?.stopAllZombieVocals?.();
+    this.sound?.stopHordeMusic?.({ fadeDurationMs: 220, muffle: false });
     this.hordeCountdownActive = false;
     this.hordeCountdownTimer = 0;
     this._lastHordeCountdownSec = -1;
@@ -882,6 +883,7 @@ export class ZombieManager {
     this._testHazmatSkillState.timer = 0;
     this._testHazmatSkillState.burstFired = false;
     this.sound?.stopAllZombieVocals?.();
+    this.sound?.stopHordeMusic?.({ fadeDurationMs: 220, muffle: false });
     for (const entry of this.waveEntries) {
       entry.spawned = false;
       entry.aiState = 'WAITING';
