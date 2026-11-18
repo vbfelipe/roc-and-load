@@ -57,10 +57,10 @@ function createPlaneFacingPlayer(w, h, uMin = 0, vMin = 0, uMax = 1, vMax = 1) {
 
   // Vertices facing -Z directly toward player
   const positions = new Float32Array([
-    -hw,  hh, 0, // 0: Top-Left
-     hw,  hh, 0, // 1: Top-Right
+    -hw, hh, 0, // 0: Top-Left
+    hw, hh, 0, // 1: Top-Right
     -hw, -hh, 0, // 2: Bottom-Left
-     hw, -hh, 0  // 3: Bottom-Right
+    hw, -hh, 0  // 3: Bottom-Right
   ]);
 
   const normals = new Float32Array([
@@ -100,10 +100,10 @@ function createPlaneFacingRear(w, h, uMin = 0, vMin = 0, uMax = 1, vMax = 1) {
   // Vertices facing +Z away from screen (toward rear observer)
   // Observer looking down -Z: observer's left is -X, right is +X
   const positions = new Float32Array([
-    -hw,  hh, 0, // 0: Observer Top-Left (-X, +Y)
-     hw,  hh, 0, // 1: Observer Top-Right (+X, +Y)
+    -hw, hh, 0, // 0: Observer Top-Left (-X, +Y)
+    hw, hh, 0, // 1: Observer Top-Right (+X, +Y)
     -hw, -hh, 0, // 2: Observer Bottom-Left (-X, -Y)
-     hw, -hh, 0  // 3: Observer Bottom-Right (+X, -Y)
+    hw, -hh, 0  // 3: Observer Bottom-Right (+X, -Y)
   ]);
 
   const normals = new Float32Array([
@@ -1651,9 +1651,9 @@ function createCoffeeSidePanelGeometry(isRightSide = false) {
   const geo = new THREE.BufferGeometry();
 
   const v0 = [0, 0.00, -0.34];  // bottom-back
-  const v1 = [0, 0.00,  0.28];  // bottom-front
-  const v2 = [0, 0.41,  0.28];  // niche corner
-  const v3 = [0, 0.91,  0.174]; // sloped top-front (12° back!)
+  const v1 = [0, 0.00, 0.28];  // bottom-front
+  const v2 = [0, 0.41, 0.28];  // niche corner
+  const v3 = [0, 0.91, 0.174]; // sloped top-front (12° back!)
   const v4 = [0, 0.91, -0.34];  // top-back
 
   let positions, normals, uvs;
@@ -1668,9 +1668,9 @@ function createCoffeeSidePanelGeometry(isRightSide = false) {
     ]);
     const u3 = (0.174 - (-0.34)) / (0.28 - (-0.34)); // 0.829
     uvs = new Float32Array([
-      0.0, 0.0,  1.0, 0.0,   1.0, 0.45,
-      0.0, 0.0,  1.0, 0.45,  u3,  1.0,
-      0.0, 0.0,  u3,  1.0,   0.0, 1.0,
+      0.0, 0.0, 1.0, 0.0, 1.0, 0.45,
+      0.0, 0.0, 1.0, 0.45, u3, 1.0,
+      0.0, 0.0, u3, 1.0, 0.0, 1.0,
     ]);
   } else {
     // Right side (normal = +1, 0, 0)
@@ -1681,9 +1681,9 @@ function createCoffeeSidePanelGeometry(isRightSide = false) {
     ]);
     const u3 = (0.28 - 0.174) / (0.28 - (-0.34)); // 0.171
     uvs = new Float32Array([
-      1.0, 0.0,  0.0, 0.45,  0.0, 0.0,
-      1.0, 0.0,  u3,  1.0,   0.0, 0.45,
-      1.0, 0.0,  1.0, 1.0,   u3,  1.0,
+      1.0, 0.0, 0.0, 0.45, 0.0, 0.0,
+      1.0, 0.0, u3, 1.0, 0.0, 0.45,
+      1.0, 0.0, 1.0, 1.0, u3, 1.0,
     ]);
   }
 
@@ -3311,24 +3311,24 @@ function createElevatorCopAndNoticesAtlas() {
 
   // Glowing Red Dot-Matrix '▼ 30' inside Display
   const digit3 = [
-    [1,1,1,1],
-    [0,0,0,1],
-    [0,1,1,1],
-    [0,0,0,1],
-    [1,1,1,1],
+    [1, 1, 1, 1],
+    [0, 0, 0, 1],
+    [0, 1, 1, 1],
+    [0, 0, 0, 1],
+    [1, 1, 1, 1],
   ];
   const digit0 = [
-    [1,1,1,1],
-    [1,0,0,1],
-    [1,0,0,1],
-    [1,0,0,1],
-    [1,1,1,1],
+    [1, 1, 1, 1],
+    [1, 0, 0, 1],
+    [1, 0, 0, 1],
+    [1, 0, 0, 1],
+    [1, 1, 1, 1],
   ];
   const downArrow = [
-    [0,1,0],
-    [0,1,0],
-    [1,1,1],
-    [0,1,0],
+    [0, 1, 0],
+    [0, 1, 0],
+    [1, 1, 1],
+    [0, 1, 0],
   ];
 
   const drawDotMatrix = (grid, ox, oy, step, r, activeCol, offCol) => {
@@ -6010,11 +6010,11 @@ function createServerCabinetTextures() {
   const telemetryData = [
     { line1: '21.4°C | 480W | HEALTHY', line2: 'iDRAC9 ENTERPRISE // NVMe RAID-10', bar: 0.85 },
     { line1: '19.8°C | 420W | OPTIMAL', line2: 'STORAGE-ARRAY-01 // ZFS POOL OK', bar: 0.65 },
-    { line1: '23.1°C | 620W | ACTIVE',  line2: 'HYPERVISOR CLUSTER // NODE-03',  bar: 0.90 },
+    { line1: '23.1°C | 620W | ACTIVE', line2: 'HYPERVISOR CLUSTER // NODE-03', bar: 0.90 },
     { line1: '20.2°C | 510W | HEALTHY', line2: 'DATABASE MASTER // POSTGRES-01', bar: 0.70 },
     { line1: '18.5°C | 390W | OPTIMAL', line2: 'KUBERNETES WORKER // POD-POOL-07', bar: 0.55 },
-    { line1: '22.0°C | 580W | ACTIVE',  line2: 'BACKUP VAULT // CEPH REPLICA',   bar: 0.80 },
-    { line1: '20.9°C | 520W | HEALTHY', line2: 'GPU INFERENCE NODE // 4x A100',  bar: 0.75 },
+    { line1: '22.0°C | 580W | ACTIVE', line2: 'BACKUP VAULT // CEPH REPLICA', bar: 0.80 },
+    { line1: '20.9°C | 520W | HEALTHY', line2: 'GPU INFERENCE NODE // 4x A100', bar: 0.75 },
     { line1: '19.4°C | 440W | OPTIMAL', line2: 'ANALYTICS PIPELINE // SPARK-02', bar: 0.60 }
   ];
 
@@ -10480,9 +10480,9 @@ function createFrontBezelPlane(w, h) {
   const hh = h / 2;
 
   const positions = new Float32Array([
-     hw,  hh, 0, // 0: Screen Top-Left
-    -hw,  hh, 0, // 1: Screen Top-Right
-     hw, -hh, 0, // 2: Screen Bottom-Left
+    hw, hh, 0, // 0: Screen Top-Left
+    -hw, hh, 0, // 1: Screen Top-Right
+    hw, -hh, 0, // 2: Screen Bottom-Left
     -hw, -hh, 0  // 3: Screen Bottom-Right
   ]);
 
@@ -14277,6 +14277,9 @@ export class WarehouseBuilder {
       roughness: 0.48,
       metalness: 0.04,
       envMapIntensity: 0.45,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
 
     this.elevatorCopMaterial = new THREE.MeshStandardMaterial({
@@ -14287,6 +14290,9 @@ export class WarehouseBuilder {
       roughness: 0.28,
       metalness: 0.35,
       envMapIntensity: 0.65,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
 
     this.elevatorSillMaterial = new THREE.MeshStandardMaterial({
@@ -15671,6 +15677,9 @@ export class WarehouseBuilder {
             'DC_ElevatorStainless',
             'DC_ElevatorPortal',
             'DC_ElevatorDisplay',
+            'DC_ElevatorCeilingPanel',
+            'DC_ElevatorBanner',
+            'DC_ElevatorCopAtlas',
             'DC_ElevatorSillPlate',
             'DC_ExitSign',
             'DC_VestibuleCeilingLight',
@@ -15686,51 +15695,8 @@ export class WarehouseBuilder {
             'DC_JanitorTowelTan',
             'DC_JanitorBroomBristle',
           ]);
-          const elevatorInteriorNames = new Set([
-            'DC_ElevatorCeilingPanel',
-            'DC_ElevatorBanner',
-            'DC_ElevatorCopAtlas',
-          ]);
-          const southOfficeMeshNames = new Set([
-            'DC_ServerCabinet',
-            'DC_ServerBlades',
-            'DC_PlenumFloor',
-            'DC_PlenumBase',
-            'DC_PlenumBaseboard',
-            'DC_StepNosingMetal',
-            'DC_StepTread',
-            'DC_ServerPodAlumFrame',
-            'DC_ServerPodGlass',
-            'DC_StaffDoorFrame',
-            'DC_StaffDoorLeaf',
-            'DC_StaffDoorSeam',
-            'DC_StaffDoorHandle',
-            'DC_StaffDoorSign',
-            'DC_ExtinguisherInox',
-            'DC_ExtinguisherRed',
-            'DC_ExtinguisherLabel',
-            'DC_ExtinguisherHose',
-            'DC_ExtinguisherMetal',
-            'DC_ExtinguisherGauge',
-            'DC_ExtinguisherSign',
-            'DC_CoffeeCabinet',
-            'DC_CoffeeCountertop',
-            'DC_CoffeeMachine',
-            'DC_CoffeeSide',
-            'DC_CoffeeScreen',
-            'DC_CoffeeHopper',
-            'DC_CoffeeSilver',
-            'DC_CoffeeRedSlash',
-            'DC_CoffeeCups',
-            'DC_PalmPot',
-            'DC_PalmSoil',
-            'DC_PalmStems',
-            'DC_PalmFronds',
-          ]);
           if (!this.closetZoneMeshes) this.closetZoneMeshes = [];
           if (!this.vestibuleZoneMeshes) this.vestibuleZoneMeshes = [];
-          if (!this.elevatorInteriorMeshes) this.elevatorInteriorMeshes = [];
-          if (!this.southOfficeMeshes) this.southOfficeMeshes = [];
 
           mesh.castShadow = false;
           mesh.receiveShadow = false;
@@ -15742,13 +15708,8 @@ export class WarehouseBuilder {
           } else {
             if (def.name.startsWith('DC_Closet')) {
               this.closetZoneMeshes.push(mesh);
-            } else if (elevatorInteriorNames.has(def.name)) {
-              this.elevatorInteriorMeshes.push(mesh);
-              this.vestibuleZoneMeshes.push(mesh);
             } else if (vestibuleMeshNames.has(def.name)) {
               this.vestibuleZoneMeshes.push(mesh);
-            } else if (southOfficeMeshNames.has(def.name)) {
-              this.southOfficeMeshes.push(mesh);
             }
             group.add(mesh);
           }
@@ -15835,42 +15796,15 @@ export class WarehouseBuilder {
       this.militaryCrateGroup.visible = closetVisible;
     }
 
-    // 2. Exterior Balcony, Patio & Night City Skyline: 100% occluded by solid walls whenever inside Elevator, Vestibule, or Closet
+    // 2. When player is deep inside the Maintenance Closet Safe-Zone, solid closet walls block the Vestibule & Exterior
+    const inCloset = x < -10.22 && z < -2.4 && z > -5.6;
     if (this.exteriorVistaGroup) {
-      this.exteriorVistaGroup.visible = x >= -10.12;
+      this.exteriorVistaGroup.visible = !inCloset;
     }
-
-    // 3. Vestibule & Janitor Cart: 100% occluded when player is inside the Maintenance Closet Safe-Zone
-    const inCloset = x < -10.15 && z < -2.0;
-    const vestibuleVisible = !inCloset;
     if (this.vestibuleZoneMeshes) {
       for (let i = 0; i < this.vestibuleZoneMeshes.length; i++) {
-        this.vestibuleZoneMeshes[i].visible = vestibuleVisible;
+        this.vestibuleZoneMeshes[i].visible = !inCloset;
       }
-    }
-
-    // 4. Elevator Cab Interior (Banner, COP, Ceiling): occluded when south of the elevator doorway wall
-    const elevatorInteriorVisible = vestibuleVisible && !(z < 11.15 && x > -11.50);
-    if (this.elevatorInteriorMeshes) {
-      for (let i = 0; i < this.elevatorInteriorMeshes.length; i++) {
-        this.elevatorInteriorMeshes[i].visible = elevatorInteriorVisible;
-      }
-    }
-
-    // 5. South Office Sector (Server Pod, Racks, Plenum Stage, Coffee, Palm, Phone):
-    // 100% occluded by the Elevator Cab south wall & solid front-left office wall while inside the Elevator Cab!
-    const inElevatorCab = x < -11.70 && z > 11.65;
-    const southOfficeVisible = !inElevatorCab;
-    if (this.southOfficeMeshes) {
-      for (let i = 0; i < this.southOfficeMeshes.length; i++) {
-        this.southOfficeMeshes[i].visible = southOfficeVisible;
-      }
-    }
-    if (this.telestreamPhone) {
-      this.telestreamPhone.visible = southOfficeVisible && !inCloset;
-    }
-    if (this.maintenanceDoorPivot) {
-      this.maintenanceDoorPivot.visible = southOfficeVisible;
     }
   }
 
@@ -17160,9 +17094,9 @@ export class WarehouseBuilder {
     casterWheelGeo.rotateZ(Math.PI / 2);
     const casterPositions = [
       [-0.35, -0.31],
-      [ 0.35, -0.31],
-      [-0.35,  0.31],
-      [ 0.35,  0.31]
+      [0.35, -0.31],
+      [-0.35, 0.31],
+      [0.35, 0.31]
     ];
     for (const [cx, cz] of casterPositions) {
       applyPrinterPart(visualBuckets.printerCharcoal, casterBracketGeo, cx, 0.035, cz);
@@ -17373,7 +17307,7 @@ export class WarehouseBuilder {
     const hingeCylGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.07, 16);
     hingeCylGeo.rotateZ(Math.PI / 2);
     applyPrinterPart(visualBuckets.printerCharcoal, hingeCylGeo, -0.26, 1.25, -0.35);
-    applyPrinterPart(visualBuckets.printerCharcoal, hingeCylGeo,  0.26, 1.25, -0.35);
+    applyPrinterPart(visualBuckets.printerCharcoal, hingeCylGeo, 0.26, 1.25, -0.35);
     hingeCylGeo.dispose();
 
     // B. ADF Platen Lid Base (Y = 1.251m to 1.280m)
@@ -17420,7 +17354,7 @@ export class WarehouseBuilder {
     const rollerGeo = new THREE.CylinderGeometry(0.008, 0.008, 0.035, 12);
     rollerGeo.rotateX(Math.PI / 2);
     applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326, -0.10);
-    applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326,  0.00);
+    applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326, 0.00);
     applyPrinterPart(visualBuckets.printerCharcoal, rollerGeo, -0.072, 1.326, +0.10);
     rollerGeo.dispose();
 
@@ -17487,13 +17421,13 @@ export class WarehouseBuilder {
 
     // Sliding finger grip tabs
     const guideTabGeo = new THREE.BoxGeometry(0.038, 0.028, 0.016);
-    applyTrayPart(visualBuckets.printerCharcoal, guideTabGeo, 0.18, 0.014,  0.135);
+    applyTrayPart(visualBuckets.printerCharcoal, guideTabGeo, 0.18, 0.014, 0.135);
     applyTrayPart(visualBuckets.printerCharcoal, guideTabGeo, 0.18, 0.014, -0.135);
     guideTabGeo.dispose();
 
     // Silver alignment arrow marks
     const arrowGeo = new THREE.BoxGeometry(0.012, 0.003, 0.017);
-    applyTrayPart(visualBuckets.silverTrim, arrowGeo, 0.18, 0.0285,  0.135);
+    applyTrayPart(visualBuckets.silverTrim, arrowGeo, 0.18, 0.0285, 0.135);
     applyTrayPart(visualBuckets.silverTrim, arrowGeo, 0.18, 0.0285, -0.135);
     arrowGeo.dispose();
 
@@ -17540,7 +17474,7 @@ export class WarehouseBuilder {
     const ejectTireGeo = new THREE.CylinderGeometry(0.010, 0.010, 0.020, 12);
     ejectTireGeo.rotateX(Math.PI / 2);
     applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288, -0.12);
-    applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288,  0.00);
+    applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288, 0.00);
     applyPrinterPart(visualBuckets.silverTrim, ejectTireGeo, -0.065, 1.288, +0.12);
     ejectTireGeo.dispose();
 
@@ -20685,10 +20619,10 @@ export class WarehouseBuilder {
 
       const decalPos = new Float32Array([
         -hwBot, yPanelBot - totalH, zDecal,
-         hwBot, yPanelBot - totalH, zDecal,
-         hwTop, yPanelTop - totalH, zDecal,
+        hwBot, yPanelBot - totalH, zDecal,
+        hwTop, yPanelTop - totalH, zDecal,
         -hwBot, yPanelBot - totalH, zDecal,
-         hwTop, yPanelTop - totalH, zDecal,
+        hwTop, yPanelTop - totalH, zDecal,
         -hwTop, yPanelTop - totalH, zDecal,
       ]);
       const decalUvs = new Float32Array([
@@ -22843,22 +22777,22 @@ export class WarehouseBuilder {
     // -------------------------------------------------------------------------
     const towers = [
       // Tier 1 — Foreground Arc (7 towers spanning right-to-left across the window & balcony door)
-      { x: -37.7, z: 30.4, w: 5.0, d: 4.6, hTop: 9.4,  hBot: -18.0, facade: 'B', beacon: true, spireH: 3.4, penthouse: true,  roofTrim: true, cornerBeacons: true },
-      { x: -25.7, z: 40.0, w: 5.0, d: 4.6, hTop: 10.4, hBot: -18.0, facade: 'C', beacon: true, spireH: 3.8, penthouse: true,  roofTrim: true, cornerBeacons: true },
-      { x: -13.1, z: 45.5, w: 5.2, d: 4.8, hTop: 9.2,  hBot: -18.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true,  roofTrim: true, cornerBeacons: true },
-      { x: 0.2,   z: 47.0, w: 5.2, d: 4.8, hTop: 10.2, hBot: -18.0, facade: 'B', beacon: true, spireH: 4.0, crownSteps: 2,    roofTrim: true, cornerBeacons: true },
+      { x: -37.7, z: 30.4, w: 5.0, d: 4.6, hTop: 9.4, hBot: -18.0, facade: 'B', beacon: true, spireH: 3.4, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: -25.7, z: 40.0, w: 5.0, d: 4.6, hTop: 10.4, hBot: -18.0, facade: 'C', beacon: true, spireH: 3.8, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: -13.1, z: 45.5, w: 5.2, d: 4.8, hTop: 9.2, hBot: -18.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: 0.2, z: 47.0, w: 5.2, d: 4.8, hTop: 10.2, hBot: -18.0, facade: 'B', beacon: true, spireH: 4.0, crownSteps: 2, roofTrim: true, cornerBeacons: true },
       // Landmark Diagrid Tower (Slender, gold diagrid lines, 3-tier stepped crown, and spire)
-      { x: 7.7,   z: 50.2, w: 6.0, d: 5.4, hTop: 13.0, hBot: -18.0, facade: 'D', beacon: true, spireH: 4.8, crownSteps: 3,    roofTrim: true, cornerBeacons: true },
-      { x: 19.8,  z: 42.1, w: 5.2, d: 4.8, hTop: 9.6,  hBot: -18.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true,  roofTrim: true, cornerBeacons: true },
-      { x: 31.0,  z: 34.0, w: 5.0, d: 4.6, hTop: 10.6, hBot: -18.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true,  roofTrim: true, cornerBeacons: true },
+      { x: 7.7, z: 50.2, w: 6.0, d: 5.4, hTop: 13.0, hBot: -18.0, facade: 'D', beacon: true, spireH: 4.8, crownSteps: 3, roofTrim: true, cornerBeacons: true },
+      { x: 19.8, z: 42.1, w: 5.2, d: 4.8, hTop: 9.6, hBot: -18.0, facade: 'A', beacon: true, spireH: 3.6, penthouse: true, roofTrim: true, cornerBeacons: true },
+      { x: 31.0, z: 34.0, w: 5.0, d: 4.6, hTop: 10.6, hBot: -18.0, facade: 'C', beacon: true, spireH: 4.0, penthouse: true, roofTrim: true, cornerBeacons: true },
 
       // Tier 2 — Midground Arc (6 taller towers interleaved in the corridors between foreground towers)
-      { x: -44.8, z: 45.5, w: 6.4, d: 5.8, hTop: 12.6, hBot: -22.0, facade: 'A', beacon: true, spireH: 4.4, crownSteps: 2,    roofTrim: true },
-      { x: -29.3, z: 58.5, w: 6.4, d: 5.8, hTop: 13.2, hBot: -22.0, facade: 'B', beacon: true, spireH: 4.6, crownSteps: 2,    roofTrim: true },
-      { x: -9.6,  z: 65.1, w: 6.4, d: 5.8, hTop: 12.2, hBot: -22.0, facade: 'C', beacon: true, spireH: 4.2, penthouse: true,  roofTrim: true },
-      { x: 20.5,  z: 62.0, w: 6.4, d: 5.8, hTop: 11.8, hBot: -22.0, facade: 'C', beacon: true, spireH: 4.2, crownSteps: 2,    roofTrim: true },
-      { x: 38.3,  z: 51.4, w: 6.4, d: 5.8, hTop: 13.4, hBot: -22.0, facade: 'B', beacon: true, spireH: 4.8, crownSteps: 2,    roofTrim: true },
-      { x: 49.8,  z: 35.2, w: 6.4, d: 5.8, hTop: 12.4, hBot: -22.0, facade: 'A', beacon: true, spireH: 4.0, crownSteps: 2,    roofTrim: true },
+      { x: -44.8, z: 45.5, w: 6.4, d: 5.8, hTop: 12.6, hBot: -22.0, facade: 'A', beacon: true, spireH: 4.4, crownSteps: 2, roofTrim: true },
+      { x: -29.3, z: 58.5, w: 6.4, d: 5.8, hTop: 13.2, hBot: -22.0, facade: 'B', beacon: true, spireH: 4.6, crownSteps: 2, roofTrim: true },
+      { x: -9.6, z: 65.1, w: 6.4, d: 5.8, hTop: 12.2, hBot: -22.0, facade: 'C', beacon: true, spireH: 4.2, penthouse: true, roofTrim: true },
+      { x: 20.5, z: 62.0, w: 6.4, d: 5.8, hTop: 11.8, hBot: -22.0, facade: 'C', beacon: true, spireH: 4.2, crownSteps: 2, roofTrim: true },
+      { x: 38.3, z: 51.4, w: 6.4, d: 5.8, hTop: 13.4, hBot: -22.0, facade: 'B', beacon: true, spireH: 4.8, crownSteps: 2, roofTrim: true },
+      { x: 49.8, z: 35.2, w: 6.4, d: 5.8, hTop: 12.4, hBot: -22.0, facade: 'A', beacon: true, spireH: 4.0, crownSteps: 2, roofTrim: true },
     ];
 
     this.skylineBeacons = [];

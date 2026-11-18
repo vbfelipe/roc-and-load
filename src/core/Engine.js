@@ -8,7 +8,11 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 function frontToBackOpaqueSort(a, b) {
   if (a.groupOrder !== b.groupOrder) return a.groupOrder - b.groupOrder;
   if (a.renderOrder !== b.renderOrder) return a.renderOrder - b.renderOrder;
-  if (a.z !== b.z) return a.z - b.z;
+  // Sort coarse 4-meter depth zones front-to-back for inter-room Early-Z rejection,
+  // while preserving material creation order (walls/backing plates before plaques/overlays) within each zone!
+  const zoneA = Math.floor(a.z * 0.25);
+  const zoneB = Math.floor(b.z * 0.25);
+  if (zoneA !== zoneB) return zoneA - zoneB;
   if (a.material.id !== b.material.id) return a.material.id - b.material.id;
   return a.id - b.id;
 }
@@ -28,23 +32,17 @@ export class Engine {
     this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.03, 600);
     this.scene.add(this.camera);
 
-    // 3. Single-pass hardware renderer (eliminates HalfFloat MSAA resolve + multi-pass post-processing fill-rate bottleneck)
+    // 3. Single-pass hardware renderer with native RGBA8 hardware MSAA (antialias: true)
+    // Fragment shaders still execute only ONCE per pixel while hardware MSAA smooths geometry edges!
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       powerPreference: 'high-performance',
-      antialias: false,
-      alpha: false,
+      antialias: true,
       depth: true,
       stencil: false,
     });
-
-    // Detect integrated GPUs (e.g. Intel UHD Graphics 630) to calibrate initial fullscreen render scale
-    this.isIntegratedGPU = this._detectIntegratedGPU();
-    this._renderScale = this._computeBaseRenderScale(this.width, this.height);
-    this._highFpsStreak = 0;
-
-    this.renderer.setPixelRatio(this._renderScale);
-    this.renderer.setSize(this.width, this.height, false);
+    this.renderer.setPixelRatio(1.0);
+    this.renderer.setSize(this.width, this.height);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.9;
@@ -140,28 +138,6 @@ export class Engine {
 
     // Live tuning from DevTools console: __rocEngine.hemiLight.intensity = 0.9, etc.
     if (typeof window !== 'undefined') window.__rocEngine = this;
-  }
-
-  _detectIntegratedGPU() {
-    try {
-      const gl = this.renderer?.getContext?.();
-      if (!gl) return false;
-      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
-      const rendererStr = dbg
-        ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '')
-        : String(gl.getParameter(gl.RENDERER) || '');
-      return /intel\s*\(r\)\s*(uhd|hd|iris)|microsoft basic render|swiftshader/i.test(rendererStr);
-    } catch (e) {
-      return false;
-    }
-  }
-
-  _computeBaseRenderScale(w, h) {
-    const pixels = (w || 1920) * (h || 1080);
-    if (this.isIntegratedGPU && pixels >= 1400000) {
-      return 0.85;
-    }
-    return 1.0;
   }
 
   _initPostProcessing() {
@@ -269,9 +245,8 @@ export class Engine {
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 
-    this._renderScale = this._computeBaseRenderScale(this.width, this.height);
-    this.renderer.setPixelRatio(this._renderScale);
-    this.renderer.setSize(this.width, this.height, false);
+    this.renderer.setPixelRatio(1.0);
+    this.renderer.setSize(this.width, this.height);
   }
 
   start() {
@@ -316,7 +291,7 @@ export class Engine {
     // 3. Direct single-pass render
     this.renderer.render(this.scene, this.camera);
 
-    // 4. Update FPS diagnostics & dynamic resolution safety net
+    // 4. Update FPS diagnostics
     this.frameCount++;
     if (timestamp - this.lastFpsUpdate >= 500) {
       this.fps = Math.round((this.frameCount * 1000) / (timestamp - this.lastFpsUpdate));
@@ -328,26 +303,6 @@ export class Engine {
       }
       if (this.fpsEl) {
         this.fpsEl.textContent = this.fps;
-      }
-
-      // Adaptive dynamic resolution scaler for fullscreen integrated GPUs (prevents 30 FPS VSync cliff)
-      if (this.width * this.height >= 900000 && !document.hidden) {
-        if (this.fps < 54 && this._renderScale > 0.72) {
-          this._highFpsStreak = 0;
-          this._renderScale = Math.max(0.72, Number((this._renderScale - 0.07).toFixed(2)));
-          this.renderer.setPixelRatio(this._renderScale);
-          this.renderer.setSize(this.width, this.height, false);
-        } else if (this.fps >= 59 && this._renderScale < 1.0) {
-          this._highFpsStreak++;
-          if (this._highFpsStreak >= 4) {
-            this._highFpsStreak = 0;
-            this._renderScale = Math.min(1.0, Number((this._renderScale + 0.05).toFixed(2)));
-            this.renderer.setPixelRatio(this._renderScale);
-            this.renderer.setSize(this.width, this.height, false);
-          }
-        } else {
-          this._highFpsStreak = 0;
-        }
       }
     }
   }
