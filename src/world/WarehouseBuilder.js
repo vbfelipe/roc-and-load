@@ -15557,7 +15557,7 @@ export class WarehouseBuilder {
       { bucket: visualBuckets.balconyFloor, material: this.balconyFloorMaterial, name: 'DC_BalconyFloor' },
       { bucket: visualBuckets.balconyCurb, material: this.balconyCurbMaterial, name: 'DC_BalconyCurb' },
       { bucket: visualBuckets.balconyRailMetal, material: this.balconyRailMetalMaterial, name: 'DC_BalconyRailMetal' },
-      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2, isGlass: true },
+      { bucket: visualBuckets.balconySmokedGlass, material: this.balconySmokedGlassMaterial, name: 'DC_BalconyGlass', renderOrder: 2 },
       { bucket: visualBuckets.balconyExteriorWall, material: this.balconyExteriorWallMaterial, name: 'DC_BalconyExteriorWall' },
       { bucket: visualBuckets.patioMetal, material: this.patioMetalMaterial, name: 'DC_PatioMetal' },
       { bucket: visualBuckets.patioTeak, material: this.patioTeakMaterial, name: 'DC_PatioTeak' },
@@ -15781,6 +15781,27 @@ export class WarehouseBuilder {
    */
   updateZoneVisibility(camPos) {
     if (!camPos) return;
+    const isGodMode = typeof window !== 'undefined' && Boolean(window.isGodMode);
+    if (isGodMode) {
+      if (this.closetZoneMeshes) {
+        for (let i = 0; i < this.closetZoneMeshes.length; i++) {
+          this.closetZoneMeshes[i].visible = true;
+        }
+      }
+      if (this.militaryCrateGroup) {
+        this.militaryCrateGroup.visible = true;
+      }
+      if (this.exteriorVistaGroup) {
+        this.exteriorVistaGroup.visible = true;
+      }
+      if (this.vestibuleZoneMeshes) {
+        for (let i = 0; i < this.vestibuleZoneMeshes.length; i++) {
+          this.vestibuleZoneMeshes[i].visible = true;
+        }
+      }
+      return;
+    }
+
     const x = camPos.x;
     const z = camPos.z;
 
@@ -22604,7 +22625,7 @@ export class WarehouseBuilder {
 
         // French press coffee carafe
         const pressGlassGeo = new THREE.CylinderGeometry(0.042, 0.042, 0.14, 16);
-        addVisual(visualBuckets.vestibuleGlass, pressGlassGeo, setX + 0.06, tableTopY + 0.09, setZ - 0.10);
+        addVisual(visualBuckets.balconySmokedGlass, pressGlassGeo, setX + 0.06, tableTopY + 0.09, setZ - 0.10);
         pressGlassGeo.dispose();
 
         const pressCoffeeGeo = new THREE.CylinderGeometry(0.039, 0.039, 0.08, 16);
@@ -22642,20 +22663,6 @@ export class WarehouseBuilder {
 
     // Build Set 2 (slid away from balcony door to X = 1.80m, Z = 15.60m)
     buildPatioSet(1.80, 15.60, false);
-
-    // 6. Skyscraper Exterior Concrete Facade Drop below Balcony (Y = 0.00 down to -35.00m)
-    const dropH = 35.00;
-    const dropY = -dropH / 2;
-    // Front drop
-    const frontDropGeo = new THREE.BoxGeometry(balW, dropH, 0.30);
-    addVisual(visualBuckets.balconyExteriorWall, frontDropGeo, balX, dropY, frontOuterZ - 0.15);
-    frontDropGeo.dispose();
-
-    // Side drops
-    const sideDropGeo = new THREE.BoxGeometry(0.30, dropH, balD);
-    addVisual(visualBuckets.balconyExteriorWall, sideDropGeo, balX + balW / 2 - 0.15, dropY, balZ);
-    addVisual(visualBuckets.balconyExteriorWall, sideDropGeo, balX - balW / 2 + 0.15, dropY, balZ);
-    sideDropGeo.dispose();
   }
 
   /**

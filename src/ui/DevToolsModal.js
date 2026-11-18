@@ -241,6 +241,9 @@ export class DevToolsModal {
       this.overlay.classList.add('is-open');
     }
 
+    const p = this.player || this.zombieManager?.player || window.__rocPlayer || window.player;
+    this._syncGodModeBtn?.(Boolean(p?.isGodMode));
+
     this.setTab(tabName || this.activeTab);
 
     if (this._wavePollId === null && typeof window !== 'undefined') {
@@ -391,6 +394,7 @@ export class DevToolsModal {
                   <button id="dt-add-money-btn" type="button" class="devtools-dropdown-item is-emerald" role="menuitem">+ $100k</button>
                   <button id="dt-restore-hp-btn" type="button" class="devtools-dropdown-item is-hp" role="menuitem">Restore HP</button>
                   <button id="dt-death-btn" type="button" class="devtools-dropdown-item is-death" role="menuitem">Death</button>
+                  <button id="dt-god-mode-btn" type="button" class="devtools-dropdown-item is-cyan" role="menuitem">God mode</button>
                 </div>
               </div>
             </div>
@@ -617,6 +621,36 @@ export class DevToolsModal {
 
   _bindHeaderEvents() {
     this.overlay.querySelector('#dt-close-btn').onclick = () => this.close();
+
+    const godModeBtn = this.overlay.querySelector('#dt-god-mode-btn');
+    if (godModeBtn) {
+      const syncGodModeBtn = (active) => {
+        godModeBtn.classList.toggle('is-active', Boolean(active));
+        godModeBtn.textContent = active ? 'God mode: ON' : 'God mode';
+      };
+      this._syncGodModeBtn = syncGodModeBtn;
+
+      godModeBtn.onclick = () => {
+        const p = this.player || this.zombieManager?.player || window.__rocPlayer || window.player;
+        if (!p) return;
+        const next = !p.isGodMode;
+        if (typeof p.setGodMode === 'function') {
+          p.setGodMode(next);
+        } else {
+          p.isGodMode = next;
+          window.isGodMode = next;
+        }
+        if (next && this.warehouse && typeof this.warehouse.updateZoneVisibility === 'function' && this.engine?.camera) {
+          this.warehouse.updateZoneVisibility(this.engine.camera.position);
+        }
+        godModeBtn.classList.toggle('is-active', next);
+        this._flashButtonSuccess(
+          godModeBtn,
+          next ? 'God mode: ON' : 'God mode',
+          next ? '✓ God mode: ON' : '✓ God mode: OFF'
+        );
+      };
+    }
 
     const unlockBtn = this.overlay.querySelector('#dt-unlock-all-btn');
     unlockBtn.onclick = () => {

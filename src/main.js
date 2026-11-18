@@ -423,7 +423,7 @@ window.addEventListener('DOMContentLoaded', () => {
   const MELEE_HIT_GRACE_MS = 320;
 
   zombieManager.onPlayerHit = (attacker) => {
-    if (gameState !== 'PLAYING' || player.hp <= 0) return;
+    if (gameState !== 'PLAYING' || player.hp <= 0 || player.isGodMode) return;
     const now = performance.now();
     if (now - lastMeleeHitAt < MELEE_HIT_GRACE_MS) return;
     lastMeleeHitAt = now;
@@ -447,6 +447,12 @@ window.addEventListener('DOMContentLoaded', () => {
 
   zombieManager.onPlayerRadiationDrain = (drainAmount = 0, proximity = 0) => {
     if (gameState !== 'PLAYING') return;
+    if (player.isGodMode) {
+      if (typeof hud.setRadiationExposure === 'function') {
+        hud.setRadiationExposure(0);
+      }
+      return;
+    }
     if (typeof hud.setRadiationExposure === 'function') {
       hud.setRadiationExposure(proximity);
     }
@@ -463,7 +469,7 @@ window.addEventListener('DOMContentLoaded', () => {
   };
 
   zombieManager.onPlayerRadiationBurst = (burstDamage = 28) => {
-    if (gameState !== 'PLAYING' || player.hp <= 0) return;
+    if (gameState !== 'PLAYING' || player.hp <= 0 || player.isGodMode) return;
     const remainingHp = player.takeDamage(burstDamage, {
       punch: true,
       punchPitch: 0.095,
@@ -825,8 +831,8 @@ window.addEventListener('DOMContentLoaded', () => {
       // Track active survival clock strictly during live gameplay
       runStats.survivalSeconds += delta;
 
-      // Playing state: ensure viewmodel is visible
-      viewmodel.root.visible = true;
+      // Playing state: ensure viewmodel is visible (hide unarmed hands in God Mode for unobstructed ghost observer view)
+      viewmodel.root.visible = !(player.isGodMode && weaponSystem.isUnarmed && !window.isViewmodelTunerOpen);
 
       // 1. Update camera look & get mouse delta for viewmodel sway
       const mouseDelta = player.updateLook();
@@ -842,6 +848,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // 2b. Safe Zone detection (Maintenance Closet): real-time disarmament + zombie patrol de-aggro
       const inSafeCloset = Boolean(
+        !player.isGodMode &&
         warehouse &&
         typeof warehouse.isPlayerInMaintenanceCloset === 'function' &&
         warehouse.isPlayerInMaintenanceCloset(player.position)
@@ -870,7 +877,7 @@ window.addEventListener('DOMContentLoaded', () => {
       }
 
       // 4c. Wave zombie AI, radiation aura, blood decals/droplets & edge vignette pulse (always live at 60 FPS)
-      zombieManager.update(delta, gameState, isPlayerInSafeZone);
+      zombieManager.update(delta, gameState, isPlayerInSafeZone || player.isGodMode);
       decalManager.update(delta);
       hud.updateDamageVignette(delta, player.hp, player.maxHp);
       if (typeof hud.updateStatusTicker === 'function') {

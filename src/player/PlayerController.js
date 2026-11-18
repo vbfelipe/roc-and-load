@@ -36,6 +36,11 @@ export class PlayerController {
     this.jumpForce = 7.5;
     this.gravity = -22.0;
 
+    // God Mode (Noclip / Minecraft-style 3D Fly Observer Mode)
+    this.isGodMode = false;
+    this.flySpeed = 8.5;
+    this.flySprintSpeed = 16.0;
+
     this.pitch = 0;
     this.yaw = Math.PI;
     this.sensitivity = 0.0022;
@@ -85,6 +90,29 @@ export class PlayerController {
     this.jumpSuppressed = !!suppressed;
   }
 
+  /**
+   * Toggles God Mode (Noclip + 3D Mouse-Directional & Minecraft-Style Flight + Invulnerability).
+   */
+  setGodMode(enabled) {
+    const next = Boolean(enabled);
+    this.isGodMode = next;
+    if (typeof window !== 'undefined') {
+      window.isGodMode = next;
+    }
+    this.velocity.set(0, 0, 0);
+    this.isGrounded = false;
+    this.wasGrounded = false;
+    this.airborneTime = 0;
+    this.maxFallSpeed = 0;
+    this.bobOffset.set(0, 0, 0);
+    this.landingSpring.reset(0, 0);
+    if (!next && this.position.y < -2.65) {
+      this.position.y = 0.05;
+    }
+    this._updateCameraTransform();
+    return this.isGodMode;
+  }
+
   setCollider(colliderMesh) {
     this.colliderMesh = colliderMesh;
   }
@@ -130,6 +158,7 @@ export class PlayerController {
   }
 
   takeDamage(amount = 25, options = {}) {
+    if (this.isGodMode) return this.hp;
     if (this.hp <= 0) return 0;
     const dmg = Math.max(0, Number(amount) || 0);
     this.hp = Math.max(0, this.hp - dmg);
@@ -237,6 +266,63 @@ export class PlayerController {
     ) {
       this.velocity.x = 0;
       this.velocity.z = 0;
+      if (this.isGodMode) this.velocity.y = 0;
+      return;
+    }
+
+    // God Mode: Ghost Observer / Minecraft-style 3D Noclip Flight (zero gravity, zero wall/ceiling/floor collisions)
+    if (this.isGodMode) {
+      const forwardKey = this.input.isKeyDown('KeyW') || this.input.isKeyDown('ArrowUp');
+      const backwardKey = this.input.isKeyDown('KeyS') || this.input.isKeyDown('ArrowDown');
+      const leftKey = this.input.isKeyDown('KeyA') || this.input.isKeyDown('ArrowLeft');
+      const rightKey = this.input.isKeyDown('KeyD') || this.input.isKeyDown('ArrowRight');
+      const sprintKey = this.input.isKeyDown('ShiftLeft') || this.input.isKeyDown('ShiftRight');
+      const upKey = this.input.isKeyDown('Space');
+      const downKey =
+        this.input.isKeyDown('ControlLeft') ||
+        this.input.isKeyDown('ControlRight') ||
+        this.input.isKeyDown('KeyC');
+
+      // 3D directional look vector from mouse yaw & pitch + horizontal strafe vector
+      const cosPitch = Math.cos(this.pitch);
+      _forward.set(
+        -Math.sin(this.yaw) * cosPitch,
+        Math.sin(this.pitch),
+        -Math.cos(this.yaw) * cosPitch
+      );
+      _right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+
+      _tempVec1.set(0, 0, 0);
+      if (forwardKey) _tempVec1.add(_forward);
+      if (backwardKey) _tempVec1.sub(_forward);
+      if (rightKey) _tempVec1.add(_right);
+      if (leftKey) _tempVec1.sub(_right);
+      if (upKey) _tempVec1.y += 1.0;
+      if (downKey) _tempVec1.y -= 1.0;
+
+      if (_tempVec1.lengthSq() > 0) {
+        _tempVec1.normalize();
+      }
+
+      const flySpeed = sprintKey ? this.flySprintSpeed : this.flySpeed;
+      const targetVelX = _tempVec1.x * flySpeed;
+      const targetVelY = _tempVec1.y * flySpeed;
+      const targetVelZ = _tempVec1.z * flySpeed;
+
+      const accelRate = _tempVec1.lengthSq() > 0 ? 14.0 : 18.0;
+      const lerp = Math.min(accelRate * subDelta, 1.0);
+      this.velocity.x += (targetVelX - this.velocity.x) * lerp;
+      this.velocity.y += (targetVelY - this.velocity.y) * lerp;
+      this.velocity.z += (targetVelZ - this.velocity.z) * lerp;
+
+      this.position.x += this.velocity.x * subDelta;
+      this.position.y += this.velocity.y * subDelta;
+      this.position.z += this.velocity.z * subDelta;
+
+      this.isGrounded = false;
+      this.wasGrounded = false;
+      this.airborneTime = 0;
+      this.maxFallSpeed = 0;
       return;
     }
 
