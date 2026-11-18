@@ -765,6 +765,9 @@ window.addEventListener('DOMContentLoaded', () => {
         engine.camera.position.set(camX, camY, camZ);
         engine.camera.up.set(0, 1, 0);
         engine.camera.lookAt(lookX, lookY, lookZ);
+        if (warehouse && typeof warehouse.updateZoneVisibility === 'function') {
+          warehouse.updateZoneVisibility(engine.camera.position);
+        }
 
         viewmodel.root.visible = false;
 
@@ -821,6 +824,9 @@ window.addEventListener('DOMContentLoaded', () => {
 
       // 2. Camera subtle step bob
       player.updateBobAndCamera(delta);
+      if (warehouse && typeof warehouse.updateZoneVisibility === 'function') {
+        warehouse.updateZoneVisibility(engine.camera.position);
+      }
 
       // 2b. Safe Zone detection (Maintenance Closet): real-time disarmament + zombie patrol de-aggro
       const inSafeCloset = Boolean(

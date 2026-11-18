@@ -1270,6 +1270,7 @@ export class HUD {
       if (Math.abs(targetOverlayOpacity - this._lastRadiationOverlayOpacity) > 0.005) {
         this._lastRadiationOverlayOpacity = targetOverlayOpacity;
         this.radiationOverlayEl.style.opacity = targetOverlayOpacity.toFixed(3);
+        this.radiationOverlayEl.style.visibility = targetOverlayOpacity > 0.005 ? 'visible' : 'hidden';
       }
     }
 
@@ -1290,6 +1291,7 @@ export class HUD {
     this._lastRadiationOverlayOpacity = 0;
     if (this.radiationOverlayEl) {
       this.radiationOverlayEl.style.opacity = '0';
+      this.radiationOverlayEl.style.visibility = 'hidden';
     }
     this._lastRadiationWarningVisible = false;
     if (this.radiationWarningEl) {
@@ -1317,6 +1319,7 @@ export class HUD {
       if (Math.abs(hAlpha - this._lastHealVignetteOpacity) > 0.005) {
         this._lastHealVignetteOpacity = hAlpha;
         this.healVignetteEl.style.opacity = hAlpha.toFixed(3);
+        this.healVignetteEl.style.visibility = hAlpha > 0.005 ? 'visible' : 'hidden';
       }
     }
 
@@ -1339,6 +1342,7 @@ export class HUD {
     if (Math.abs(targetOpacity - this._lastVignetteOpacity) > 0.005) {
       this._lastVignetteOpacity = targetOpacity;
       this.damageVignetteEl.style.opacity = targetOpacity.toFixed(3);
+      this.damageVignetteEl.style.visibility = targetOpacity > 0.005 ? 'visible' : 'hidden';
     }
   }
 
@@ -1349,12 +1353,14 @@ export class HUD {
     this._lastVignetteOpacity = 0;
     if (this.damageVignetteEl) {
       this.damageVignetteEl.style.opacity = '0';
+      this.damageVignetteEl.style.visibility = 'hidden';
     }
     this._healVignetteActive = false;
     this._healVignetteTimer = 0;
     this._lastHealVignetteOpacity = 0;
     if (this.healVignetteEl) {
       this.healVignetteEl.style.opacity = '0';
+      this.healVignetteEl.style.visibility = 'hidden';
     }
   }
 

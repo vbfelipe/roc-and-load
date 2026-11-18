@@ -4,15 +4,14 @@ import { ZombieEnemy } from '../enemies/ZombieEnemy.js';
 import { ZombieMan } from '../enemies/ZombieMan.js';
 import { ZombieHazmat } from '../enemies/ZombieHazmat.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import {
-  EffectComposer,
-  RenderPass,
-  EffectPass,
-  BloomEffect,
-  ToneMappingEffect,
-  ToneMappingMode,
-  VignetteEffect
-} from 'postprocessing';
+
+function frontToBackOpaqueSort(a, b) {
+  if (a.groupOrder !== b.groupOrder) return a.groupOrder - b.groupOrder;
+  if (a.renderOrder !== b.renderOrder) return a.renderOrder - b.renderOrder;
+  if (a.z !== b.z) return a.z - b.z;
+  if (a.material.id !== b.material.id) return a.material.id - b.material.id;
+  return a.id - b.id;
+}
 
 export class Engine {
   constructor(canvas) {
@@ -29,20 +28,31 @@ export class Engine {
     this.camera = new THREE.PerspectiveCamera(75, this.width / this.height, 0.03, 600);
     this.scene.add(this.camera);
 
-    // 3. Renderer with high performance settings - strictly 1.0 pixel ratio to eliminate fullscreen fill-rate bottleneck
+    // 3. Single-pass hardware renderer (eliminates HalfFloat MSAA resolve + multi-pass post-processing fill-rate bottleneck)
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
       powerPreference: 'high-performance',
       antialias: false,
+      alpha: false,
       depth: true,
       stencil: false,
     });
-    this.renderer.setSize(this.width, this.height);
-    this.renderer.setPixelRatio(1.0);
+
+    // Detect integrated GPUs (e.g. Intel UHD Graphics 630) to calibrate initial fullscreen render scale
+    this.isIntegratedGPU = this._detectIntegratedGPU();
+    this._renderScale = this._computeBaseRenderScale(this.width, this.height);
+    this._highFpsStreak = 0;
+
+    this.renderer.setPixelRatio(this._renderScale);
+    this.renderer.setSize(this.width, this.height, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 0.9;
     this.renderer.shadowMap.enabled = false; // Zero shadow map overhead - scene uses PBR NightOfficeEnvironment IBL
+
+    // Sort opaque geometry strictly Front-to-Back (a.z - b.z) so close walls/elevator/vestibule
+    // populate the hardware depth buffer first and Early-Z rejects occluded rooms behind them!
+    this.renderer.setOpaqueSort(frontToBackOpaqueSort);
 
     // 4. Offline PBR Environment via NightOfficeEnvironment + PMREMGenerator
     this._initEnvironment();
@@ -132,42 +142,40 @@ export class Engine {
     if (typeof window !== 'undefined') window.__rocEngine = this;
   }
 
+  _detectIntegratedGPU() {
+    try {
+      const gl = this.renderer?.getContext?.();
+      if (!gl) return false;
+      const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      const rendererStr = dbg
+        ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) || '')
+        : String(gl.getParameter(gl.RENDERER) || '');
+      return /intel\s*\(r\)\s*(uhd|hd|iris)|microsoft basic render|swiftshader/i.test(rendererStr);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  _computeBaseRenderScale(w, h) {
+    const pixels = (w || 1920) * (h || 1080);
+    if (this.isIntegratedGPU && pixels >= 1400000) {
+      return 0.85;
+    }
+    return 1.0;
+  }
+
   _initPostProcessing() {
-    // WebGL2 hardware MSAA 2x anti-aliasing directly in EffectComposer
-    this.composer = new EffectComposer(this.renderer, {
-      multisampling: 2,
-      frameBufferType: THREE.HalfFloatType
-    });
-
-    // Pass 1: Base scene render
-    const renderPass = new RenderPass(this.scene, this.camera);
-    this.composer.addPass(renderPass);
-
-    // Pass 2: Lightweight Half-Resolution Bloom (4x faster fill-rate with identical visuals)
-    this.bloomEffect = new BloomEffect({
-      luminanceThreshold: 1.05,
-      intensity: 0.45,
-      mipmapBlur: true,
-      resolutionScale: 0.5
-    });
-
-    this.toneMappingEffect = new ToneMappingEffect({
-      mode: ToneMappingMode.ACES_FILMIC
-    });
-
-    this.vignetteEffect = new VignetteEffect({
-      eskil: false,
-      offset: 0.20,
-      darkness: 0.58
-    });
-
-    const combinedEffectPass = new EffectPass(
-      this.camera,
-      this.bloomEffect,
-      this.toneMappingEffect,
-      this.vignetteEffect
-    );
-    this.composer.addPass(combinedEffectPass);
+    // Direct single-pass hardware rendering (ACESFilmicToneMapping is compiled directly into materials).
+    // Eliminates 1920x1080 HalfFloat 2x MSAA resolve + 11-pass mipmap bloom + EffectPass fill-rate overhead.
+    this.bloomEffect = null;
+    this.toneMappingEffect = null;
+    this.vignetteEffect = null;
+    this.composer = {
+      render: () => {
+        this.renderer.render(this.scene, this.camera);
+      },
+      setSize: () => {},
+    };
   }
 
   loadEnemies(onProgress) {
@@ -261,9 +269,9 @@ export class Engine {
     this.camera.aspect = this.width / this.height;
     this.camera.updateProjectionMatrix();
 
-    this.renderer.setSize(this.width, this.height);
-    this.renderer.setPixelRatio(1.0);
-    this.composer.setSize(this.width, this.height);
+    this._renderScale = this._computeBaseRenderScale(this.width, this.height);
+    this.renderer.setPixelRatio(this._renderScale);
+    this.renderer.setSize(this.width, this.height, false);
   }
 
   start() {
@@ -286,8 +294,8 @@ export class Engine {
     // Clamp delta to avoid physics explosions during tab switching
     const delta = Math.min(rawDelta, 0.05);
 
-    // 1. Decoupled sub-stepped fixed physics tick (STEPS_PER_FRAME = 5)
-    const STEPS_PER_FRAME = 5;
+    // 1. Decoupled sub-stepped fixed physics tick (STEPS_PER_FRAME = 3 -> 180Hz at 60 FPS)
+    const STEPS_PER_FRAME = 3;
     const subDelta = delta / STEPS_PER_FRAME;
     for (let s = 0; s < STEPS_PER_FRAME; s++) {
       for (let i = 0; i < this.physicsUpdatables.length; i++) {
@@ -305,10 +313,10 @@ export class Engine {
       }
     }
 
-    // 3. Render Post-Processing Pipeline
-    this.composer.render();
+    // 3. Direct single-pass render
+    this.renderer.render(this.scene, this.camera);
 
-    // 4. Update FPS diagnostics
+    // 4. Update FPS diagnostics & dynamic resolution safety net
     this.frameCount++;
     if (timestamp - this.lastFpsUpdate >= 500) {
       this.fps = Math.round((this.frameCount * 1000) / (timestamp - this.lastFpsUpdate));
@@ -320,6 +328,26 @@ export class Engine {
       }
       if (this.fpsEl) {
         this.fpsEl.textContent = this.fps;
+      }
+
+      // Adaptive dynamic resolution scaler for fullscreen integrated GPUs (prevents 30 FPS VSync cliff)
+      if (this.width * this.height >= 900000 && !document.hidden) {
+        if (this.fps < 54 && this._renderScale > 0.72) {
+          this._highFpsStreak = 0;
+          this._renderScale = Math.max(0.72, Number((this._renderScale - 0.07).toFixed(2)));
+          this.renderer.setPixelRatio(this._renderScale);
+          this.renderer.setSize(this.width, this.height, false);
+        } else if (this.fps >= 59 && this._renderScale < 1.0) {
+          this._highFpsStreak++;
+          if (this._highFpsStreak >= 4) {
+            this._highFpsStreak = 0;
+            this._renderScale = Math.min(1.0, Number((this._renderScale + 0.05).toFixed(2)));
+            this.renderer.setPixelRatio(this._renderScale);
+            this.renderer.setSize(this.width, this.height, false);
+          }
+        } else {
+          this._highFpsStreak = 0;
+        }
       }
     }
   }

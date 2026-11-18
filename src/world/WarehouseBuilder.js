@@ -15,7 +15,7 @@ function downscaleCrateTextureIfNeeded(tex, maxSize = 1024) {
   const origImage = tex.image;
   const width = origImage.width || origImage.naturalWidth || 0;
   const height = origImage.height || origImage.naturalHeight || 0;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   if (width <= maxSize && height <= maxSize) {
     tex.needsUpdate = true;
     return;
@@ -305,17 +305,10 @@ function createSolidFloorTextures() {
   diffuseTexture.wrapT = THREE.RepeatWrapping;
   diffuseTexture.repeat.set(10, 11.75);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
-  diffuseTexture.anisotropy = 8;
+  diffuseTexture.anisotropy = 2;
   diffuseTexture.needsUpdate = true;
 
-  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
-  bumpTexture.wrapS = THREE.RepeatWrapping;
-  bumpTexture.wrapT = THREE.RepeatWrapping;
-  bumpTexture.repeat.set(10, 11.75);
-  bumpTexture.anisotropy = 8;
-  bumpTexture.needsUpdate = true;
-
-  return { diffuseTexture, bumpTexture };
+  return { diffuseTexture, bumpTexture: null };
 }
 
 /**
@@ -500,17 +493,10 @@ function createPerforatedFloorTextures() {
   diffuseTexture.wrapT = THREE.RepeatWrapping;
   diffuseTexture.repeat.set(7, 1.5);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
-  diffuseTexture.anisotropy = 8;
+  diffuseTexture.anisotropy = 2;
   diffuseTexture.needsUpdate = true;
 
-  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
-  bumpTexture.wrapS = THREE.RepeatWrapping;
-  bumpTexture.wrapT = THREE.RepeatWrapping;
-  bumpTexture.repeat.set(7, 1.5);
-  bumpTexture.anisotropy = 8;
-  bumpTexture.needsUpdate = true;
-
-  return { diffuseTexture, bumpTexture };
+  return { diffuseTexture, bumpTexture: null };
 }
 
 /**
@@ -610,7 +596,7 @@ function createStepTreadTexture() {
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -783,7 +769,7 @@ function createDataCenterWallTexture() {
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -1072,7 +1058,7 @@ function createBrazilianITFaceplateTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -1167,7 +1153,7 @@ function createStanchionBeltTexture() {
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.repeat.set(3, 1);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -1490,7 +1476,7 @@ function createCoffeeScreenTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -1648,7 +1634,7 @@ function createCoffeeSideTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -1777,7 +1763,7 @@ function createCoffeeHopperTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -1880,7 +1866,7 @@ function createPalmFrondTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -1945,8 +1931,8 @@ function createCurvedPalmFrondGeometry(len = 1.1, width = 0.38, archRise = 0.22,
  *   their modular bays (drawn after the T-bar grid so ZERO lines ever cut a lamp in half!).
  */
 function createDataCenterCeilingTextures() {
-  const cw = 2048;
-  const ch = 2048;
+  const cw = 1024;
+  const ch = 1024;
 
   const diffCanvas = document.createElement('canvas');
   diffCanvas.width = cw;
@@ -1959,8 +1945,8 @@ function createDataCenterCeilingTextures() {
   const eCtx = emisCanvas.getContext('2d');
 
   const bumpCanvas = document.createElement('canvas');
-  bumpCanvas.width = cw;
-  bumpCanvas.height = ch;
+  bumpCanvas.width = 1;
+  bumpCanvas.height = 1;
   const bCtx = bumpCanvas.getContext('2d');
 
   // Coordinate mappers from world (X in [-10..+10], Z in [-10..+13.5]) to canvas pixels
@@ -2227,7 +2213,7 @@ function createDataCenterCeilingTextures() {
   diffuseTexture.wrapT = THREE.ClampToEdgeWrapping;
   diffuseTexture.repeat.set(1, 1);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
-  diffuseTexture.anisotropy = 8;
+  diffuseTexture.anisotropy = 2;
   diffuseTexture.needsUpdate = true;
 
   // Emissive texture (1:1 full-room mapping)
@@ -2236,18 +2222,10 @@ function createDataCenterCeilingTextures() {
   emissiveTexture.wrapT = THREE.ClampToEdgeWrapping;
   emissiveTexture.repeat.set(1, 1);
   emissiveTexture.colorSpace = THREE.SRGBColorSpace;
-  emissiveTexture.anisotropy = 8;
+  emissiveTexture.anisotropy = 2;
   emissiveTexture.needsUpdate = true;
 
-  // Bump texture (1:1 full-room mapping)
-  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
-  bumpTexture.wrapS = THREE.ClampToEdgeWrapping;
-  bumpTexture.wrapT = THREE.ClampToEdgeWrapping;
-  bumpTexture.repeat.set(1, 1);
-  bumpTexture.anisotropy = 8;
-  bumpTexture.needsUpdate = true;
-
-  return { diffuseTexture, emissiveTexture, bumpTexture };
+  return { diffuseTexture, emissiveTexture, bumpTexture: null };
 }
 
 /**
@@ -2422,18 +2400,19 @@ function createCylinderBetweenPoints(p1, p2, radius, radialSegments = 12) {
 function createBlackMarbleTextures() {
   const size = 2048;
   const diffCanvas = document.createElement('canvas');
-  diffCanvas.width = size;
-  diffCanvas.height = size;
+  diffCanvas.width = 1024;
+  diffCanvas.height = 1024;
   const ctx = diffCanvas.getContext('2d');
+  ctx.scale(0.5, 0.5);
 
   const bumpCanvas = document.createElement('canvas');
-  bumpCanvas.width = size;
-  bumpCanvas.height = size;
+  bumpCanvas.width = 1;
+  bumpCanvas.height = 1;
   const bCtx = bumpCanvas.getContext('2d');
 
   const roughCanvas = document.createElement('canvas');
-  roughCanvas.width = size;
-  roughCanvas.height = size;
+  roughCanvas.width = 1;
+  roughCanvas.height = 1;
   const rCtx = roughCanvas.getContext('2d');
 
   // Base fills
@@ -2732,19 +2711,9 @@ function createBlackMarbleTextures() {
   diffuse.wrapS = THREE.RepeatWrapping;
   diffuse.wrapT = THREE.RepeatWrapping;
   diffuse.colorSpace = THREE.SRGBColorSpace;
-  diffuse.anisotropy = 16;
+  diffuse.anisotropy = 2;
 
-  const bump = new THREE.CanvasTexture(bumpCanvas);
-  bump.wrapS = THREE.RepeatWrapping;
-  bump.wrapT = THREE.RepeatWrapping;
-  bump.anisotropy = 8;
-
-  const roughness = new THREE.CanvasTexture(roughCanvas);
-  roughness.wrapS = THREE.RepeatWrapping;
-  roughness.wrapT = THREE.RepeatWrapping;
-  roughness.anisotropy = 8;
-
-  return { diffuse, bump, roughness };
+  return { diffuse, bump: null, roughness: null };
 }
 
 /**
@@ -2782,7 +2751,7 @@ function createVestibulePlasterTexture() {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -2833,7 +2802,7 @@ function createVestibuleHalfWallTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -2892,7 +2861,7 @@ function createBrushedStainlessTexture() {
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -3045,10 +3014,10 @@ function createElevatorDisplayTextures() {
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
-  diffuse.anisotropy = 8;
+  diffuse.anisotropy = 2;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
-  emissive.anisotropy = 8;
+  emissive.anisotropy = 2;
   return { diffuse, emissive };
 }
 
@@ -3240,7 +3209,7 @@ function createElevatorBannerTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -3721,10 +3690,10 @@ function createElevatorCopAndNoticesAtlas() {
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
-  diffuse.anisotropy = 8;
+  diffuse.anisotropy = 2;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
-  emissive.anisotropy = 8;
+  emissive.anisotropy = 2;
   return { diffuse, emissive };
 }
 
@@ -3881,10 +3850,10 @@ function createExitSignTextures() {
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
-  diffuse.anisotropy = 8;
+  diffuse.anisotropy = 2;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
-  emissive.anisotropy = 8;
+  emissive.anisotropy = 2;
   return { diffuse, emissive };
 }
 
@@ -4011,7 +3980,7 @@ function createNoEntrySignTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -4106,7 +4075,7 @@ function createExtinguisherSignTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -4235,7 +4204,7 @@ function createExtinguisherStickerTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -4778,10 +4747,10 @@ function createRunningManExitSignTextures() {
 
   const diffuse = new THREE.CanvasTexture(diffCanvas);
   diffuse.colorSpace = THREE.SRGBColorSpace;
-  diffuse.anisotropy = 8;
+  diffuse.anisotropy = 2;
   const emissive = new THREE.CanvasTexture(emCanvas);
   emissive.colorSpace = THREE.SRGBColorSpace;
-  emissive.anisotropy = 8;
+  emissive.anisotropy = 2;
   return { diffuse, emissive };
 }
 
@@ -5277,15 +5246,9 @@ function createGraniteFlakeFloorTexture() {
   mapTexture.wrapT = THREE.RepeatWrapping;
   mapTexture.repeat.set(9.0, 3.0);
   mapTexture.colorSpace = THREE.SRGBColorSpace;
-  mapTexture.anisotropy = 16;
+  mapTexture.anisotropy = 2;
 
-  const bumpTexture = new THREE.CanvasTexture(bumpCanvas);
-  bumpTexture.wrapS = THREE.RepeatWrapping;
-  bumpTexture.wrapT = THREE.RepeatWrapping;
-  bumpTexture.repeat.set(9.0, 3.0);
-  bumpTexture.anisotropy = 16;
-
-  return { map: mapTexture, bumpMap: bumpTexture };
+  return { map: mapTexture, bumpMap: null };
 }
 
 /**
@@ -5314,7 +5277,7 @@ function createSkyscraperFacadeTextures() {
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 4;
+    tex.anisotropy = 2;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
     tex.generateMipmaps = true;
@@ -6382,12 +6345,12 @@ function createServerCabinetTextures() {
   // 10. Create and configure Three.js CanvasTextures
   const diffuseTexture = new THREE.CanvasTexture(diffCanvas);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
-  diffuseTexture.anisotropy = 8;
+  diffuseTexture.anisotropy = 2;
   diffuseTexture.needsUpdate = true;
 
   const emissiveTexture = new THREE.CanvasTexture(emisCanvas);
   emissiveTexture.colorSpace = THREE.SRGBColorSpace;
-  emissiveTexture.anisotropy = 8;
+  emissiveTexture.anisotropy = 2;
   emissiveTexture.needsUpdate = true;
 
   return { diffuseTexture, emissiveTexture };
@@ -6531,7 +6494,7 @@ function createMonitorScreenAtlasTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -6856,7 +6819,7 @@ function createBrokenMonitorScreenTexture(variantIndex = 0) {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -7792,7 +7755,7 @@ function createWindows11DesktopTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -7924,7 +7887,7 @@ function createWindows11LockTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -8441,7 +8404,7 @@ function createAIIDEWorkspaceTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -8666,7 +8629,7 @@ function createWindows11MultiWindowTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -9203,7 +9166,7 @@ function createITServicePortalTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -9838,7 +9801,7 @@ function createMusicAppTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -9886,7 +9849,7 @@ function createChairMeshTexture() {
   texture.magFilter = THREE.NearestFilter;
   texture.minFilter = THREE.LinearFilter;
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -10256,12 +10219,12 @@ function createMechanicalKeyboardTextures() {
 
   const diffuseTexture = new THREE.CanvasTexture(dCanvas);
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
-  diffuseTexture.anisotropy = 4;
+  diffuseTexture.anisotropy = 2;
   diffuseTexture.needsUpdate = true;
 
   const emissiveTexture = new THREE.CanvasTexture(eCanvas);
   emissiveTexture.colorSpace = THREE.SRGBColorSpace;
-  emissiveTexture.anisotropy = 4;
+  emissiveTexture.anisotropy = 2;
   emissiveTexture.needsUpdate = true;
 
   return { diffuseTexture, emissiveTexture };
@@ -10323,7 +10286,7 @@ function createTacticalMousepadTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -10893,7 +10856,7 @@ function createSFFFrontTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -11306,7 +11269,7 @@ function createSFFRearTexture() {
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -11362,7 +11325,7 @@ function createSFFBadgeTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 16;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -11462,7 +11425,7 @@ function createSFFStickerTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 16;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -11663,14 +11626,14 @@ function createSplitAcFrontTextures() {
   diffuseTexture.colorSpace = THREE.SRGBColorSpace;
   diffuseTexture.minFilter = THREE.LinearFilter;
   diffuseTexture.magFilter = THREE.LinearFilter;
-  diffuseTexture.anisotropy = 8;
+  diffuseTexture.anisotropy = 2;
   diffuseTexture.needsUpdate = true;
 
   const emissiveTexture = new THREE.CanvasTexture(emisCanvas);
   emissiveTexture.colorSpace = THREE.SRGBColorSpace;
   emissiveTexture.minFilter = THREE.LinearFilter;
   emissiveTexture.magFilter = THREE.LinearFilter;
-  emissiveTexture.anisotropy = 8;
+  emissiveTexture.anisotropy = 2;
   emissiveTexture.needsUpdate = true;
 
   return { diffuseTexture, emissiveTexture };
@@ -11716,7 +11679,7 @@ function createStandFrontLogoTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -12068,7 +12031,7 @@ function createMonitorBackTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -12209,7 +12172,7 @@ function createJanitorCautionSignTexture() {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.minFilter = THREE.LinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 8;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -12267,7 +12230,7 @@ function createJanitorBroomBristleTexture() {
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -12329,7 +12292,7 @@ function createJanitorYellowVinylTexture() {
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -12399,7 +12362,7 @@ function createJanitorTowelTexture() {
   texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.minFilter = THREE.LinearMipmapLinearFilter;
   texture.magFilter = THREE.LinearFilter;
-  texture.anisotropy = 4;
+  texture.anisotropy = 2;
   texture.needsUpdate = true;
   return texture;
 }
@@ -12861,7 +12824,7 @@ function createTelestreamGXP2170Textures() {
     tex.wrapT = THREE.ClampToEdgeWrapping;
     tex.minFilter = THREE.LinearMipmapLinearFilter;
     tex.magFilter = THREE.LinearFilter;
-    tex.anisotropy = 4;
+    tex.anisotropy = 2;
     tex.needsUpdate = true;
     return tex;
   };
@@ -13555,7 +13518,7 @@ function createClosetConcreteFloorTexture() {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -13596,7 +13559,7 @@ function createClosetCeilingTileTexture() {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.wrapS = THREE.RepeatWrapping;
   tex.wrapT = THREE.RepeatWrapping;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -13647,7 +13610,7 @@ function createCardboardBoxTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -13692,7 +13655,7 @@ function createMilitaryCaseNameplateTexture() {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
+  tex.anisotropy = 2;
   return tex;
 }
 
@@ -13762,16 +13725,12 @@ export class WarehouseBuilder {
     // 2. High-Readability Industrial Palette (NO pure pitch-black silhouettes!)
     this.floorMaterial = new THREE.MeshStandardMaterial({
       map: this.floorTexture,
-      bumpMap: this.floorBumpTexture,
-      bumpScale: 0.0015,
       roughness: 0.75,
       metalness: 0.20,
     });
 
     this.wallMaterial = new THREE.MeshStandardMaterial({
       map: this.wallTexture,
-      bumpMap: this.wallTexture,
-      bumpScale: 0.0015,
       roughness: 0.85,
       metalness: 0.05,
     });
@@ -13806,10 +13765,8 @@ export class WarehouseBuilder {
 
     this.ceilingMaterial = new THREE.MeshStandardMaterial({
       map: this.ceilingTexture,
-      bumpMap: this.ceilingBumpTexture,
-      bumpScale: 0.002,
       emissive: new THREE.Color(0xffffff),
-      emissiveMap: this.ceilingEmissiveTexture,
+      emissiveMap: null,
       emissiveIntensity: 0.0,
       roughness: 0.78,
       metalness: 0.08,
@@ -13825,8 +13782,6 @@ export class WarehouseBuilder {
     // Enterprise Raised Plenum Floor Stage Materials
     this.plenumFloorMaterial = new THREE.MeshStandardMaterial({
       map: this.plenumFloorTexture,
-      bumpMap: this.plenumFloorBumpTexture,
-      bumpScale: 0.002,
       roughness: 0.72,
       metalness: 0.22,
     });
@@ -14255,10 +14210,7 @@ export class WarehouseBuilder {
 
     this.vestibuleBlackMarbleMaterial = new THREE.MeshStandardMaterial({
       map: marbleTextures.diffuse,
-      bumpMap: marbleTextures.bump,
-      bumpScale: 0.0012,
-      roughnessMap: marbleTextures.roughness,
-      roughness: 1.0,
+      roughness: 0.85,
       metalness: 0.04,
       envMapIntensity: 0.0,
     });
@@ -14576,16 +14528,12 @@ export class WarehouseBuilder {
 
     this.balconyFloorMaterial = new THREE.MeshStandardMaterial({
       map: this.balconyTileTexture,
-      bumpMap: this.balconyFlakeBumpMap,
-      bumpScale: 0.0035,
       roughness: 0.40,
       metalness: 0.08,
     });
 
     this.balconyCurbMaterial = new THREE.MeshStandardMaterial({
       map: this.balconyTileTexture,
-      bumpMap: this.balconyFlakeBumpMap,
-      bumpScale: 0.0025,
       roughness: 0.45,
       metalness: 0.08,
     });
@@ -15086,6 +15034,10 @@ export class WarehouseBuilder {
     const floorMesh = new THREE.Mesh(floorGeo, this.floorMaterial);
     floorMesh.rotation.x = -Math.PI / 2;
     floorMesh.position.set(0, 0, zCenter);
+    floorMesh.castShadow = false;
+    floorMesh.receiveShadow = false;
+    floorMesh.updateMatrix();
+    floorMesh.matrixAutoUpdate = false;
     group.add(floorMesh);
 
     // Floor physics collider
@@ -15707,14 +15659,96 @@ export class WarehouseBuilder {
             'DC_SkylineTowerRoofs',
             'DC_SkylineRoofTrim',
           ]);
+          const vestibuleMeshNames = new Set([
+            'DC_VestibuleSill',
+            'DC_VestibuleAlumFrame',
+            'DC_VestibuleChrome',
+            'DC_VestibuleBlackMarble',
+            'DC_VestibuleWhiteWall',
+            'DC_VestibuleHalfWall',
+            'DC_VestibuleVoid',
+            'DC_VestibuleDarkShadow',
+            'DC_ElevatorStainless',
+            'DC_ElevatorPortal',
+            'DC_ElevatorDisplay',
+            'DC_ElevatorSillPlate',
+            'DC_ExitSign',
+            'DC_VestibuleCeilingLight',
+            'DC_JanitorBlackPlastic',
+            'DC_JanitorGrayRubber',
+            'DC_JanitorYellowPlastic',
+            'DC_JanitorYellowVinyl',
+            'DC_JanitorCautionSign',
+            'DC_JanitorSoapyWater',
+            'DC_JanitorBluePlastic',
+            'DC_JanitorCyanBottle',
+            'DC_JanitorGreenPlastic',
+            'DC_JanitorTowelTan',
+            'DC_JanitorBroomBristle',
+          ]);
+          const elevatorInteriorNames = new Set([
+            'DC_ElevatorCeilingPanel',
+            'DC_ElevatorBanner',
+            'DC_ElevatorCopAtlas',
+          ]);
+          const southOfficeMeshNames = new Set([
+            'DC_ServerCabinet',
+            'DC_ServerBlades',
+            'DC_PlenumFloor',
+            'DC_PlenumBase',
+            'DC_PlenumBaseboard',
+            'DC_StepNosingMetal',
+            'DC_StepTread',
+            'DC_ServerPodAlumFrame',
+            'DC_ServerPodGlass',
+            'DC_StaffDoorFrame',
+            'DC_StaffDoorLeaf',
+            'DC_StaffDoorSeam',
+            'DC_StaffDoorHandle',
+            'DC_StaffDoorSign',
+            'DC_ExtinguisherInox',
+            'DC_ExtinguisherRed',
+            'DC_ExtinguisherLabel',
+            'DC_ExtinguisherHose',
+            'DC_ExtinguisherMetal',
+            'DC_ExtinguisherGauge',
+            'DC_ExtinguisherSign',
+            'DC_CoffeeCabinet',
+            'DC_CoffeeCountertop',
+            'DC_CoffeeMachine',
+            'DC_CoffeeSide',
+            'DC_CoffeeScreen',
+            'DC_CoffeeHopper',
+            'DC_CoffeeSilver',
+            'DC_CoffeeRedSlash',
+            'DC_CoffeeCups',
+            'DC_PalmPot',
+            'DC_PalmSoil',
+            'DC_PalmStems',
+            'DC_PalmFronds',
+          ]);
+          if (!this.closetZoneMeshes) this.closetZoneMeshes = [];
+          if (!this.vestibuleZoneMeshes) this.vestibuleZoneMeshes = [];
+          if (!this.elevatorInteriorMeshes) this.elevatorInteriorMeshes = [];
+          if (!this.southOfficeMeshes) this.southOfficeMeshes = [];
+
+          mesh.castShadow = false;
+          mesh.receiveShadow = false;
+          mesh.updateMatrix();
+          mesh.matrixAutoUpdate = false;
+
           if (exteriorMeshNames.has(def.name)) {
-            mesh.castShadow = false;
-            mesh.receiveShadow = false;
             this.exteriorVistaGroup.add(mesh);
           } else {
             if (def.name.startsWith('DC_Closet')) {
-              mesh.castShadow = false;
-              mesh.receiveShadow = false;
+              this.closetZoneMeshes.push(mesh);
+            } else if (elevatorInteriorNames.has(def.name)) {
+              this.elevatorInteriorMeshes.push(mesh);
+              this.vestibuleZoneMeshes.push(mesh);
+            } else if (vestibuleMeshNames.has(def.name)) {
+              this.vestibuleZoneMeshes.push(mesh);
+            } else if (southOfficeMeshNames.has(def.name)) {
+              this.southOfficeMeshes.push(mesh);
             }
             group.add(mesh);
           }
@@ -15777,6 +15811,67 @@ export class WarehouseBuilder {
     }
 
     return this.weaponColliderMesh;
+  }
+
+  /**
+   * Portal & Zone Occlusion Culling: hides sealed/occluded rooms (Maintenance Closet,
+   * Exterior Balcony/Skyline, Vestibule, Elevator Cab, and South Office sector)
+   * when solid walls block all lines of sight from the camera.
+   */
+  updateZoneVisibility(camPos) {
+    if (!camPos) return;
+    const x = camPos.x;
+    const z = camPos.z;
+
+    // 1. Maintenance Closet & Military Crate: only visible when door is open AND player is not in Vestibule/Elevator
+    const doorOpen = (this.maintenanceDoorOpenProgress || 0) > 0.005;
+    const closetVisible = doorOpen && !(x < -10.05 && z > 0.5);
+    if (this.closetZoneMeshes) {
+      for (let i = 0; i < this.closetZoneMeshes.length; i++) {
+        this.closetZoneMeshes[i].visible = closetVisible;
+      }
+    }
+    if (this.militaryCrateGroup) {
+      this.militaryCrateGroup.visible = closetVisible;
+    }
+
+    // 2. Exterior Balcony, Patio & Night City Skyline: 100% occluded by solid walls whenever inside Elevator, Vestibule, or Closet
+    if (this.exteriorVistaGroup) {
+      this.exteriorVistaGroup.visible = x >= -10.12;
+    }
+
+    // 3. Vestibule & Janitor Cart: 100% occluded when player is inside the Maintenance Closet Safe-Zone
+    const inCloset = x < -10.15 && z < -2.0;
+    const vestibuleVisible = !inCloset;
+    if (this.vestibuleZoneMeshes) {
+      for (let i = 0; i < this.vestibuleZoneMeshes.length; i++) {
+        this.vestibuleZoneMeshes[i].visible = vestibuleVisible;
+      }
+    }
+
+    // 4. Elevator Cab Interior (Banner, COP, Ceiling): occluded when south of the elevator doorway wall
+    const elevatorInteriorVisible = vestibuleVisible && !(z < 11.15 && x > -11.50);
+    if (this.elevatorInteriorMeshes) {
+      for (let i = 0; i < this.elevatorInteriorMeshes.length; i++) {
+        this.elevatorInteriorMeshes[i].visible = elevatorInteriorVisible;
+      }
+    }
+
+    // 5. South Office Sector (Server Pod, Racks, Plenum Stage, Coffee, Palm, Phone):
+    // 100% occluded by the Elevator Cab south wall & solid front-left office wall while inside the Elevator Cab!
+    const inElevatorCab = x < -11.70 && z > 11.65;
+    const southOfficeVisible = !inElevatorCab;
+    if (this.southOfficeMeshes) {
+      for (let i = 0; i < this.southOfficeMeshes.length; i++) {
+        this.southOfficeMeshes[i].visible = southOfficeVisible;
+      }
+    }
+    if (this.telestreamPhone) {
+      this.telestreamPhone.visible = southOfficeVisible && !inCloset;
+    }
+    if (this.maintenanceDoorPivot) {
+      this.maintenanceDoorPivot.visible = southOfficeVisible;
+    }
   }
 
   /**
@@ -22643,7 +22738,7 @@ export class WarehouseBuilder {
     const skyGeo = new THREE.SphereGeometry(220, 32, 24);
     const skyMesh = new THREE.Mesh(skyGeo, this.nightSkyBackdropMaterial);
     skyMesh.position.set(0, 0, 15);
-    skyMesh.renderOrder = -10;
+    skyMesh.renderOrder = 1;
     skyMesh.castShadow = false;
     skyMesh.receiveShadow = false;
     skyMesh.name = 'DC_NightSkyBackdrop';
@@ -22700,7 +22795,7 @@ export class WarehouseBuilder {
       depthWrite: false,
     });
     const starsA = new THREE.Points(pointsGeoA, pointsMatA);
-    starsA.renderOrder = -9;
+    starsA.renderOrder = 1;
     starsA.name = 'DC_Stars_Faint';
     group.add(starsA);
 
@@ -22720,7 +22815,7 @@ export class WarehouseBuilder {
       depthWrite: false,
     });
     const starsB = new THREE.Points(pointsGeoB, pointsMatB);
-    starsB.renderOrder = -8;
+    starsB.renderOrder = 1;
     starsB.name = 'DC_Stars_Bright';
     group.add(starsB);
 
@@ -22734,7 +22829,7 @@ export class WarehouseBuilder {
     const moonMesh = new THREE.Mesh(moonGeo, this.moonMaterial);
     moonMesh.position.set(124.0, 100.0, 117.0);
     moonMesh.lookAt(0, 1.7, 12.6);
-    moonMesh.renderOrder = -2;
+    moonMesh.renderOrder = 1;
     moonMesh.castShadow = false;
     moonMesh.receiveShadow = false;
     moonMesh.name = 'DC_GlowingMoon';

@@ -992,8 +992,8 @@ export class WeaponViewmodel {
           def.url,
           (gltf) => {
             try {
-              def.setup(gltf);
               downscaleModelTextures(gltf.scene, MAX_WEAPON_TEXTURE_SIZE);
+              def.setup(gltf);
             } catch (err) {
               console.error(`Error configuring model ${def.key}:`, err);
             }

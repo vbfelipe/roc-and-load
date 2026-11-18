@@ -561,7 +561,7 @@ export class GunShopHUD {
       antialias: true,
       powerPreference: 'high-performance',
     });
-    this._renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    this._renderer.setPixelRatio(1.0);
     this._renderer.outputColorSpace = THREE.SRGBColorSpace;
     this._renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this._renderer.toneMappingExposure = 0.92;
@@ -744,6 +744,10 @@ export class GunShopHUD {
 
   _syncCanvasSize() {
     if (!this._renderer || !this._camera || !this.viewportBoxEl) return;
+    if (!this.isOpen) {
+      this._renderer.setSize(1, 1, false);
+      return;
+    }
     const w = Math.max(240, this.viewportBoxEl.clientWidth || 560);
     const h = Math.max(160, this.viewportBoxEl.clientHeight || 320);
     this._renderer.setSize(w, h, false);
@@ -781,6 +785,9 @@ export class GunShopHUD {
     this._isViewportHovered = false;
     this._isCardHovered = false;
     this.rootEl.classList.remove('is-open');
+    if (this._renderer) {
+      this._renderer.setSize(1, 1, false);
+    }
     if (triggerCallback && typeof this.onClose === 'function') {
       this.onClose();
     }

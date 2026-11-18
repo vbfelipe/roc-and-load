@@ -107,8 +107,15 @@ export class DevToolsModal {
 
   setCeiling(val) {
     if (!this.warehouse?.ceilingMaterial) return;
-    this.warehouse.ceilingMaterial.emissiveIntensity = Math.max(0, Number(val) || 0);
-    this._syncLightingSlider('ceiling', this.warehouse.ceilingMaterial.emissiveIntensity);
+    const nextVal = Math.max(0, Number(val) || 0);
+    const mat = this.warehouse.ceilingMaterial;
+    const wantMap = nextVal > 0 ? (this.warehouse.ceilingEmissiveTexture || null) : null;
+    if (mat.emissiveMap !== wantMap) {
+      mat.emissiveMap = wantMap;
+      mat.needsUpdate = true;
+    }
+    mat.emissiveIntensity = nextVal;
+    this._syncLightingSlider('ceiling', mat.emissiveIntensity);
   }
 
   setExposure(val) {
