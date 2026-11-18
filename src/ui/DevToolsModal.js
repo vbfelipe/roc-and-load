@@ -39,6 +39,7 @@ export class DevToolsModal {
     player = null,
     hud = null,
     input = null,
+    onCheatDeath = null,
   } = {}) {
     this.engine = engine;
     this.warehouse = warehouse;
@@ -48,6 +49,7 @@ export class DevToolsModal {
     this.player = player;
     this.hud = hud;
     this.input = input;
+    this.onCheatDeath = onCheatDeath;
 
     this.overlay = null;
     this.isOpen = false;
@@ -381,6 +383,7 @@ export class DevToolsModal {
                   <button id="dt-unlock-all-btn" type="button" class="devtools-dropdown-item is-gold" role="menuitem">All guns</button>
                   <button id="dt-add-money-btn" type="button" class="devtools-dropdown-item is-emerald" role="menuitem">+ $100k</button>
                   <button id="dt-restore-hp-btn" type="button" class="devtools-dropdown-item is-hp" role="menuitem">Restore HP</button>
+                  <button id="dt-death-btn" type="button" class="devtools-dropdown-item is-death" role="menuitem">Death</button>
                 </div>
               </div>
             </div>
@@ -644,6 +647,17 @@ export class DevToolsModal {
         }
         h?.triggerHealVignette?.();
         this._flashButtonSuccess(restoreHpBtn, 'Restore HP', '✓ HP restored!');
+      };
+    }
+
+    const deathBtn = this.overlay.querySelector('#dt-death-btn');
+    if (deathBtn) {
+      deathBtn.onclick = () => {
+        if (typeof this.onCheatDeath === 'function') {
+          this.onCheatDeath();
+        } else if (typeof window.__rocTriggerDeath === 'function') {
+          window.__rocTriggerDeath();
+        }
       };
     }
 

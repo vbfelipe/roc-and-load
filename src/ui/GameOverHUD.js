@@ -47,8 +47,10 @@ export class GameOverHUD {
 
   _buildDOM() {
     this.rootEl.innerHTML = `
-      <div class="go-atmosphere" aria-hidden="true"></div>
-      <div class="go-panel" role="dialog" aria-modal="true" aria-labelledby="go-title">
+      <div class="go-backdrop-vignette" aria-hidden="true"></div>
+      <div class="go-hero-art" aria-hidden="true"></div>
+
+      <div class="go-right-panel" role="dialog" aria-modal="true" aria-labelledby="go-title">
         <div class="go-header">
           <h1 id="go-title" class="go-title">GAME OVER</h1>
           <p id="go-subtitle" class="go-subtitle">A horda tomou o escritório.</p>
@@ -58,7 +60,7 @@ export class GameOverHUD {
           <div class="go-kpi-card is-hordes">
             <div class="go-kpi-top">
               <span class="go-kpi-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M12 2l7 4v6c0 5-3.5 8.5-7 10-3.5-1.5-7-5-7-10V6l7-4z"/>
                 </svg>
               </span>
@@ -71,7 +73,7 @@ export class GameOverHUD {
           <div class="go-kpi-card is-kills">
             <div class="go-kpi-top">
               <span class="go-kpi-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="9"/>
                   <line x1="12" y1="2" x2="12" y2="6"/>
                   <line x1="12" y1="18" x2="12" y2="22"/>
@@ -88,7 +90,7 @@ export class GameOverHUD {
           <div class="go-kpi-card is-time">
             <div class="go-kpi-top">
               <span class="go-kpi-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="9"/>
                   <polyline points="12 7 12 12 15.5 14"/>
                 </svg>
@@ -102,7 +104,7 @@ export class GameOverHUD {
           <div class="go-kpi-card is-money">
             <div class="go-kpi-top">
               <span class="go-kpi-icon" aria-hidden="true">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="12" y1="2" x2="12" y2="22"/>
                   <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
                 </svg>
@@ -117,7 +119,7 @@ export class GameOverHUD {
         <div class="go-section-card go-breakdown-card">
           <div class="go-section-head">
             <span class="go-section-title">AMEAÇAS ELIMINADAS POR TIPO</span>
-            <span id="go-hs-pill" class="go-hs-pill">0 HEADSHOTS • 0%</span>
+            <span id="go-hs-pill" class="go-hs-pill">0% HEADSHOTS</span>
           </div>
 
           <div class="go-seg-bar-track" aria-hidden="true">
@@ -127,23 +129,19 @@ export class GameOverHUD {
           </div>
 
           <div class="go-archetype-row">
-            <div class="go-arch-chip">
-              <span class="go-arch-dot is-woman"></span>
+            <div class="go-arch-chip is-woman-chip">
               <span class="go-arch-name">INFECTADAS</span>
               <span id="go-val-woman" class="go-arch-count">0</span>
             </div>
-            <div class="go-arch-chip">
-              <span class="go-arch-dot is-man"></span>
+            <div class="go-arch-chip is-man-chip">
               <span class="go-arch-name">INFECTADOS</span>
               <span id="go-val-man" class="go-arch-count">0</span>
             </div>
-            <div class="go-arch-chip">
-              <span class="go-arch-dot is-hazmat"></span>
+            <div class="go-arch-chip is-hazmat-chip">
               <span class="go-arch-name">HAZMAT</span>
               <span id="go-val-hazmat" class="go-arch-count">0</span>
             </div>
             <div class="go-arch-chip is-hs-chip">
-              <span class="go-arch-dot is-headshot"></span>
               <span class="go-arch-name">HEADSHOTS</span>
               <span id="go-val-hs" class="go-arch-count">0</span>
             </div>
@@ -159,12 +157,17 @@ export class GameOverHUD {
         </div>
 
         <div class="go-actions">
-          <button id="game-over-retry-btn" type="button" class="go-btn go-btn-retry">
-            <span>JOGAR NOVAMENTE</span>
-            <span class="go-btn-arrow" aria-hidden="true">▸</span>
+          <button id="game-over-exit-btn" type="button" class="tactical-btn exit-btn go-tactical-btn">
+            <span class="btn-content">
+              <span>SAIR</span>
+              <span class="btn-chevron" aria-hidden="true">▸</span>
+            </span>
           </button>
-          <button id="game-over-exit-btn" type="button" class="go-btn go-btn-menu">
-            <span>MENU PRINCIPAL</span>
+          <button id="game-over-retry-btn" type="button" class="tactical-btn go-tactical-btn">
+            <span class="btn-content">
+              <span>JOGAR NOVAMENTE</span>
+              <span class="btn-chevron" aria-hidden="true">▸</span>
+            </span>
           </button>
         </div>
       </div>
@@ -292,7 +295,7 @@ export class GameOverHUD {
       this.subMoneyEl.textContent = `Saldo final: ${formatMoneyValue(currentMoney)}`;
     }
     if (this.hsPillEl) {
-      this.hsPillEl.textContent = `${headshots} HEADSHOTS • ${hsPct}%`;
+      this.hsPillEl.textContent = `${hsPct}% HEADSHOTS`;
     }
     if (this.valTimeEl) {
       this.valTimeEl.textContent = formatSurvivalTime(survivalSeconds);

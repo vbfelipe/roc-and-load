@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
-    href="https://fonts.googleapis.com/css2?family=Chakra+Petch:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@400;600;800&display=swap"
+    href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Chakra+Petch:ital,wght@0,400;0,700;0,900;1,700&family=Inter:wght@400;600;800&family=Oswald:wght@600&display=swap"
     rel="stylesheet">
   <style>
     * {
@@ -1871,24 +1871,23 @@
       100% { transform: rotate(360deg) scale(1.0); }
     }
 
-    /* Cinematic After-Action Game Over Screen */
+    /* Cinematic After-Action Game Over Screen (Asymmetric AAA Split Layout matching #start-modal) */
     #game-over-screen {
       position: fixed;
       inset: 0;
+      width: 100%;
+      height: 100%;
       z-index: 2000;
       display: flex;
+      flex-direction: row;
       align-items: center;
-      justify-content: center;
-      padding: clamp(12px, 2.5vmin, 28px);
+      justify-content: flex-end;
+      overflow: hidden;
       box-sizing: border-box;
-      background:
-        radial-gradient(circle at 50% 18%, rgba(185, 28, 28, 0.30) 0%, rgba(11, 15, 25, 0.90) 52%, rgba(4, 6, 11, 0.97) 100%);
-      backdrop-filter: blur(10px);
-      -webkit-backdrop-filter: blur(10px);
       opacity: 0;
       visibility: hidden;
       pointer-events: none;
-      transition: opacity 0.42s ease-out, visibility 0.42s ease-out;
+      transition: opacity 0.35s ease, visibility 0.35s ease;
       font-family: 'Chakra Petch', 'Inter', sans-serif;
     }
 
@@ -1898,205 +1897,308 @@
       pointer-events: auto;
     }
 
-    .go-atmosphere {
+    /* Asymmetric left-to-right cinematic backdrop matching #start-modal: dark behind Roc on the left, transparent on the right to clearly show the paused 3D game state */
+    .go-backdrop-vignette {
       position: absolute;
       inset: 0;
+      background: linear-gradient(
+        90deg,
+        rgba(10, 13, 18, 0.94) 0%,
+        rgba(10, 13, 18, 0.84) 20%,
+        rgba(10, 13, 18, 0.48) 36%,
+        rgba(10, 13, 18, 0.12) 48%,
+        transparent 56%
+      );
       pointer-events: none;
-      background-image:
-        linear-gradient(rgba(148, 163, 184, 0.035) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(148, 163, 184, 0.035) 1px, transparent 1px);
-      background-size: 38px 38px;
-      mask-image: radial-gradient(circle at center, black 35%, transparent 90%);
-      -webkit-mask-image: radial-gradient(circle at center, black 35%, transparent 90%);
+      z-index: 1;
     }
 
-    .go-panel {
+    /* Defeated Roc Artwork Layer cropped/centered on Roc + 12-gauge in the left half */
+    .go-hero-art {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: clamp(440px, 48vw, 820px);
+      max-width: 50vw;
+      background-image: url('./roc_gameover.webp');
+      background-size: cover;
+      background-position: 49% center;
+      background-repeat: no-repeat;
+      opacity: 0.96;
+      pointer-events: none;
+      user-select: none;
+      -webkit-user-select: none;
+      z-index: 2;
+      -webkit-mask-image: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 1) 0%,
+        rgba(0, 0, 0, 1) 82%,
+        rgba(0, 0, 0, 0.72) 90%,
+        rgba(0, 0, 0, 0.18) 96%,
+        rgba(0, 0, 0, 0) 100%
+      );
+      mask-image: linear-gradient(
+        to right,
+        rgba(0, 0, 0, 1) 0%,
+        rgba(0, 0, 0, 1) 82%,
+        rgba(0, 0, 0, 0.72) 90%,
+        rgba(0, 0, 0, 0.18) 96%,
+        rgba(0, 0, 0, 0) 100%
+      );
+    }
+
+    /* Right Dock Panel: holds all current Game Over info + tactical buttons over the crisp paused 3D game state */
+    .go-right-panel {
       position: relative;
-      width: min(94vw, 840px);
-      max-height: 92vh;
-      overflow-y: auto;
-      overflow-x: hidden;
-      box-sizing: border-box;
+      z-index: 3;
       display: flex;
       flex-direction: column;
-      gap: clamp(10px, 1.5vh, 16px);
-      padding: clamp(14px, 2.2vmin, 26px);
-      border-radius: 16px;
-      background: linear-gradient(160deg, rgba(15, 22, 35, 0.92) 0%, rgba(7, 11, 19, 0.96) 100%);
-      border: 1px solid rgba(248, 113, 113, 0.24);
-      box-shadow:
-        0 28px 80px rgba(0, 0, 0, 0.85),
-        0 0 60px rgba(220, 38, 38, 0.14),
-        inset 0 1px 0 rgba(255, 255, 255, 0.07);
-      transform: translateY(14px) scale(0.985);
-      transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+      justify-content: flex-start;
+      align-items: stretch;
+      width: clamp(410px, 43vw, 620px);
+      max-width: 47vw;
+      height: 100%;
+      max-height: 100dvh;
+      padding: clamp(10px, 2.0vh, 24px) clamp(1.2rem, 3.0vw, 3.4rem) clamp(10px, 2.0vh, 24px) clamp(0.6rem, 1.2vw, 1.4rem);
+      gap: clamp(7px, 1.15vh, 12px);
+      box-sizing: border-box;
+      user-select: none;
+      overflow-y: auto;
+      overflow-x: hidden;
+      transform: translateX(14px);
+      transition: transform 0.38s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .go-panel::-webkit-scrollbar {
-      width: 6px;
+    .go-right-panel > * {
+      flex-shrink: 0;
     }
 
-    .go-panel::-webkit-scrollbar-track {
-      background: transparent;
-      margin: 8px 0;
+    .go-right-panel > :first-child {
+      margin-top: auto;
     }
 
-    .go-panel::-webkit-scrollbar-thumb {
-      background: rgba(100, 116, 139, 0.45);
-      border-radius: 3px;
+    .go-right-panel > :last-child {
+      margin-bottom: auto;
     }
 
-    .go-panel::-webkit-scrollbar-thumb:hover {
-      background: rgba(148, 163, 184, 0.65);
+    #game-over-screen.active .go-right-panel {
+      transform: translateX(0);
     }
 
-    #game-over-screen.active .go-panel {
-      transform: translateY(0) scale(1);
+    .go-right-panel::-webkit-scrollbar {
+      width: 5px;
+    }
+
+    .go-right-panel::-webkit-scrollbar-thumb {
+      background: rgba(148, 163, 184, 0.35);
+      border-radius: 2px;
     }
 
     .go-header {
+      position: relative;
+      z-index: 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      text-align: center;
-      gap: 4px;
+      align-items: flex-start;
+      gap: 3px;
+      padding: clamp(6px, 0.9vh, 10px) clamp(10px, 1.2vw, 14px);
+      text-align: left;
+    }
+
+    .go-header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 66% 88% at 34% 52%, rgba(5, 7, 12, 0.84) 0%, rgba(5, 7, 12, 0.50) 56%, transparent 98%);
+      pointer-events: none;
+      z-index: -1;
     }
 
     .go-title {
-      margin: 2px 0 0;
-      font-size: clamp(2.1rem, 5.2vw, 3.6rem);
-      font-weight: 800;
-      font-style: italic;
-      line-height: 0.95;
-      letter-spacing: 0.14em;
-      padding-left: 0.14em;
+      margin: 0;
+      font-family: 'Bebas Neue', Impact, sans-serif;
+      font-size: clamp(3.1rem, 5.6vw, 5.0rem);
+      font-weight: 400;
+      font-style: normal;
+      line-height: 0.86;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
-      background: linear-gradient(180deg, #ffffff 0%, #fca5a5 48%, #dc2626 100%);
+      color: #ef4444;
+      background: linear-gradient(180deg, #fecaca 0%, #ef4444 45%, #b91c1c 100%);
       -webkit-background-clip: text;
       background-clip: text;
-      color: transparent;
-      filter: drop-shadow(0 4px 22px rgba(220, 38, 38, 0.45));
+      -webkit-text-fill-color: transparent;
+      filter:
+        drop-shadow(1px 0 0 #05070b)
+        drop-shadow(-1px 0 0 #05070b)
+        drop-shadow(0 1px 0 #05070b)
+        drop-shadow(0 -1px 0 #05070b)
+        drop-shadow(0 3px 0 #05070b)
+        drop-shadow(0 4px 10px rgba(0, 0, 0, 0.90))
+        drop-shadow(0 0 18px rgba(220, 38, 38, 0.42));
       user-select: none;
     }
 
     .go-subtitle {
       margin: 0;
-      font-size: clamp(0.80rem, 1.15vw, 0.94rem);
-      color: #94a3b8;
-      letter-spacing: 0.04em;
+      font-family: 'Oswald', sans-serif;
+      font-size: clamp(1.02rem, 1.50vw, 1.40rem);
+      font-weight: 600;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: #cbd5e1;
+      text-shadow:
+        1px 1px 0 #05070b,
+        -1px -1px 0 #05070b,
+        1px -1px 0 #05070b,
+        -1px 1px 0 #05070b,
+        0 2px 6px rgba(0, 0, 0, 0.95);
     }
 
+    /* 2x2 Tactical KPI Grid matching Start/Pause Menu material plates */
     .go-hero-strip {
+      position: relative;
+      z-index: 2;
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: clamp(8px, 1.2vw, 12px);
-    }
-
-    @media (max-width: 700px) {
-      .go-hero-strip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: clamp(6px, 0.85vmin, 10px);
     }
 
     .go-kpi-card {
       position: relative;
       display: flex;
       flex-direction: column;
+      justify-content: center;
       gap: 4px;
-      padding: clamp(10px, 1.4vmin, 14px) clamp(11px, 1.4vw, 15px);
-      border-radius: 11px;
-      background: rgba(15, 23, 42, 0.70);
-      border: 1px solid rgba(148, 163, 184, 0.14);
-      overflow: hidden;
+      padding: clamp(9px, 1.3vh, 14px) clamp(10px, 1.1vw, 14px);
+      background: rgba(12, 15, 22, 0.58);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-left: 3px solid #ffb870;
+      border-radius: 2px;
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+      min-width: 0;
     }
 
-    .go-kpi-card::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 2.5px;
-      background: var(--kpi-accent, #38bdf8);
-      opacity: 0.9;
+    .go-kpi-card.is-hordes {
+      border-left-color: #ffb870;
+      --kpi-color: #ffb870;
     }
 
-    .go-kpi-card.is-hordes { --kpi-accent: linear-gradient(90deg, #f59e0b, #ef4444); --kpi-color: #fbbf24; background: linear-gradient(180deg, rgba(120, 53, 15, 0.20), rgba(15, 23, 42, 0.72)); }
-    .go-kpi-card.is-kills { --kpi-accent: linear-gradient(90deg, #ef4444, #fb7185); --kpi-color: #f87171; background: linear-gradient(180deg, rgba(127, 29, 29, 0.22), rgba(15, 23, 42, 0.72)); }
-    .go-kpi-card.is-time { --kpi-accent: linear-gradient(90deg, #38bdf8, #818cf8); --kpi-color: #38bdf8; background: linear-gradient(180deg, rgba(12, 74, 110, 0.20), rgba(15, 23, 42, 0.72)); }
-    .go-kpi-card.is-money { --kpi-accent: linear-gradient(90deg, #22c55e, #34d399); --kpi-color: #4ade80; background: linear-gradient(180deg, rgba(20, 83, 45, 0.22), rgba(15, 23, 42, 0.72)); }
+    .go-kpi-card.is-kills {
+      border-left-color: #ef4444;
+      --kpi-color: #ef4444;
+    }
+
+    .go-kpi-card.is-time {
+      border-left-color: #cbd5e1;
+      --kpi-color: #cbd5e1;
+    }
+
+    .go-kpi-card.is-money {
+      border-left-color: #34d399;
+      --kpi-color: #34d399;
+    }
 
     .go-kpi-top {
       display: flex;
       align-items: center;
       gap: 6px;
+      margin-bottom: clamp(5px, 0.8vh, 9px);
       color: #94a3b8;
     }
 
     .go-kpi-icon {
       display: inline-flex;
-      color: var(--kpi-color);
+      color: var(--kpi-color, #ffb870);
       flex-shrink: 0;
     }
 
     .go-kpi-label {
-      font-size: clamp(0.58rem, 0.78vw, 0.65rem);
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.56rem, 0.68vw, 0.64rem);
       font-weight: 700;
-      letter-spacing: 0.04em;
+      letter-spacing: 0.08em;
       text-transform: uppercase;
+      color: #94a3b8;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
     .go-kpi-value {
-      font-size: clamp(1.45rem, 2.5vw, 2.05rem);
-      font-weight: 800;
+      font-family: 'Chakra Petch', sans-serif;
+      font-size: clamp(1.20rem, 1.95vw, 1.68rem);
+      font-weight: 900;
       font-style: italic;
-      line-height: 1.08;
+      line-height: 1.05;
       color: #f8fafc;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.03em;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.85);
     }
 
     .go-kpi-card.is-money .go-kpi-value {
-      color: #4ade80;
+      color: #34d399;
+      text-shadow: 0 0 10px rgba(52, 211, 153, 0.35);
     }
 
     .go-kpi-value.is-mono {
-      font-family: 'JetBrains Mono', monospace;
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
       font-style: normal;
-      font-size: clamp(1.25rem, 2.15vw, 1.78rem);
+      font-weight: 800;
+      font-size: clamp(1.10rem, 1.75vw, 1.52rem);
     }
 
     .go-kpi-sub {
-      font-size: clamp(0.66rem, 0.85vw, 0.74rem);
-      color: #94a3b8;
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.58rem, 0.72vw, 0.68rem);
+      font-weight: 600;
+      color: #64748b;
+      letter-spacing: 0.04em;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
 
+    /* Tactical Section Plates (Threats & Arsenal) */
     .go-section-card {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      padding: clamp(11px, 1.6vmin, 15px) clamp(12px, 1.8vw, 18px);
-      border-radius: 12px;
-      background: rgba(11, 17, 29, 0.76);
-      border: 1px solid rgba(148, 163, 184, 0.14);
+      gap: clamp(6px, 0.9vh, 9px);
+      padding: clamp(8px, 1.2vh, 12px) clamp(10px, 1.2vw, 14px);
+      background: rgba(12, 15, 22, 0.58);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-left: 3px solid #ffb870;
+      border-radius: 2px;
+      clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 0 100%);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+    }
+
+    .go-breakdown-card {
+      border-left-color: #ef4444;
+    }
+
+    .go-arsenal-card {
+      border-left-color: #ffb870;
     }
 
     .go-section-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
     .go-section-title {
-      font-size: clamp(0.70rem, 0.95vw, 0.78rem);
-      font-weight: 800;
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.62rem, 0.78vw, 0.72rem);
+      font-weight: 700;
       letter-spacing: 0.10em;
       text-transform: uppercase;
       color: #cbd5e1;
@@ -2104,89 +2206,78 @@
 
     .go-hs-pill,
     .go-arsenal-count {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.72rem;
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.58rem, 0.70vw, 0.66rem);
       font-weight: 700;
-      padding: 3px 9px;
-      border-radius: 999px;
+      letter-spacing: 0.08em;
+      padding: 2px 8px;
+      border-radius: 2px;
+      background: rgba(8, 10, 15, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.12);
     }
 
     .go-hs-pill {
       color: #fca5a5;
-      background: rgba(220, 38, 38, 0.16);
-      border: 1px solid rgba(248, 113, 113, 0.38);
+      border-left: 2px solid #ef4444;
     }
 
     .go-arsenal-count {
-      color: #38bdf8;
-      background: rgba(56, 189, 248, 0.12);
-      border: 1px solid rgba(56, 189, 248, 0.32);
+      color: #ffb870;
+      border-left: 2px solid #ffb870;
     }
 
     .go-seg-bar-track {
       display: flex;
       width: 100%;
-      height: 10px;
-      border-radius: 999px;
+      height: 6px;
+      border-radius: 2px;
       overflow: hidden;
-      background: rgba(30, 41, 59, 0.85);
+      background: rgba(30, 41, 59, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.08);
       gap: 2px;
     }
 
     .go-seg-bar {
       height: 100%;
-      border-radius: 999px;
+      border-radius: 1px;
       transition: width 0.75s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
-    .go-seg-bar.is-woman { background: linear-gradient(90deg, #f43f5e, #fb7185); }
-    .go-seg-bar.is-man { background: linear-gradient(90deg, #0ea5e9, #38bdf8); }
-    .go-seg-bar.is-hazmat { background: linear-gradient(90deg, #84cc16, #bef264); }
+    .go-seg-bar.is-woman { background: linear-gradient(90deg, #db2777, #f472b6); }
+    .go-seg-bar.is-man { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+    .go-seg-bar.is-hazmat { background: linear-gradient(90deg, #ca8a04, #facc15); }
 
     .go-archetype-row {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    @media (max-width: 700px) {
-      .go-archetype-row {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
     }
 
     .go-arch-chip {
       display: flex;
       align-items: center;
-      gap: 7px;
-      padding: 6px 10px;
-      border-radius: 8px;
-      background: rgba(15, 23, 42, 0.65);
-      border: 1px solid rgba(148, 163, 184, 0.10);
+      gap: 6px;
+      padding: 4px 8px;
+      border-radius: 2px;
+      background: rgba(8, 10, 15, 0.65);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: 3px solid #cbd5e1;
       min-width: 0;
     }
 
+    .go-arch-chip.is-woman-chip { border-left-color: #f472b6; }
+    .go-arch-chip.is-man-chip { border-left-color: #38bdf8; }
+    .go-arch-chip.is-hazmat-chip { border-left-color: #facc15; }
     .go-arch-chip.is-hs-chip {
-      background: rgba(127, 29, 29, 0.24);
-      border-color: rgba(248, 113, 113, 0.28);
+      border-left-color: #ef4444;
+      background: rgba(28, 10, 14, 0.68);
     }
-
-    .go-arch-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-
-    .go-arch-dot.is-woman { background: #fb7185; box-shadow: 0 0 6px rgba(251, 113, 133, 0.7); }
-    .go-arch-dot.is-man { background: #38bdf8; box-shadow: 0 0 6px rgba(56, 189, 248, 0.7); }
-    .go-arch-dot.is-hazmat { background: #a3e635; box-shadow: 0 0 6px rgba(163, 230, 53, 0.7); }
-    .go-arch-dot.is-headshot { background: #ef4444; box-shadow: 0 0 6px rgba(239, 68, 68, 0.8); }
 
     .go-arch-name {
-      font-size: 0.70rem;
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.58rem, 0.70vw, 0.66rem);
       font-weight: 700;
-      letter-spacing: 0.05em;
+      letter-spacing: 0.06em;
       color: #94a3b8;
       white-space: nowrap;
       overflow: hidden;
@@ -2195,22 +2286,17 @@
 
     .go-arch-count {
       margin-left: auto;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.88rem;
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.72rem, 0.86vw, 0.82rem);
       font-weight: 800;
       color: #f8fafc;
     }
 
+    /* 4x2 Tactical Arsenal Shelf */
     .go-arsenal-grid {
       display: grid;
-      grid-template-columns: repeat(8, minmax(0, 1fr));
-      gap: 8px;
-    }
-
-    @media (max-width: 760px) {
-      .go-arsenal-grid {
-        grid-template-columns: repeat(4, minmax(0, 1fr));
-      }
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
     }
 
     .go-gun-card {
@@ -2219,49 +2305,52 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
-      padding: 8px 6px 7px;
-      border-radius: 9px;
-      background: rgba(15, 23, 42, 0.82);
-      border: 1px solid rgba(56, 189, 248, 0.34);
-      box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.08);
+      gap: 3px;
+      padding: clamp(4px, 0.7vh, 7px) 5px;
+      border-radius: 2px;
+      background: rgba(8, 10, 15, 0.72);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-left: 2px solid #cbd5e1;
       min-width: 0;
     }
 
     .go-gun-card.is-unlocked.is-legendary {
-      border-color: rgba(250, 204, 21, 0.58);
-      background: linear-gradient(180deg, rgba(120, 53, 15, 0.30), rgba(15, 23, 42, 0.86));
-      box-shadow: inset 0 0 18px rgba(250, 204, 21, 0.14), 0 0 12px rgba(245, 158, 11, 0.14);
+      border-color: rgba(245, 158, 11, 0.42);
+      border-left: 2px solid #f59e0b;
+      background: linear-gradient(180deg, rgba(68, 32, 10, 0.42), rgba(8, 10, 15, 0.82));
+      box-shadow: inset 0 0 12px rgba(245, 158, 11, 0.12);
     }
 
     .go-gun-card.is-locked {
-      opacity: 0.24;
+      opacity: 0.28;
       filter: grayscale(1);
-      border-color: rgba(148, 163, 184, 0.16);
+      border-color: rgba(255, 255, 255, 0.06);
+      border-left: 2px solid rgba(100, 116, 139, 0.35);
       box-shadow: none;
     }
 
     .go-gun-star {
       position: absolute;
-      top: 4px;
-      right: 6px;
-      font-size: 0.64rem;
-      color: #fde047;
+      top: 3px;
+      right: 5px;
+      font-size: 0.58rem;
+      color: #fbbf24;
       line-height: 1;
     }
 
     .go-gun-svg {
       width: 100%;
-      height: 36px;
+      height: clamp(22px, 3.0vh, 30px);
       display: block;
     }
 
     .go-gun-name {
-      font-size: clamp(0.52rem, 0.72vw, 0.59rem);
+      font-family: 'JetBrains Mono', 'Chakra Petch', monospace;
+      font-size: clamp(0.48rem, 0.60vw, 0.56rem);
       font-weight: 700;
-      letter-spacing: 0.02em;
+      letter-spacing: 0.04em;
       text-transform: uppercase;
-      color: #e2e8f0;
+      color: #cbd5e1;
       text-align: center;
       white-space: nowrap;
       overflow: hidden;
@@ -2273,68 +2362,257 @@
       color: #fde68a;
     }
 
+    /* Action Buttons Row using existing Start/Pause Menu .tactical-btn & .exit-btn art */
     .go-actions {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: row;
       align-items: stretch;
-      justify-content: center;
-      gap: clamp(8px, 1.2vw, 12px);
+      justify-content: flex-start;
+      gap: clamp(8px, 1.1vw, 14px);
       margin-top: 2px;
     }
 
-    .go-btn {
-      appearance: none;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
+    .go-actions .go-tactical-btn {
+      flex: 1 1 0;
       justify-content: center;
-      gap: 8px;
-      flex: 1 1 170px;
-      min-width: 0;
-      max-width: 260px;
-      padding: clamp(9px, 1.3vh, 13px) clamp(12px, 1.8vw, 20px);
-      border-radius: 8px;
-      font-family: 'Chakra Petch', sans-serif;
-      font-size: clamp(0.76rem, 1.05vw, 0.94rem);
-      font-weight: 800;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
+      margin-top: 0;
+      padding: clamp(9px, 1.4vh, 14px) clamp(12px, 1.5vw, 22px);
+      font-size: clamp(0.76rem, 0.98vw, 1.0rem);
       white-space: nowrap;
-      line-height: 1.1;
-      transition: transform 0.14s ease, filter 0.14s ease, border-color 0.14s ease;
     }
 
-    @media (max-width: 440px) {
-      .go-btn {
-        max-width: 100%;
+    .go-actions .go-tactical-btn:hover {
+      transform: translateY(-2px);
+    }
+
+    .go-actions .go-tactical-btn:active {
+      transform: translateY(0) scale(0.99);
+    }
+
+    /* Small Window / Split-Screen Responsiveness (Never hide Roc — keep side-by-side division like #start-modal!) */
+    @media (max-width: 900px) {
+      .go-hero-art {
+        left: 0;
+        width: 51vw;
+        max-width: 52vw;
+        background-position: 49% center;
+        opacity: 0.96;
+      }
+
+      .go-right-panel {
+        width: 52vw;
+        max-width: 53vw;
+        padding: clamp(6px, 1.4vh, 14px) clamp(0.65rem, 1.8vw, 1.4rem) clamp(6px, 1.4vh, 14px) clamp(0.2rem, 0.6vw, 0.6rem);
+        gap: clamp(4px, 0.85vh, 8px);
+      }
+
+      .go-header {
+        padding: clamp(4px, 0.7vh, 7px) clamp(6px, 1.1vw, 10px);
+        gap: 2px;
+      }
+
+      .go-title {
+        font-size: clamp(2.1rem, 6.2vw, 3.4rem);
+      }
+
+      .go-subtitle {
+        font-size: clamp(0.80rem, 2.25vw, 1.12rem);
+        letter-spacing: 0.08em;
+      }
+
+      .go-hero-strip {
+        gap: 4px;
+      }
+
+      .go-kpi-card {
+        padding: clamp(6px, 1.0vh, 9px) clamp(6px, 1.0vw, 9px);
+        gap: 4px;
+        border-left-width: 2px;
+        clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+      }
+
+      .go-kpi-top {
+        gap: 4px;
+        margin-bottom: 5px;
+      }
+
+      .go-kpi-icon svg {
+        width: 11px;
+        height: 11px;
+      }
+
+      .go-kpi-label {
+        font-size: clamp(0.44rem, 1.08vw, 0.58rem);
+        letter-spacing: 0.03em;
+      }
+
+      .go-kpi-value {
+        font-size: clamp(0.88rem, 2.4vw, 1.32rem);
+      }
+
+      .go-kpi-value.is-mono {
+        font-size: clamp(0.82rem, 2.1vw, 1.20rem);
+      }
+
+      .go-kpi-sub {
+        font-size: clamp(0.44rem, 1.05vw, 0.58rem);
+        letter-spacing: 0.01em;
+      }
+
+      .go-section-card {
+        padding: clamp(5px, 0.9vh, 8px) clamp(6px, 1.1vw, 10px);
+        gap: clamp(4px, 0.65vh, 6px);
+        border-left-width: 2px;
+        clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 7px, 100% 100%, 0 100%);
+      }
+
+      .go-section-head {
+        flex-wrap: nowrap;
+        gap: 4px;
+      }
+
+      .go-section-title {
+        font-size: clamp(0.46rem, 1.12vw, 0.64rem);
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .go-hs-pill,
+      .go-arsenal-count {
+        font-size: clamp(0.44rem, 1.02vw, 0.58rem);
+        letter-spacing: 0.04em;
+        padding: 1px 5px;
+        white-space: nowrap;
+        flex-shrink: 0;
+      }
+
+      .go-seg-bar-track {
+        height: 4px;
+      }
+
+      .go-archetype-row {
+        gap: 4px;
+      }
+
+      .go-arch-chip {
+        padding: 3px 5px;
+        gap: 4px;
+        border-left-width: 2px;
+      }
+
+      .go-arch-name {
+        font-size: clamp(0.44rem, 1.05vw, 0.58rem);
+        letter-spacing: 0.03em;
+      }
+
+      .go-arch-count {
+        font-size: clamp(0.56rem, 1.35vw, 0.74rem);
+      }
+
+      .go-arsenal-grid {
+        gap: 4px;
+      }
+
+      .go-gun-card {
+        padding: 3px 2px;
+        gap: 1px;
+      }
+
+      .go-gun-star {
+        top: 1px;
+        right: 3px;
+        font-size: 0.45rem;
+      }
+
+      .go-gun-svg {
+        height: clamp(14px, 3.0vh, 22px);
+      }
+
+      .go-gun-name {
+        font-size: clamp(0.38rem, 0.92vw, 0.52rem);
+        letter-spacing: 0.01em;
+      }
+
+      .go-actions {
+        flex-direction: row;
+        gap: 6px;
+        margin-top: 1px;
+      }
+
+      .go-actions .go-tactical-btn {
+        padding: clamp(6px, 1.1vh, 9px) clamp(6px, 1.2vw, 12px);
+        font-size: clamp(0.52rem, 1.32vw, 0.78rem);
+        letter-spacing: 0.4px;
+        border-left-width: 3px;
+        clip-path: polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 0 100%);
+      }
+
+      .go-actions .go-tactical-btn .btn-content {
+        gap: 4px;
       }
     }
 
-    .go-btn:hover {
-      transform: translateY(-2px);
-      filter: brightness(1.12);
-    }
+    @media (max-height: 740px) {
+      .go-right-panel {
+        padding-top: 6px;
+        padding-bottom: 6px;
+        gap: 5px;
+      }
 
-    .go-btn:active {
-      transform: translateY(0);
-    }
+      .go-header {
+        padding: 4px 10px;
+        gap: 2px;
+      }
 
-    .go-btn-retry {
-      border: 1px solid rgba(248, 113, 113, 0.72);
-      background: linear-gradient(135deg, rgba(220, 38, 38, 0.90), rgba(153, 27, 27, 0.95));
-      color: #fef2f2;
-      box-shadow: 0 8px 26px rgba(220, 38, 38, 0.34);
-    }
+      .go-title {
+        font-size: clamp(2.35rem, min(5.4vw, 6.6vh), 4.0rem);
+      }
 
-    .go-btn-menu {
-      border: 1px solid rgba(148, 163, 184, 0.34);
-      background: rgba(30, 41, 59, 0.78);
-      color: #e2e8f0;
-    }
+      .go-subtitle {
+        font-size: clamp(0.88rem, min(2.0vw, 2.35vh), 1.22rem);
+      }
 
-    .go-btn-menu:hover {
-      border-color: rgba(56, 189, 248, 0.55);
-      color: #ffffff;
+      .go-kpi-card {
+        padding: 7px 9px;
+        gap: 3px;
+      }
+
+      .go-kpi-top {
+        margin-bottom: 5px;
+      }
+
+      .go-kpi-value {
+        font-size: clamp(0.95rem, 2.5vh, 1.42rem);
+      }
+
+      .go-kpi-value.is-mono {
+        font-size: clamp(0.88rem, 2.2vh, 1.30rem);
+      }
+
+      .go-section-card {
+        padding: 6px 9px;
+        gap: 4px;
+      }
+
+      .go-arch-chip {
+        padding: 3px 6px;
+      }
+
+      .go-gun-card {
+        padding: 3px 3px;
+        gap: 1px;
+      }
+
+      .go-gun-svg {
+        height: 18px;
+      }
+
+      .go-actions .go-tactical-btn {
+        padding: 6px 10px;
+        font-size: clamp(0.62rem, 1.5vh, 0.84rem);
+      }
     }
 
     /* GTA V-Style 8-Wedge Radial Weapon Wheel Overlay */
@@ -3829,6 +4107,17 @@
       border-color: rgba(251, 113, 133, 0.55);
     }
 
+    .devtools-dropdown-item.is-death {
+      color: #f8fafc;
+      background: linear-gradient(90deg, rgba(15, 17, 22, 0.96), rgba(4, 5, 8, 0.98));
+      border-color: rgba(148, 163, 184, 0.35);
+    }
+
+    .devtools-dropdown-item.is-death:hover {
+      border-color: rgba(239, 68, 68, 0.72);
+      color: #fecaca;
+    }
+
     .devtools-dropdown-item.is-success {
       color: #ecfdf5 !important;
       background: rgba(21, 128, 61, 0.78) !important;
@@ -4259,13 +4548,13 @@
       <div class="action-container">
         <button id="start-btn" type="button" class="tactical-btn">
           <span class="btn-content">
-            <span id="start-btn-text">START</span>
+            <span id="start-btn-text">JOGAR</span>
             <span class="btn-chevron">▸</span>
           </span>
         </button>
         <button id="exit-btn" type="button" class="tactical-btn exit-btn" style="display: none;">
           <span class="btn-content">
-            <span id="exit-btn-text">EXIT</span>
+            <span id="exit-btn-text">SAIR</span>
             <span class="btn-chevron">▸</span>
           </span>
         </button>

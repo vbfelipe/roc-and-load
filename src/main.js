@@ -259,6 +259,7 @@ window.addEventListener('DOMContentLoaded', () => {
     player,
     hud,
     input,
+    onCheatDeath: () => triggerCheatDeath(),
   });
 
   window.__rocWarehouse = warehouse;
@@ -400,6 +401,16 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function triggerCheatDeath() {
+    if (gameState === 'GAME_OVER') return;
+    const remainingHp = player.takeDamage(player.maxHp || 100, { punch: false });
+    hud.setHealth?.(remainingHp, player.maxHp);
+    sound.playPlayerHit?.(true);
+    hud.triggerDamageFlash?.(0, player.maxHp);
+    handlePlayerFatalDamage();
+  }
+  window.__rocTriggerDeath = triggerCheatDeath;
+
   let lastMeleeHitAt = -Infinity;
   const MELEE_HIT_GRACE_MS = 320;
 
@@ -503,7 +514,7 @@ window.addEventListener('DOMContentLoaded', () => {
       input.clearInputs();
 
       if (startBtnText) {
-        startBtnText.textContent = 'RESUME';
+        startBtnText.textContent = 'CONTINUAR';
       }
       if (exitBtn) {
         exitBtn.style.display = 'inline-flex';
@@ -523,7 +534,7 @@ window.addEventListener('DOMContentLoaded', () => {
       input.clearInputs();
 
       if (startBtnText) {
-        startBtnText.textContent = 'START';
+        startBtnText.textContent = 'JOGAR';
       }
       if (exitBtn) {
         exitBtn.style.display = 'none';
@@ -598,7 +609,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     // 4. Parallel loading: WebP UI hero portraits
     const heroImagePromise = Promise.all(
-      ['./roc_hero.webp', './jorio_hero.webp'].map((src) => new Promise((resolve) => {
+      ['./roc_hero.webp', './jorio_hero.webp', './roc_gameover.webp'].map((src) => new Promise((resolve) => {
         const img = new Image();
         img.src = src;
         if (img.decode) {
@@ -777,15 +788,20 @@ window.addEventListener('DOMContentLoaded', () => {
         player.updateDeathCollapse(deathCollapseElapsed);
         if (!gameOverShown && deathCollapseElapsed >= 0.60) {
           gameOverShown = true;
+          sound.stopAllZombieVocals?.();
+          hud.resetDamageVignette?.();
+          sound.resumeMenuMusic?.(500);
           gameOverHud.show({
             ...runStats,
             currentMoney: playerMoney,
             unlockedWeapons: Array.from(weaponSystem.unlockedWeapons || []),
           });
         }
-        zombieManager.update(delta, gameState);
-        decalManager.update(delta);
-        hud.updateDamageVignette(delta, player.hp, player.maxHp);
+        if (!gameOverShown) {
+          zombieManager.update(delta, gameState);
+          decalManager.update(delta);
+          hud.updateDamageVignette(delta, player.hp, player.maxHp);
+        }
         weaponSystem.update(delta);
         TWEEN.update();
         return;
