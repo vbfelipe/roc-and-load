@@ -70,6 +70,20 @@ export class GameOverHUD {
             <div id="go-sub-hordes" class="go-kpi-sub">Onda inicial</div>
           </div>
 
+          <div class="go-kpi-card is-time">
+            <div class="go-kpi-top">
+              <span class="go-kpi-icon" aria-hidden="true">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="9"/>
+                  <polyline points="12 7 12 12 15.5 14"/>
+                </svg>
+              </span>
+              <span class="go-kpi-label">TEMPO JOGADO</span>
+            </div>
+            <div id="go-val-time" class="go-kpi-value is-mono">00:00</div>
+            <div class="go-kpi-sub">Em combate ativo</div>
+          </div>
+
           <div class="go-kpi-card is-kills">
             <div class="go-kpi-top">
               <span class="go-kpi-icon" aria-hidden="true">
@@ -85,20 +99,6 @@ export class GameOverHUD {
             </div>
             <div id="go-val-kills" class="go-kpi-value">0</div>
             <div id="go-sub-kills" class="go-kpi-sub">0 headshots (0%)</div>
-          </div>
-
-          <div class="go-kpi-card is-time">
-            <div class="go-kpi-top">
-              <span class="go-kpi-icon" aria-hidden="true">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="9"/>
-                  <polyline points="12 7 12 12 15.5 14"/>
-                </svg>
-              </span>
-              <span class="go-kpi-label">TEMPO JOGADO</span>
-            </div>
-            <div id="go-val-time" class="go-kpi-value is-mono">00:00</div>
-            <div class="go-kpi-sub">Em combate ativo</div>
           </div>
 
           <div class="go-kpi-card is-money">
@@ -235,6 +235,7 @@ export class GameOverHUD {
       const gradId = `go-metal-grad-${idx}`;
       const legendClass = gun.isLegendary ? ' is-legendary' : '';
       const stateClass = unlocked ? 'is-unlocked' : 'is-locked';
+      const isGoldPlated = gun.id === 'akms_gold' && unlocked;
 
       return `
         <div class="go-gun-card ${stateClass}${legendClass}" title="${gun.shortName}${unlocked ? '' : ' (Bloqueada)'}">
@@ -242,9 +243,9 @@ export class GameOverHUD {
           <svg class="go-gun-svg" viewBox="-64 -38 128 76" aria-hidden="true">
             <defs>
               <linearGradient id="${gradId}" x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stop-color="${gun.isLegendary && unlocked ? '#fef08a' : '#e2e8f0'}" />
-                <stop offset="55%" stop-color="${gun.isLegendary && unlocked ? '#f59e0b' : '#cbd5e1'}" />
-                <stop offset="100%" stop-color="${gun.isLegendary && unlocked ? '#b45309' : '#64748b'}" />
+                <stop offset="0%" stop-color="${isGoldPlated ? '#fef08a' : '#e2e8f0'}" />
+                <stop offset="55%" stop-color="${isGoldPlated ? '#f59e0b' : '#cbd5e1'}" />
+                <stop offset="100%" stop-color="${isGoldPlated ? '#b45309' : '#64748b'}" />
               </linearGradient>
             </defs>
             ${getSlotWeaponSilhouetteSVG(gun.id, `url(#${gradId})`)}
