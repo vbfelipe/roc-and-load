@@ -240,7 +240,7 @@ export class GunShopHUD {
     this.isOpen = false;
     this.selectedId = 'medkit';
     this._isViewportHovered = false;
-    this._isCardHovered = false;
+    this._hoveredCardId = null;
     this._thumbnailsGenerated = false;
     this._thumbnailDataUrls = new Map();
     this._showcaseModels = new Map();
@@ -361,13 +361,12 @@ export class GunShopHUD {
       `;
       card.addEventListener('click', () => this.selectWeapon(item.id, true));
       card.addEventListener('mouseenter', () => {
-        this._isCardHovered = true;
-        if (this.selectedId !== item.id) {
-          this.selectWeapon(item.id, false);
-        }
+        this._hoveredCardId = item.id;
       });
       card.addEventListener('mouseleave', () => {
-        this._isCardHovered = false;
+        if (this._hoveredCardId === item.id) {
+          this._hoveredCardId = null;
+        }
       });
       this.catalogEl.appendChild(card);
       this._cardEls.set(item.id, {
@@ -782,7 +781,7 @@ export class GunShopHUD {
     this.isOpen = false;
     window.isGunShopOpen = false;
     this._isViewportHovered = false;
-    this._isCardHovered = false;
+    this._hoveredCardId = null;
     this.rootEl.classList.remove('is-open');
     if (this._renderer) {
       this._renderer.setSize(1, 1, false);
@@ -815,7 +814,7 @@ export class GunShopHUD {
     }
 
     if (this._activeShowcaseModel && this._camera) {
-      const isSpinning = this._isViewportHovered || this._isCardHovered;
+      const isSpinning = this._isViewportHovered || this._hoveredCardId === this.selectedId;
       const aspect = this._camera.aspect || 16 / 9;
       this._camZ = this._computeFitDistance(
         this._activeShowcaseModel.userData?.showcaseSize,
@@ -1030,7 +1029,7 @@ export class GunShopHUD {
   update(delta) {
     if (!this.isOpen || !this._renderer || !this._scene || !this._camera) return;
 
-    const isSpinning = this._isViewportHovered || this._isCardHovered;
+    const isSpinning = this._isViewportHovered || this._hoveredCardId === this.selectedId;
     const aspect = this._camera.aspect || 16 / 9;
     const targetZ = this._activeShowcaseModel
       ? this._computeFitDistance(
