@@ -37,9 +37,8 @@ const ELEVATOR_DOOR_SLIDE_START_SECONDS = 1.10;
 const ELEVATOR_DOOR_SLIDE_DURATION_SECONDS = 1.50;
 const TUTORIAL_REVEAL_TIME_SECONDS = 2.45;
 
-// Threshold X coordinate stepping out of the glass partition doorway into the main office room
-const MAIN_ROOM_THRESHOLD_X = -9.8;
-const PHONE_RING_DELAY_AFTER_ENTRY_SECONDS = 6.0;
+// Phone ring delay after elevator doors finish opening (3.0s)
+const PHONE_RING_DELAY_AFTER_DOOR_OPEN_SECONDS = 3.0;
 const PHONE_INTERACT_RADIUS = 1.65;
 const MAINTENANCE_DOOR_INTERACT_RADIUS = 2.30;
 const MAINTENANCE_DOOR_OPEN_DURATION = 0.75;
@@ -57,7 +56,8 @@ const PHONE_DISCONNECT_FINISH_SECONDS = 1.25;
 const POST_CALL_SILENCE_SECONDS = 2.20;
 const POST_CALL_EXPLOSION_DELAY_SECONDS = PHONE_DISCONNECT_FINISH_SECONDS + POST_CALL_SILENCE_SECONDS;
 const BUILDING_EXPLOSION_DURATION_SECONDS = 9.0;
-const COMBAT_UNLOCK_EXPLOSION_TIME_SECONDS = 5.2;
+const TUTORIAL_WAVE_EXPLOSION_DELAY_SECONDS = 1.0;
+const COMBAT_UNLOCK_EXPLOSION_TIME_SECONDS = 0.0;
 const COMBAT_TUTORIAL_MIN_DURATION_SECONDS = 7.5;
 const COMBAT_TUTORIAL_POST_EQUIP_SECONDS = 3.5;
 const STAIRWELL_BLAST_POS = Object.freeze({ x: -11.0, y: 1.2, z: 11.5 });
@@ -940,6 +940,27 @@ export class IntroSequence {
     // Wave 1: Initial blast smoke plume & concrete rubble surge engulfing the entire vestibule
     this._launchSmokeWave(1);
     this._launchDebrisWave(0, 16, 1.0);
+
+    // Immediately unlock starting pistol & show TAB combat tutorial HUD as soon as explosion/fog begins
+    this._combatUnlocked = true;
+    this._combatTutorialVisible = true;
+    this._combatTutorialTimer = 0;
+    this._combatEquipDetected = !!(this.weaponSystem && !this.weaponSystem.isUnarmed);
+    this._postEquipTutorialTimer = 0;
+
+    if (this.weaponSystem) {
+      if (typeof this.weaponSystem.unlockWeapon === 'function') {
+        this.weaponSystem.unlockWeapon('usp');
+      } else if (typeof this.weaponSystem.unlockStartingPistol === 'function') {
+        this.weaponSystem.unlockStartingPistol();
+      }
+    }
+    if (typeof window !== 'undefined' && window.__rocWeaponWheel) {
+      window.__rocWeaponWheel.refreshVisuals();
+    }
+    if (this.hud && typeof this.hud.showCombatTutorialBar === 'function') {
+      this.hud.showCombatTutorialBar(true);
+    }
   }
 
   _launchSmokeWave(waveIdx) {
@@ -1357,7 +1378,7 @@ export class IntroSequence {
         this.sound.stopBuildingExplosion();
       }
     }
-    if (!this._tutorialWaveTriggered && this._explosionTimer >= BUILDING_EXPLOSION_DURATION_SECONDS) {
+    if (!this._tutorialWaveTriggered && this._explosionTimer >= TUTORIAL_WAVE_EXPLOSION_DELAY_SECONDS) {
       this._tutorialWaveTriggered = true;
       this._wave1Triggered = true;
       if (this.zombieManager && typeof this.zombieManager.triggerTutorialWave === 'function') {
@@ -1557,6 +1578,7 @@ export class IntroSequence {
         this._setElevatorDoorsProgress(smooth);
         if (rawT >= 1.0) {
           this._setElevatorDoorBlockerActive(false);
+          this._mainRoomRingTimer = 0;
           this.state = INTRO_STATES.UNARMED_INTRO;
         }
       }
@@ -1588,19 +1610,11 @@ export class IntroSequence {
       }
     }
 
-    // Trigger ringing sequence 6.0s after Roc steps out of the vestibule into the main office room
+    // Trigger ringing sequence 3.0s after the elevator doors finish opening
     if (this.state === INTRO_STATES.UNARMED_INTRO) {
-      if (!this._enteredMainRoom) {
-        const liveX = this.player ? this.player.position.x : (this.camera ? this.camera.position.x : -999);
-        if (liveX > MAIN_ROOM_THRESHOLD_X) {
-          this._enteredMainRoom = true;
-          this._mainRoomRingTimer = 0;
-        }
-      } else {
-        this._mainRoomRingTimer += delta;
-        if (this._mainRoomRingTimer >= PHONE_RING_DELAY_AFTER_ENTRY_SECONDS) {
-          this._enterPhoneRinging();
-        }
+      this._mainRoomRingTimer += delta;
+      if (this._mainRoomRingTimer >= PHONE_RING_DELAY_AFTER_DOOR_OPEN_SECONDS) {
+        this._enterPhoneRinging();
       }
     }
 
@@ -1617,6 +1631,9 @@ export class IntroSequence {
     } else if (this.state === INTRO_STATES.BUILDING_EXPLOSION) {
       this._updateBuildingExplosion(delta);
     } else if (this.state === INTRO_STATES.MAINTENANCE_DOOR_UNLOCKED) {
+      if (!this._explosionAudioStopped || this._smokeActiveCount > 0 || !this._debrisAllSettled || this._combatTutorialVisible) {
+        this._updateBuildingExplosion(delta);
+      }
       this._updateArrowHover(nowSec, this._doorArrowPos, this._doorArrowPos.y);
       const posRef = this.player ? this.player.position : this.camera?.position;
       const doorPos = this.warehouse?.maintenanceDoorWorldPos;
@@ -1637,6 +1654,9 @@ export class IntroSequence {
         }
       }
     } else if (this.state === INTRO_STATES.MAINTENANCE_OPEN) {
+      if (!this._explosionAudioStopped || this._smokeActiveCount > 0 || !this._debrisAllSettled || this._combatTutorialVisible) {
+        this._updateBuildingExplosion(delta);
+      }
       if (this.maintenanceDoorOpening && this.warehouse) {
         this._maintenanceDoorAnimTimer += delta;
         const rawT = Math.min(1.0, this._maintenanceDoorAnimTimer / MAINTENANCE_DOOR_OPEN_DURATION);

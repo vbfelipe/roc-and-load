@@ -304,8 +304,7 @@ export class GunShopHUD {
             </div>
             <div id="gunshop-medkit-info" class="gunshop-medkit-info">
               <div class="gunshop-medkit-info-left">
-                <div class="gunshop-medkit-cross">+</div>
-                <div id="gunshop-medkit-copy" class="gunshop-medkit-copy">Estoque limitado. Uso imediato após a compra!</div>
+                <div id="gunshop-medkit-copy" class="gunshop-medkit-copy">Uso imediato após a compra! Estoque limitado.</div>
               </div>
               <div id="gunshop-medkit-stock-pill" class="gunshop-medkit-stock-pill">3/3</div>
             </div>
@@ -849,13 +848,15 @@ export class GunShopHUD {
           ref.priceEl.style.display = '';
           ref.priceEl.textContent = formatMoney(item.price);
           ref.priceEl.classList.toggle('is-locked-cost', balance < item.price);
-          ref.statusEl.textContent = `RESTAM: ${rem}/${this.maxMedkits}`;
-          ref.statusEl.className = 'gunshop-card-status is-stock';
+          ref.statusEl.style.display = 'none';
+          ref.statusEl.textContent = '';
+          ref.statusEl.className = 'gunshop-card-status';
         } else {
           ref.priceEl.style.display = 'none';
           ref.priceEl.textContent = '';
           ref.priceEl.classList.remove('is-locked-cost');
-          ref.statusEl.textContent = `ESGOTADO (0/${this.maxMedkits})`;
+          ref.statusEl.style.display = '';
+          ref.statusEl.textContent = 'ESGOTADO';
           ref.statusEl.className = 'gunshop-card-status is-depleted';
         }
         continue;
@@ -869,13 +870,15 @@ export class GunShopHUD {
       if (owned) {
         ref.priceEl.style.display = 'none';
         ref.priceEl.textContent = '';
+        ref.statusEl.style.display = '';
         ref.statusEl.textContent = 'ADQUIRIDA';
         ref.statusEl.className = 'gunshop-card-status is-owned';
       } else {
         ref.priceEl.style.display = '';
         ref.priceEl.textContent = formatMoney(item.price);
-        ref.statusEl.textContent = 'BLOQUEADA';
-        ref.statusEl.className = 'gunshop-card-status is-locked';
+        ref.statusEl.style.display = 'none';
+        ref.statusEl.textContent = '';
+        ref.statusEl.className = 'gunshop-card-status';
       }
     }
 
@@ -900,7 +903,7 @@ export class GunShopHUD {
       if (this.medkitInfoEl) this.medkitInfoEl.style.display = 'flex';
       const rem = Math.max(0, this.medkitsRemaining);
       if (this.medkitCopyEl) {
-        this.medkitCopyEl.textContent = 'Estoque limitado. Uso imediato após a compra!';
+        this.medkitCopyEl.textContent = 'Uso imediato após a compra! Estoque limitado.';
       }
       if (this.medkitStockPillEl) {
         this.medkitStockPillEl.textContent = `${rem}/${this.maxMedkits}`;
