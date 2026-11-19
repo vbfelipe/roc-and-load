@@ -18840,26 +18840,19 @@ export class WarehouseBuilder {
     );
     northUpperShaftFillGeo.dispose();
 
-    // Vestibule Ceiling Slab (Y = 3.802m to 3.962m, strictly above walls)
-    const vestCeilingGeo = new THREE.BoxGeometry(vestW, 0.16, vestL);
-    addPart(visualBuckets.vestibuleWhiteWall, vestCeilingGeo, vestXMid, vestH + 0.082, vestZMid, 0, 0, 0, true);
+    // Vestibule Ceiling (Single downward-facing plane at Y = 3.80m, matching main office DC_Ceiling:
+    // zero exterior roof slab, zero walkable top collider, invisible from above via backface culling)
+    const vestCeilingGeo = new THREE.PlaneGeometry(vestW + 0.04, vestL + 0.04);
+    addPart(visualBuckets.vestibuleWhiteWall, vestCeilingGeo, vestXMid, vestH, vestZMid, Math.PI / 2, 0, 0, true);
     vestCeilingGeo.dispose();
 
-    // Elevator Shaft Concrete Roof Enclosure (Z = 11.300 to 13.500, Y = 3.802m to 3.962m)
-    // Fully encloses the shaft ceiling above the elevator cab: zero open sky above elevator
-    const shaftRoofL = 2.20;
-    const shaftRoofMidZ = 11.300 + shaftRoofL * 0.5; // 12.40m
-    const shaftRoofGeo = new THREE.BoxGeometry(vestW, 0.16, shaftRoofL);
-    addPart(visualBuckets.vestibuleWhiteWall, shaftRoofGeo, vestXMid, vestH + 0.082, shaftRoofMidZ, 0, 0, 0, true);
-    shaftRoofGeo.dispose();
-
-    // 6 Recessed Circular LED Downlight Fixtures in Vestibule Ceiling
+    // 6 Recessed Circular LED Downlight Fixtures in Vestibule Ceiling (visual-only, zero BVH bloat)
     const downlightRingGeo = new THREE.CylinderGeometry(0.13, 0.13, 0.010, 20);
     const downlightDiskGeo = new THREE.CylinderGeometry(0.102, 0.102, 0.012, 20);
     for (const lx of [-11.00, -12.90]) {
       for (const lz of [2.80, 6.25, 9.70]) {
-        addPart(visualBuckets.vestibuleAlumFrame, downlightRingGeo, lx, vestH - 0.004, lz, 0, 0, 0, true);
-        addPart(visualBuckets.vestibuleCeilingLight, downlightDiskGeo, lx, vestH - 0.008, lz, 0, 0, 0, true);
+        addVisual(visualBuckets.vestibuleAlumFrame, downlightRingGeo, lx, vestH - 0.004, lz);
+        addVisual(visualBuckets.vestibuleCeilingLight, downlightDiskGeo, lx, vestH - 0.008, lz);
       }
     }
     downlightRingGeo.dispose();

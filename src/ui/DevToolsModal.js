@@ -53,7 +53,7 @@ export class DevToolsModal {
 
     this.overlay = null;
     this.isOpen = false;
-    this.isDocked = false;
+    this.isDocked = true;
     this.activeTab = 'zombies'; // 'lighting' | 'viewmodel' | 'zombies'
 
     this._currentTestAnim = 'Idle';
@@ -375,6 +375,7 @@ export class DevToolsModal {
 
     const modal = document.createElement('div');
     modal.id = 'dev-tools-modal';
+    modal.classList.toggle('is-docked', this.isDocked);
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-label', 'Master Dev Tools');
 
@@ -398,7 +399,7 @@ export class DevToolsModal {
                 </div>
               </div>
             </div>
-            <button id="dt-dock-btn" type="button" class="devtools-pill-btn">◧ Side</button>
+            <button id="dt-dock-btn" type="button" class="devtools-pill-btn">${this.isDocked ? '▣ Center' : '◧ Side'}</button>
             <button id="dt-peek-btn" type="button" class="devtools-pill-btn">👁 Peek</button>
           </div>
         </div>
